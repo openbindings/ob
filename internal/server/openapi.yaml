@@ -1,0 +1,761 @@
+openapi: "3.1.0"
+info:
+  title: ob serve API
+  version: 0.1.0
+  description: Local HTTP API for the OpenBindings CLI (ob serve).
+servers:
+  - url: ${OB_SERVER_URL}
+    description: Default local server (port 20290 = 0x4F42, ASCII OB)
+
+paths:
+  /healthz:
+    get:
+      operationId: healthCheck
+      summary: Health check endpoint
+      security: []
+      responses:
+        "200":
+          description: Server is healthy
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+
+  /.well-known/openbindings:
+    get:
+      operationId: getOBI
+      summary: Return the embedded OpenBindings Interface for ob itself
+      security: []
+      responses:
+        "200":
+          description: OpenBindings interface document
+          content:
+            application/json:
+              schema:
+                type: object
+
+  /info:
+    get:
+      operationId: getInfo
+      summary: Show ob identity and metadata
+      responses:
+        "200":
+          description: Application info
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AppInfo"
+
+  /formats:
+    get:
+      operationId: listFormats
+      summary: List format tokens this ob instance can handle
+      responses:
+        "200":
+          description: Format list
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: string
+
+  /delegates:
+    get:
+      operationId: listDelegates
+      summary: List delegates
+      responses:
+        "200":
+          description: Delegate list
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Delegate"
+
+  /status:
+    get:
+      operationId: getEnvironmentStatus
+      summary: Show environment status
+      responses:
+        "200":
+          description: Environment status
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EnvironmentStatus"
+
+  /contexts:
+    get:
+      operationId: listContexts
+      summary: List all contexts
+      responses:
+        "200":
+          description: Context summaries
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/ContextSummary"
+
+  "/contexts/{url}":
+    x-path-style: remainder
+    get:
+      operationId: getContext
+      summary: Get context details for a target URL
+      description: >
+        The {url} parameter captures the remainder of the path (including slashes).
+        Clients should append the target URL directly after /contexts/ without encoding slashes.
+      parameters:
+        - name: url
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Target URL (remainder path — slashes are literal, not encoded)
+      responses:
+        "200":
+          description: Context summary
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ContextSummary"
+    put:
+      operationId: setContext
+      summary: Set context fields for a target URL
+      parameters:
+        - name: url
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Target URL (remainder path — slashes are literal, not encoded)
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                headers:
+                  type: object
+                  additionalProperties:
+                    type: string
+                cookies:
+                  type: object
+                  additionalProperties:
+                    type: string
+                environment:
+                  type: object
+                  additionalProperties:
+                    type: string
+                metadata:
+                  type: object
+                bearerToken:
+                  type: string
+                apiKey:
+                  type: string
+      responses:
+        "200":
+          description: Context updated
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  url:
+                    type: string
+                  status:
+                    type: string
+    delete:
+      operationId: deleteContext
+      summary: Remove context for a target URL
+      parameters:
+        - name: url
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Target URL (remainder path — slashes are literal, not encoded)
+      responses:
+        "200":
+          description: Context deleted
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  url:
+                    type: string
+                  status:
+                    type: string
+
+  /bindings/execute:
+    post:
+      operationId: executeBinding
+      summary: Execute a resolved binding directly
+      description: >
+        Low-level binding execution endpoint. Accepts a binding source, ref, input,
+        and optional context, then delegates to the appropriate binding executor.
+        This is the binding-executor host capability.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [source, ref]
+              properties:
+                source:
+                  $ref: "#/components/schemas/ExecuteSource"
+                ref:
+                  type: string
+                  description: Reference to the binding within the source (e.g., JSON Pointer for OpenAPI)
+                input:
+                  type: object
+                  description: Operation input data
+                context:
+                  type: object
+                  description: Binding context (credentials, tokens)
+                  additionalProperties: true
+      responses:
+        "200":
+          description: Execution result
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ExecutionResult"
+        "400":
+          description: Invalid input or execution error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /interfaces/create:
+    post:
+      operationId: createInterface
+      summary: Create an OpenBindings interface from binding sources
+      description: >
+        Creates an OpenBindings interface document, optionally from one or more
+        binding source artifacts. This is the interface-creator host capability.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                openbindingsVersion:
+                  type: string
+                  description: Target OpenBindings spec version (e.g., "0.1.0")
+                sources:
+                  type: array
+                  items:
+                    $ref: "#/components/schemas/CreateInterfaceSource"
+                name:
+                  type: string
+                  description: Interface name (overrides value derived from sources)
+                version:
+                  type: string
+                  description: Interface contract version
+                description:
+                  type: string
+                  description: Interface description
+      responses:
+        "200":
+          description: Created OpenBindings interface document
+          content:
+            application/json:
+              schema:
+                type: object
+                description: A valid OpenBindings interface document
+        "400":
+          description: Invalid input
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /resolve:
+    post:
+      operationId: fetchInterface
+      summary: Resolve an interface from a URL
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [url]
+              properties:
+                url:
+                  type: string
+      responses:
+        "200":
+          description: Resolved interface
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  interface:
+                    type: object
+                  url:
+                    type: string
+                  finalUrl:
+                    type: string
+                  synthesized:
+                    type: boolean
+
+  /validate:
+    post:
+      operationId: validateInterface
+      summary: Validate an OpenBindings interface document
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [locator]
+              properties:
+                locator:
+                  type: string
+                strict:
+                  type: boolean
+      responses:
+        "200":
+          description: Validation report
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ValidationReport"
+
+  /diff:
+    post:
+      operationId: compareInterfaces
+      summary: Structural comparison of two OBIs
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [baseline]
+              properties:
+                baseline:
+                  type: string
+                comparison:
+                  type: string
+                fromSources:
+                  type: boolean
+                onlySource:
+                  type: string
+      responses:
+        "200":
+          description: Diff report
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DiffReport"
+
+  /compatibility:
+    post:
+      operationId: assessCompatibility
+      summary: Check interface conformance between two interfaces
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [target, candidate]
+              properties:
+                target:
+                  type: string
+                candidate:
+                  type: string
+      responses:
+        "200":
+          description: Compatibility report
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CompatibilityReport"
+
+  /spec/{name}:
+    get:
+      operationId: readSpecResource
+      summary: Read an embedded spec documentation resource
+      parameters:
+        - name: name
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Spec resource content
+          content:
+            text/markdown:
+              schema:
+                type: string
+        "404":
+          description: Resource not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /openapi.yaml:
+    get:
+      operationId: getOpenAPISpec
+      summary: Serve the OpenAPI specification for this server
+      security: []
+      responses:
+        "200":
+          description: OpenAPI 3.1 specification
+          content:
+            text/yaml:
+              schema:
+                type: string
+
+
+  /oauth/authorize:
+    get:
+      operationId: oauthAuthorize
+      summary: OAuth2 authorization endpoint (PKCE required)
+      description: >
+        Initiates the OAuth2 Authorization Code flow with PKCE. Renders a consent
+        page in the browser. The user approves or denies the request, and the server
+        redirects back to the client's redirect_uri with an authorization code.
+      security: []
+      parameters:
+        - name: response_type
+          in: query
+          required: true
+          schema:
+            type: string
+            enum: [code]
+        - name: client_id
+          in: query
+          required: true
+          schema:
+            type: string
+        - name: redirect_uri
+          in: query
+          required: true
+          schema:
+            type: string
+        - name: code_challenge
+          in: query
+          required: true
+          schema:
+            type: string
+          description: Base64url-encoded SHA256 hash of the code_verifier
+        - name: code_challenge_method
+          in: query
+          required: true
+          schema:
+            type: string
+            enum: [S256]
+        - name: state
+          in: query
+          schema:
+            type: string
+      responses:
+        "200":
+          description: HTML consent page
+          content:
+            text/html:
+              schema:
+                type: string
+    post:
+      operationId: oauthApprove
+      summary: OAuth2 consent form submission
+      description: >
+        Processes the user's approve/deny action from the consent page.
+        On approval, redirects to the client's redirect_uri with an authorization code.
+        On denial, redirects with an error.
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              type: object
+              required: [nonce, action]
+              properties:
+                nonce:
+                  type: string
+                  description: Authorization request nonce from the consent page
+                action:
+                  type: string
+                  enum: [approve, deny]
+      responses:
+        "302":
+          description: Redirect to client redirect_uri with code or error
+
+  /oauth/token:
+    post:
+      operationId: oauthToken
+      summary: OAuth2 token endpoint (exchanges code for access token)
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              type: object
+              required: [grant_type, code, code_verifier]
+              properties:
+                grant_type:
+                  type: string
+                  enum: [authorization_code]
+                code:
+                  type: string
+                code_verifier:
+                  type: string
+                redirect_uri:
+                  type: string
+      responses:
+        "200":
+          description: Access token
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  access_token:
+                    type: string
+                  token_type:
+                    type: string
+                    enum: [Bearer]
+                  expires_in:
+                    type: integer
+
+  /http/request:
+    post:
+      operationId: request
+      summary: Make an HTTP request and return the response
+      description: >
+        Makes an HTTP request on behalf of the caller and returns the complete
+        response. Useful for clients that cannot make direct HTTP requests due
+        to platform constraints (browser CSP/CORS, network restrictions, etc.).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/HttpRequestInput"
+      responses:
+        "200":
+          description: HTTP response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HttpResponse"
+        "400":
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      description: >
+        Static session token (printed on startup or set via --token/OB_SERVE_TOKEN)
+        or an OAuth2 access token obtained via the /oauth/authorize + /oauth/token flow.
+
+  schemas:
+    AppInfo:
+      type: object
+      properties:
+        name:
+          type: string
+        version:
+          type: string
+        description:
+          type: string
+
+    EnvironmentStatus:
+      type: object
+      properties:
+        environmentType:
+          type: string
+        environmentPath:
+          type: string
+        delegateCount:
+          type: integer
+
+    ContextSummary:
+      type: object
+      properties:
+        url:
+          type: string
+        hasCredentials:
+          type: boolean
+        headerCount:
+          type: integer
+        cookieCount:
+          type: integer
+        envCount:
+          type: integer
+
+    Delegate:
+      type: object
+      properties:
+        url:
+          type: string
+        formats:
+          type: array
+          items:
+            type: string
+
+    ValidationReport:
+      type: object
+      properties:
+        valid:
+          type: boolean
+        errors:
+          type: array
+          items:
+            type: string
+
+    DiffReport:
+      type: object
+      properties:
+        identical:
+          type: boolean
+        operations:
+          type: array
+          items:
+            type: object
+
+    CompatibilityReport:
+      type: object
+      properties:
+        compatible:
+          type: boolean
+        issues:
+          type: array
+          items:
+            type: object
+
+    ExecutionResult:
+      type: object
+      properties:
+        output:
+          type: object
+        error:
+          type: object
+          nullable: true
+
+    ExecuteSource:
+      type: object
+      required: [format]
+      properties:
+        format:
+          type: string
+          description: Format token (e.g., openapi@3.1, usage@2.13.1)
+        location:
+          type: string
+          description: Location of the binding source (path or URL)
+        content:
+          description: Binding source content directly
+
+    CreateInterfaceSource:
+      type: object
+      required: [format]
+      properties:
+        format:
+          type: string
+          description: Format token for this source
+        location:
+          type: string
+          description: Location to fetch content from (path or URL)
+        name:
+          type: string
+          description: Key name for this binding source in the output OBI's sources
+        outputLocation:
+          type: string
+          description: Location to use in output instead of input path
+        description:
+          type: string
+          description: Human-readable description for this binding source
+        embed:
+          type: boolean
+          description: If true, embed content inline in the output OBI
+
+    HttpRequestInput:
+      type: object
+      required: [url]
+      properties:
+        url:
+          type: string
+          description: The URL to request
+        method:
+          type: string
+          description: HTTP method (defaults to GET)
+        headers:
+          type: object
+          additionalProperties:
+            type: string
+          description: Request headers
+        body:
+          type: string
+          description: Request body as text
+        timeoutMs:
+          type: integer
+          description: Request timeout in milliseconds
+        maxResponseBytes:
+          type: integer
+          description: Maximum response body size in bytes
+        followRedirects:
+          type: boolean
+          description: Whether to follow HTTP redirects (defaults to true)
+
+    HttpResponse:
+      type: object
+      required: [status, body]
+      properties:
+        status:
+          type: integer
+          description: HTTP status code
+        headers:
+          type: object
+          additionalProperties:
+            type: string
+          description: Response headers
+        body:
+          type: string
+          description: Response body as text
+        url:
+          type: string
+          description: Final URL after any redirects
+
+    ErrorResponse:
+      type: object
+      required: [error]
+      properties:
+        error:
+          type: string
+          description: Human-readable error message
+        detail:
+          type: string
+          description: Additional context about the error
+        code:
+          type: string
+          description: Machine-readable error code
+
+security:
+  - bearerAuth: []

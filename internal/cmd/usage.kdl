@@ -1,0 +1,231 @@
+min_usage_version "2.0.0"
+name "ob"
+bin "ob"
+about "OpenBindings CLI"
+
+cmd "init" help="Initialize an OpenBindings environment (.openbindings/)" opKey="initializeEnvironment" {
+  flag "-o --output <path>" help="Write output to file"
+  flag "-F --format <format>" help="Output format: json|yaml|text"
+}
+
+cmd "status" help="Show environment status or OBI sync report" opKey="getEnvironmentStatus" {
+  flag "-o --output <path>" help="Write output to file"
+  flag "-F --format <format>" help="Output format: json|yaml|text"
+  arg "[obi-path]" help="OBI file path (shows sync report instead of env status)"
+}
+
+cmd "fetch" help="Download an OpenBindings interface from a URL or host" opKey="fetchInterface" {
+  flag "-o --output <path>" help="Write output to file (default: derived from host)"
+  arg "<url-or-host>" help="Base URL or host (e.g. localhost:8080)"
+}
+
+cmd "info" help="Show ob identity and metadata" opKey="getInfo" {
+  flag "-o --output <path>" help="Write output to file"
+  flag "-F --format <format>" help="Output format: json|yaml|text"
+}
+
+cmd "context" help="Manage binding context (credentials, headers, environment)" subcommand_required=true {
+  cmd "list" help="List all contexts" opKey="listContexts" {
+    flag "-o --output <path>" help="Write output to file"
+    flag "-F --format <format>" help="Output format: json|yaml|text"
+  }
+  cmd "get" help="Get context details for a target URL (secrets masked)" opKey="getContext" {
+    flag "-o --output <path>" help="Write output to file"
+    flag "-F --format <format>" help="Output format: json|yaml|text"
+    arg "<url>" help="Target URL"
+  }
+  cmd "set" help="Set context fields for a target URL" opKey="setContext" {
+    flag "--bearer-token <token>" help="Bearer token (- for stdin)"
+    flag "--api-key <key>" help="API key (- for stdin)"
+    flag "--basic" help="Set basic auth (prompts for username and password)"
+    flag "--header <header>" help="Add header as \"Key: Value\" (repeatable)"
+    flag "--cookie <cookie>" help="Add cookie as \"Key=Value\" (repeatable)"
+    flag "--env <env>" help="Add env var as \"VAR=value\" (repeatable)"
+    flag "--meta <meta>" help="Add metadata as \"key=value\" (repeatable)"
+    flag "--source <source>" help="Scope context to a specific source within the target"
+    flag "--from-curl <curl>" help="Import context from a curl command string"
+    arg "<url>" help="Target URL"
+  }
+  cmd "remove" help="Remove context for a target URL" opKey="deleteContext" {
+    arg "<url>" help="Target URL"
+  }
+}
+
+cmd "delegate" help="Manage delegates" subcommand_required=true {
+  cmd "list" help="List delegates" opKey="listDelegates" {
+    flag "--builtin" help="Include the builtin delegate (default: true)"
+    flag "-o --output <path>" help="Write output to file"
+    flag "-F --format <format>" help="Output format: json|yaml|text"
+  }
+  cmd "add" help="Add a delegate" opKey="createDelegate" {
+    flag "-o --output <path>" help="Write output to file"
+    flag "-F --format <format>" help="Output format: json|yaml|text"
+    arg "<url>" help="Delegate URL (e.g., exec:my-cli, https://api.example.com)"
+  }
+  cmd "remove" help="Remove a delegate" opKey="deleteDelegate" {
+    flag "-o --output <path>" help="Write output to file"
+    flag "-F --format <format>" help="Output format: json|yaml|text"
+    arg "<url>" help="Delegate URL"
+  }
+  cmd "resolve" help="Show which delegate handles a format" opKey="resolveDelegate" {
+    flag "-o --output <path>" help="Write output to file"
+    flag "-F --format <format>" help="Output format: json|yaml|text"
+    arg "<format-token>" help="Format token to resolve"
+  }
+}
+
+cmd "formats" help="List format tokens this ob instance can handle" opKey="listFormats" {
+  flag "-o --output <path>" help="Write output to file"
+  flag "-F --format <format>" help="Output format: json|yaml|text"
+}
+
+cmd "create" help="Create an OpenBindings interface from binding source artifacts" opKey="createInterface" {
+  flag "--to <version>" help="Target OpenBindings version (e.g., 0.1.0)"
+  flag "--name <name>" help="Interface name override"
+  flag "--version <version>" help="Interface version override"
+  flag "--description <desc>" help="Interface description override"
+  flag "-o --output <path>" help="Write output to file"
+  flag "-F --format <format>" help="Output format: json|yaml|text"
+  flag "-y --yes" help="Accept defaults without prompting"
+  arg "[sources]..." help="Binding sources as format:path[?options] (e.g., usage@2.13.1:./cli.kdl?name=cli&embed)"
+}
+
+cmd "source" help="Manage source references on an OBI" subcommand_required=true {
+  cmd "add" help="Register a source reference on an OBI" opKey="createSource" {
+    flag "--key <name>" help="Explicit source key (default: derived from format and path)"
+    flag "--resolve <mode>" help="Resolution mode: location (default) or content"
+    flag "--uri <url>" help="Explicit published URI for location mode"
+    flag "-o --output <path>" help="Write output to file"
+    flag "-F --format <format>" help="Output format: json|yaml|text"
+    arg "<obi-path>" help="Path to the OBI file"
+    arg "<source>" help="Source path or format:path (e.g., openapi.json or usage@2.0.0:./cli.kdl)"
+  }
+  cmd "list" help="List source references on an OBI" opKey="listSources" {
+    flag "-o --output <path>" help="Write output to file"
+    flag "-F --format <format>" help="Output format: json|yaml|text"
+    arg "<obi-path>" help="Path to the OBI file"
+  }
+  cmd "remove" help="Remove a source reference from an OBI" opKey="deleteSource" {
+    flag "-o --output <path>" help="Write output to file"
+    flag "-F --format <format>" help="Output format: json|yaml|text"
+    arg "<obi-path>" help="Path to the OBI file"
+    arg "<key>" help="Source key to remove"
+  }
+  cmd "show" help="Show details of a source reference" opKey="getSource" {
+    flag "-o --output <path>" help="Write output to file"
+    flag "-F --format <format>" help="Output format: json|yaml|text"
+    arg "<obi-path>" help="Path to the OBI file"
+    arg "<key>" help="Source key"
+  }
+}
+
+cmd "sync" help="Sync sources in an OBI from their x-ob references" opKey="syncInterface" {
+  flag "--force" help="Prefer source for all conflicts (overwrite local edits)"
+  flag "--op <key>" help="Sync only specific operations and their bindings (repeatable)"
+  flag "--pure" help="Strip all x-ob metadata from output (requires -o)"
+  flag "-o --output <path>" help="Write output to file"
+  flag "-F --format <format>" help="Output format: json|yaml|text"
+  arg "<obi-path>" help="Path to the OBI file"
+  arg "[source-key]..." help="Source keys to sync (default: all)"
+}
+
+cmd "conflicts" help="List merge conflicts between local edits and source changes" opKey="listConflicts" {
+  flag "-o --output <path>" help="Write output to file"
+  flag "-F --format <format>" help="Output format: json|yaml|text"
+  arg "<obi-path>" help="Path to the OBI file"
+}
+
+cmd "operation" help="Manage and execute operations on an OBI" subcommand_required=true {
+  cmd "exec" help="Execute an operation via a binding" opKey="executeLocalOperation" {
+    flag "--binding <key>" help="Binding key to execute (operation is derived from the entry)"
+    flag "--input <json>" help="Operation input as JSON"
+    flag "--context <name>" help="Named context to apply (credentials, headers, etc.)"
+    flag "-o --output <path>" help="Write output to file"
+    flag "-F --format <format>" help="Output format: json|yaml|text"
+    arg "<obi-path>" help="Path to the OBI file"
+    arg "[operation]" help="Operation key to execute"
+  }
+  cmd "list" help="List operations on an OBI" opKey="listOperations" {
+    flag "--tag <tag>" help="Filter operations by tag"
+    flag "-o --output <path>" help="Write output to file"
+    flag "-F --format <format>" help="Output format: json|yaml|text"
+    arg "<obi-path>" help="Path to the OBI file"
+  }
+  cmd "rename" help="Rename an operation and update all references" opKey="renameOperation" {
+    flag "-o --output <path>" help="Write output to file"
+    flag "-F --format <format>" help="Output format: json|yaml|text"
+    arg "<obi-path>" help="Path to the OBI file"
+    arg "<old-key>" help="Current operation key"
+    arg "<new-key>" help="New operation key"
+  }
+  cmd "remove" help="Remove operations and their bindings from an OBI" opKey="deleteOperation" {
+    flag "--force" help="Remove managed operations without warning"
+    flag "-o --output <path>" help="Write output to file"
+    flag "-F --format <format>" help="Output format: json|yaml|text"
+    arg "<obi-path>" help="Path to the OBI file"
+    arg "<key>..." help="Operation keys to remove"
+  }
+}
+
+cmd "binding" help="Low-level binding operations" subcommand_required=true {
+  cmd "exec" help="Execute a resolved binding (machine-to-machine)" opKey="executeBinding" {
+    flag "--input <json>" help="ExecuteBindingInput as a JSON string"
+    flag "-o --output <path>" help="Write output to file"
+    flag "-F --format <format>" help="Output format: json|yaml|text"
+  }
+}
+
+cmd "diff" help="Structural comparison of two OBIs" opKey="compareInterfaces" {
+  flag "--from-sources" help="Compare against what binding sources produce"
+  flag "--only <key>" help="Scope to a specific source key (requires --from-sources)"
+  flag "-q --quiet" help="Exit code only, no output"
+  flag "-o --output <path>" help="Write output to file"
+  flag "-F --format <format>" help="Output format: json|yaml|text"
+  arg "<baseline>" help="Baseline OBI (file path, URL, or exec: locator)"
+  arg "[comparison]" help="Comparison OBI (omit with --from-sources)"
+}
+
+cmd "merge" help="Selectively apply changes from one OBI into another" opKey="mergeInterfaces" {
+  flag "--from-sources" help="Derive from the target's binding sources"
+  flag "--only <key>" help="Scope to a specific source key (requires --from-sources)"
+  flag "--all" help="Apply all changes (batch mode)"
+  flag "--dry-run" help="Preview changes without writing"
+  flag "-y --yes" help="Auto-accept all prompts"
+  flag "--out <path>" help="Write to alternate path instead of target"
+  flag "--op <key>" help="Only merge this operation (repeatable)"
+  flag "--exclude-op <key>" help="Exclude this operation from merge (repeatable)"
+  flag "-o --output <path>" help="Write output to file"
+  flag "-F --format <format>" help="Output format: json|yaml|text"
+  arg "<target>" help="Target OBI to merge into"
+  arg "[source]" help="Source OBI (omit with --from-sources)"
+}
+
+cmd "validate" help="Validate an OpenBindings interface document" opKey="validateInterface" {
+  flag "-q --quiet" help="Exit code only, no output"
+  flag "--strict" help="Reject unknown fields and require supported version"
+  flag "-o --output <path>" help="Write output to file"
+  flag "-F --format <format>" help="Output format: json|yaml|text"
+  arg "<locator>" help="File path, HTTP(S) URL, or exec: locator"
+}
+
+cmd "compat" help="Check interface conformance between two interfaces" opKey="assessCompatibility" {
+  flag "-q --quiet" help="Exit code only, no output"
+  flag "-o --output <path>" help="Write output to file"
+  flag "-F --format <format>" help="Output format: json|yaml|text"
+  arg "<target>" help="Target interface (locator)"
+  arg "<candidate>" help="Candidate interface (locator)"
+}
+
+cmd "mcp" help="Serve interface URLs as an MCP server" opKey="createMCPServer" {
+  flag "--transport <transport>" help="Transport: stdio or http (default: stdio)"
+  flag "--port <port>" help="HTTP port (when transport is http, default: 8080)"
+  flag "--name <name>" help="MCP server name"
+  arg "<url>..." help="Interface URLs to expose as MCP tools"
+}
+
+cmd "serve" help="Start a local HTTP server exposing ob operations" opKey="startServer" {
+  flag "-p --port <port>" help="Port to listen on (default: 20290 = 0x4F42, ASCII OB)"
+  flag "--allow-origin <origin>" help="Allowed CORS origin (repeatable)"
+  flag "--token <token>" help="Pre-shared session token (also: OB_SERVE_TOKEN env var)"
+  flag "--token-file <path>" help="Write session token to file instead of stderr"
+}

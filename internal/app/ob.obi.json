@@ -1,0 +1,1757 @@
+{
+  "bindings": {
+    "assessCompatibility.openapi": {
+      "operation": "assessCompatibility",
+      "ref": "#/paths/~1compatibility/post",
+      "source": "openapi",
+      "x-ob": {}
+    },
+    "assessCompatibility.usage": {
+      "operation": "assessCompatibility",
+      "ref": "compat",
+      "source": "usage",
+      "x-ob": {}
+    },
+    "compareInterfaces.openapi": {
+      "operation": "compareInterfaces",
+      "ref": "#/paths/~1diff/post",
+      "source": "openapi",
+      "x-ob": {}
+    },
+    "compareInterfaces.usage": {
+      "operation": "compareInterfaces",
+      "ref": "diff",
+      "source": "usage",
+      "x-ob": {}
+    },
+    "createDelegate.usage": {
+      "operation": "createDelegate",
+      "ref": "delegate add",
+      "source": "usage",
+      "x-ob": {}
+    },
+    "createInterface.openapi": {
+      "operation": "createInterface",
+      "ref": "#/paths/~1interfaces~1create/post",
+      "source": "openapi",
+      "x-ob": {},
+      "inputTransform": {
+        "type": "jsonata",
+        "expression": "{ \"to\": openbindingsVersion, \"sources\": sources, \"name\": name, \"version\": version, \"description\": description }"
+      }
+    },
+    "createInterface.usage": {
+      "operation": "createInterface",
+      "ref": "create",
+      "source": "usage",
+      "x-ob": {},
+      "inputTransform": {
+        "type": "jsonata",
+        "expression": "{ \"flags\": { \"to\": openbindingsVersion, \"name\": name, \"version\": version, \"description\": description }, \"args\": sources.(format & \":\" & location & (embed ? \"?embed\" : \"\")) }"
+      }
+    },
+    "createMCPServer.openapi": {
+      "operation": "createMCPServer",
+      "ref": "#/paths/~1mcp~1servers/post",
+      "source": "openapi",
+      "x-ob": {}
+    },
+    "createMCPServer.usage": {
+      "operation": "createMCPServer",
+      "ref": "mcp",
+      "source": "usage",
+      "x-ob": {}
+    },
+    "createSource.usage": {
+      "operation": "createSource",
+      "ref": "source add",
+      "source": "usage",
+      "x-ob": {}
+    },
+    "deleteContext.openapi": {
+      "operation": "deleteContext",
+      "ref": "#/paths/~1contexts~1{url}/delete",
+      "source": "openapi",
+      "x-ob": {},
+      "inputTransform": {
+        "type": "jsonata",
+        "expression": "{ \"url\": key }"
+      }
+    },
+    "deleteContext.usage": {
+      "operation": "deleteContext",
+      "ref": "context remove",
+      "source": "usage",
+      "x-ob": {},
+      "inputTransform": {
+        "type": "jsonata",
+        "expression": "{ \"url\": key }"
+      }
+    },
+    "deleteDelegate.usage": {
+      "operation": "deleteDelegate",
+      "ref": "delegate remove",
+      "source": "usage",
+      "x-ob": {}
+    },
+    "deleteOperation.usage": {
+      "operation": "deleteOperation",
+      "ref": "operation remove",
+      "source": "usage",
+      "x-ob": {}
+    },
+    "deleteSource.usage": {
+      "operation": "deleteSource",
+      "ref": "source remove",
+      "source": "usage",
+      "x-ob": {}
+    },
+    "executeBinding.asyncapi": {
+      "operation": "executeBinding",
+      "ref": "#/operations/executeBinding",
+      "source": "asyncapi",
+      "x-ob": {}
+    },
+    "executeBinding.openapi": {
+      "operation": "executeBinding",
+      "ref": "#/paths/~1bindings~1execute/post",
+      "source": "openapi",
+      "x-ob": {}
+    },
+    "executeBinding.usage": {
+      "operation": "executeBinding",
+      "ref": "binding exec",
+      "source": "usage",
+      "x-ob": {},
+      "inputTransform": {
+        "type": "jsonata",
+        "expression": "{ \"input\": $string($) }"
+      }
+    },
+    "executeLocalOperation.usage": {
+      "operation": "executeLocalOperation",
+      "ref": "operation exec",
+      "source": "usage",
+      "x-ob": {}
+    },
+    "fetchInterface.openapi": {
+      "operation": "fetchInterface",
+      "ref": "#/paths/~1resolve/post",
+      "source": "openapi",
+      "x-ob": {}
+    },
+    "fetchInterface.usage": {
+      "operation": "fetchInterface",
+      "ref": "fetch",
+      "source": "usage",
+      "x-ob": {}
+    },
+    "getContext.openapi": {
+      "operation": "getContext",
+      "ref": "#/paths/~1contexts~1{url}/get",
+      "source": "openapi",
+      "x-ob": {},
+      "inputTransform": {
+        "type": "jsonata",
+        "expression": "{ \"url\": key }"
+      },
+      "outputTransform": {
+        "type": "jsonata",
+        "expression": "{ \"key\": url, \"context\": $ ~> | $ | {}, [\"url\", \"hasCredentials\", \"headerCount\", \"cookieCount\", \"envCount\"] | }"
+      }
+    },
+    "getContext.usage": {
+      "operation": "getContext",
+      "ref": "context get",
+      "source": "usage",
+      "x-ob": {},
+      "inputTransform": {
+        "type": "jsonata",
+        "expression": "{ \"url\": key }"
+      }
+    },
+    "getEnvironmentStatus.openapi": {
+      "operation": "getEnvironmentStatus",
+      "ref": "#/paths/~1status/get",
+      "source": "openapi",
+      "x-ob": {}
+    },
+    "getEnvironmentStatus.usage": {
+      "operation": "getEnvironmentStatus",
+      "ref": "status",
+      "source": "usage",
+      "x-ob": {}
+    },
+    "getInfo.openapi": {
+      "operation": "getInfo",
+      "ref": "#/paths/~1info/get",
+      "source": "openapi",
+      "x-ob": {}
+    },
+    "getInfo.usage": {
+      "operation": "getInfo",
+      "ref": "info",
+      "source": "usage",
+      "x-ob": {}
+    },
+    "getSource.usage": {
+      "operation": "getSource",
+      "ref": "source show",
+      "source": "usage",
+      "x-ob": {}
+    },
+    "initializeEnvironment.usage": {
+      "operation": "initializeEnvironment",
+      "ref": "init",
+      "source": "usage",
+      "x-ob": {}
+    },
+    "listConflicts.usage": {
+      "operation": "listConflicts",
+      "ref": "conflicts",
+      "source": "usage",
+      "x-ob": {}
+    },
+    "listContexts.openapi": {
+      "operation": "listContexts",
+      "ref": "#/paths/~1contexts/get",
+      "source": "openapi",
+      "x-ob": {},
+      "outputTransform": {
+        "type": "jsonata",
+        "expression": "$.{ \"key\": url }"
+      }
+    },
+    "listContexts.usage": {
+      "operation": "listContexts",
+      "ref": "context list",
+      "source": "usage",
+      "x-ob": {}
+    },
+    "listDelegates.openapi": {
+      "operation": "listDelegates",
+      "ref": "#/paths/~1delegates/get",
+      "source": "openapi",
+      "x-ob": {}
+    },
+    "listDelegates.usage": {
+      "operation": "listDelegates",
+      "ref": "delegate list",
+      "source": "usage",
+      "x-ob": {}
+    },
+    "listFormats.openapi": {
+      "operation": "listFormats",
+      "ref": "#/paths/~1formats/get",
+      "source": "openapi",
+      "x-ob": {}
+    },
+    "listFormats.usage": {
+      "operation": "listFormats",
+      "ref": "formats",
+      "source": "usage",
+      "x-ob": {}
+    },
+    "listMCPServers.openapi": {
+      "operation": "listMCPServers",
+      "ref": "#/paths/~1mcp~1servers/get",
+      "source": "openapi",
+      "x-ob": {}
+    },
+    "listOperations.usage": {
+      "operation": "listOperations",
+      "ref": "operation list",
+      "source": "usage",
+      "x-ob": {}
+    },
+    "listSources.usage": {
+      "operation": "listSources",
+      "ref": "source list",
+      "source": "usage",
+      "x-ob": {}
+    },
+    "mergeInterfaces.usage": {
+      "operation": "mergeInterfaces",
+      "ref": "merge",
+      "source": "usage",
+      "x-ob": {}
+    },
+    "renameOperation.usage": {
+      "operation": "renameOperation",
+      "ref": "operation rename",
+      "source": "usage",
+      "x-ob": {}
+    },
+    "resolveDelegate.usage": {
+      "operation": "resolveDelegate",
+      "ref": "delegate resolve",
+      "source": "usage",
+      "x-ob": {}
+    },
+    "setContext.openapi": {
+      "operation": "setContext",
+      "ref": "#/paths/~1contexts~1{url}/put",
+      "source": "openapi",
+      "x-ob": {},
+      "inputTransform": {
+        "type": "jsonata",
+        "expression": "{ \"url\": key, \"bearerToken\": context.bearerToken, \"apiKey\": context.apiKey, \"headers\": context.headers, \"cookies\": context.cookies, \"environment\": context.environment, \"metadata\": context.metadata }"
+      }
+    },
+    "setContext.usage": {
+      "operation": "setContext",
+      "ref": "context set",
+      "source": "usage",
+      "x-ob": {},
+      "inputTransform": {
+        "type": "jsonata",
+        "expression": "{ \"url\": key, \"bearer-token\": context.bearerToken, \"api-key\": context.apiKey }"
+      }
+    },
+    "startServer.usage": {
+      "operation": "startServer",
+      "ref": "serve",
+      "source": "usage",
+      "x-ob": {}
+    },
+    "syncInterface.usage": {
+      "operation": "syncInterface",
+      "ref": "sync",
+      "source": "usage",
+      "x-ob": {}
+    },
+    "terminateMCPServer.openapi": {
+      "operation": "terminateMCPServer",
+      "ref": "#/paths/~1mcp~1servers~1{id}/delete",
+      "source": "openapi",
+      "x-ob": {}
+    },
+    "updateMCPServer.openapi": {
+      "operation": "updateMCPServer",
+      "ref": "#/paths/~1mcp~1servers~1{id}/patch",
+      "source": "openapi",
+      "x-ob": {}
+    },
+    "validateInterface.openapi": {
+      "operation": "validateInterface",
+      "ref": "#/paths/~1validate/post",
+      "source": "openapi",
+      "x-ob": {}
+    },
+    "validateInterface.usage": {
+      "operation": "validateInterface",
+      "ref": "validate",
+      "source": "usage",
+      "x-ob": {}
+    }
+  },
+  "description": "Portable interfaces, flexible bindings – the ob command-line tool",
+  "roles": {
+    "openbindings.binding-executor": "https://openbindings.org/spec/interfaces/openbindings.binding-executor/0.1.json",
+    "openbindings.context-store": "https://openbindings.org/spec/interfaces/openbindings.context-store/0.1.json",
+    "openbindings.software-descriptor": "https://openbindings.org/spec/interfaces/openbindings.software-descriptor/0.1.json"
+  },
+  "name": "OpenBindings CLI",
+  "openbindings": "0.1.0",
+  "operations": {
+    "assessCompatibility": {
+      "description": "Check interface conformance between two interfaces",
+      "input": {
+        "properties": {
+          "candidate": {
+            "description": "Candidate interface (locator)",
+            "type": "string"
+          },
+          "format": {
+            "description": "Output format: json|yaml|text",
+            "type": "string"
+          },
+          "output": {
+            "description": "Write output to file",
+            "type": "string"
+          },
+          "quiet": {
+            "description": "Exit code only, no output",
+            "type": "boolean"
+          },
+          "target": {
+            "description": "Target interface (locator)",
+            "type": "string"
+          }
+        },
+        "required": [
+          "target",
+          "candidate"
+        ],
+        "type": "object"
+      },
+      "tags": [
+        "authoring"
+      ],
+      "x-ob": {}
+    },
+    "compareInterfaces": {
+      "description": "Structural comparison of two OBIs",
+      "input": {
+        "properties": {
+          "baseline": {
+            "description": "Baseline OBI (file path, URL, or exec: locator)",
+            "type": "string"
+          },
+          "comparison": {
+            "description": "Comparison OBI (omit with --from-sources)",
+            "type": "string"
+          },
+          "format": {
+            "description": "Output format: json|yaml|text",
+            "type": "string"
+          },
+          "from-sources": {
+            "description": "Compare against what binding sources produce",
+            "type": "boolean"
+          },
+          "only": {
+            "description": "Scope to a specific source key (requires --from-sources)",
+            "type": "string"
+          },
+          "output": {
+            "description": "Write output to file",
+            "type": "string"
+          },
+          "quiet": {
+            "description": "Exit code only, no output",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "baseline"
+        ],
+        "type": "object"
+      },
+      "tags": [
+        "authoring"
+      ],
+      "x-ob": {}
+    },
+    "createDelegate": {
+      "description": "Add a delegate",
+      "input": {
+        "properties": {
+          "format": {
+            "description": "Output format: json|yaml|text",
+            "type": "string"
+          },
+          "output": {
+            "description": "Write output to file",
+            "type": "string"
+          },
+          "url": {
+            "description": "Delegate URL (e.g., exec:my-cli, https://api.example.com)",
+            "type": "string"
+          }
+        },
+        "required": [
+          "url"
+        ],
+        "type": "object"
+      },
+      "tags": [
+        "delegate"
+      ],
+      "x-ob": {}
+    },
+    "createInterface": {
+      "description": "Create an OpenBindings interface, optionally from binding source artifacts.",
+      "input": {
+        "$ref": "#/schemas/CreateInterfaceInput"
+      },
+      "output": {
+        "$ref": "#/schemas/OpenBindingsInterface"
+      },
+      "satisfies": [
+        {
+          "role": "openbindings.binding-executor",
+          "operation": "createInterface"
+        }
+      ],
+      "tags": [
+        "authoring"
+      ]
+    },
+    "createMCPServer": {
+      "description": "Create an MCP server from interfaces and/or URLs",
+      "input": {
+        "properties": {
+          "interfaces": {
+            "description": "Interface documents to expose as MCP tools",
+            "items": {
+              "type": "object"
+            },
+            "type": "array"
+          },
+          "name": {
+            "description": "MCP server name",
+            "type": "string"
+          },
+          "urls": {
+            "description": "Interface URLs to resolve and expose as MCP tools",
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          }
+        },
+        "type": "object"
+      },
+      "output": {
+        "properties": {
+          "endpoint": {
+            "type": "string"
+          },
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "toolCount": {
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
+      "tags": [
+        "mcp"
+      ],
+      "x-ob": {}
+    },
+    "createSource": {
+      "description": "Register a source reference on an OBI",
+      "input": {
+        "properties": {
+          "format": {
+            "description": "Output format: json|yaml|text",
+            "type": "string"
+          },
+          "key": {
+            "description": "Explicit source key (default: derived from format and path)",
+            "type": "string"
+          },
+          "obi-path": {
+            "description": "Path to the OBI file",
+            "type": "string"
+          },
+          "output": {
+            "description": "Write output to file",
+            "type": "string"
+          },
+          "resolve": {
+            "description": "Resolution mode: location (default) or content",
+            "type": "string"
+          },
+          "source": {
+            "description": "Source path or format:path (e.g., openapi.json or usage@2.0.0:./cli.kdl)",
+            "type": "string"
+          },
+          "uri": {
+            "description": "Explicit published URI for location mode",
+            "type": "string"
+          }
+        },
+        "required": [
+          "obi-path",
+          "source"
+        ],
+        "type": "object"
+      },
+      "tags": [
+        "source"
+      ],
+      "x-ob": {}
+    },
+    "deleteContext": {
+      "description": "Delete a stored context entry.",
+      "input": {
+        "type": "object",
+        "properties": {
+          "key": {
+            "type": "string",
+            "description": "Context store key."
+          }
+        },
+        "required": [
+          "key"
+        ],
+        "additionalProperties": false
+      },
+      "satisfies": [
+        {
+          "role": "openbindings.context-store",
+          "operation": "deleteContext"
+        }
+      ],
+      "tags": [
+        "context"
+      ]
+    },
+    "deleteDelegate": {
+      "description": "Remove a delegate",
+      "input": {
+        "properties": {
+          "format": {
+            "description": "Output format: json|yaml|text",
+            "type": "string"
+          },
+          "output": {
+            "description": "Write output to file",
+            "type": "string"
+          },
+          "url": {
+            "description": "Delegate URL",
+            "type": "string"
+          }
+        },
+        "required": [
+          "url"
+        ],
+        "type": "object"
+      },
+      "tags": [
+        "delegate"
+      ],
+      "x-ob": {}
+    },
+    "deleteOperation": {
+      "description": "Remove operations and their bindings from an OBI",
+      "input": {
+        "properties": {
+          "force": {
+            "description": "Remove managed operations without warning",
+            "type": "boolean"
+          },
+          "format": {
+            "description": "Output format: json|yaml|text",
+            "type": "string"
+          },
+          "key": {
+            "description": "Operation keys to remove",
+            "items": {
+              "type": "string"
+            },
+            "minItems": 1,
+            "type": "array"
+          },
+          "obi-path": {
+            "description": "Path to the OBI file",
+            "type": "string"
+          },
+          "output": {
+            "description": "Write output to file",
+            "type": "string"
+          }
+        },
+        "required": [
+          "obi-path",
+          "key"
+        ],
+        "type": "object"
+      },
+      "tags": [
+        "operation"
+      ],
+      "x-ob": {}
+    },
+    "deleteSource": {
+      "description": "Remove a source reference from an OBI",
+      "input": {
+        "properties": {
+          "format": {
+            "description": "Output format: json|yaml|text",
+            "type": "string"
+          },
+          "key": {
+            "description": "Source key to remove",
+            "type": "string"
+          },
+          "obi-path": {
+            "description": "Path to the OBI file",
+            "type": "string"
+          },
+          "output": {
+            "description": "Write output to file",
+            "type": "string"
+          }
+        },
+        "required": [
+          "obi-path",
+          "key"
+        ],
+        "type": "object"
+      },
+      "tags": [
+        "source"
+      ],
+      "x-ob": {}
+    },
+    "executeBinding": {
+      "description": "Execute a resolved binding.",
+      "input": {
+        "$ref": "#/schemas/ExecuteBindingInput"
+      },
+      "output": {
+        "$ref": "#/schemas/ExecuteBindingOutput"
+      },
+      "satisfies": [
+        {
+          "role": "openbindings.binding-executor",
+          "operation": "executeBinding"
+        }
+      ],
+      "tags": [
+        "binding"
+      ]
+    },
+    "executeLocalOperation": {
+      "description": "Execute an operation via a binding",
+      "input": {
+        "properties": {
+          "binding": {
+            "description": "Binding key to execute (operation is derived from the entry)",
+            "type": "string"
+          },
+          "context": {
+            "description": "Named context to apply (credentials, headers, etc.)",
+            "type": "string"
+          },
+          "format": {
+            "description": "Output format: json|yaml|text",
+            "type": "string"
+          },
+          "input": {
+            "description": "Operation input as JSON",
+            "type": "string"
+          },
+          "obi-path": {
+            "description": "Path to the OBI file",
+            "type": "string"
+          },
+          "operation": {
+            "description": "Operation key to execute",
+            "type": "string"
+          },
+          "output": {
+            "description": "Write output to file",
+            "type": "string"
+          }
+        },
+        "required": [
+          "obi-path"
+        ],
+        "type": "object"
+      },
+      "tags": [
+        "operation"
+      ],
+      "x-ob": {}
+    },
+    "fetchInterface": {
+      "description": "Download an OpenBindings interface from a URL or host",
+      "input": {
+        "properties": {
+          "output": {
+            "description": "Write output to file (default: derived from host)",
+            "type": "string"
+          },
+          "url-or-host": {
+            "description": "Base URL or host (e.g. localhost:8080)",
+            "type": "string"
+          }
+        },
+        "required": [
+          "url-or-host"
+        ],
+        "type": "object"
+      },
+      "tags": [
+        "fetch"
+      ],
+      "x-ob": {}
+    },
+    "getContext": {
+      "description": "Get a stored context entry by key.",
+      "idempotent": true,
+      "input": {
+        "type": "object",
+        "properties": {
+          "key": {
+            "type": "string",
+            "description": "Context store key."
+          }
+        },
+        "required": [
+          "key"
+        ],
+        "additionalProperties": false
+      },
+      "output": {
+        "$ref": "#/schemas/ContextEntry"
+      },
+      "satisfies": [
+        {
+          "role": "openbindings.context-store",
+          "operation": "getContext"
+        }
+      ],
+      "tags": [
+        "context"
+      ]
+    },
+    "getEnvironmentStatus": {
+      "description": "Show environment status or OBI sync report",
+      "input": {
+        "properties": {
+          "format": {
+            "description": "Output format: json|yaml|text",
+            "type": "string"
+          },
+          "obi-path": {
+            "description": "OBI file path (shows sync report instead of env status)",
+            "type": "string"
+          },
+          "output": {
+            "description": "Write output to file",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "tags": [
+        "environment"
+      ],
+      "x-ob": {}
+    },
+    "getInfo": {
+      "description": "Return identity and metadata about this software.",
+      "idempotent": true,
+      "output": {
+        "$ref": "#/schemas/SoftwareInfo"
+      },
+      "satisfies": [
+        {
+          "role": "openbindings.software-descriptor",
+          "operation": "getInfo"
+        },
+        {
+          "role": "openbindings.binding-executor",
+          "operation": "getInfo"
+        }
+      ],
+      "tags": [
+        "info"
+      ]
+    },
+    "getSource": {
+      "description": "Show details of a source reference",
+      "input": {
+        "properties": {
+          "format": {
+            "description": "Output format: json|yaml|text",
+            "type": "string"
+          },
+          "key": {
+            "description": "Source key",
+            "type": "string"
+          },
+          "obi-path": {
+            "description": "Path to the OBI file",
+            "type": "string"
+          },
+          "output": {
+            "description": "Write output to file",
+            "type": "string"
+          }
+        },
+        "required": [
+          "obi-path",
+          "key"
+        ],
+        "type": "object"
+      },
+      "tags": [
+        "source"
+      ],
+      "x-ob": {}
+    },
+    "initializeEnvironment": {
+      "description": "Initialize an OpenBindings environment (.openbindings/)",
+      "input": {
+        "properties": {
+          "format": {
+            "description": "Output format: json|yaml|text",
+            "type": "string"
+          },
+          "output": {
+            "description": "Write output to file",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "tags": [
+        "environment"
+      ],
+      "x-ob": {}
+    },
+    "listConflicts": {
+      "description": "List merge conflicts between local edits and source changes",
+      "input": {
+        "properties": {
+          "format": {
+            "description": "Output format: json|yaml|text",
+            "type": "string"
+          },
+          "obi-path": {
+            "description": "Path to the OBI file",
+            "type": "string"
+          },
+          "output": {
+            "description": "Write output to file",
+            "type": "string"
+          }
+        },
+        "required": [
+          "obi-path"
+        ],
+        "type": "object"
+      },
+      "tags": [
+        "authoring"
+      ],
+      "x-ob": {}
+    },
+    "listContexts": {
+      "description": "List all stored context entries.",
+      "idempotent": true,
+      "output": {
+        "type": "array",
+        "items": {
+          "$ref": "#/schemas/ContextEntry"
+        }
+      },
+      "satisfies": [
+        {
+          "role": "openbindings.context-store",
+          "operation": "listContexts"
+        }
+      ],
+      "tags": [
+        "context"
+      ]
+    },
+    "listDelegates": {
+      "description": "List delegates",
+      "input": {
+        "properties": {
+          "builtin": {
+            "description": "Include the builtin delegate (default: true)",
+            "type": "boolean"
+          },
+          "format": {
+            "description": "Output format: json|yaml|text",
+            "type": "string"
+          },
+          "output": {
+            "description": "Write output to file",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "tags": [
+        "delegate"
+      ],
+      "x-ob": {}
+    },
+    "listFormats": {
+      "description": "List binding formats supported by this executor.",
+      "idempotent": true,
+      "output": {
+        "type": "array",
+        "items": {
+          "$ref": "#/schemas/FormatInfo"
+        }
+      },
+      "satisfies": [
+        {
+          "role": "openbindings.binding-executor",
+          "operation": "listFormats"
+        }
+      ],
+      "tags": [
+        "format"
+      ]
+    },
+    "listMCPServers": {
+      "description": "List active MCP server instances",
+      "output": {
+        "items": {
+          "type": "object",
+          "properties": {
+            "id": {
+              "type": "string"
+            },
+            "name": {
+              "type": "string"
+            },
+            "toolCount": {
+              "type": "integer"
+            },
+            "endpoint": {
+              "type": "string"
+            }
+          }
+        },
+        "type": "array"
+      },
+      "tags": [
+        "mcp"
+      ],
+      "x-ob": {}
+    },
+    "listOperations": {
+      "description": "List operations on an OBI",
+      "input": {
+        "properties": {
+          "format": {
+            "description": "Output format: json|yaml|text",
+            "type": "string"
+          },
+          "obi-path": {
+            "description": "Path to the OBI file",
+            "type": "string"
+          },
+          "output": {
+            "description": "Write output to file",
+            "type": "string"
+          },
+          "tag": {
+            "description": "Filter operations by tag",
+            "type": "string"
+          }
+        },
+        "required": [
+          "obi-path"
+        ],
+        "type": "object"
+      },
+      "tags": [
+        "operation"
+      ],
+      "x-ob": {}
+    },
+    "listSources": {
+      "description": "List source references on an OBI",
+      "input": {
+        "properties": {
+          "format": {
+            "description": "Output format: json|yaml|text",
+            "type": "string"
+          },
+          "obi-path": {
+            "description": "Path to the OBI file",
+            "type": "string"
+          },
+          "output": {
+            "description": "Write output to file",
+            "type": "string"
+          }
+        },
+        "required": [
+          "obi-path"
+        ],
+        "type": "object"
+      },
+      "tags": [
+        "source"
+      ],
+      "x-ob": {}
+    },
+    "mergeInterfaces": {
+      "description": "Selectively apply changes from one OBI into another",
+      "input": {
+        "properties": {
+          "all": {
+            "description": "Apply all changes (batch mode)",
+            "type": "boolean"
+          },
+          "dry-run": {
+            "description": "Preview changes without writing",
+            "type": "boolean"
+          },
+          "exclude-op": {
+            "description": "Exclude this operation from merge (repeatable)",
+            "type": "string"
+          },
+          "format": {
+            "description": "Output format: json|yaml|text",
+            "type": "string"
+          },
+          "from-sources": {
+            "description": "Derive from the target's binding sources",
+            "type": "boolean"
+          },
+          "only": {
+            "description": "Scope to a specific source key (requires --from-sources)",
+            "type": "string"
+          },
+          "op": {
+            "description": "Only merge this operation (repeatable)",
+            "type": "string"
+          },
+          "out": {
+            "description": "Write to alternate path instead of target",
+            "type": "string"
+          },
+          "output": {
+            "description": "Write output to file",
+            "type": "string"
+          },
+          "source": {
+            "description": "Source OBI (omit with --from-sources)",
+            "type": "string"
+          },
+          "target": {
+            "description": "Target OBI to merge into",
+            "type": "string"
+          },
+          "yes": {
+            "description": "Auto-accept all prompts",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "target"
+        ],
+        "type": "object"
+      },
+      "tags": [
+        "authoring"
+      ],
+      "x-ob": {}
+    },
+    "renameOperation": {
+      "description": "Rename an operation and update all references",
+      "input": {
+        "properties": {
+          "format": {
+            "description": "Output format: json|yaml|text",
+            "type": "string"
+          },
+          "new-key": {
+            "description": "New operation key",
+            "type": "string"
+          },
+          "obi-path": {
+            "description": "Path to the OBI file",
+            "type": "string"
+          },
+          "old-key": {
+            "description": "Current operation key",
+            "type": "string"
+          },
+          "output": {
+            "description": "Write output to file",
+            "type": "string"
+          }
+        },
+        "required": [
+          "obi-path",
+          "old-key",
+          "new-key"
+        ],
+        "type": "object"
+      },
+      "tags": [
+        "operation"
+      ],
+      "x-ob": {}
+    },
+    "resolveDelegate": {
+      "description": "Show which delegate handles a format",
+      "input": {
+        "properties": {
+          "format": {
+            "description": "Output format: json|yaml|text",
+            "type": "string"
+          },
+          "format-token": {
+            "description": "Format token to resolve",
+            "type": "string"
+          },
+          "output": {
+            "description": "Write output to file",
+            "type": "string"
+          }
+        },
+        "required": [
+          "format-token"
+        ],
+        "type": "object"
+      },
+      "tags": [
+        "delegate"
+      ],
+      "x-ob": {}
+    },
+    "setContext": {
+      "description": "Set or update a context entry.",
+      "input": {
+        "type": "object",
+        "properties": {
+          "key": {
+            "type": "string",
+            "description": "Context store key."
+          },
+          "context": {
+            "type": "object",
+            "description": "Credential map to store.",
+            "additionalProperties": true
+          }
+        },
+        "required": [
+          "key",
+          "context"
+        ],
+        "additionalProperties": false
+      },
+      "satisfies": [
+        {
+          "role": "openbindings.context-store",
+          "operation": "setContext"
+        }
+      ],
+      "tags": [
+        "context"
+      ]
+    },
+    "startServer": {
+      "description": "Start a local HTTP server exposing ob operations",
+      "input": {
+        "properties": {
+          "allow-origin": {
+            "description": "Allowed CORS origin (repeatable)",
+            "type": "string"
+          },
+          "port": {
+            "description": "Port to listen on (default: 20290 = 0x4F42, ASCII OB)",
+            "type": "string"
+          },
+          "token": {
+            "description": "Bearer token for authentication",
+            "type": "string"
+          },
+          "token-file": {
+            "description": "Path to file containing bearer token",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "tags": [
+        "server"
+      ],
+      "x-ob": {}
+    },
+    "syncInterface": {
+      "description": "Sync sources in an OBI from their x-ob references",
+      "input": {
+        "properties": {
+          "force": {
+            "description": "Prefer source for all conflicts (overwrite local edits)",
+            "type": "boolean"
+          },
+          "format": {
+            "description": "Output format: json|yaml|text",
+            "type": "string"
+          },
+          "obi-path": {
+            "description": "Path to the OBI file",
+            "type": "string"
+          },
+          "op": {
+            "description": "Sync only specific operations and their bindings (repeatable)",
+            "type": "string"
+          },
+          "output": {
+            "description": "Write output to file",
+            "type": "string"
+          },
+          "pure": {
+            "description": "Strip all x-ob metadata from output (requires -o)",
+            "type": "boolean"
+          },
+          "source-key": {
+            "description": "Source keys to sync (default: all)",
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "obi-path"
+        ],
+        "type": "object"
+      },
+      "tags": [
+        "authoring"
+      ],
+      "x-ob": {}
+    },
+    "terminateMCPServer": {
+      "description": "Terminate an MCP server instance",
+      "input": {
+        "properties": {
+          "id": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id"
+        ],
+        "type": "object"
+      },
+      "output": {
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "tags": [
+        "mcp"
+      ],
+      "x-ob": {}
+    },
+    "updateMCPServer": {
+      "description": "Add interfaces to a running MCP server instance",
+      "input": {
+        "properties": {
+          "id": {
+            "description": "MCP server instance ID",
+            "type": "string"
+          },
+          "interfaces": {
+            "description": "Interface documents to add",
+            "items": {
+              "type": "object"
+            },
+            "type": "array"
+          },
+          "urls": {
+            "description": "Interface URLs to resolve and add",
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "id"
+        ],
+        "type": "object"
+      },
+      "output": {
+        "properties": {
+          "endpoint": {
+            "type": "string"
+          },
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "toolCount": {
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
+      "tags": [
+        "mcp"
+      ],
+      "x-ob": {}
+    },
+    "validateInterface": {
+      "description": "Validate an OpenBindings interface document",
+      "input": {
+        "properties": {
+          "format": {
+            "description": "Output format: json|yaml|text",
+            "type": "string"
+          },
+          "locator": {
+            "description": "File path, HTTP(S) URL, or exec: locator",
+            "type": "string"
+          },
+          "output": {
+            "description": "Write output to file",
+            "type": "string"
+          },
+          "quiet": {
+            "description": "Exit code only, no output",
+            "type": "boolean"
+          },
+          "strict": {
+            "description": "Reject unknown fields and require supported version",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "locator"
+        ],
+        "type": "object"
+      },
+      "tags": [
+        "authoring"
+      ],
+      "x-ob": {}
+    }
+  },
+  "sources": {
+    "asyncapi": {
+      "format": "asyncapi@3.0",
+      "location": "internal/server/asyncapi.yaml"
+    },
+    "openapi": {
+      "format": "openapi@3.1",
+      "location": "internal/server/openapi.yaml",
+      "x-ob": {
+        "contentHash": "sha256:25519341b0b2dd95dbbebbe3d297c5ebca2949646b0f762efc87de7ff7128e4f",
+        "delegate": "ob",
+        "lastSynced": "2026-03-25T01:52:57Z",
+        "obVersion": "dev",
+        "ref": "internal/server/openapi.yaml",
+        "resolve": "location"
+      }
+    },
+    "usage": {
+      "format": "usage@2.0.0",
+      "location": "exec:/tmp/ob-gen --usage-spec",
+      "x-ob": {
+        "delegate": "ob",
+        "lastSynced": "2026-03-25T01:52:57Z",
+        "obVersion": "dev",
+        "ref": "exec:/tmp/ob-gen --usage-spec",
+        "resolve": "location"
+      }
+    }
+  },
+  "version": "0.1.0",
+  "schemas": {
+    "ContextEntry": {
+      "type": "object",
+      "description": "A stored context entry.",
+      "properties": {
+        "key": {
+          "type": "string",
+          "description": "Context store key (typically a normalized API origin)."
+        },
+        "context": {
+          "type": "object",
+          "description": "Opaque credential map. Well-known fields include 'bearerToken', 'apiKey', 'basic'.",
+          "additionalProperties": true
+        }
+      },
+      "required": [
+        "key"
+      ],
+      "additionalProperties": false
+    },
+    "CreateInterfaceSource": {
+      "type": "object",
+      "description": "A binding source to extract operations from.",
+      "properties": {
+        "format": {
+          "type": "string",
+          "description": "Format token (e.g., openapi@3.1, usage@2.13.1)."
+        },
+        "name": {
+          "type": "string",
+          "description": "Key name for this binding source in the output OBI's sources."
+        },
+        "location": {
+          "type": "string",
+          "description": "Location to fetch content from (path or URL)."
+        },
+        "content": {
+          "description": "Content provided directly."
+        },
+        "outputLocation": {
+          "type": "string",
+          "description": "Location to reference in the output OBI's binding source."
+        },
+        "embed": {
+          "type": "boolean",
+          "description": "If true, embed content inline in the output OBI."
+        },
+        "description": {
+          "type": "string",
+          "description": "Human-readable description for this binding source."
+        }
+      },
+      "required": [
+        "format"
+      ],
+      "oneOf": [
+        {
+          "required": [
+            "location"
+          ]
+        },
+        {
+          "required": [
+            "content"
+          ]
+        }
+      ],
+      "additionalProperties": false
+    },
+    "CreateInterfaceInput": {
+      "type": "object",
+      "properties": {
+        "openbindingsVersion": {
+          "type": "string",
+          "description": "Target OpenBindings spec version (e.g., '0.1.0')."
+        },
+        "sources": {
+          "type": "array",
+          "items": {
+            "$ref": "#/schemas/CreateInterfaceSource"
+          },
+          "description": "Binding sources to extract from."
+        },
+        "name": {
+          "type": "string",
+          "description": "Interface name override."
+        },
+        "version": {
+          "type": "string",
+          "description": "Interface contract version override."
+        },
+        "description": {
+          "type": "string",
+          "description": "Interface description override."
+        }
+      },
+      "additionalProperties": false
+    },
+    "OpenBindingsInterface": {
+      "type": "object",
+      "description": "A valid OpenBindings interface document.",
+      "additionalProperties": true
+    },
+    "ExecuteSource": {
+      "type": "object",
+      "description": "Binding source for execution.",
+      "properties": {
+        "format": {
+          "type": "string",
+          "description": "Format token (e.g., openapi@3.1)."
+        },
+        "location": {
+          "type": "string",
+          "description": "Location of the binding source."
+        },
+        "content": {
+          "description": "Binding source content directly."
+        }
+      },
+      "required": [
+        "format"
+      ],
+      "oneOf": [
+        {
+          "required": [
+            "location"
+          ]
+        },
+        {
+          "required": [
+            "content"
+          ]
+        }
+      ],
+      "additionalProperties": false
+    },
+    "BindingContext": {
+      "type": "object",
+      "description": "Opaque runtime context for binding execution.",
+      "additionalProperties": true
+    },
+    "ExecutionOptions": {
+      "type": "object",
+      "description": "Developer-supplied per-request execution options.",
+      "properties": {
+        "headers": {
+          "type": "object",
+          "description": "HTTP headers.",
+          "additionalProperties": {
+            "type": "string"
+          }
+        },
+        "cookies": {
+          "type": "object",
+          "description": "Cookies.",
+          "additionalProperties": {
+            "type": "string"
+          }
+        },
+        "environment": {
+          "type": "object",
+          "description": "Environment variables.",
+          "additionalProperties": {
+            "type": "string"
+          }
+        },
+        "metadata": {
+          "type": "object",
+          "description": "Open metadata map.",
+          "additionalProperties": true
+        }
+      },
+      "additionalProperties": false
+    },
+    "ExecuteBindingInput": {
+      "type": "object",
+      "description": "Input for executing a resolved binding.",
+      "properties": {
+        "source": {
+          "$ref": "#/schemas/ExecuteSource",
+          "description": "The binding source."
+        },
+        "ref": {
+          "type": "string",
+          "description": "Reference within the binding source."
+        },
+        "input": {
+          "description": "Operation input data."
+        },
+        "context": {
+          "$ref": "#/schemas/BindingContext",
+          "description": "Runtime binding context."
+        },
+        "options": {
+          "$ref": "#/schemas/ExecutionOptions",
+          "description": "Developer-supplied execution options."
+        }
+      },
+      "required": [
+        "source",
+        "ref"
+      ],
+      "additionalProperties": false
+    },
+    "Error": {
+      "type": "object",
+      "description": "Structured error information.",
+      "properties": {
+        "code": {
+          "type": "string",
+          "description": "Machine-readable error code."
+        },
+        "message": {
+          "type": "string",
+          "description": "Human-readable error message."
+        },
+        "details": {
+          "description": "Additional error details."
+        }
+      },
+      "required": [
+        "code",
+        "message"
+      ],
+      "additionalProperties": false
+    },
+    "ExecuteBindingOutput": {
+      "type": "object",
+      "description": "Output from executing a resolved binding.",
+      "properties": {
+        "output": {
+          "description": "Operation output data."
+        },
+        "status": {
+          "type": "integer",
+          "description": "Status or exit code."
+        },
+        "durationMs": {
+          "type": "number",
+          "description": "Execution duration in milliseconds."
+        },
+        "error": {
+          "$ref": "#/schemas/Error",
+          "description": "Present if the operation failed."
+        }
+      },
+      "additionalProperties": true
+    },
+    "SoftwareInfo": {
+      "type": "object",
+      "description": "Identity and metadata for a piece of software.",
+      "properties": {
+        "name": {
+          "type": "string",
+          "description": "Human-readable display name."
+        },
+        "version": {
+          "type": "string",
+          "description": "Software version."
+        },
+        "description": {
+          "type": "string",
+          "description": "Brief description."
+        },
+        "homepage": {
+          "type": "string",
+          "description": "Documentation URL."
+        },
+        "repository": {
+          "type": "string",
+          "description": "Source code URL."
+        },
+        "maintainer": {
+          "type": "string",
+          "description": "Author or organization."
+        }
+      },
+      "required": [
+        "name"
+      ],
+      "additionalProperties": false
+    },
+    "FormatInfo": {
+      "type": "object",
+      "description": "Information about a supported binding format.",
+      "properties": {
+        "token": {
+          "type": "string",
+          "description": "Format token."
+        },
+        "description": {
+          "type": "string",
+          "description": "Human-readable description."
+        }
+      },
+      "required": [
+        "token"
+      ],
+      "additionalProperties": false
+    }
+  }
+}

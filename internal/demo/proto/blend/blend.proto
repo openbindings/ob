@@ -1,0 +1,89 @@
+syntax = "proto3";
+
+package blend;
+
+option go_package = "github.com/openbindings/demo/proto/blend";
+
+// CoffeeShop is the OpenBlendings service.
+service CoffeeShop {
+  // GetMenu returns the full menu with drinks, sizes, and prices.
+  rpc GetMenu(GetMenuRequest) returns (GetMenuResponse);
+
+  // PlaceOrder places a new coffee order.
+  rpc PlaceOrder(PlaceOrderRequest) returns (PlaceOrderResponse);
+
+  // GetOrderStatus checks the current status of an order.
+  rpc GetOrderStatus(GetOrderStatusRequest) returns (GetOrderStatusResponse);
+
+  // CancelOrder cancels a pending or preparing order.
+  rpc CancelOrder(CancelOrderRequest) returns (CancelOrderResponse);
+
+  // OrderUpdates streams real-time order status changes.
+  rpc OrderUpdates(OrderUpdatesRequest) returns (stream OrderUpdate);
+}
+
+message GetMenuRequest {}
+
+message GetMenuResponse {
+  repeated MenuItemMessage items = 1;
+}
+
+message MenuItemMessage {
+  string name = 1;
+  string description = 2;
+  string category = 3;
+  repeated SizePriceMessage sizes = 4;
+}
+
+message SizePriceMessage {
+  string id = 1;
+  string label = 2;
+  double price = 3;
+}
+
+message PlaceOrderRequest {
+  string drink = 1;
+  string size = 2;
+  string customer = 3;
+}
+
+message PlaceOrderResponse {
+  string order_id = 1;
+  string status = 2;
+  string drink = 3;
+  string size = 4;
+  string customer = 5;
+}
+
+message GetOrderStatusRequest {
+  string order_id = 1;
+}
+
+message GetOrderStatusResponse {
+  string order_id = 1;
+  string status = 2;
+  string drink = 3;
+  string size = 4;
+  string customer = 5;
+  string created_at = 6;
+  string updated_at = 7;
+}
+
+message CancelOrderRequest {
+  string order_id = 1;
+}
+
+message CancelOrderResponse {
+  string order_id = 1;
+  string status = 2;
+}
+
+message OrderUpdatesRequest {}
+
+message OrderUpdate {
+  string order_id = 1;
+  string status = 2;
+  string drink = 3;
+  string customer = 4;
+  string timestamp = 5;
+}

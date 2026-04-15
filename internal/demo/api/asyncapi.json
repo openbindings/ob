@@ -1,0 +1,61 @@
+{
+  "asyncapi": "3.0.0",
+  "info": {
+    "title": "OpenBlendings Events",
+    "version": "1.0.0",
+    "description": "Real-time order status updates from OpenBlendings, served via SSE."
+  },
+  "servers": {
+    "local": {
+      "host": "localhost:8080",
+      "protocol": "http",
+      "description": "Local demo server"
+    }
+  },
+  "channels": {
+    "orderUpdates": {
+      "address": "/events/orders",
+      "description": "Real-time order status change events.",
+      "messages": {
+        "OrderUpdate": {
+          "summary": "An order status change",
+          "payload": {
+            "type": "object",
+            "properties": {
+              "orderId": {
+                "type": "string",
+                "description": "The order ID"
+              },
+              "status": {
+                "type": "string",
+                "description": "New status: received, preparing, ready, picked_up, or cancelled"
+              },
+              "drink": {
+                "type": "string",
+                "description": "The drink that was ordered"
+              },
+              "customer": {
+                "type": "string",
+                "description": "Customer who placed the order"
+              },
+              "timestamp": {
+                "type": "string",
+                "format": "date-time",
+                "description": "When the status changed"
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "operations": {
+    "onOrderUpdate": {
+      "action": "receive",
+      "channel": {"$ref": "#/channels/orderUpdates"},
+      "summary": "Receive order status updates",
+      "description": "Subscribe to real-time order status changes. Connect via SSE at /events/orders.",
+      "messages": [{"$ref": "#/channels/orderUpdates/messages/OrderUpdate"}]
+    }
+  }
+}

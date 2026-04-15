@@ -1,0 +1,127 @@
+asyncapi: "3.0.0"
+info:
+  title: ob serve streaming API
+  version: 0.1.0
+  description: >
+    WebSocket streaming API for the OpenBindings CLI (ob serve).
+    Clients upgrade the /bindings/execute endpoint to a WebSocket
+    for streaming operation execution. One connection = one execution lifecycle.
+
+servers:
+  local:
+    host: ${OB_SERVER_HOST}
+    protocol: ${OB_SERVER_PROTOCOL}
+    description: Default local server (port 20290 = 0x4F42, ASCII OB)
+    security:
+      - $ref: "#/components/securitySchemes/bearer"
+
+channels:
+  bindingsExecute:
+    address: /bindings/execute
+    bindings:
+      ws:
+        method: GET
+    messages:
+      executeRequest:
+        $ref: "#/components/messages/ExecuteRequest"
+      streamEvent:
+        $ref: "#/components/messages/StreamEventMessage"
+      streamError:
+        $ref: "#/components/messages/StreamErrorMessage"
+
+operations:
+  executeBinding:
+    action: send
+    channel:
+      $ref: "#/channels/bindingsExecute"
+    summary: Execute a binding via WebSocket streaming
+    description: >
+      Open a WebSocket to /bindings/execute. Send an ExecuteRequest as the
+      first message. The server streams back StreamEvent and StreamError
+      messages until the connection is closed (status 1000).
+    messages:
+      - $ref: "#/channels/bindingsExecute/messages/executeRequest"
+    reply:
+      channel:
+        $ref: "#/channels/bindingsExecute"
+      messages:
+        - $ref: "#/channels/bindingsExecute/messages/streamEvent"
+        - $ref: "#/channels/bindingsExecute/messages/streamError"
+
+components:
+  messages:
+    ExecuteRequest:
+      name: executeRequest
+      summary: Execution request (first message from client)
+      payload:
+        type: object
+        required: [source, ref]
+        properties:
+          source:
+            $ref: "#/components/schemas/ExecuteSource"
+          ref:
+            type: string
+            description: Reference to the binding within the source
+          input:
+            type: object
+            description: Operation input data
+          context:
+            type: object
+            description: Binding context
+            additionalProperties: true
+          bearerToken:
+            type: string
+            description: Bearer token for authentication (WebSocket cannot use HTTP headers)
+
+    StreamEventMessage:
+      name: streamEvent
+      summary: A single event from the execution stream
+      payload:
+        type: object
+        required: [type]
+        properties:
+          type:
+            type: string
+            const: event
+          data: {}
+
+    StreamErrorMessage:
+      name: streamError
+      summary: An error during stream execution
+      payload:
+        type: object
+        required: [type, error]
+        properties:
+          type:
+            type: string
+            const: error
+          error:
+            type: object
+            required: [message]
+            properties:
+              message:
+                type: string
+              code:
+                type: string
+
+  securitySchemes:
+    bearer:
+      type: httpBearer
+      description: >
+        Bearer token authentication. For WebSocket connections, the token
+        is sent in the first message payload as a "bearerToken" field
+        alongside the execution request.
+
+  schemas:
+    ExecuteSource:
+      type: object
+      required: [format]
+      properties:
+        format:
+          type: string
+          description: Format token (e.g., openapi@3.1, asyncapi@3.0)
+        location:
+          type: string
+          description: Location of the binding source (path or URL)
+        content:
+          description: Binding source content directly

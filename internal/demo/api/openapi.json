@@ -1,0 +1,185 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "OpenBlendings API",
+    "version": "1.0.0",
+    "description": "REST API for OpenBlendings, powered by OpenBindings."
+  },
+  "servers": [
+    {"url": "http://localhost:8080"}
+  ],
+  "paths": {
+    "/api/menu": {
+      "get": {
+        "operationId": "getMenu",
+        "summary": "Get the menu",
+        "description": "Returns the full Blend menu with drinks, sizes, and prices.",
+        "responses": {
+          "200": {
+            "description": "The menu",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "name": {"type": "string"},
+                          "description": {"type": "string"},
+                          "category": {"type": "string"},
+                          "sizes": {
+                            "type": "array",
+                            "items": {
+                              "type": "object",
+                              "properties": {
+                                "id": {"type": "string"},
+                                "label": {"type": "string"},
+                                "price": {"type": "number"}
+                              }
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/orders": {
+      "post": {
+        "operationId": "placeOrder",
+        "summary": "Place an order",
+        "description": "Place a new coffee order at Blend.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "drink": {
+                    "type": "string",
+                    "description": "Name of the drink to order"
+                  },
+                  "size": {
+                    "type": "string",
+                    "description": "Size: v1 (small), v2 (medium), or v3 (large)"
+                  },
+                  "customer": {
+                    "type": "string",
+                    "description": "Customer name for the order"
+                  }
+                },
+                "required": ["drink", "size", "customer"]
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Order placed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "orderId": {"type": "string"},
+                    "status": {"type": "string"},
+                    "drink": {"type": "string"},
+                    "size": {"type": "string"},
+                    "customer": {"type": "string"}
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/orders/{orderId}": {
+      "get": {
+        "operationId": "getOrderStatus",
+        "summary": "Get order status",
+        "description": "Check the current status of an order.",
+        "parameters": [
+          {
+            "name": "orderId",
+            "in": "path",
+            "required": true,
+            "schema": {"type": "string"},
+            "description": "Order ID"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Order status",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "orderId": {"type": "string"},
+                    "status": {"type": "string"},
+                    "drink": {"type": "string"},
+                    "size": {"type": "string"},
+                    "customer": {"type": "string"},
+                    "createdAt": {"type": "string", "format": "date-time"},
+                    "updatedAt": {"type": "string", "format": "date-time"}
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Order not found"
+          }
+        }
+      }
+    },
+    "/api/orders/{orderId}/cancel": {
+      "post": {
+        "operationId": "cancelOrder",
+        "summary": "Cancel an order",
+        "description": "Cancel a pending or preparing order.",
+        "parameters": [
+          {
+            "name": "orderId",
+            "in": "path",
+            "required": true,
+            "schema": {"type": "string"},
+            "description": "Order ID"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Order cancelled",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "orderId": {"type": "string"},
+                    "status": {"type": "string"}
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Order not found"
+          },
+          "409": {
+            "description": "Order cannot be cancelled"
+          }
+        }
+      }
+    }
+  }
+}

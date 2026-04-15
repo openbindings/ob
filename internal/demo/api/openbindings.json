@@ -1,0 +1,371 @@
+{
+  "openbindings": "0.1.0",
+  "name": "OpenBlendings",
+  "version": "1.0.0",
+  "description": "A coffee shop demonstrating OpenBindings with five binding specifications. One interface, five protocols, zero duplication.",
+  "schemas": {
+    "MenuResponse": {
+      "type": "object",
+      "properties": {
+        "items": {
+          "type": "array",
+          "items": {
+            "$ref": "#/schemas/MenuItem"
+          }
+        }
+      }
+    },
+    "MenuItem": {
+      "type": "object",
+      "properties": {
+        "name": {"type": "string"},
+        "description": {"type": "string"},
+        "category": {"type": "string"},
+        "sizes": {
+          "type": "array",
+          "items": {
+            "$ref": "#/schemas/SizePrice"
+          }
+        }
+      }
+    },
+    "SizePrice": {
+      "type": "object",
+      "properties": {
+        "id": {"type": "string"},
+        "label": {"type": "string"},
+        "price": {"type": "number"}
+      }
+    },
+    "PlaceOrderInput": {
+      "type": "object",
+      "properties": {
+        "drink": {"type": "string", "description": "Name of the drink to order"},
+        "size": {"type": "string", "description": "Size: v1 (small), v2 (medium), or v3 (large)"},
+        "customer": {"type": "string", "description": "Customer name for the order"}
+      },
+      "required": ["drink", "size", "customer"]
+    },
+    "PlaceOrderOutput": {
+      "type": "object",
+      "properties": {
+        "orderId": {"type": "string"},
+        "status": {"type": "string"},
+        "drink": {"type": "string"},
+        "size": {"type": "string"},
+        "customer": {"type": "string"}
+      }
+    },
+    "GetOrderStatusOutput": {
+      "type": "object",
+      "properties": {
+        "orderId": {"type": "string"},
+        "status": {"type": "string"},
+        "drink": {"type": "string"},
+        "size": {"type": "string"},
+        "customer": {"type": "string"},
+        "createdAt": {"type": "string", "format": "date-time"},
+        "updatedAt": {"type": "string", "format": "date-time"}
+      }
+    },
+    "CancelOrderOutput": {
+      "type": "object",
+      "properties": {
+        "orderId": {"type": "string"},
+        "status": {"type": "string"}
+      }
+    },
+    "OrderUpdate": {
+      "type": "object",
+      "properties": {
+        "orderId": {"type": "string"},
+        "status": {"type": "string"},
+        "drink": {"type": "string"},
+        "customer": {"type": "string"},
+        "timestamp": {"type": "string", "format": "date-time"}
+      }
+    }
+  },
+  "operations": {
+    "getMenu": {
+      "description": "Get the OpenBlendings menu with drinks, sizes, and prices.",
+      "idempotent": true,
+      "output": {
+        "$ref": "#/schemas/MenuResponse"
+      }
+    },
+    "placeOrder": {
+      "description": "Place a new coffee order.",
+      "input": {
+        "$ref": "#/schemas/PlaceOrderInput"
+      },
+      "output": {
+        "$ref": "#/schemas/PlaceOrderOutput"
+      }
+    },
+    "getOrderStatus": {
+      "description": "Check the current status of an order.",
+      "idempotent": true,
+      "input": {
+        "type": "object",
+        "properties": {
+          "orderId": {"type": "string", "description": "The order ID to check"}
+        },
+        "required": ["orderId"]
+      },
+      "output": {
+        "$ref": "#/schemas/GetOrderStatusOutput"
+      }
+    },
+    "cancelOrder": {
+      "description": "Cancel a pending or preparing order.",
+      "input": {
+        "type": "object",
+        "properties": {
+          "orderId": {"type": "string", "description": "The order ID to cancel"}
+        },
+        "required": ["orderId"]
+      },
+      "output": {
+        "$ref": "#/schemas/CancelOrderOutput"
+      }
+    },
+    "orderUpdates": {
+      "description": "Real-time stream of order status changes (received, preparing, ready, picked_up, cancelled).",
+      "output": {
+        "$ref": "#/schemas/OrderUpdate"
+      }
+    },
+    "placeAndTrack": {
+      "description": "Place a coffee order and track it in real time until it's ready. Combines placeOrder with the orderUpdates stream, filtering for the placed order's status changes. Returns when the order reaches 'ready' or 'picked_up'.",
+      "input": {
+        "$ref": "#/schemas/PlaceOrderInput"
+      },
+      "output": {
+        "$ref": "#/schemas/OrderUpdate"
+      }
+    }
+  },
+  "sources": {
+    "restApi": {
+      "format": "openapi@3.1",
+      "location": "./openapi.json",
+      "description": "REST API — the mobile ordering app calls this"
+    },
+    "eventStream": {
+      "format": "asyncapi@3.0",
+      "location": "./asyncapi.json",
+      "description": "SSE event stream — the barista dashboard watches this"
+    },
+    "mcpServer": {
+      "format": "mcp@2025-11-25",
+      "location": "./mcp",
+      "description": "MCP tools via Streamable HTTP — AI assistants use this"
+    },
+    "grpcServer": {
+      "format": "grpc",
+      "location": "localhost:9090",
+      "description": "gRPC service — backend microservices talk over this"
+    },
+    "connectServer": {
+      "format": "connect",
+      "location": "./",
+      "description": "Connect (Buf) — same protobuf service over HTTP/1.1 + JSON"
+    },
+    "graphqlServer": {
+      "format": "graphql",
+      "location": "./graphql",
+      "description": "GraphQL API — flexible queries with field selection"
+    },
+    "placeAndTrackGraph": {
+      "format": "openbindings.operation-graph@0.1.0",
+      "description": "Operation graph — places an order and tracks it via the SSE event stream until ready",
+      "content": {
+        "openbindings.operation-graph": "0.1.0",
+        "graphs": {
+          "placeAndTrack": {
+            "description": "Place a coffee order, subscribe to live updates, and return when the order is ready.",
+            "nodes": {
+              "in":        { "type": "input" },
+              "place":     { "type": "operation", "operation": "placeOrder", "onError": "out" },
+              "subscribe": { "type": "operation", "operation": "orderUpdates", "onError": "out" },
+              "combined":  { "type": "combine" },
+              "match":     {
+                "type": "filter",
+                "transform": {
+                  "type": "jsonata",
+                  "expression": "place != null and subscribe != null and subscribe.orderId = place.orderId and subscribe.status in ['ready', 'picked_up']"
+                }
+              },
+              "shape":     {
+                "type": "transform",
+                "transform": {
+                  "type": "jsonata",
+                  "expression": "subscribe"
+                }
+              },
+              "done":      { "type": "exit", "onError": "out" },
+              "out":       { "type": "output" }
+            },
+            "edges": [
+              { "from": "in", "to": "place" },
+              { "from": "in", "to": "subscribe" },
+              { "from": "place", "to": "out" },
+              { "from": "place", "to": "combined" },
+              { "from": "subscribe", "to": "combined" },
+              { "from": "combined", "to": "match" },
+              { "from": "match", "to": "shape" },
+              { "from": "shape", "to": "done" }
+            ]
+          }
+        }
+      }
+    }
+  },
+  "bindings": {
+    "getMenu.restApi": {
+      "operation": "getMenu",
+      "source": "restApi",
+      "ref": "#/paths/~1api~1menu/get",
+      "priority": 0
+    },
+    "getMenu.mcpServer": {
+      "operation": "getMenu",
+      "source": "mcpServer",
+      "ref": "tools/getMenu",
+      "priority": 5
+    },
+    "getMenu.grpcServer": {
+      "operation": "getMenu",
+      "source": "grpcServer",
+      "ref": "blend.CoffeeShop/GetMenu",
+      "priority": 10
+    },
+    "placeOrder.restApi": {
+      "operation": "placeOrder",
+      "source": "restApi",
+      "ref": "#/paths/~1api~1orders/post",
+      "priority": 0
+    },
+    "placeOrder.mcpServer": {
+      "operation": "placeOrder",
+      "source": "mcpServer",
+      "ref": "tools/placeOrder",
+      "priority": 5
+    },
+    "placeOrder.grpcServer": {
+      "operation": "placeOrder",
+      "source": "grpcServer",
+      "ref": "blend.CoffeeShop/PlaceOrder",
+      "priority": 10
+    },
+    "getOrderStatus.restApi": {
+      "operation": "getOrderStatus",
+      "source": "restApi",
+      "ref": "#/paths/~1api~1orders~1{orderId}/get",
+      "priority": 0
+    },
+    "getOrderStatus.mcpServer": {
+      "operation": "getOrderStatus",
+      "source": "mcpServer",
+      "ref": "tools/getOrderStatus",
+      "priority": 5
+    },
+    "getOrderStatus.grpcServer": {
+      "operation": "getOrderStatus",
+      "source": "grpcServer",
+      "ref": "blend.CoffeeShop/GetOrderStatus",
+      "priority": 10
+    },
+    "cancelOrder.restApi": {
+      "operation": "cancelOrder",
+      "source": "restApi",
+      "ref": "#/paths/~1api~1orders~1{orderId}~1cancel/post",
+      "priority": 0
+    },
+    "cancelOrder.mcpServer": {
+      "operation": "cancelOrder",
+      "source": "mcpServer",
+      "ref": "tools/cancelOrder",
+      "priority": 5
+    },
+    "cancelOrder.grpcServer": {
+      "operation": "cancelOrder",
+      "source": "grpcServer",
+      "ref": "blend.CoffeeShop/CancelOrder",
+      "priority": 10
+    },
+    "getMenu.connectServer": {
+      "operation": "getMenu",
+      "source": "connectServer",
+      "ref": "blend.CoffeeShop/GetMenu",
+      "priority": 12
+    },
+    "placeOrder.connectServer": {
+      "operation": "placeOrder",
+      "source": "connectServer",
+      "ref": "blend.CoffeeShop/PlaceOrder",
+      "priority": 12
+    },
+    "getOrderStatus.connectServer": {
+      "operation": "getOrderStatus",
+      "source": "connectServer",
+      "ref": "blend.CoffeeShop/GetOrderStatus",
+      "priority": 12
+    },
+    "cancelOrder.connectServer": {
+      "operation": "cancelOrder",
+      "source": "connectServer",
+      "ref": "blend.CoffeeShop/CancelOrder",
+      "priority": 12
+    },
+    "getMenu.graphqlServer": {
+      "operation": "getMenu",
+      "source": "graphqlServer",
+      "ref": "Query/getMenu",
+      "priority": 15
+    },
+    "placeOrder.graphqlServer": {
+      "operation": "placeOrder",
+      "source": "graphqlServer",
+      "ref": "Mutation/placeOrder",
+      "priority": 15
+    },
+    "getOrderStatus.graphqlServer": {
+      "operation": "getOrderStatus",
+      "source": "graphqlServer",
+      "ref": "Mutation/getOrderStatus",
+      "priority": 15
+    },
+    "cancelOrder.graphqlServer": {
+      "operation": "cancelOrder",
+      "source": "graphqlServer",
+      "ref": "Mutation/cancelOrder",
+      "priority": 15
+    },
+    "orderUpdates.eventStream": {
+      "operation": "orderUpdates",
+      "source": "eventStream",
+      "ref": "#/operations/onOrderUpdate",
+      "priority": 0
+    },
+    "orderUpdates.grpcServer": {
+      "operation": "orderUpdates",
+      "source": "grpcServer",
+      "ref": "blend.CoffeeShop/OrderUpdates",
+      "priority": 10
+    },
+    "orderUpdates.graphqlServer": {
+      "operation": "orderUpdates",
+      "source": "graphqlServer",
+      "ref": "Subscription/orderUpdates",
+      "priority": 15
+    },
+    "placeAndTrack.graph": {
+      "operation": "placeAndTrack",
+      "source": "placeAndTrackGraph",
+      "ref": "placeAndTrack",
+      "description": "Composed operation: places an order and tracks it via live event stream"
+    }
+  }
+}
