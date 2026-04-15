@@ -11,6 +11,7 @@ import (
 	"time"
 
 	gomcp "github.com/modelcontextprotocol/go-sdk/mcp"
+	"github.com/zalando/go-keyring"
 
 	"github.com/openbindings/ob/internal/server"
 )
@@ -19,6 +20,7 @@ import (
 // along with a connected MCP session.
 func mcpTestEnv(t *testing.T) (*httptest.Server, *gomcp.ClientSession) {
 	t.Helper()
+	keyring.MockInit()
 
 	srv, err := server.New(server.Config{
 		Port:   0,

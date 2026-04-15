@@ -4,10 +4,13 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+
+	"github.com/zalando/go-keyring"
 )
 
 func setupContextTestDir(t *testing.T) string {
 	t.Helper()
+	keyring.MockInit()
 	dir := t.TempDir()
 	contextsDirFunc = func() (string, error) { return dir, nil }
 	t.Cleanup(func() { contextsDirFunc = defaultContextsDir })
