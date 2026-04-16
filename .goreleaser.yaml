@@ -44,18 +44,19 @@ changelog:
       - "^ci:"
       - "^chore:"
 
-brews:
+homebrew_casks:
   - repository:
       owner: openbindings
       name: homebrew-tap
     name: ob
+    binaries:
+      - ob
     homepage: https://openbindings.com
     description: The OpenBindings CLI
-    license: Apache-2.0
-    install: |
-      bin.install "ob"
-    test: |
-      system "#{bin}/ob", "version"
+    hooks:
+      post:
+        install: |
+          system_command "/usr/bin/xattr", args: ["-dr", "com.apple.quarantine", "#{staged_path}/ob"]
 
 release:
   github:

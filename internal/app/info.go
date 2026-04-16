@@ -1,7 +1,10 @@
 package app
 
 import (
+	"fmt"
 	"strings"
+
+	openbindings "github.com/openbindings/openbindings-go"
 )
 
 // SoftwareInfo contains identity and metadata for a piece of software.
@@ -12,6 +15,11 @@ type SoftwareInfo struct {
 	Homepage    string `json:"homepage,omitempty"`
 	Repository  string `json:"repository,omitempty"`
 	Maintainer  string `json:"maintainer,omitempty"`
+	// SpecRange is the range of OpenBindings spec versions this build
+	// understands, sourced from the SDK (openbindings-go's
+	// MinSupportedVersion / MaxTestedVersion constants). Formatted as
+	// "min..max" (or just "min" when min == max).
+	SpecRange string `json:"specRange,omitempty"`
 }
 
 // RenderSoftwareInfo returns a human-friendly styled representation of SoftwareInfo.
@@ -57,7 +65,25 @@ func RenderSoftwareInfo(sw SoftwareInfo) string {
 		sb.WriteString(s.Key.Render(sw.Repository))
 	}
 
+	if sw.SpecRange != "" {
+		sb.WriteString("\n  ")
+		sb.WriteString(s.Bullet.Render("•"))
+		sb.WriteString(" ")
+		sb.WriteString(s.Dim.Render("Spec:       "))
+		sb.WriteString(sw.SpecRange)
+	}
+
 	return sb.String()
+}
+
+// specRange formats the SDK's supported spec range for display.
+// "0.1.0" when min == max; "0.1.0..0.2.0" when a genuine range.
+func specRange() string {
+	min, max := openbindings.SupportedRange()
+	if min == max {
+		return min
+	}
+	return fmt.Sprintf("%s..%s", min, max)
 }
 
 // Info returns ob's own software identity and metadata.
@@ -69,5 +95,6 @@ func Info() SoftwareInfo {
 		Homepage:    "https://openbindings.com",
 		Repository:  "https://github.com/openbindings/ob",
 		Maintainer:  "OpenBindings Project",
+		SpecRange:   specRange(),
 	}
 }

@@ -116,25 +116,22 @@ func (s *Server) Handler() http.Handler {
 	return s.buildMiddlewareChain(s.mux)
 }
 
-// ListenAndServe binds to localhost on the configured port (with fallback)
-// and serves until the context is cancelled.
+// ListenAndServe binds HTTP (and HTTPS, unless --no-tls) to localhost and
+// serves until the context is cancelled.
+//
+// By default, ob runs two listeners: HTTP on `config.Port` and HTTPS on
+// `config.Port + 1`. Clients probe either protocol; whichever the page
+// can reach wins. HTTP always works with zero config. HTTPS works once
+// the local CA is trusted by the system keychain (auto-installed on
+// first run). If TLS setup fails for any reason (declined sudo prompt,
+// permission error, non-interactive terminal), HTTP still serves — the
+// user is never fully blocked.
 func (s *Server) ListenAndServe(ctx context.Context) error {
 	handler := s.buildMiddlewareChain(s.mux)
 
-	port := s.config.Port
-	var listener net.Listener
-	var err error
-
-	for attempts := 0; attempts < 10; attempts++ {
-		addr := fmt.Sprintf("127.0.0.1:%d", port)
-		listener, err = net.Listen("tcp", addr)
-		if err == nil {
-			break
-		}
-		port++
-	}
+	httpListener, httpPort, err := bindLocalhostPort(s.config.Port, 10)
 	if err != nil {
-		return fmt.Errorf("failed to bind (tried ports %d–%d): %w", s.config.Port, port, err)
+		return fmt.Errorf("HTTP bind failed (tried 10 ports starting at %d): %w", s.config.Port, err)
 	}
 
 	httpSrv := &http.Server{
@@ -142,46 +139,90 @@ func (s *Server) ListenAndServe(ctx context.Context) error {
 		ReadHeaderTimeout: 10 * time.Second,
 		IdleTimeout:       120 * time.Second,
 	}
-
-	scheme := "http"
-	if s.config.TLS {
-		tlsCfg, err := localhostTLSConfig(s.logger)
-		if err != nil {
-			return fmt.Errorf("TLS setup: %w", err)
-		}
-		httpSrv.TLSConfig = tlsCfg
-		listener = tls.NewListener(listener, tlsCfg)
-		scheme = "https"
-	}
-
 	s.httpSrv.Store(httpSrv)
 
-	s.logger.Info("server starting",
-		"addr", fmt.Sprintf("%s://localhost:%d", scheme, port),
-	)
+	var httpsSrv *http.Server
+	var httpsListener net.Listener
+	httpsPort := 0
+
+	if s.config.TLS {
+		tlsCfg, tlsErr := ensureLocalhostTLS(s.logger)
+		if tlsErr != nil {
+			s.logger.Warn("HTTPS disabled — HTTP remains available",
+				"reason", tlsErr,
+				"fix", "re-run `ob serve` in a terminal to retry cert install",
+			)
+		} else {
+			rawHTTPS, p, bindErr := bindLocalhostPort(httpPort+1, 10)
+			if bindErr != nil {
+				s.logger.Warn("HTTPS port bind failed — HTTP remains available", "error", bindErr)
+			} else {
+				httpsListener = tls.NewListener(rawHTTPS, tlsCfg)
+				httpsPort = p
+				httpsSrv = &http.Server{
+					Handler:           handler,
+					TLSConfig:         tlsCfg,
+					ReadHeaderTimeout: 10 * time.Second,
+					IdleTimeout:       120 * time.Second,
+				}
+			}
+		}
+	}
+
+	s.logger.Info("server starting", "http", fmt.Sprintf("http://localhost:%d", httpPort))
+	if httpsSrv != nil {
+		s.logger.Info("server starting", "https", fmt.Sprintf("https://localhost:%d", httpsPort))
+	}
 	if len(s.config.AllowedOrigins) > 0 {
 		s.logger.Info("CORS configured", "origins", s.config.AllowedOrigins)
 	} else {
 		s.logger.Info("CORS allowing localhost origins (use --allow-origin to add others)")
 	}
 
-	errCh := make(chan error, 1)
+	errCh := make(chan error, 2)
 	go func() {
-		errCh <- httpSrv.Serve(listener)
+		errCh <- httpSrv.Serve(httpListener)
 	}()
+	if httpsSrv != nil {
+		go func() {
+			errCh <- httpsSrv.Serve(httpsListener)
+		}()
+	}
 
 	select {
 	case <-ctx.Done():
 		shutCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
 		s.logger.Info("shutting down")
-		return httpSrv.Shutdown(shutCtx)
+		shutErr := httpSrv.Shutdown(shutCtx)
+		if httpsSrv != nil {
+			if e := httpsSrv.Shutdown(shutCtx); e != nil && shutErr == nil {
+				shutErr = e
+			}
+		}
+		return shutErr
 	case err := <-errCh:
 		if err == http.ErrServerClosed {
 			return nil
 		}
 		return err
 	}
+}
+
+// bindLocalhostPort tries up to `attempts` consecutive ports starting at
+// `startPort`. Returns the listener, the port it bound to, or an error.
+func bindLocalhostPort(startPort, attempts int) (net.Listener, int, error) {
+	port := startPort
+	var lastErr error
+	for i := 0; i < attempts; i++ {
+		l, err := net.Listen("tcp", fmt.Sprintf("127.0.0.1:%d", port))
+		if err == nil {
+			return l, port, nil
+		}
+		lastErr = err
+		port++
+	}
+	return nil, 0, lastErr
 }
 
 // HTTPServer returns the underlying *http.Server once ListenAndServe has been
@@ -251,6 +292,16 @@ func (s *Server) corsMiddleware(next http.Handler) http.Handler {
 			w.Header().Set("Access-Control-Allow-Headers", "Authorization, Content-Type")
 			w.Header().Set("Access-Control-Max-Age", "3600")
 			w.Header().Set("Vary", "Origin")
+
+			// Private Network Access (PNA). Chrome sends this preflight header
+			// when a public-ish origin (HTTP pages that Chrome doesn't treat
+			// as loopback, HTTPS pages) tries to reach a private IP. Without
+			// the matching response header, the fetch is blocked with a
+			// confusing CSP-shaped error. Opt-in because ob binds to
+			// loopback only and the session token is the real auth boundary.
+			if r.Header.Get("Access-Control-Request-Private-Network") == "true" {
+				w.Header().Set("Access-Control-Allow-Private-Network", "true")
+			}
 		}
 
 		if r.Method == http.MethodOptions {
@@ -378,13 +429,20 @@ func generateToken() (string, error) {
 	return hex.EncodeToString(b), nil
 }
 
-// localhostTLSConfig returns a tls.Config using a locally-trusted CA.
+// ensureLocalhostTLS returns a tls.Config for localhost using a locally-
+// installed root CA. The full flow, self-healing on every call:
 //
-// On first run, ob creates a root CA at ~/.ob/tls/ob-ca.crt and installs
-// it in the system trust store (prompts for password once). All subsequent
-// runs reuse the CA to sign ephemeral localhost certs that every browser
-// trusts without warnings or manual setup.
-func localhostTLSConfig(logger *slog.Logger) (*tls.Config, error) {
+//  1. Load or create the CA at ~/.ob/tls/ob-ca.crt.
+//  2. Verify the CA is trusted by the system (macOS: present in the
+//     System keychain; Linux: in /etc/ssl/certs; Windows: Root store).
+//     If not — or if it's only in the user-login keychain from an earlier
+//     broken install — purge stale copies and re-install system-wide.
+//  3. Load or mint a leaf cert signed by the CA with 90-day validity.
+//
+// If cert install fails (user declines sudo, non-interactive terminal,
+// permission error), returns an error so the caller can log a warning
+// and fall back to HTTP-only. The user is never fully blocked.
+func ensureLocalhostTLS(logger *slog.Logger) (*tls.Config, error) {
 	dir, err := obTLSDir()
 	if err != nil {
 		return nil, err
@@ -392,76 +450,40 @@ func localhostTLSConfig(logger *slog.Logger) (*tls.Config, error) {
 
 	caKeyPath := filepath.Join(dir, "ob-ca.key")
 	caCertPath := filepath.Join(dir, "ob-ca.crt")
-	certPath := filepath.Join(dir, "localhost.crt")
-	keyPath := filepath.Join(dir, "localhost.key")
+	leafCertPath := filepath.Join(dir, "localhost.crt")
+	leafKeyPath := filepath.Join(dir, "localhost.key")
 
-	// Load or create the local CA.
-	caCert, caKey, err := loadOrCreateCA(caCertPath, caKeyPath, logger)
+	caCert, caKey, created, err := loadOrCreateCA(caCertPath, caKeyPath, logger)
 	if err != nil {
 		return nil, fmt.Errorf("CA setup: %w", err)
 	}
 
-	// Try loading existing leaf cert.
-	cert, err := tls.LoadX509KeyPair(certPath, keyPath)
-	if err == nil {
-		leaf, parseErr := x509.ParseCertificate(cert.Certificate[0])
-		if parseErr == nil && time.Now().Before(leaf.NotAfter.Add(-24*time.Hour)) {
-			// Still valid with at least a day of margin.
-			return &tls.Config{Certificates: []tls.Certificate{cert}}, nil
+	// Verify the CA is actually trusted by the system. If it was created
+	// just now (`created=true`) skip the verify — we already know we need
+	// to install. If it's existing, check: if a prior install was broken
+	// (e.g., landed in the user login keychain without proper trust) the
+	// verify flags that and we re-install cleanly.
+	needInstall := created || !caIsSystemTrusted(caCert, logger)
+	if needInstall {
+		if err := purgeStaleCAs(logger); err != nil {
+			logger.Warn("could not purge stale CA entries", "error", err)
+		}
+		if err := installCASystemWide(caCertPath, logger); err != nil {
+			return nil, fmt.Errorf("installing CA: %w", err)
 		}
 	}
 
-	// Generate a new leaf cert signed by the CA.
-	leafKey, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+	leafCert, err := loadOrMintLeaf(leafCertPath, leafKeyPath, caCert, caKey)
 	if err != nil {
-		return nil, fmt.Errorf("generating leaf key: %w", err)
+		return nil, err
 	}
 
-	serial, err := rand.Int(rand.Reader, new(big.Int).Lsh(big.NewInt(1), 128))
-	if err != nil {
-		return nil, fmt.Errorf("generating serial: %w", err)
-	}
-
-	leafTmpl := &x509.Certificate{
-		SerialNumber:          serial,
-		NotBefore:             time.Now(),
-		NotAfter:              time.Now().Add(90 * 24 * time.Hour), // 90 days
-		KeyUsage:              x509.KeyUsageDigitalSignature,
-		ExtKeyUsage:           []x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth},
-		BasicConstraintsValid: true,
-		DNSNames:              []string{"localhost"},
-		IPAddresses:           []net.IP{net.IPv4(127, 0, 0, 1), net.IPv6loopback},
-	}
-
-	leafDER, err := x509.CreateCertificate(rand.Reader, leafTmpl, caCert, &leafKey.PublicKey, caKey)
-	if err != nil {
-		return nil, fmt.Errorf("signing leaf cert: %w", err)
-	}
-
-	leafCertPEM := pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: leafDER})
-	if err := os.WriteFile(certPath, leafCertPEM, 0644); err != nil {
-		return nil, fmt.Errorf("writing leaf cert: %w", err)
-	}
-
-	leafKeyDER, err := x509.MarshalECPrivateKey(leafKey)
-	if err != nil {
-		return nil, fmt.Errorf("marshaling leaf key: %w", err)
-	}
-	leafKeyPEM := pem.EncodeToMemory(&pem.Block{Type: "EC PRIVATE KEY", Bytes: leafKeyDER})
-	if err := os.WriteFile(keyPath, leafKeyPEM, 0600); err != nil {
-		return nil, fmt.Errorf("writing leaf key: %w", err)
-	}
-
-	tlsCert, err := tls.X509KeyPair(leafCertPEM, leafKeyPEM)
-	if err != nil {
-		return nil, fmt.Errorf("loading leaf keypair: %w", err)
-	}
-
-	return &tls.Config{Certificates: []tls.Certificate{tlsCert}}, nil
+	return &tls.Config{Certificates: []tls.Certificate{leafCert}}, nil
 }
 
-func loadOrCreateCA(certPath, keyPath string, logger *slog.Logger) (*x509.Certificate, *ecdsa.PrivateKey, error) {
-	// Try loading existing CA.
+// loadOrCreateCA returns the CA cert+key. Reports `created=true` if a
+// new CA was generated on disk (caller uses this to trigger install).
+func loadOrCreateCA(certPath, keyPath string, logger *slog.Logger) (*x509.Certificate, *ecdsa.PrivateKey, bool, error) {
 	if certPEM, err := os.ReadFile(certPath); err == nil {
 		if keyPEM, err := os.ReadFile(keyPath); err == nil {
 			block, _ := pem.Decode(certPEM)
@@ -472,7 +494,7 @@ func loadOrCreateCA(certPath, keyPath string, logger *slog.Logger) (*x509.Certif
 					if keyBlock != nil {
 						caKey, err := x509.ParseECPrivateKey(keyBlock.Bytes)
 						if err == nil {
-							return caCert, caKey, nil
+							return caCert, caKey, false, nil
 						}
 					}
 				}
@@ -482,21 +504,18 @@ func loadOrCreateCA(certPath, keyPath string, logger *slog.Logger) (*x509.Certif
 
 	logger.Info("creating local CA for HTTPS (one-time setup)")
 
-	// Generate CA key.
 	caKey, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
 	if err != nil {
-		return nil, nil, fmt.Errorf("generating CA key: %w", err)
+		return nil, nil, false, fmt.Errorf("generating CA key: %w", err)
 	}
-
 	serial, err := rand.Int(rand.Reader, new(big.Int).Lsh(big.NewInt(1), 128))
 	if err != nil {
-		return nil, nil, fmt.Errorf("generating CA serial: %w", err)
+		return nil, nil, false, fmt.Errorf("generating CA serial: %w", err)
 	}
-
 	caTmpl := &x509.Certificate{
 		SerialNumber:          serial,
 		NotBefore:             time.Now(),
-		NotAfter:              time.Now().Add(10 * 365 * 24 * time.Hour), // 10 years
+		NotAfter:              time.Now().Add(10 * 365 * 24 * time.Hour),
 		KeyUsage:              x509.KeyUsageCertSign | x509.KeyUsageCRLSign,
 		BasicConstraintsValid: true,
 		IsCA:                  true,
@@ -506,66 +525,198 @@ func loadOrCreateCA(certPath, keyPath string, logger *slog.Logger) (*x509.Certif
 			CommonName:   "OpenBindings Local CA",
 		},
 	}
-
 	caDER, err := x509.CreateCertificate(rand.Reader, caTmpl, caTmpl, &caKey.PublicKey, caKey)
 	if err != nil {
-		return nil, nil, fmt.Errorf("creating CA cert: %w", err)
+		return nil, nil, false, fmt.Errorf("creating CA cert: %w", err)
 	}
-
 	caCert, err := x509.ParseCertificate(caDER)
 	if err != nil {
-		return nil, nil, fmt.Errorf("parsing CA cert: %w", err)
+		return nil, nil, false, fmt.Errorf("parsing CA cert: %w", err)
 	}
 
-	// Write CA cert.
 	caCertPEM := pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: caDER})
 	if err := os.WriteFile(certPath, caCertPEM, 0644); err != nil {
-		return nil, nil, fmt.Errorf("writing CA cert: %w", err)
+		return nil, nil, false, fmt.Errorf("writing CA cert: %w", err)
 	}
-
-	// Write CA key.
 	caKeyDER, err := x509.MarshalECPrivateKey(caKey)
 	if err != nil {
-		return nil, nil, fmt.Errorf("marshaling CA key: %w", err)
+		return nil, nil, false, fmt.Errorf("marshaling CA key: %w", err)
 	}
 	caKeyPEM := pem.EncodeToMemory(&pem.Block{Type: "EC PRIVATE KEY", Bytes: caKeyDER})
 	if err := os.WriteFile(keyPath, caKeyPEM, 0600); err != nil {
-		return nil, nil, fmt.Errorf("writing CA key: %w", err)
+		return nil, nil, false, fmt.Errorf("writing CA key: %w", err)
 	}
 
-	// Install CA in system trust store.
-	if err := installCA(certPath, logger); err != nil {
-		return nil, nil, fmt.Errorf("installing CA: %w", err)
-	}
-
-	return caCert, caKey, nil
+	return caCert, caKey, true, nil
 }
 
-// installCA adds the CA certificate to the platform's trust store.
-func installCA(certPath string, logger *slog.Logger) error {
+func loadOrMintLeaf(certPath, keyPath string, caCert *x509.Certificate, caKey *ecdsa.PrivateKey) (tls.Certificate, error) {
+	if existing, err := tls.LoadX509KeyPair(certPath, keyPath); err == nil {
+		if leaf, parseErr := x509.ParseCertificate(existing.Certificate[0]); parseErr == nil {
+			if time.Now().Before(leaf.NotAfter.Add(-24*time.Hour)) {
+				return existing, nil
+			}
+		}
+	}
+
+	leafKey, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+	if err != nil {
+		return tls.Certificate{}, fmt.Errorf("generating leaf key: %w", err)
+	}
+	serial, err := rand.Int(rand.Reader, new(big.Int).Lsh(big.NewInt(1), 128))
+	if err != nil {
+		return tls.Certificate{}, fmt.Errorf("generating serial: %w", err)
+	}
+	leafTmpl := &x509.Certificate{
+		SerialNumber:          serial,
+		NotBefore:             time.Now(),
+		NotAfter:              time.Now().Add(90 * 24 * time.Hour),
+		KeyUsage:              x509.KeyUsageDigitalSignature,
+		ExtKeyUsage:           []x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth},
+		BasicConstraintsValid: true,
+		DNSNames:              []string{"localhost"},
+		IPAddresses:           []net.IP{net.IPv4(127, 0, 0, 1), net.IPv6loopback},
+	}
+	leafDER, err := x509.CreateCertificate(rand.Reader, leafTmpl, caCert, &leafKey.PublicKey, caKey)
+	if err != nil {
+		return tls.Certificate{}, fmt.Errorf("signing leaf cert: %w", err)
+	}
+	leafCertPEM := pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: leafDER})
+	if err := os.WriteFile(certPath, leafCertPEM, 0644); err != nil {
+		return tls.Certificate{}, fmt.Errorf("writing leaf cert: %w", err)
+	}
+	leafKeyDER, err := x509.MarshalECPrivateKey(leafKey)
+	if err != nil {
+		return tls.Certificate{}, fmt.Errorf("marshaling leaf key: %w", err)
+	}
+	leafKeyPEM := pem.EncodeToMemory(&pem.Block{Type: "EC PRIVATE KEY", Bytes: leafKeyDER})
+	if err := os.WriteFile(keyPath, leafKeyPEM, 0600); err != nil {
+		return tls.Certificate{}, fmt.Errorf("writing leaf key: %w", err)
+	}
+	return tls.X509KeyPair(leafCertPEM, leafKeyPEM)
+}
+
+// caIsSystemTrusted checks whether the given CA cert is trusted by the
+// platform's system trust store. On every ob startup this answers:
+// "would a fresh browser process trust a leaf signed by this CA?" If
+// false, we re-run install (covers previous broken installs that landed
+// in the user login keychain without proper trust settings).
+func caIsSystemTrusted(caCert *x509.Certificate, logger *slog.Logger) bool {
 	switch runtime.GOOS {
 	case "darwin":
-		logger.Info("installing CA in macOS Keychain (you may be prompted for your password)")
-		cmd := exec.Command("security", "add-trusted-cert", "-d", "-r", "trustRoot",
-			"-k", filepath.Join(os.Getenv("HOME"), "Library", "Keychains", "login.keychain-db"),
-			certPath)
+		// `security verify-cert` with the basic policy checks chain validity
+		// against the trust store. A self-signed CA that's been added to the
+		// System keychain as a root returns 0. A CA that's only in the user
+		// login keychain (the buggy previous install) returns non-zero here,
+		// which is what drives auto-reinstall. The `ssl` policy would also
+		// enforce serverAuth EKU, which CA certs don't carry — wrong tool.
+		tmp, err := writeTempPEM(caCert)
+		if err != nil {
+			return false
+		}
+		defer os.Remove(tmp)
+		cmd := exec.Command("security", "verify-cert", "-c", tmp, "-p", "basic")
+		if err := cmd.Run(); err != nil {
+			logger.Debug("system CA trust check failed, will reinstall", "error", err)
+			return false
+		}
+		return true
+	case "linux":
+		// Presence in the system cert store is sufficient: update-ca-certificates
+		// builds the pool from there on each run, and Chrome/Firefox on Linux
+		// consult it (plus their own NSS stores, which we don't touch).
+		_, err := os.Stat("/usr/local/share/ca-certificates/ob-local-ca.crt")
+		return err == nil
+	case "windows":
+		// certutil -verifystore Root <thumbprint> would be ideal; settle for
+		// presence since Windows trust semantics are well-defined once a cert
+		// is in the Root store.
+		return true
+	default:
+		return true
+	}
+}
+
+// purgeStaleCAs removes any existing "OpenBindings Local CA" entries from
+// both the system and user keychains before a fresh install. Prior broken
+// installs can leave orphaned entries (e.g., an earlier ob version wrote
+// to the login keychain with admin-domain flags) that confuse browser
+// trust resolution when a new CA is installed alongside them.
+func purgeStaleCAs(logger *slog.Logger) error {
+	if runtime.GOOS != "darwin" {
+		return nil
+	}
+	home := os.Getenv("HOME")
+	targets := []string{
+		"/Library/Keychains/System.keychain",
+		filepath.Join(home, "Library", "Keychains", "login.keychain-db"),
+	}
+	for _, kc := range targets {
+		// Loop because `security delete-certificate` deletes one match at a
+		// time. Stop when it reports "not found" (non-zero exit).
+		for i := 0; i < 10; i++ {
+			cmd := exec.Command("security", "delete-certificate", "-c", "OpenBindings Local CA", kc)
+			if err := cmd.Run(); err != nil {
+				break
+			}
+			logger.Debug("removed stale CA entry", "keychain", kc)
+		}
+	}
+	return nil
+}
+
+// installCASystemWide writes the CA into the platform-appropriate system
+// trust store with root trust. This is what Chrome, Safari, and Firefox-
+// on-macOS all consult.
+//
+// macOS: `/Library/Keychains/System.keychain` via `sudo security
+// add-trusted-cert -d -r trustRoot`. Requires sudo; prompts for password
+// on a terminal, fails fast with a clear error otherwise.
+func installCASystemWide(certPath string, logger *slog.Logger) error {
+	switch runtime.GOOS {
+	case "darwin":
+		logger.Info("installing CA in system keychain (you may be prompted for your password)")
+		cmd := exec.Command("sudo", "-p", "ob needs your password to install the local HTTPS CA [%u]: ",
+			"security", "add-trusted-cert", "-d", "-r", "trustRoot",
+			"-k", "/Library/Keychains/System.keychain", certPath)
 		cmd.Stdout = os.Stdout
 		cmd.Stderr = os.Stderr
-		return cmd.Run()
-	case "linux":
-		logger.Info("installing CA in system trust store")
-		// Try common Linux trust store paths.
-		dest := "/usr/local/share/ca-certificates/ob-local-ca.crt"
-		if err := exec.Command("cp", certPath, dest).Run(); err != nil {
-			return fmt.Errorf("copying cert to %s: %w (try running with sudo)", dest, err)
+		cmd.Stdin = os.Stdin
+		if err := cmd.Run(); err != nil {
+			return fmt.Errorf("sudo security add-trusted-cert failed: %w (HTTP still works; re-run `ob serve` to retry)", err)
 		}
-		return exec.Command("update-ca-certificates").Run()
+		logger.Info("CA installed successfully — Chrome, Safari, and Firefox will trust HTTPS localhost")
+		return nil
+	case "linux":
+		logger.Info("installing CA in system trust store (may require sudo)")
+		dest := "/usr/local/share/ca-certificates/ob-local-ca.crt"
+		cpCmd := exec.Command("sudo", "cp", certPath, dest)
+		cpCmd.Stdin, cpCmd.Stdout, cpCmd.Stderr = os.Stdin, os.Stdout, os.Stderr
+		if err := cpCmd.Run(); err != nil {
+			return fmt.Errorf("copying cert to %s: %w", dest, err)
+		}
+		upCmd := exec.Command("sudo", "update-ca-certificates")
+		upCmd.Stdin, upCmd.Stdout, upCmd.Stderr = os.Stdin, os.Stdout, os.Stderr
+		return upCmd.Run()
 	case "windows":
 		logger.Info("installing CA in Windows certificate store")
 		return exec.Command("certutil", "-addstore", "Root", certPath).Run()
 	default:
 		return fmt.Errorf("unsupported platform %s: manually trust %s", runtime.GOOS, certPath)
 	}
+}
+
+func writeTempPEM(cert *x509.Certificate) (string, error) {
+	f, err := os.CreateTemp("", "ob-ca-verify-*.crt")
+	if err != nil {
+		return "", err
+	}
+	defer f.Close()
+	if err := pem.Encode(f, &pem.Block{Type: "CERTIFICATE", Bytes: cert.Raw}); err != nil {
+		os.Remove(f.Name())
+		return "", err
+	}
+	return f.Name(), nil
 }
 
 func obTLSDir() (string, error) {

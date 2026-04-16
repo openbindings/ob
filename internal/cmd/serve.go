@@ -140,7 +140,7 @@ printed to stderr (the caller already knows it).`,
 	cmd.Flags().StringArrayVar(&allowedOrigins, "allow-origin", nil, "allowed CORS origin (repeatable)")
 	cmd.Flags().StringVar(&tokenFlag, "token", "", "pre-shared session token (also: OB_SERVE_TOKEN env var)")
 	cmd.Flags().StringVar(&tokenFile, "token-file", "", "write session token to file instead of stderr")
-	cmd.Flags().BoolVar(&noTLS, "no-tls", false, "serve over plain HTTP instead of HTTPS")
+	cmd.Flags().BoolVar(&noTLS, "no-tls", false, "skip HTTPS listener and CA trust setup (HTTP only, no sudo prompt)")
 
 	return cmd
 }

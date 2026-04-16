@@ -1,5 +1,32 @@
 # Contributing to ob
 
+## Workflow
+
+1. Branch from `main`: `git checkout -b <type>/<short-description>`.
+   Types: `fix`, `feat`, `docs`, `chore`, `refactor`.
+2. Commit and push.
+3. `gh pr create --fill --base main`.
+4. Squash-merge when CI is green (`gh pr merge --squash --auto --delete-branch`).
+
+All changes land on `main` via squash-merged PRs. No direct commits to `main`.
+
+## Testing
+
+```bash
+go test ./...
+go build ./...
+go install ./cmd/ob  # installs to $GOPATH/bin (usually ~/go/bin)
+```
+
+## Releasing
+
+Tag from `main`: `git tag vX.Y.Z && git push origin vX.Y.Z`.
+`.github/workflows/release.yml` runs goreleaser, publishes a GitHub release, and
+updates the `openbindings/homebrew-tap` cask automatically.
+
+See [CHANGELOG.md](./CHANGELOG.md) for release history. Pre-1.0, minor versions
+may include breaking changes; document under **Changed** or **Removed**.
+
 ## Architecture
 
 The CLI does not include a terminal UI (TUI). PRs adding terminal UI functionality will not be accepted.
