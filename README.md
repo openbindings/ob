@@ -2,6 +2,8 @@
 
 The OpenBindings CLI (`ob`) creates, syncs, validates, and executes OpenBindings Interface (OBI) documents. An OBI describes what a service can do (operations) and how to access it (bindings to OpenAPI, gRPC, MCP, AsyncAPI, CLI specs, and more) -- all in one format-agnostic document.
 
+**Spec version:** implements OpenBindings 0.1. Run `ob info` to see the exact range this build supports.
+
 ## Install
 
 ```bash
