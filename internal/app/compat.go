@@ -272,7 +272,7 @@ func buildOperationReport(
 
 	report.Compatible =
 		report.Input != SlotIncompatible &&
-		report.Output != SlotIncompatible
+			report.Output != SlotIncompatible
 
 	return report
 }

@@ -96,7 +96,7 @@ func TestDefaultBindingForOp_NilPriorityLosesToExplicit(t *testing.T) {
 }
 
 // ---------------------------------------------------------------------------
-// ExecuteOBIOperation
+// InvokeOBIOperation
 // ---------------------------------------------------------------------------
 
 // writeOBIFile writes a JSON OBI to a temp directory and returns the path.
@@ -113,14 +113,14 @@ func writeOBIFile(t *testing.T, dir string, iface map[string]any) string {
 	return path
 }
 
-func TestExecuteOBIOperation_FileNotFound(t *testing.T) {
-	_, err := ExecuteOBIOperation(context.Background(), "/nonexistent/file.json", "test", "", nil)
+func TestInvokeOBIOperation_FileNotFound(t *testing.T) {
+	_, err := InvokeOBIOperation(context.Background(), "/nonexistent/file.json", "test", "", nil)
 	if err == nil {
 		t.Fatal("expected error for missing file")
 	}
 }
 
-func TestExecuteOBIOperation_OperationNotFound(t *testing.T) {
+func TestInvokeOBIOperation_OperationNotFound(t *testing.T) {
 	dir := t.TempDir()
 	obi := writeOBIFile(t, dir, map[string]any{
 		"openbindings": "0.1.0",
@@ -130,13 +130,13 @@ func TestExecuteOBIOperation_OperationNotFound(t *testing.T) {
 		},
 	})
 
-	_, err := ExecuteOBIOperation(context.Background(), obi, "deletePets", "", nil)
+	_, err := InvokeOBIOperation(context.Background(), obi, "deletePets", "", nil)
 	if err == nil {
 		t.Fatal("expected error for missing operation")
 	}
 }
 
-func TestExecuteOBIOperation_NoBinding(t *testing.T) {
+func TestInvokeOBIOperation_NoBinding(t *testing.T) {
 	dir := t.TempDir()
 	obi := writeOBIFile(t, dir, map[string]any{
 		"openbindings": "0.1.0",
@@ -146,13 +146,13 @@ func TestExecuteOBIOperation_NoBinding(t *testing.T) {
 		},
 	})
 
-	_, err := ExecuteOBIOperation(context.Background(), obi, "listPets", "", nil)
+	_, err := InvokeOBIOperation(context.Background(), obi, "listPets", "", nil)
 	if err == nil {
 		t.Fatal("expected error for missing binding")
 	}
 }
 
-func TestExecuteOBIOperation_MissingSource(t *testing.T) {
+func TestInvokeOBIOperation_MissingSource(t *testing.T) {
 	dir := t.TempDir()
 	obi := writeOBIFile(t, dir, map[string]any{
 		"openbindings": "0.1.0",
@@ -168,13 +168,13 @@ func TestExecuteOBIOperation_MissingSource(t *testing.T) {
 		},
 	})
 
-	_, err := ExecuteOBIOperation(context.Background(), obi, "listPets", "", nil)
+	_, err := InvokeOBIOperation(context.Background(), obi, "listPets", "", nil)
 	if err == nil {
 		t.Fatal("expected error for missing source")
 	}
 }
 
-func TestExecuteOBIOperation_BindingKeyResolvesOperation(t *testing.T) {
+func TestInvokeOBIOperation_BindingKeyResolvesOperation(t *testing.T) {
 	dir := t.TempDir()
 	obi := writeOBIFile(t, dir, map[string]any{
 		"openbindings": "0.1.0",
@@ -199,7 +199,7 @@ func TestExecuteOBIOperation_BindingKeyResolvesOperation(t *testing.T) {
 
 	// Provide only the binding key (no operation key).
 	// The operation should be resolved from the binding entry.
-	ch, err := ExecuteOBIOperation(context.Background(), obi, "", "listPets.usage1", nil)
+	ch, err := InvokeOBIOperation(context.Background(), obi, "", "listPets.usage1", nil)
 	// We expect it to proceed past operation/binding resolution. It will fail
 	// at the handler level (no actual cli.kdl file), which is fine — we're
 	// testing that the binding-based path resolves the operation correctly.
@@ -216,7 +216,7 @@ func TestExecuteOBIOperation_BindingKeyResolvesOperation(t *testing.T) {
 	}
 }
 
-func TestExecuteOBIOperation_BindingKeyNotFound(t *testing.T) {
+func TestInvokeOBIOperation_BindingKeyNotFound(t *testing.T) {
 	dir := t.TempDir()
 	obi := writeOBIFile(t, dir, map[string]any{
 		"openbindings": "0.1.0",
@@ -226,13 +226,13 @@ func TestExecuteOBIOperation_BindingKeyNotFound(t *testing.T) {
 		},
 	})
 
-	_, err := ExecuteOBIOperation(context.Background(), obi, "", "nonexistent.binding", nil)
+	_, err := InvokeOBIOperation(context.Background(), obi, "", "nonexistent.binding", nil)
 	if err == nil {
 		t.Fatal("expected error for nonexistent binding key")
 	}
 }
 
-func TestExecuteOBIOperation_InputTransformError(t *testing.T) {
+func TestInvokeOBIOperation_InputTransformError(t *testing.T) {
 	dir := t.TempDir()
 	obi := writeOBIFile(t, dir, map[string]any{
 		"openbindings": "0.1.0",
@@ -259,7 +259,7 @@ func TestExecuteOBIOperation_InputTransformError(t *testing.T) {
 		},
 	})
 
-	_, err := ExecuteOBIOperation(context.Background(), obi, "listPets", "", map[string]any{"limit": 10})
+	_, err := InvokeOBIOperation(context.Background(), obi, "listPets", "", map[string]any{"limit": 10})
 	if err == nil {
 		t.Fatal("expected error for bad input transform")
 	}

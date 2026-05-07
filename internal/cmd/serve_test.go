@@ -25,14 +25,14 @@ import (
 	"github.com/openbindings/ob/internal/server"
 )
 
-// mockStreamExecutor is a test-only executor that streams canned events.
-type mockStreamExecutor struct {
+// mockStreamInvoker is a test-only driver that streams canned events.
+type mockStreamInvoker struct {
 	formats []openbindings.FormatInfo
 	events  []any
 }
 
-func (m *mockStreamExecutor) Formats() []openbindings.FormatInfo { return m.formats }
-func (m *mockStreamExecutor) ExecuteBinding(_ context.Context, _ *openbindings.BindingExecutionInput) (<-chan openbindings.StreamEvent, error) {
+func (m *mockStreamInvoker) Formats() []openbindings.FormatInfo { return m.formats }
+func (m *mockStreamInvoker) InvokeBinding(_ context.Context, _ *openbindings.BindingInvocationInput) (<-chan openbindings.StreamEvent, error) {
 	ch := make(chan openbindings.StreamEvent, len(m.events))
 	for _, ev := range m.events {
 		ch <- openbindings.StreamEvent{Data: ev}
@@ -441,13 +441,13 @@ func TestServeContextList(t *testing.T) {
 	}
 }
 
-// --- /bindings/execute ---
+// --- /bindings/invoke ---
 
 func TestServeBindingExecute_InvalidBody(t *testing.T) {
 	ts := testEnv(t)
 	defer ts.Close()
 
-	resp, err := authedPost(ts.URL+"/bindings/execute", "test-token", `not json`)
+	resp, err := authedPost(ts.URL+"/bindings/invoke", "test-token", `not json`)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -460,7 +460,7 @@ func TestServeBindingExecute_POST_StillWorks(t *testing.T) {
 	ts := testEnv(t)
 	defer ts.Close()
 
-	resp, err := authedPost(ts.URL+"/bindings/execute", "test-token", `{"source":{"format":"openapi@3.1","location":"http://example.com/spec.yaml"},"ref":"#/paths/~1health/get"}`)
+	resp, err := authedPost(ts.URL+"/bindings/invoke", "test-token", `{"source":{"format":"openapi@3.1","location":"http://example.com/spec.yaml"},"ref":"#/paths/~1health/get"}`)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -474,7 +474,7 @@ func TestServeBindingExecute_MethodNotAllowed(t *testing.T) {
 	ts := testEnv(t)
 	defer ts.Close()
 
-	req, _ := http.NewRequest("DELETE", ts.URL+"/bindings/execute", nil)
+	req, _ := http.NewRequest("DELETE", ts.URL+"/bindings/invoke", nil)
 	req.Header.Set("Authorization", "Bearer test-token")
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
@@ -491,7 +491,7 @@ func TestServeBindingExecute_WS_Upgrade(t *testing.T) {
 	defer ts.Close()
 
 	ctx := t.Context()
-	wsURL := strings.Replace(ts.URL, "http://", "ws://", 1) + "/bindings/execute"
+	wsURL := strings.Replace(ts.URL, "http://", "ws://", 1) + "/bindings/invoke"
 	conn, _, err := websocket.Dial(ctx, wsURL, nil)
 	if err != nil {
 		t.Fatalf("websocket dial failed: %v", err)
@@ -527,12 +527,12 @@ func TestServeBindingExecute_WS_Upgrade(t *testing.T) {
 }
 
 func TestServeBindingExecute_WS_StreamE2E(t *testing.T) {
-	mockExec := &mockStreamExecutor{
+	mockInvoker := &mockStreamInvoker{
 		formats: []openbindings.FormatInfo{{Token: "mock-stream@1.0"}},
-		events: []any{"event-1", "event-2", "event-3"},
+		events:  []any{"event-1", "event-2", "event-3"},
 	}
-	cleanup := app.OverrideExecutorForTest(
-		openbindings.NewOperationExecutor(mockExec),
+	cleanup := app.OverrideInvokerForTest(
+		openbindings.NewOperationInvoker(mockInvoker),
 	)
 	defer cleanup()
 
@@ -540,7 +540,7 @@ func TestServeBindingExecute_WS_StreamE2E(t *testing.T) {
 	defer ts.Close()
 
 	ctx := t.Context()
-	wsURL := strings.Replace(ts.URL, "http://", "ws://", 1) + "/bindings/execute"
+	wsURL := strings.Replace(ts.URL, "http://", "ws://", 1) + "/bindings/invoke"
 	conn, _, err := websocket.Dial(ctx, wsURL, nil)
 	if err != nil {
 		t.Fatalf("websocket dial failed: %v", err)
@@ -590,7 +590,7 @@ func TestServeBindingExecute_WS_NoAuth(t *testing.T) {
 	defer ts.Close()
 
 	ctx := t.Context()
-	wsURL := strings.Replace(ts.URL, "http://", "ws://", 1) + "/bindings/execute"
+	wsURL := strings.Replace(ts.URL, "http://", "ws://", 1) + "/bindings/invoke"
 	conn, _, err := websocket.Dial(ctx, wsURL, nil)
 	if err != nil {
 		// Connection refused is also acceptable (middleware may reject).
@@ -654,7 +654,7 @@ func TestServeAuthRequired_AllProtectedEndpoints(t *testing.T) {
 
 	postPaths := []string{
 		"/resolve", "/validate", "/diff", "/compatibility",
-		"/bindings/execute", "/interfaces/create",
+		"/bindings/invoke", "/interfaces/create",
 	}
 	for _, path := range postPaths {
 		t.Run("POST "+path, func(t *testing.T) {
@@ -923,7 +923,7 @@ func TestSpecHandlerConformance(t *testing.T) {
 		{"GET", "/contexts/https://example.com"},
 		{"PUT", "/contexts/https://example.com"},
 		{"DELETE", "/contexts/https://example.com"},
-		{"POST", "/bindings/execute"},
+		{"POST", "/bindings/invoke"},
 		{"POST", "/interfaces/create"},
 		{"POST", "/resolve"},
 		{"POST", "/validate"},

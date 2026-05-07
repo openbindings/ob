@@ -526,7 +526,7 @@ cmd "greet" help="Say hello" {}
 	obiData := map[string]any{
 		"openbindings": "0.1.0",
 		"name":         "test",
-		"operations":  map[string]any{},
+		"operations":   map[string]any{},
 		"sources": map[string]any{
 			"usage": map[string]any{
 				"format":   "usage@2.0.0",

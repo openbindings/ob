@@ -6,16 +6,16 @@ require (
 	github.com/charmbracelet/bubbles v0.21.1-0.20250623103423-23b8fd6302d7 // indirect
 	github.com/charmbracelet/bubbletea v1.3.10 // indirect
 	github.com/charmbracelet/lipgloss v1.1.0
-	github.com/openbindings/openbindings-go v0.1.0
-	github.com/openbindings/openbindings-go/formats/asyncapi v0.1.0
-	github.com/openbindings/openbindings-go/formats/connect v0.1.0
-	github.com/openbindings/openbindings-go/formats/graphql v0.1.0
-	github.com/openbindings/openbindings-go/formats/grpc v0.1.0
-	github.com/openbindings/openbindings-go/formats/mcp v0.1.0
-	github.com/openbindings/openbindings-go/formats/openapi v0.1.0
-	github.com/openbindings/openbindings-go/formats/operationgraph v0.1.0
-	github.com/openbindings/openbindings-go/formats/usage v0.1.0
-	github.com/openbindings/openbindings-go/formats/workersrpc v0.1.0
+	github.com/openbindings/openbindings-go v0.2.0
+	github.com/openbindings/openbindings-go/formats/asyncapi v0.2.0
+	github.com/openbindings/openbindings-go/formats/connect v0.2.0
+	github.com/openbindings/openbindings-go/formats/graphql v0.2.0
+	github.com/openbindings/openbindings-go/formats/grpc v0.2.0
+	github.com/openbindings/openbindings-go/formats/mcp v0.2.0
+	github.com/openbindings/openbindings-go/formats/openapi v0.2.0
+	github.com/openbindings/openbindings-go/formats/operationgraph v0.2.0
+	github.com/openbindings/openbindings-go/formats/usage v0.2.0
+	github.com/openbindings/openbindings-go/formats/workersrpc v0.2.0
 	github.com/sblinch/kdl-go v0.0.0-20260120205643-17a91a33fe63 // indirect
 	github.com/spf13/cobra v1.10.2
 	gopkg.in/yaml.v3 v3.0.1

@@ -41,9 +41,9 @@ func EmitGo(r *CodegenResult, packageName string) string {
 
 	// Constructor.
 	b.WriteString(fmt.Sprintf("// New%s creates a new typed client.\n", clientName))
-	b.WriteString(fmt.Sprintf("func New%s(executor *openbindings.OperationExecutor, opts ...openbindings.InterfaceClientOption) *%s {\n", clientName, clientName))
+	b.WriteString(fmt.Sprintf("func New%s(invoker *openbindings.OperationInvoker, opts ...openbindings.InterfaceClientOption) *%s {\n", clientName, clientName))
 	b.WriteString(fmt.Sprintf("\treturn &%s{\n", clientName))
-	b.WriteString("\t\tclient: openbindings.NewInterfaceClient(mustParseInterface(), executor, opts...),\n")
+	b.WriteString("\t\tclient: openbindings.NewInterfaceClient(mustParseInterface(), invoker, opts...),\n")
 	b.WriteString("\t}\n")
 	b.WriteString("}\n\n")
 

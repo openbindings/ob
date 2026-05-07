@@ -58,7 +58,6 @@ func ValidateInterface(input ValidateInput) ValidationReport {
 	if input.Strict {
 		opts = append(opts,
 			openbindings.WithRejectUnknownTypedFields(),
-			openbindings.WithRequireSupportedVersion(),
 		)
 	}
 

@@ -25,8 +25,8 @@ func writeInterface(t *testing.T, dir, name string, iface map[string]any) string
 func minimalInterface(ops map[string]any) map[string]any {
 	return map[string]any{
 		"openbindings": "0.1.0",
-		"id":          "test",
-		"operations":  ops,
+		"id":           "test",
+		"operations":   ops,
 	}
 }
 

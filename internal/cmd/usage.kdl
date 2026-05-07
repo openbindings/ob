@@ -135,15 +135,15 @@ cmd "conflicts" help="List merge conflicts between local edits and source change
   arg "<obi-path>" help="Path to the OBI file"
 }
 
-cmd "operation" help="Manage and execute operations on an OBI" subcommand_required=true {
-  cmd "exec" help="Execute an operation via a binding" opKey="executeLocalOperation" {
-    flag "--binding <key>" help="Binding key to execute (operation is derived from the entry)"
+cmd "operation" help="Manage and invoke operations on an OBI" subcommand_required=true {
+  cmd "invoke" help="Invoke an operation via a binding" opKey="executeLocalOperation" {
+    flag "--binding <key>" help="Binding key to invoke (operation is derived from the entry)"
     flag "--input <json>" help="Operation input as JSON"
     flag "--context <name>" help="Named context to apply (credentials, headers, etc.)"
     flag "-o --output <path>" help="Write output to file"
     flag "-F --format <format>" help="Output format: json|yaml|text"
     arg "<obi-path>" help="Path to the OBI file"
-    arg "[operation]" help="Operation key to execute"
+    arg "[operation]" help="Operation key to invoke"
   }
   cmd "list" help="List operations on an OBI" opKey="listOperations" {
     flag "--tag <tag>" help="Filter operations by tag"
@@ -168,8 +168,8 @@ cmd "operation" help="Manage and execute operations on an OBI" subcommand_requir
 }
 
 cmd "binding" help="Low-level binding operations" subcommand_required=true {
-  cmd "exec" help="Execute a resolved binding (machine-to-machine)" opKey="executeBinding" {
-    flag "--input <json>" help="ExecuteBindingInput as a JSON string"
+  cmd "invoke" help="Invoke a resolved binding (machine-to-machine)" opKey="invokeBinding" {
+    flag "--input <json>" help="BindingInvocationInput as a JSON string"
     flag "-o --output <path>" help="Write output to file"
     flag "-F --format <format>" help="Output format: json|yaml|text"
   }

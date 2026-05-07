@@ -57,7 +57,7 @@ const (
 const (
 	RunStatusIdle      = "idle"
 	RunStatusRunning   = "running"
-	RunStatusStreaming  = "streaming"
+	RunStatusStreaming = "streaming"
 	RunStatusSuccess   = "success"
 	RunStatusError     = "error"
 )

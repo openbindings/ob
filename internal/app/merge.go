@@ -44,11 +44,11 @@ type MergeInput struct {
 	OnlySource  string
 
 	// Mode flags:
-	All          bool     // apply all changes (batch mode)
-	DryRun       bool     // show what would change without writing
-	OutPath      string   // write to alternate path instead of target
-	Operations   []string // if non-empty, only merge these operations (cherry-pick)
-	ExcludeOps   []string // if non-empty, skip these operations
+	All        bool     // apply all changes (batch mode)
+	DryRun     bool     // show what would change without writing
+	OutPath    string   // write to alternate path instead of target
+	Operations []string // if non-empty, only merge these operations (cherry-pick)
+	ExcludeOps []string // if non-empty, skip these operations
 
 	// PromptFunc is called for each actionable entry when in interactive mode.
 	// Set by the cmd layer when TTY is detected and --all is not specified.

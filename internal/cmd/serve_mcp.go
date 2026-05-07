@@ -18,7 +18,7 @@ import (
 
 // registerMCPEndpoint creates a native MCP server for ob serve's own interface
 // and mounts it at /mcp. The handlers call app functions directly, same pattern
-// as the HTTP handlers. No executor, no binding resolution.
+// as the HTTP handlers. No dispatcher, no binding resolution.
 func registerMCPEndpoint(srv *server.Server, logger *slog.Logger) {
 	mcpSrv := mcp.NewServer(&mcp.Implementation{
 		Name:    "ob",
@@ -63,7 +63,7 @@ func registerMCPTools(srv *mcp.Server, logger *slog.Logger) {
 			"properties": map[string]any{
 				"openbindingsVersion": map[string]any{"type": "string"},
 				"sources": map[string]any{
-					"type": "array",
+					"type":  "array",
 					"items": map[string]any{"type": "object"},
 				},
 				"name":        map[string]any{"type": "string"},
@@ -84,8 +84,8 @@ func registerMCPTools(srv *mcp.Server, logger *slog.Logger) {
 	})
 
 	srv.AddTool(&mcp.Tool{
-		Name:        "executeBinding",
-		Description: "Execute a resolved binding.",
+		Name:        "invokeBinding",
+		Description: "Invoke a resolved binding.",
 		InputSchema: map[string]any{
 			"type": "object",
 			"properties": map[string]any{
@@ -101,11 +101,11 @@ func registerMCPTools(srv *mcp.Server, logger *slog.Logger) {
 			"required": []string{"source", "ref"},
 		},
 	}, func(ctx context.Context, req *mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-		var input app.ExecuteOperationInput
+		var input app.InvokeOperationInput
 		if err := json.Unmarshal(req.Params.Arguments, &input); err != nil {
 			return errorResult("invalid arguments: " + err.Error()), nil
 		}
-		result := app.ExecuteOperationWithContext(ctx, input)
+		result := app.InvokeOperationWithContext(ctx, input)
 		if result.Error != nil {
 			return errorResult(result.Error.Message), nil
 		}
@@ -128,9 +128,9 @@ func registerMCPTools(srv *mcp.Server, logger *slog.Logger) {
 		Name:        "getContext",
 		Description: "Get a stored context entry by key.",
 		InputSchema: map[string]any{
-			"type":     "object",
+			"type":       "object",
 			"properties": map[string]any{"key": map[string]any{"type": "string"}},
-			"required": []string{"key"},
+			"required":   []string{"key"},
 		},
 	}, func(ctx context.Context, req *mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 		var input struct {
@@ -205,9 +205,9 @@ func registerMCPTools(srv *mcp.Server, logger *slog.Logger) {
 		Name:        "deleteContext",
 		Description: "Delete a stored context entry.",
 		InputSchema: map[string]any{
-			"type":     "object",
+			"type":       "object",
 			"properties": map[string]any{"key": map[string]any{"type": "string"}},
-			"required": []string{"key"},
+			"required":   []string{"key"},
 		},
 	}, func(ctx context.Context, req *mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 		var input struct {
@@ -226,9 +226,9 @@ func registerMCPTools(srv *mcp.Server, logger *slog.Logger) {
 		Name:        "resolveInterface",
 		Description: "Resolve an OpenBindings interface from a URL.",
 		InputSchema: map[string]any{
-			"type":     "object",
+			"type":       "object",
 			"properties": map[string]any{"url": map[string]any{"type": "string"}},
-			"required": []string{"url"},
+			"required":   []string{"url"},
 		},
 	}, func(ctx context.Context, req *mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 		var input struct {

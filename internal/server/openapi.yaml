@@ -194,14 +194,14 @@ paths:
                   status:
                     type: string
 
-  /bindings/execute:
+  /bindings/invoke:
     post:
-      operationId: executeBinding
-      summary: Execute a resolved binding directly
+      operationId: invokeBinding
+      summary: Invoke a resolved binding directly
       description: >
-        Low-level binding execution endpoint. Accepts a binding source, ref, input,
-        and optional context, then delegates to the appropriate binding executor.
-        This is the binding-executor host capability.
+        Low-level binding invocation endpoint. Accepts a binding source, ref, input,
+        and optional context, then delegates to the appropriate binding invoker.
+        This is the binding-invoker host capability.
       requestBody:
         required: true
         content:
@@ -211,7 +211,7 @@ paths:
               required: [source, ref]
               properties:
                 source:
-                  $ref: "#/components/schemas/ExecuteSource"
+                  $ref: "#/components/schemas/InvokeSource"
                 ref:
                   type: string
                   description: Reference to the binding within the source (e.g., JSON Pointer for OpenAPI)
@@ -224,13 +224,13 @@ paths:
                   additionalProperties: true
       responses:
         "200":
-          description: Execution result
+          description: Invocation result
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/ExecutionResult"
+                $ref: "#/components/schemas/InvocationResult"
         "400":
-          description: Invalid input or execution error
+          description: Invalid input or invocation error
           content:
             application/json:
               schema:
@@ -274,6 +274,37 @@ paths:
               schema:
                 type: object
                 description: A valid OpenBindings interface document
+        "400":
+          description: Invalid input
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /sources/inspect:
+    post:
+      operationId: inspectSource
+      summary: Inspect a binding source artifact
+      description: >
+        Returns bindable targets discovered in a source artifact. This is the
+        source-inspector host capability.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [source]
+              properties:
+                source:
+                  $ref: "#/components/schemas/Source"
+      responses:
+        "200":
+          description: Source inspection result
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SourceInspection"
         "400":
           description: Invalid input
           content:
@@ -651,7 +682,7 @@ components:
           items:
             type: object
 
-    ExecutionResult:
+    InvocationResult:
       type: object
       properties:
         output:
@@ -660,7 +691,7 @@ components:
           type: object
           nullable: true
 
-    ExecuteSource:
+    InvokeSource:
       type: object
       required: [format]
       properties:
@@ -695,6 +726,49 @@ components:
         embed:
           type: boolean
           description: If true, embed content inline in the output OBI
+
+    Source:
+      type: object
+      required: [format]
+      properties:
+        format:
+          type: string
+          description: Format token for this source
+        location:
+          type: string
+          description: Location to fetch content from (path or URL)
+        content:
+          description: Content provided directly
+        description:
+          type: string
+          description: Human-readable description for this source
+
+    SourceInspection:
+      type: object
+      required: [targets, exhaustive]
+      properties:
+        targets:
+          type: array
+          items:
+            $ref: "#/components/schemas/BindableTarget"
+        exhaustive:
+          type: boolean
+          description: True when targets is the complete list of bindable targets for the source
+
+    BindableTarget:
+      type: object
+      required: [ref]
+      properties:
+        ref:
+          type: string
+          description: Reference string to use in a binding entry
+        operationKey:
+          type: string
+          description: Suggested operation key for this target
+        operation:
+          type: object
+          description: Potential OpenBindings operation framing for this target
+          additionalProperties: true
 
     HttpRequestInput:
       type: object

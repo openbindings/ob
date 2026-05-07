@@ -330,4 +330,3 @@ func OperationAdd(input OperationAddInput) (OperationAddOutput, error) {
 
 	return OperationAddOutput{Key: input.Key}, nil
 }
-

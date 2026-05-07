@@ -19,26 +19,26 @@ import (
 	"github.com/openbindings/ob/internal/execref"
 )
 
-// ExecuteSource represents the binding source for execution.
-type ExecuteSource struct {
+// InvokeSource represents the binding source for invocation.
+type InvokeSource struct {
 	Format   string `json:"format"`
 	Location string `json:"location,omitempty"`
 	Content  any    `json:"content,omitempty"`
-	Binary   string `json:"binary,omitempty"` // Optional: binary name hint for CLI execution
+	Binary   string `json:"binary,omitempty"` // Optional: binary name hint for CLI invocation
 }
 
-// ExecuteOperationInput is the input for executeBinding.
-type ExecuteOperationInput struct {
-	Source    ExecuteSource                  `json:"source"`
-	Ref       string                         `json:"ref"`
-	Input     any                            `json:"input,omitempty"`
-	Context   map[string]any                 `json:"context,omitempty"`
-	Options   *openbindings.ExecutionOptions `json:"options,omitempty"`
+// InvokeOperationInput is the input for invokeBinding.
+type InvokeOperationInput struct {
+	Source    InvokeSource                    `json:"source"`
+	Ref       string                          `json:"ref"`
+	Input     any                             `json:"input,omitempty"`
+	Context   map[string]any                  `json:"context,omitempty"`
+	Options   *openbindings.InvocationOptions `json:"options,omitempty"`
 	Interface *openbindings.Interface         `json:"interface,omitempty"`
 }
 
-// ExecuteOperationOutput is the output of executeBinding.
-type ExecuteOperationOutput struct {
+// InvokeOperationOutput is the output of invokeBinding.
+type InvokeOperationOutput struct {
 	Output     any    `json:"output,omitempty"`
 	Status     int    `json:"status,omitempty"`
 	DurationMs int64  `json:"durationMs,omitempty"`
@@ -69,7 +69,7 @@ func bindingByKey(bindingKey string, iface *openbindings.Interface) *openbinding
 	return &b
 }
 
-// resolvedBinding holds the resolved components for an OBI operation execution.
+// resolvedBinding holds the resolved components for an OBI operation invocation.
 type resolvedBinding struct {
 	bindingKey string
 	binding    *openbindings.BindingEntry
@@ -78,8 +78,8 @@ type resolvedBinding struct {
 }
 
 // resolveBindingAndSource resolves a binding, source, and input transform
-// from an OBI interface. Context resolution is handled by the executor and
-// executors via the ContextStore.
+// from an OBI interface. Context resolution is handled by the invoker and
+// per-format invokers via the ContextStore.
 func resolveBindingAndSource(iface *openbindings.Interface, opKey, bindingKey string, input any) (*resolvedBinding, error) {
 	if opKey != "" && bindingKey != "" {
 		return nil, fmt.Errorf("operation key and binding key are mutually exclusive")
@@ -132,8 +132,8 @@ func resolveBindingAndSource(iface *openbindings.Interface, opKey, bindingKey st
 // resolveSourceLocation resolves a source location relative to the OBI directory.
 // exec: refs, URIs, absolute paths, and host:port addresses pass through unchanged;
 // relative file paths are joined with obiDir.
-func resolveSourceLocation(source openbindings.Source, obiDir string) openbindings.BindingExecutionSource {
-	es := openbindings.BindingExecutionSource{Format: source.Format}
+func resolveSourceLocation(source openbindings.Source, obiDir string) openbindings.BindingInvocationSource {
+	es := openbindings.BindingInvocationSource{Format: source.Format}
 	if source.Location != "" {
 		loc := source.Location
 		if !execref.IsExec(loc) && !strings.Contains(loc, "://") && !filepath.IsAbs(loc) && !isHostPort(loc) && obiDir != "" {
@@ -155,18 +155,18 @@ func isHostPort(s string) bool {
 // StreamEvent is an app-layer alias for openbindings.StreamEvent.
 type StreamEvent = openbindings.StreamEvent
 
-// ExecuteOBIOperation executes an operation from an OBI file and returns a
+// InvokeOBIOperation invokes an operation from an OBI file and returns a
 // stream of events. Every operation is a stream — unary calls produce one
 // event. Input/output transforms are applied as declared in the binding entry.
 //
-// If the resolved format has a builtin streaming executor, it is used.
-// Otherwise, the unary execution path is used and its result is wrapped as
+// If the resolved format has a builtin streaming driver, it is used.
+// Otherwise, the unary invocation path is used and its result is wrapped as
 // a single StreamEvent.
 //
 // Exactly one of opKey or bindingKey must be non-empty:
 //   - opKey: selects the highest-priority binding for that operation.
 //   - bindingKey: looks up the binding directly (operation is read from the entry).
-func ExecuteOBIOperation(ctx context.Context, obiPath string, opKey string, bindingKey string, input any) (<-chan StreamEvent, error) {
+func InvokeOBIOperation(ctx context.Context, obiPath string, opKey string, bindingKey string, input any) (<-chan StreamEvent, error) {
 	iface, err := resolveInterface(obiPath)
 	if err != nil {
 		return nil, fmt.Errorf("load OBI %q: %w", obiPath, err)
@@ -179,14 +179,14 @@ func ExecuteOBIOperation(ctx context.Context, obiPath string, opKey string, bind
 
 	es := resolveSourceLocation(resolved.source, filepath.Dir(obiPath))
 
-	lowLevel := ExecuteOperationInput{
-		Source:    ExecuteSource{Format: es.Format, Location: es.Location, Content: es.Content},
+	lowLevel := InvokeOperationInput{
+		Source:    InvokeSource{Format: es.Format, Location: es.Location, Content: es.Content},
 		Ref:       resolved.binding.Ref,
 		Input:     resolved.input,
 		Interface: iface,
 	}
 
-	// Try the streaming path (builtin executors only).
+	// Try the streaming path (builtin drivers only).
 	if BuiltinSupportsFormat(es.Format) {
 		src, sErr := SubscribeOperationWithContext(ctx, lowLevel)
 		if sErr == nil {
@@ -194,8 +194,8 @@ func ExecuteOBIOperation(ctx context.Context, obiPath string, opKey string, bind
 		}
 	}
 
-	// Fall back to unary execution (supports delegates).
-	result := ExecuteOperationWithContext(ctx, lowLevel)
+	// Fall back to unary invocation (supports delegates).
+	result := InvokeOperationWithContext(ctx, lowLevel)
 	result.BindingKey = resolved.bindingKey
 
 	if resolved.binding.OutputTransform != nil && result.Error == nil {
@@ -209,7 +209,7 @@ func ExecuteOBIOperation(ctx context.Context, obiPath string, opKey string, bind
 
 	ch := make(chan StreamEvent, 1)
 	if result.Error != nil {
-		ch <- StreamEvent{Error: &openbindings.ExecuteError{Code: result.Error.Code, Message: result.Error.Message}}
+		ch <- StreamEvent{Error: &openbindings.InvocationError{Code: result.Error.Code, Message: result.Error.Message}}
 	} else {
 		ch <- StreamEvent{Data: result.Output}
 	}
@@ -233,7 +233,7 @@ func transformEventStream(src <-chan StreamEvent, iface *openbindings.Interface,
 			}
 			transformed, err := ApplyTransform(iface.Transforms, resolved.binding.OutputTransform, ev.Data)
 			if err != nil {
-				out <- StreamEvent{Error: &openbindings.ExecuteError{
+				out <- StreamEvent{Error: &openbindings.InvocationError{
 					Code:    "output_transform_error",
 					Message: fmt.Sprintf("output transform failed: %v", err),
 				}}
@@ -250,7 +250,7 @@ func transformEventStream(src <-chan StreamEvent, iface *openbindings.Interface,
 // interface, binding, and source loaded.
 func SubscribeOBIOperationDirect(ctx context.Context, binding *openbindings.BindingEntry, source openbindings.Source, obiDir string) (<-chan StreamEvent, error) {
 	es := resolveSourceLocation(source, obiDir)
-	return DefaultExecutor().ExecuteBinding(ctx, &openbindings.BindingExecutionInput{
+	return DefaultInvoker().InvokeBinding(ctx, &openbindings.BindingInvocationInput{
 		Source: es,
 		Ref:    binding.Ref,
 	})
@@ -291,14 +291,14 @@ func isSelf(location string) bool {
 	return resolved == selfPath
 }
 
-// ExecuteOperationWithContext executes an operation with cancellation support.
+// InvokeOperationWithContext invokes an operation with cancellation support.
 // Pass a cancellable context to allow aborting long-running operations.
-func ExecuteOperationWithContext(ctx context.Context, input ExecuteOperationInput) ExecuteOperationOutput {
+func InvokeOperationWithContext(ctx context.Context, input InvokeOperationInput) InvokeOperationOutput {
 	start := time.Now()
 
 	// Validate input
 	if input.Source.Format == "" {
-		return ExecuteOperationOutput{
+		return InvokeOperationOutput{
 			Error: &Error{
 				Code:    "invalid_input",
 				Message: "source.format is required",
@@ -306,7 +306,7 @@ func ExecuteOperationWithContext(ctx context.Context, input ExecuteOperationInpu
 		}
 	}
 	if input.Ref == "" {
-		return ExecuteOperationOutput{
+		return InvokeOperationOutput{
 			Error: &Error{
 				Code:    "invalid_input",
 				Message: "ref is required",
@@ -324,19 +324,19 @@ func ExecuteOperationWithContext(ctx context.Context, input ExecuteOperationInpu
 	}
 
 	resolved, err := delegates.Resolve(delegates.ResolveParams{
-		Format:             input.Source.Format,
-		Delegates: delCtx.Delegates,
-		ExcludeLocations:   excludeLocs,
+		Format:           input.Source.Format,
+		Delegates:        delCtx.Delegates,
+		ExcludeLocations: excludeLocs,
 	})
 
-	var output ExecuteOperationOutput
+	var output InvokeOperationOutput
 	if err != nil {
-		// No external delegate found — try in-process execution.
+		// No external delegate found — try in-process invocation.
 		// This handles the case where ob itself supports the format natively.
 		if BuiltinSupportsFormat(input.Source.Format) {
-			output = executeViaBuiltin(ctx, input)
+			output = invokeViaBuiltin(ctx, input)
 		} else {
-			return ExecuteOperationOutput{
+			return InvokeOperationOutput{
 				Error: &Error{
 					Code:    "delegate_resolution_failed",
 					Message: err.Error(),
@@ -344,7 +344,7 @@ func ExecuteOperationWithContext(ctx context.Context, input ExecuteOperationInpu
 			}
 		}
 	} else {
-		output = executeViaExternalDelegate(ctx, resolved, input)
+		output = invokeViaExternalDelegate(ctx, resolved, input)
 	}
 
 	output.DurationMs = time.Since(start).Milliseconds()
@@ -352,10 +352,10 @@ func ExecuteOperationWithContext(ctx context.Context, input ExecuteOperationInpu
 }
 
 // SubscribeOperationWithContext opens a streaming subscription with cancellation
-// support. Mirrors ExecuteOperationWithContext but returns a channel of events
+// support. Mirrors InvokeOperationWithContext but returns a channel of events
 // instead of a single output. External delegates are not supported (streaming
-// across process boundaries requires a transport protocol; use builtin executors).
-func SubscribeOperationWithContext(ctx context.Context, input ExecuteOperationInput) (<-chan StreamEvent, error) {
+// across process boundaries requires a transport protocol; use builtin drivers).
+func SubscribeOperationWithContext(ctx context.Context, input InvokeOperationInput) (<-chan StreamEvent, error) {
 	if input.Source.Format == "" {
 		return nil, fmt.Errorf("source.format is required")
 	}
@@ -364,11 +364,11 @@ func SubscribeOperationWithContext(ctx context.Context, input ExecuteOperationIn
 	}
 
 	if !BuiltinSupportsFormat(input.Source.Format) {
-		return nil, fmt.Errorf("streaming not supported for format %q (no builtin executor)", input.Source.Format)
+		return nil, fmt.Errorf("streaming not supported for format %q (no builtin driver)", input.Source.Format)
 	}
 
-	return DefaultExecutor().ExecuteBinding(ctx, &openbindings.BindingExecutionInput{
-		Source: openbindings.BindingExecutionSource{
+	return DefaultInvoker().InvokeBinding(ctx, &openbindings.BindingInvocationInput{
+		Source: openbindings.BindingInvocationSource{
 			Format:   input.Source.Format,
 			Location: input.Source.Location,
 			Content:  input.Source.Content,
@@ -381,12 +381,12 @@ func SubscribeOperationWithContext(ctx context.Context, input ExecuteOperationIn
 	})
 }
 
-// executeViaBuiltin executes an operation using the built-in OperationExecutor.
-func executeViaBuiltin(ctx context.Context, input ExecuteOperationInput) ExecuteOperationOutput {
+// invokeViaBuiltin invokes an operation using the built-in OperationInvoker.
+func invokeViaBuiltin(ctx context.Context, input InvokeOperationInput) InvokeOperationOutput {
 	opts := input.Options
 	if input.Source.Binary != "" {
 		if opts == nil {
-			opts = &openbindings.ExecutionOptions{}
+			opts = &openbindings.InvocationOptions{}
 		}
 		if opts.Metadata == nil {
 			opts.Metadata = map[string]any{}
@@ -394,8 +394,8 @@ func executeViaBuiltin(ctx context.Context, input ExecuteOperationInput) Execute
 		opts.Metadata["binary"] = input.Source.Binary
 	}
 
-	ch, err := DefaultExecutor().ExecuteBinding(ctx, &openbindings.BindingExecutionInput{
-		Source: openbindings.BindingExecutionSource{
+	ch, err := DefaultInvoker().InvokeBinding(ctx, &openbindings.BindingInvocationInput{
+		Source: openbindings.BindingInvocationSource{
 			Format:   input.Source.Format,
 			Location: input.Source.Location,
 			Content:  input.Source.Content,
@@ -407,7 +407,7 @@ func executeViaBuiltin(ctx context.Context, input ExecuteOperationInput) Execute
 		Interface: input.Interface,
 	})
 	if err != nil {
-		return ExecuteOperationOutput{
+		return InvokeOperationOutput{
 			Error: &Error{
 				Code:    "execution_failed",
 				Message: err.Error(),
@@ -421,33 +421,33 @@ func executeViaBuiltin(ctx context.Context, input ExecuteOperationInput) Execute
 		last = &ev
 	}
 	if last == nil {
-		return ExecuteOperationOutput{}
+		return InvokeOperationOutput{}
 	}
 	if last.Error != nil {
 		status := last.Status
 		if status == 0 {
 			status = 1
 		}
-		return ExecuteOperationOutput{
+		return InvokeOperationOutput{
 			Status:     status,
 			DurationMs: last.DurationMs,
 			Error:      last.Error,
 		}
 	}
-	return ExecuteOperationOutput{
+	return InvokeOperationOutput{
 		Output:     last.Data,
 		Status:     last.Status,
 		DurationMs: last.DurationMs,
 	}
 }
 
-// executeViaExternalDelegate executes an operation via an external delegate.
-// Uses the delegate's OBI to find its executeBinding binding and invokes it
-// through the normal binding execution system.
-func executeViaExternalDelegate(ctx context.Context, resolved delegates.Resolved, input ExecuteOperationInput) ExecuteOperationOutput {
+// invokeViaExternalDelegate invokes an operation via an external delegate.
+// Uses the delegate's OBI to find its invokeBinding binding and invokes it
+// through the normal binding invocation system.
+func invokeViaExternalDelegate(ctx context.Context, resolved delegates.Resolved, input InvokeOperationInput) InvokeOperationOutput {
 	loc := resolved.Location
 	if loc == "" {
-		return ExecuteOperationOutput{
+		return InvokeOperationOutput{
 			Error: &Error{
 				Code:    "invalid_delegate",
 				Message: fmt.Sprintf("delegate %q has no location", resolved.Delegate),
@@ -456,20 +456,20 @@ func executeViaExternalDelegate(ctx context.Context, resolved delegates.Resolved
 	}
 
 	if resolved.OBI == nil {
-		return executeViaCLILegacy(ctx, loc, input)
+		return invokeViaCLILegacy(ctx, loc, input)
 	}
 
 	iface := &resolved.OBI.Interface
 
-	bindingKey, binding := DefaultBindingForOp("executeBinding", iface)
+	bindingKey, binding := DefaultBindingForOp("invokeBinding", iface)
 	if binding == nil {
-		return executeViaCLILegacy(ctx, loc, input)
+		return invokeViaCLILegacy(ctx, loc, input)
 	}
 
 	sourceName := binding.Source
 	source, ok := iface.Sources[sourceName]
 	if !ok {
-		return ExecuteOperationOutput{
+		return InvokeOperationOutput{
 			Error: &Error{
 				Code:    "delegate_error",
 				Message: fmt.Sprintf("delegate %q: binding source %q not found", resolved.Delegate, sourceName),
@@ -481,7 +481,7 @@ func executeViaExternalDelegate(ctx context.Context, resolved delegates.Resolved
 	if binding.InputTransform != nil {
 		transformed, tErr := ApplyTransform(iface.Transforms, binding.InputTransform, input)
 		if tErr != nil {
-			return ExecuteOperationOutput{
+			return InvokeOperationOutput{
 				Error: &Error{
 					Code:    "transform_error",
 					Message: fmt.Sprintf("delegate %q: input transform for %q failed: %v", resolved.Delegate, bindingKey, tErr),
@@ -491,8 +491,8 @@ func executeViaExternalDelegate(ctx context.Context, resolved delegates.Resolved
 		inputPayload = transformed
 	}
 
-	execInput := ExecuteOperationInput{
-		Source: ExecuteSource{
+	execInput := InvokeOperationInput{
+		Source: InvokeSource{
 			Format:   source.Format,
 			Location: source.Location,
 		},
@@ -508,15 +508,15 @@ func executeViaExternalDelegate(ctx context.Context, resolved delegates.Resolved
 		execInput.Source.Content = es.Content
 	}
 
-	return executeViaBuiltin(ctx, execInput)
+	return invokeViaBuiltin(ctx, execInput)
 }
 
-// executeViaCLILegacy is the fallback for delegates that don't have an OBI
-// with an executeBinding binding. Uses the legacy execute --as-delegate protocol.
-func executeViaCLILegacy(ctx context.Context, delegatePath string, input ExecuteOperationInput) ExecuteOperationOutput {
+// invokeViaCLILegacy is the fallback for delegates that don't have an OBI
+// with an invokeBinding binding. Uses the legacy execute --as-delegate protocol.
+func invokeViaCLILegacy(ctx context.Context, delegatePath string, input InvokeOperationInput) InvokeOperationOutput {
 	inputJSON, err := json.Marshal(input)
 	if err != nil {
-		return ExecuteOperationOutput{
+		return InvokeOperationOutput{
 			Error: &Error{
 				Code:    "json_marshal_error",
 				Message: fmt.Sprintf("failed to marshal input: %v", err),
@@ -534,7 +534,7 @@ func executeViaCLILegacy(ctx context.Context, delegatePath string, input Execute
 	err = cmd.Run()
 
 	if ctx.Err() != nil {
-		return ExecuteOperationOutput{
+		return InvokeOperationOutput{
 			Error: &Error{
 				Code:    "cancelled",
 				Message: "operation cancelled",
@@ -542,7 +542,7 @@ func executeViaCLILegacy(ctx context.Context, delegatePath string, input Execute
 		}
 	}
 
-	var output ExecuteOperationOutput
+	var output InvokeOperationOutput
 	if stdout.Len() > 0 {
 		if jsonErr := json.Unmarshal(stdout.Bytes(), &output); jsonErr != nil {
 			output.Output = stdout.String()

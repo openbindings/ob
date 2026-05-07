@@ -3,6 +3,7 @@ package app
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"strings"
@@ -73,11 +74,19 @@ func parseInterfaceJSON(data []byte, source string) (*openbindings.Interface, er
 		return nil, fmt.Errorf("%s: not a JSON object (starts with %q)", source, preview)
 	}
 
-	var iface openbindings.Interface
-	if err := json.Unmarshal(data, &iface); err != nil {
-		return nil, fmt.Errorf("%s: invalid JSON: %w", source, err)
+	iface, err := openbindings.ParseDocument(data)
+	if err != nil {
+		var validationErr *openbindings.ValidationError
+		if !errors.As(err, &validationErr) {
+			return nil, fmt.Errorf("%s: %w", source, err)
+		}
+		var parsed openbindings.Interface
+		if unmarshalErr := json.Unmarshal(data, &parsed); unmarshalErr != nil {
+			return nil, fmt.Errorf("%s: invalid JSON: %w", source, unmarshalErr)
+		}
+		return &parsed, nil
 	}
-	return &iface, nil
+	return iface, nil
 }
 
 // WriteInterfaceFile writes an Interface to a file atomically using

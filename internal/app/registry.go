@@ -12,51 +12,51 @@ import (
 	graphqlbinding "github.com/openbindings/openbindings-go/formats/graphql"
 	"github.com/openbindings/openbindings-go/formats/grpc"
 	"github.com/openbindings/openbindings-go/formats/mcp"
-	operationgraph "github.com/openbindings/openbindings-go/formats/operationgraph"
 	"github.com/openbindings/openbindings-go/formats/openapi"
+	operationgraph "github.com/openbindings/openbindings-go/formats/operationgraph"
 	"github.com/openbindings/openbindings-go/formats/usage"
 	workersrpc "github.com/openbindings/openbindings-go/formats/workersrpc"
 )
 
 var (
-	defaultExecutor     *openbindings.OperationExecutor
-	defaultExecutorOnce sync.Once
+	defaultInvoker     *openbindings.OperationInvoker
+	defaultInvokerOnce sync.Once
 
 	defaultCreator     openbindings.InterfaceCreator
 	defaultCreatorOnce sync.Once
 
-	// newExecutorFunc builds the OperationExecutor. Override in tests to
-	// inject a custom set of binding executors.
-	newExecutorFunc = newDefaultExecutor
+	// newInvokerFunc builds the OperationInvoker. Override in tests to
+	// inject a custom set of binding invokers.
+	newInvokerFunc = newDefaultInvoker
 
 	// newCreatorFunc builds the combined InterfaceCreator. Override in tests
 	// to inject a custom set of creators.
 	newCreatorFunc = newDefaultCreator
 )
 
-func newDefaultExecutor() *openbindings.OperationExecutor {
-	exec := openbindings.NewOperationExecutor(
-		openapi.NewExecutor(),
-		grpc.NewExecutor(),
-		connectbinding.NewExecutor(),
-		mcp.NewExecutor(mcp.WithClientVersion(OBVersion)),
-		asyncapi.NewExecutor(),
-		graphqlbinding.NewExecutor(),
-		usage.NewExecutor(),
-		// workers-rpc executor stub: ob recognizes the format token and
+func newDefaultInvoker() *openbindings.OperationInvoker {
+	invoker := openbindings.NewOperationInvoker(
+		openapi.NewInvoker(),
+		grpc.NewInvoker(),
+		connectbinding.NewInvoker(),
+		mcp.NewInvoker(mcp.WithClientVersion(OBVersion)),
+		asyncapi.NewInvoker(),
+		graphqlbinding.NewInvoker(),
+		usage.NewInvoker(),
+		// workers-rpc invoker stub: ob recognizes the format token and
 		// codegen produces clients for workers-rpc OBIs, but actual
 		// dispatch is impossible from Go (Workers RPC requires the
 		// Workers runtime). Real dispatch happens via @openbindings/workers-rpc
-		// from inside a Cloudflare Worker. See workers-rpc-go/executor.go.
-		workersrpc.NewExecutor(),
+		// from inside a Cloudflare Worker. See workers-rpc-go/invoker.go.
+		workersrpc.NewInvoker(),
 	)
-	// Operation graph executor needs the OperationExecutor itself (recursive:
+	// Operation graph invoker needs the OperationInvoker itself (recursive:
 	// operation nodes invoke sub-operations). Register after construction.
-	exec.AddBindingExecutor(operationgraph.NewExecutor(exec))
-	exec.TransformEvaluator = &jsonataEvaluator{}
-	exec.ContextStore = NewCLIContextStore()
-	exec.PlatformCallbacks = CLIPlatformCallbacks()
-	return exec
+	invoker.AddBindingInvoker(operationgraph.NewInvoker(invoker))
+	invoker.TransformEvaluator = &jsonataEvaluator{}
+	invoker.ContextStore = NewCLIContextStore()
+	invoker.PlatformCallbacks = CLIPlatformCallbacks()
+	return invoker
 }
 
 func newDefaultCreator() openbindings.InterfaceCreator {
@@ -93,49 +93,49 @@ func CreateInterfaceFromSource(ctx context.Context, input *openbindings.CreateIn
 	return DefaultCreator().CreateInterface(ctx, input)
 }
 
-// ListBindableRefs returns all bindable refs for a source by delegating to
-// the matching creator's RefLister implementation.
-func ListBindableRefs(ctx context.Context, source *openbindings.Source) (*openbindings.ListRefsResult, error) {
+// InspectSource returns bindable targets for a source by delegating to the
+// matching source inspector implementation.
+func InspectSource(ctx context.Context, source *openbindings.Source) (*openbindings.SourceInspection, error) {
 	creator := DefaultCreator()
-	lister, ok := creator.(openbindings.RefLister)
+	inspector, ok := creator.(openbindings.SourceInspector)
 	if !ok {
-		return nil, fmt.Errorf("creator does not support ref listing")
+		return nil, fmt.Errorf("creator does not support source inspection")
 	}
-	return lister.ListBindableRefs(ctx, source)
+	return inspector.InspectSource(ctx, source)
 }
 
-// DefaultExecutor returns the singleton OperationExecutor wired with all
-// built-in binding executors. In tests, override newExecutorFunc
-// before calling DefaultExecutor to inject a custom executor.
-func DefaultExecutor() *openbindings.OperationExecutor {
-	defaultExecutorOnce.Do(func() {
-		defaultExecutor = newExecutorFunc()
+// DefaultInvoker returns the singleton OperationInvoker wired with all
+// built-in binding invokers. In tests, override newInvokerFunc
+// before calling DefaultInvoker to inject a custom invoker.
+func DefaultInvoker() *openbindings.OperationInvoker {
+	defaultInvokerOnce.Do(func() {
+		defaultInvoker = newInvokerFunc()
 	})
-	return defaultExecutor
+	return defaultInvoker
 }
 
-// ResetDefaultExecutor clears the cached executor and creator so the next
-// call to DefaultExecutor/DefaultCreator re-initialises them. Intended for
+// ResetDefaultInvoker clears the cached invoker and creator so the next
+// call to DefaultInvoker/DefaultCreator re-initialises them. Intended for
 // tests only.
-func ResetDefaultExecutor() {
-	defaultExecutorOnce = sync.Once{}
-	defaultExecutor = nil
+func ResetDefaultInvoker() {
+	defaultInvokerOnce = sync.Once{}
+	defaultInvoker = nil
 	defaultCreatorOnce = sync.Once{}
 	defaultCreator = nil
 }
 
-// OverrideExecutorForTest replaces the default executor with the given one
+// OverrideInvokerForTest replaces the default invoker with the given one
 // and returns a cleanup function that restores the original constructor.
 // Also resets the cached native-token list so BuiltinSupportsFormat picks
-// up the new executor's formats. Intended for tests only.
-func OverrideExecutorForTest(exec *openbindings.OperationExecutor) func() {
-	old := newExecutorFunc
-	ResetDefaultExecutor()
+// up the new invoker's formats. Intended for tests only.
+func OverrideInvokerForTest(invoker *openbindings.OperationInvoker) func() {
+	old := newInvokerFunc
+	ResetDefaultInvoker()
 	resetNativeTokens()
-	newExecutorFunc = func() *openbindings.OperationExecutor { return exec }
+	newInvokerFunc = func() *openbindings.OperationInvoker { return invoker }
 	return func() {
-		newExecutorFunc = old
-		ResetDefaultExecutor()
+		newInvokerFunc = old
+		ResetDefaultInvoker()
 		resetNativeTokens()
 	}
 }

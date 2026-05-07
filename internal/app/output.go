@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/openbindings/openbindings-go/canonicaljson"
 	"gopkg.in/yaml.v3"
 )
 
@@ -37,6 +38,10 @@ const (
 func FormatOutput(v any, format OutputFormat) ([]byte, error) {
 	switch format {
 	case OutputFormatJSON:
+		switch v.(type) {
+		case ComparisonReport, *ComparisonReport:
+			return canonicaljson.Marshal(v)
+		}
 		return json.MarshalIndent(v, "", "  ")
 	case OutputFormatYAML:
 		// Round-trip via JSON so extension/lossless fields (e.g. x-ob) become

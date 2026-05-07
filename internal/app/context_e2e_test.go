@@ -26,7 +26,7 @@ func TestContextE2E_URLKeyedRoundTrip(t *testing.T) {
 		t.Fatalf("GetContext: %v", err)
 	}
 	if opts == nil {
-		t.Fatal("GetContext: expected non-nil ExecutionOptions")
+		t.Fatal("GetContext: expected non-nil InvocationOptions")
 	}
 
 	if opts.Headers["X-Custom"] != "custom-value" {
@@ -65,7 +65,7 @@ func TestContextE2E_SourceOverrideMerge(t *testing.T) {
 		t.Fatalf("GetContext: %v", err)
 	}
 	if baseOpts == nil {
-		t.Fatal("GetContext: expected non-nil ExecutionOptions")
+		t.Fatal("GetContext: expected non-nil InvocationOptions")
 	}
 	if baseOpts.Headers["X-Base"] != "base" {
 		t.Errorf("base header mismatch: %q", baseOpts.Headers["X-Base"])
@@ -79,7 +79,7 @@ func TestContextE2E_SourceOverrideMerge(t *testing.T) {
 		t.Fatalf("GetContextForSource: %v", err)
 	}
 	if mergedOpts == nil {
-		t.Fatal("GetContextForSource: expected non-nil ExecutionOptions")
+		t.Fatal("GetContextForSource: expected non-nil InvocationOptions")
 	}
 	if mergedOpts.Headers["X-Base"] != "base" {
 		t.Errorf("base header should carry through merge: %q", mergedOpts.Headers["X-Base"])
@@ -96,7 +96,7 @@ func TestContextE2E_SourceOverrideMerge(t *testing.T) {
 		t.Fatalf("GetContextForSource (no override): %v", err)
 	}
 	if noOverrideOpts == nil {
-		t.Fatal("GetContextForSource: expected non-nil ExecutionOptions")
+		t.Fatal("GetContextForSource: expected non-nil InvocationOptions")
 	}
 	if noOverrideOpts.Headers["X-Shared"] != "from-base" {
 		t.Errorf("no override should return base: %q", noOverrideOpts.Headers["X-Shared"])
@@ -135,7 +135,7 @@ func TestContextE2E_ExecURLContext(t *testing.T) {
 		t.Fatalf("GetContext: %v", err)
 	}
 	if opts == nil {
-		t.Fatal("GetContext: expected non-nil ExecutionOptions")
+		t.Fatal("GetContext: expected non-nil InvocationOptions")
 	}
 	if opts.Environment["KUBECONFIG"] != "/home/me/.kube/prod" {
 		t.Errorf("env mismatch: %q", opts.Environment["KUBECONFIG"])
@@ -177,7 +177,7 @@ func TestContextE2E_DeleteCleansUp(t *testing.T) {
 func TestContextE2E_AutoResolution(t *testing.T) {
 	setupContextTestDir(t)
 
-	// Context is now resolved by the executor's key, not the target URL.
+	// Context is now resolved by the driver's key, not the target URL.
 	// For hierarchical matching, set context on the petstore origin.
 	cfg := ContextConfig{
 		Headers: map[string]string{"X-Api-Key": "pet-key-123"},
@@ -192,7 +192,7 @@ func TestContextE2E_AutoResolution(t *testing.T) {
 		t.Fatalf("GetContext: %v", err)
 	}
 	if opts == nil {
-		t.Fatal("GetContext: expected non-nil ExecutionOptions")
+		t.Fatal("GetContext: expected non-nil InvocationOptions")
 	}
 	if opts.Headers["X-Api-Key"] != "pet-key-123" {
 		t.Errorf("header mismatch: %q", opts.Headers["X-Api-Key"])
@@ -242,7 +242,7 @@ func TestContextE2E_HierarchicalURLMatch(t *testing.T) {
 		t.Fatalf("GetContext: %v", err)
 	}
 	if opts == nil {
-		t.Fatal("GetContext: expected non-nil ExecutionOptions")
+		t.Fatal("GetContext: expected non-nil InvocationOptions")
 	}
 	if opts.Headers["Authorization"] != "Bearer test-token" {
 		t.Errorf("expected hierarchical match, got headers: %v", opts.Headers)
@@ -255,7 +255,7 @@ func TestContextE2E_HierarchicalURLMatch(t *testing.T) {
 		t.Fatalf("GetContext: %v", err)
 	}
 	if opts2 == nil {
-		t.Fatal("GetContext: expected non-nil ExecutionOptions")
+		t.Fatal("GetContext: expected non-nil InvocationOptions")
 	}
 	if opts2.Headers["Authorization"] != "Bearer test-token" {
 		t.Errorf("expected hierarchical match for mid-path, got headers: %v", opts2.Headers)
@@ -294,7 +294,7 @@ func TestContextE2E_ExactMatchTakesPrecedence(t *testing.T) {
 		t.Fatalf("GetContext: %v", err)
 	}
 	if opts == nil {
-		t.Fatal("GetContext: expected non-nil ExecutionOptions")
+		t.Fatal("GetContext: expected non-nil InvocationOptions")
 	}
 	if opts.Headers["X-Level"] != "specific" {
 		t.Errorf("exact match should take precedence, got %q", opts.Headers["X-Level"])
@@ -307,7 +307,7 @@ func TestContextE2E_ExactMatchTakesPrecedence(t *testing.T) {
 		t.Fatalf("GetContext: %v", err)
 	}
 	if opts2 == nil {
-		t.Fatal("GetContext: expected non-nil ExecutionOptions")
+		t.Fatal("GetContext: expected non-nil InvocationOptions")
 	}
 	if opts2.Headers["X-Level"] != "base" {
 		t.Errorf("should fall back to base, got %q", opts2.Headers["X-Level"])

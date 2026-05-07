@@ -245,7 +245,7 @@ func CreateInterface(input CreateInterfaceInput) (*openbindings.Interface, error
 }
 
 // processSource processes a single source and adds its operations/bindings to the interface.
-// It uses the OperationExecutor to dispatch format-specific conversion, then applies
+// It uses the OperationInvoker to dispatch format-specific conversion, then applies
 // format-agnostic merge logic.
 func processSource(iface *openbindings.Interface, src CreateInterfaceSource, index int) error {
 	sourceKey := DeriveSourceKey(src, index)
@@ -424,4 +424,3 @@ func readEmbedContent(path string) (any, error) {
 		return string(data), nil
 	}
 }
-

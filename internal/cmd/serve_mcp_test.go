@@ -67,7 +67,7 @@ func TestMCPEndpoint_ListTools(t *testing.T) {
 	}
 
 	wantTools := []string{
-		"getInfo", "listFormats", "createInterface", "executeBinding",
+		"getInfo", "listFormats", "createInterface", "invokeBinding",
 		"listContexts", "getContext", "setContext", "deleteContext",
 		"resolveInterface", "request",
 	}

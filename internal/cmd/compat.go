@@ -16,22 +16,17 @@ produce a conformance report.
 
 Each argument is a locator: a local file path, HTTP(S) URL, or exec: reference.
 
-For each operation in the target, the report checks whether the candidate's
-schemas are compatible per the OpenBindings Schema Compatibility Profile (v0.1):
+For each operation in the left contract, the report checks whether the right
+implementation is compatible per the OpenBindings comparison convention:
 
   • Method input:  candidate must accept everything the target defines
   • Method output: candidate must only return what the target defines
   • Event payload: candidate must only emit what the target defines
 
-Per-slot status is one of: compatible, incompatible, or unspecified.
+JSON output uses the ob-comparison-report/v1 shape with operation deltas,
+directional schema verdicts, finding kinds, summary counts, and coverage.
 
-The report includes a conformance level:
-
-  • full:    all target operations matched and compatible
-  • partial: some operations matched and compatible, others unmatched
-  • none:    no compatible operations (all unmatched or incompatible)
-
-Exit code 0 if all operations are compatible (full conformance), 1 otherwise.
+Exit code 0 if the summary verdict is compatible, 1 otherwise.
 
 Examples:
   ob compat target.json candidate.json
@@ -39,13 +34,16 @@ Examples:
   ob compat target.json https://staging.example.com -F json`,
 		Args: cobra.ExactArgs(2),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			report := app.CompatibilityCheck(app.CompatInput{
-				Target:    args[0],
-				Candidate: args[1],
+			report := app.ComparisonCheck(app.ComparisonInput{
+				Left:        args[0],
+				Right:       args[1],
+				Mode:        "subsume",
+				Profile:     "OB-2020-12",
+				ProfileHash: "local",
 			})
 
 			exitCode := 0
-			if report.Error != nil || !report.Compatible {
+			if report.Error != nil || report.Summary.Verdict != "compatible" {
 				exitCode = 1
 			}
 

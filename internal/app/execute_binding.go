@@ -9,55 +9,55 @@ import (
 	openbindings "github.com/openbindings/openbindings-go"
 )
 
-// ExecuteBindingInput holds the parameters for executing an operation via its binding.
-type ExecuteBindingInput struct {
+// InvokeBindingInput holds the parameters for invoking an operation via its binding.
+type InvokeBindingInput struct {
 	OpKey     string
 	OBIDir    string
 	Interface *openbindings.Interface
 	InputData map[string]any
 }
 
-// ExecuteBindingResult holds the output and error from executing a binding.
-type ExecuteBindingResult struct {
+// InvokeBindingResult holds the output and error from invoking a binding.
+type InvokeBindingResult struct {
 	Output string
 	Error  error
 }
 
-// ExecuteBinding resolves the default binding for an operation, applies
-// input/output transforms, and executes the operation. This is the domain
+// InvokeBinding resolves the default binding for an operation, applies
+// input/output transforms, and invokes the operation. This is the domain
 // logic that both the TUI and CLI can share.
 //
-// Context resolution is handled by the executor via the ContextStore and
-// PlatformCallbacks wired into the DefaultExecutor.
-func ExecuteBinding(ctx context.Context, in ExecuteBindingInput) ExecuteBindingResult {
+// Context resolution is handled by the dispatcher via the ContextStore and
+// PlatformCallbacks wired into the DefaultInvoker.
+func InvokeBinding(ctx context.Context, in InvokeBindingInput) InvokeBindingResult {
 	if in.Interface == nil {
-		return ExecuteBindingResult{Error: fmt.Errorf("no interface")}
+		return InvokeBindingResult{Error: fmt.Errorf("no interface")}
 	}
 
 	resolved, err := resolveBindingAndSource(in.Interface, in.OpKey, "", in.InputData)
 	if err != nil {
-		return ExecuteBindingResult{Error: err}
+		return InvokeBindingResult{Error: err}
 	}
 
 	es := resolveSourceLocation(resolved.source, in.OBIDir)
 
 	if es.Location == "" && es.Content == nil {
-		return ExecuteBindingResult{Error: fmt.Errorf("binding source %q has no artifact or inline content", resolved.binding.Source)}
+		return InvokeBindingResult{Error: fmt.Errorf("binding source %q has no artifact or inline content", resolved.binding.Source)}
 	}
 
-	execInput := ExecuteOperationInput{
-		Source: ExecuteSource{Format: es.Format, Location: es.Location, Content: es.Content},
+	execInput := InvokeOperationInput{
+		Source: InvokeSource{Format: es.Format, Location: es.Location, Content: es.Content},
 		Ref:    resolved.binding.Ref,
 		Input:  resolved.input,
 	}
 
-	result := ExecuteOperationWithContext(ctx, execInput)
+	result := InvokeOperationWithContext(ctx, execInput)
 
 	output := result.Output
 	if resolved.binding.OutputTransform != nil && result.Error == nil {
 		transformed, tErr := ApplyTransform(in.Interface.Transforms, resolved.binding.OutputTransform, output)
 		if tErr != nil {
-			return ExecuteBindingResult{
+			return InvokeBindingResult{
 				Output: FormatOpOutput(output),
 				Error:  fmt.Errorf("output transform failed: %w", tErr),
 			}
@@ -65,7 +65,7 @@ func ExecuteBinding(ctx context.Context, in ExecuteBindingInput) ExecuteBindingR
 		output = transformed
 	}
 
-	res := ExecuteBindingResult{
+	res := InvokeBindingResult{
 		Output: FormatOpOutput(output),
 	}
 

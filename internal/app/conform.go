@@ -33,12 +33,12 @@ type ConformAction struct {
 
 // ConformOutput is the result of a conform operation.
 type ConformOutput struct {
-	RoleKey    string          `json:"roleKey"`
-	RoleLocator string         `json:"roleLocator"`
-	TargetPath string          `json:"targetPath"`
-	Actions    []ConformAction `json:"actions"`
-	Modified   bool            `json:"modified"`
-	Error      *Error          `json:"error,omitempty"`
+	RoleKey     string          `json:"roleKey"`
+	RoleLocator string          `json:"roleLocator"`
+	TargetPath  string          `json:"targetPath"`
+	Actions     []ConformAction `json:"actions"`
+	Modified    bool            `json:"modified"`
+	Error       *Error          `json:"error,omitempty"`
 }
 
 // Render returns a human-friendly representation.

@@ -17,24 +17,19 @@ func ApplyTransform(transforms map[string]openbindings.Transform, tor *openbindi
 	}
 
 	// Resolve the transform reference if needed
-	transform := tor.Resolve(transforms)
-	if transform == nil {
+	expression, ok := tor.Resolve(transforms)
+	if !ok {
 		if tor.IsRef() {
 			return nil, fmt.Errorf("transform reference %q not found", tor.Ref)
 		}
 		return nil, fmt.Errorf("invalid transform: neither ref nor inline")
 	}
 
-	// Validate transform type
-	if transform.Type != "jsonata" {
-		return nil, fmt.Errorf("unsupported transform type %q (only 'jsonata' is supported)", transform.Type)
-	}
-
-	if transform.Expression == "" {
+	if expression == "" {
 		return nil, fmt.Errorf("transform expression is empty")
 	}
 
-	return executeJSONata(transform.Expression, input)
+	return executeJSONata(expression, input)
 }
 
 // executeJSONata compiles and executes a JSONata expression against input data.

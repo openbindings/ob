@@ -17,16 +17,16 @@ func newOperationCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:     "operation",
 		Aliases: []string{"op", "operations"},
-		Short:   "Manage and execute operations on an OBI",
-		Long: `Manage and execute operations on an OpenBindings interface document.
+		Short:   "Manage and invoke operations on an OBI",
+		Long: `Manage and invoke operations on an OpenBindings interface document.
 
 Operations define the abstract methods and events that an interface
-exposes. Use subcommands to list, rename, remove, or execute operations.`,
+exposes. Use subcommands to list, rename, remove, or invoke operations.`,
 	}
 
 	cmd.AddCommand(
 		newOperationListCmd(),
-		newOperationExecCmd(),
+		newOperationInvokeCmd(),
 		newOperationAddCmd(),
 		newOperationRenameCmd(),
 		newOperationRemoveCmd(),
@@ -35,16 +35,15 @@ exposes. Use subcommands to list, rename, remove, or execute operations.`,
 	return cmd
 }
 
-func newOperationExecCmd() *cobra.Command {
+func newOperationInvokeCmd() *cobra.Command {
 	var bindingKey string
 	var inputJSON string
 	var verbose bool
 
 	cmd := &cobra.Command{
-		Use:     "exec <obi-path> [operation]",
-		Aliases: []string{"execute"},
-		Short:   "Execute an operation via a binding",
-		Long: `Execute an operation from an OpenBindings interface.
+		Use:   "invoke <obi-path> [operation]",
+		Short: "Invoke an operation via a binding",
+		Long: `Invoke an operation from an OpenBindings interface.
 
 Every operation is a stream. One JSON value per event is printed to
 stdout. Unary operations produce one line and exit. Streaming
@@ -62,10 +61,10 @@ the target URL. Use 'ob context set <url>' to configure context.
 Use -v/--verbose to emit binding key and total duration on stderr.
 
 Examples:
-  ob op exec interface.json listPets --input '{"limit":10}'
-  ob op exec interface.json echo
-  ob op exec interface.json --binding listPets.openapi --input '{"limit":10}'
-  ob op exec interface.json listPets -v`,
+  ob op invoke interface.json listPets --input '{"limit":10}'
+  ob op invoke interface.json echo
+  ob op invoke interface.json --binding listPets.openapi --input '{"limit":10}'
+  ob op invoke interface.json listPets -v`,
 		Args: cobra.RangeArgs(1, 2),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			obiFile := args[0]
@@ -92,9 +91,9 @@ Examples:
 			ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt)
 			defer stop()
 
-			ch, err := app.ExecuteOBIOperation(ctx, obiFile, operationKey, bindingKey, input)
+			ch, err := app.InvokeOBIOperation(ctx, obiFile, operationKey, bindingKey, input)
 			if err != nil {
-				return app.ExitResult{Code: 1, Message: fmt.Sprintf("execute %s in %s: %v", operationKey, obiFile, err), ToStderr: true}
+				return app.ExitResult{Code: 1, Message: fmt.Sprintf("invoke %s in %s: %v", operationKey, obiFile, err), ToStderr: true}
 			}
 
 			if verbose {
@@ -126,7 +125,7 @@ Examples:
 		},
 	}
 
-	cmd.Flags().StringVar(&bindingKey, "binding", "", "binding key to execute (operation is derived from the entry)")
+	cmd.Flags().StringVar(&bindingKey, "binding", "", "binding key to invoke (operation is derived from the entry)")
 	cmd.Flags().StringVar(&inputJSON, "input", "", "operation input as JSON")
 	cmd.Flags().BoolVarP(&verbose, "verbose", "v", false, "show binding key and duration on stderr")
 

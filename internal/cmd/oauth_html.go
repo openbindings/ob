@@ -216,7 +216,7 @@ var oauthPages = template.Must(template.New("oauth").Parse(`
   </header>
   <div class="card">
     <h1>Authorize access</h1>
-    <p><span class="client">{{.ClientID}}</span> is requesting access to this OpenBindings environment. Approving grants access to all operations, binding execution, and stored credentials for this local server.</p>
+    <p><span class="client">{{.ClientID}}</span> is requesting access to this OpenBindings environment. Approving grants access to all operations, binding invocation, and stored credentials for this local server.</p>
     <form method="POST" action="/oauth/authorize">
       <input type="hidden" name="nonce" value="{{.Nonce}}">
       <div class="actions">

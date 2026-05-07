@@ -15,13 +15,13 @@ import (
 	"github.com/openbindings/ob/internal/server"
 )
 
-// registerBindingRoutes adds direct binding execution and interface creation endpoints,
-// making ob serve a binding executor host.
+// registerBindingRoutes adds direct binding invocation and interface creation endpoints,
+// making ob serve a binding invoker host.
 func registerBindingRoutes(srv *server.Server, logger *slog.Logger) {
 	mux := srv.Mux()
-	mux.HandleFunc("/bindings/execute", handleBindingExecute(srv, logger))
+	mux.HandleFunc("/bindings/invoke", handleBindingExecute(srv, logger))
 	mux.HandleFunc("POST /interfaces/create", handleInterfaceCreate)
-	mux.HandleFunc("POST /refs/list", handleRefsList)
+	mux.HandleFunc("POST /sources/inspect", handleSourceInspect)
 	mux.HandleFunc("POST /http/request", handleHttpRequest(logger))
 }
 
@@ -51,11 +51,11 @@ func handleBindingExecute(srv *server.Server, logger *slog.Logger) http.HandlerF
 
 		r.Body = http.MaxBytesReader(w, r.Body, maxRequestBodyBytes)
 		var body struct {
-			Source    app.ExecuteSource              `json:"source"`
-			Ref       string                         `json:"ref"`
-			Input     any                            `json:"input,omitempty"`
-			Context   map[string]any                 `json:"context,omitempty"`
-			Options   *openbindings.ExecutionOptions `json:"options,omitempty"`
+			Source    app.InvokeSource                `json:"source"`
+			Ref       string                          `json:"ref"`
+			Input     any                             `json:"input,omitempty"`
+			Context   map[string]any                  `json:"context,omitempty"`
+			Options   *openbindings.InvocationOptions `json:"options,omitempty"`
 			Interface *openbindings.Interface         `json:"interface,omitempty"`
 		}
 		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
@@ -63,9 +63,9 @@ func handleBindingExecute(srv *server.Server, logger *slog.Logger) http.HandlerF
 			return
 		}
 
-		logger.Info("bindings/execute", "format", body.Source.Format, "ref", body.Ref)
+		logger.Info("bindings/invoke", "format", body.Source.Format, "ref", body.Ref)
 
-		output := app.ExecuteOperationWithContext(r.Context(), app.ExecuteOperationInput{
+		output := app.InvokeOperationWithContext(r.Context(), app.InvokeOperationInput{
 			Source:    body.Source,
 			Ref:       body.Ref,
 			Input:     body.Input,
@@ -100,17 +100,17 @@ func handleBindingExecuteWS(srv *server.Server, logger *slog.Logger, w http.Resp
 	ctx := r.Context()
 
 	var body struct {
-		Source      app.ExecuteSource              `json:"source"`
-		Ref         string                         `json:"ref"`
-		Input       any                            `json:"input,omitempty"`
-		Context     map[string]any                 `json:"context,omitempty"`
-		Options     *openbindings.ExecutionOptions `json:"options,omitempty"`
+		Source      app.InvokeSource                `json:"source"`
+		Ref         string                          `json:"ref"`
+		Input       any                             `json:"input,omitempty"`
+		Context     map[string]any                  `json:"context,omitempty"`
+		Options     *openbindings.InvocationOptions `json:"options,omitempty"`
 		Interface   *openbindings.Interface         `json:"interface,omitempty"`
-		BearerToken string                         `json:"bearerToken,omitempty"`
+		BearerToken string                          `json:"bearerToken,omitempty"`
 	}
 	if err := wsjson.Read(ctx, conn, &body); err != nil {
 		logger.Error("websocket read initial message failed", "error", err)
-		conn.Close(websocket.StatusProtocolError, "expected JSON execution request")
+		conn.Close(websocket.StatusProtocolError, "expected JSON invocation request")
 		return
 	}
 
@@ -127,9 +127,9 @@ func handleBindingExecuteWS(srv *server.Server, logger *slog.Logger, w http.Resp
 		}
 	}
 
-	logger.Info("bindings/execute (ws)", "format", body.Source.Format, "ref", body.Ref)
+	logger.Info("bindings/invoke (ws)", "format", body.Source.Format, "ref", body.Ref)
 
-	execInput := app.ExecuteOperationInput{
+	execInput := app.InvokeOperationInput{
 		Source:    body.Source,
 		Ref:       body.Ref,
 		Input:     body.Input,
@@ -141,7 +141,7 @@ func handleBindingExecuteWS(srv *server.Server, logger *slog.Logger, w http.Resp
 	events, err := app.SubscribeOperationWithContext(ctx, execInput)
 	if err != nil {
 		// Streaming not available for this operation — fall back to unary.
-		out := app.ExecuteOperationWithContext(ctx, execInput)
+		out := app.InvokeOperationWithContext(ctx, execInput)
 		if out.Error != nil {
 			_ = wsjson.Write(ctx, conn, wsStreamEvent{
 				Type:  "error",
@@ -215,7 +215,7 @@ func handleInterfaceCreate(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, iface)
 }
 
-func handleRefsList(w http.ResponseWriter, r *http.Request) {
+func handleSourceInspect(w http.ResponseWriter, r *http.Request) {
 	r.Body = http.MaxBytesReader(w, r.Body, maxRequestBodyBytes)
 	var body struct {
 		Source openbindings.Source `json:"source"`
@@ -229,7 +229,7 @@ func handleRefsList(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	result, err := app.ListBindableRefs(r.Context(), &body.Source)
+	result, err := app.InspectSource(r.Context(), &body.Source)
 	if err != nil {
 		writeJSON(w, http.StatusBadRequest, ErrorResponse{Error: err.Error()})
 		return

@@ -18,7 +18,7 @@ func setupContextTestDir(t *testing.T) string {
 	// Tests must not depend on the developer's local delegate config
 	// (~/.openbindings/config.json or any walked-up .openbindings/
 	// directory). Override GetDelegateContext to return an empty list
-	// so ExecuteOperationWithContext does not try to probe `exec:ob`
+	// so InvokeOperationWithContext does not try to probe `exec:ob`
 	// or any other delegate the user happens to have configured. The
 	// previous behavior caused environment-dependent test failures
 	// where the binary's own OBI sources (which use relative paths)

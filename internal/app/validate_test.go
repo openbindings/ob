@@ -62,8 +62,8 @@ func TestValidateInterface_StrictMode(t *testing.T) {
 	// Valid document but with unknown fields — strict should catch it.
 	path := writeInterface(t, dir, "strict.json", map[string]any{
 		"openbindings": "0.1.0",
-		"operations":  map[string]any{},
-		"customField": "should fail in strict",
+		"operations":   map[string]any{},
+		"customField":  "should fail in strict",
 	})
 
 	// Non-strict: should pass.
@@ -83,7 +83,7 @@ func TestValidateInterface_BadVersion(t *testing.T) {
 	dir := t.TempDir()
 	path := writeInterface(t, dir, "bad-version.json", map[string]any{
 		"openbindings": "not-semver",
-		"operations":  map[string]any{},
+		"operations":   map[string]any{},
 	})
 
 	report := ValidateInterface(ValidateInput{Locator: path})

@@ -194,8 +194,8 @@ func ProbeOBI(rawURL string, timeout time.Duration) ProbeResult {
 // the result into a ProbeResult. An empty required interface is used so any
 // valid OBI is accepted (compatibility isn't the concern of ProbeOBI).
 func probeHTTP(u string, timeout time.Duration) ProbeResult {
-	exec := DefaultExecutor()
-	ic := openbindings.NewUnboundClient(exec)
+	invoker := DefaultInvoker()
+	ic := openbindings.NewUnboundClient(invoker)
 
 	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
@@ -250,8 +250,8 @@ func FetchOBI(urlOrHost string) ([]byte, error) {
 		return nil, fmt.Errorf("fetch requires an HTTP(S) URL or host (got %q)", urlOrHost)
 	}
 
-	exec := DefaultExecutor()
-	ic := openbindings.NewUnboundClient(exec)
+	invoker := DefaultInvoker()
+	ic := openbindings.NewUnboundClient(invoker)
 
 	ctx, cancel := context.WithTimeout(context.Background(), delegates.DefaultProbeTimeout)
 	defer cancel()
@@ -345,4 +345,3 @@ func fetchOBICLIArgs(args []string, timeout time.Duration) (string, error) {
 	}
 	return doc, nil
 }
-

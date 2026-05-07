@@ -25,18 +25,18 @@ func skipIfKeychainUnavailable(t *testing.T) {
 	_ = keyring.Delete(KeychainService, probeKey)
 }
 
-// TestContextGitHub_ExecutorDrivenExecution tests the full executor-driven
+// TestContextGitHub_DispatcherDrivenInvocation tests the full dispatcher-driven
 // context resolution pipeline:
 //  1. Gets a real GitHub token via `gh auth token`
 //  2. Creates a minimal OpenAPI spec and OBI for GET /user
 //  3. Sets context for https://api.github.com (the normalizeContextKey-derived key)
-//  4. Executes via ExecuteOBIOperation — the executor derives the same key
+//  4. Invokes via InvokeOBIOperation — the dispatcher derives the same key
 //     via NormalizeContextKey and looks up context from the store internally
 //  5. Validates the response contains the authenticated user's login
 //
 // Requires: `gh` CLI installed and authenticated.
 // Skipped in environments without `gh` or network access.
-func TestContextGitHub_ExecutorDrivenExecution(t *testing.T) {
+func TestContextGitHub_DispatcherDrivenInvocation(t *testing.T) {
 	skipIfKeychainUnavailable(t)
 	ghToken := getGitHubToken(t)
 	setupContextTestDir(t)
@@ -93,7 +93,7 @@ func TestContextGitHub_ExecutorDrivenExecution(t *testing.T) {
 		t.Fatalf("write obi: %v", err)
 	}
 
-	// Set context for the API base URL (the key the OpenAPI executor returns).
+	// Set context for the API base URL (the key the OpenAPI driver returns).
 	cfg := ContextConfig{}
 	if err := SaveContextConfig("https://api.github.com", cfg); err != nil {
 		t.Fatalf("SaveContextConfig: %v", err)
@@ -103,9 +103,9 @@ func TestContextGitHub_ExecutorDrivenExecution(t *testing.T) {
 	}
 	t.Cleanup(func() { _ = DeleteContextCredentials("https://api.github.com") })
 
-	ch, err := ExecuteOBIOperation(context.Background(), obiPath, "getAuthenticatedUser", "", nil)
+	ch, err := InvokeOBIOperation(context.Background(), obiPath, "getAuthenticatedUser", "", nil)
 	if err != nil {
-		t.Fatalf("ExecuteOBIOperation failed: %v", err)
+		t.Fatalf("InvokeOBIOperation failed: %v", err)
 	}
 
 	var lastData any
@@ -114,7 +114,7 @@ func TestContextGitHub_ExecutorDrivenExecution(t *testing.T) {
 			if ev.Error.Code == openbindings.ErrCodeAuthRequired {
 				t.Skipf("GitHub token expired or invalid (code: %s)", ev.Error.Code)
 			}
-			t.Fatalf("ExecuteOBIOperation stream error: %s (code: %s)", ev.Error.Message, ev.Error.Code)
+			t.Fatalf("InvokeOBIOperation stream error: %s (code: %s)", ev.Error.Message, ev.Error.Code)
 		}
 		lastData = ev.Data
 	}
@@ -168,7 +168,7 @@ func TestContextGitHub_HierarchicalAPIBaseURL(t *testing.T) {
 	}
 }
 
-// TestContextGitHub_SecuritySchemeApplication tests that the OpenAPI executor
+// TestContextGitHub_SecuritySchemeApplication tests that the OpenAPI driver
 // correctly reads securitySchemes and places the bearer token in the
 // Authorization header.
 func TestContextGitHub_SecuritySchemeApplication(t *testing.T) {
@@ -204,8 +204,8 @@ func TestContextGitHub_SecuritySchemeApplication(t *testing.T) {
 		t.Fatalf("write spec: %v", err)
 	}
 
-	execInput := ExecuteOperationInput{
-		Source: ExecuteSource{
+	execInput := InvokeOperationInput{
+		Source: InvokeSource{
 			Format:   "openapi@3.0",
 			Location: specPath,
 		},
@@ -214,7 +214,7 @@ func TestContextGitHub_SecuritySchemeApplication(t *testing.T) {
 		Context: map[string]any{"bearerToken": ghToken},
 	}
 
-	result := ExecuteOperationWithContext(context.Background(), execInput)
+	result := InvokeOperationWithContext(context.Background(), execInput)
 	if result.Error != nil {
 		t.Fatalf("execution failed: %s", result.Error.Message)
 	}
@@ -242,7 +242,7 @@ func TestContextGitHub_NoCredentialsFails(t *testing.T) {
 	setupContextTestDir(t)
 
 	// Ensure no stored credentials from prior tests are picked up by
-	// the executor's context resolution.
+	// the dispatcher's context resolution.
 	_ = DeleteContextCredentials("https://api.github.com")
 	t.Cleanup(func() { _ = DeleteContextCredentials("https://api.github.com") })
 
@@ -267,15 +267,15 @@ func TestContextGitHub_NoCredentialsFails(t *testing.T) {
 		t.Fatalf("write spec: %v", err)
 	}
 
-	execInput := ExecuteOperationInput{
-		Source: ExecuteSource{
+	execInput := InvokeOperationInput{
+		Source: InvokeSource{
 			Format:   "openapi@3.0",
 			Location: specPath,
 		},
 		Ref: "#/paths/~1user/get",
 	}
 
-	result := ExecuteOperationWithContext(context.Background(), execInput)
+	result := InvokeOperationWithContext(context.Background(), execInput)
 	if result.Error == nil {
 		t.Fatal("expected error without credentials")
 	}

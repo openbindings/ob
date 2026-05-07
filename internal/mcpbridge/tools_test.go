@@ -32,8 +32,8 @@ func TestRegisterInterface_ToolsFromNonMCPBindings(t *testing.T) {
 		},
 	}
 	srv := gomcp.NewServer(&gomcp.Implementation{Name: "test"}, nil)
-	exec := openbindings.NewOperationExecutor()
-	count := RegisterInterface(srv, iface, "petstore", exec)
+	invoker := openbindings.NewOperationInvoker()
+	count := RegisterInterface(srv, iface, "petstore", invoker)
 	if count != 2 {
 		t.Fatalf("expected 2 primitives, got %d", count)
 	}
@@ -58,8 +58,8 @@ func TestRegisterInterface_ResourceFromMCPBinding(t *testing.T) {
 		},
 	}
 	srv := gomcp.NewServer(&gomcp.Implementation{Name: "test"}, nil)
-	exec := openbindings.NewOperationExecutor()
-	count := RegisterInterface(srv, iface, "docs", exec)
+	invoker := openbindings.NewOperationInvoker()
+	count := RegisterInterface(srv, iface, "docs", invoker)
 	if count != 1 {
 		t.Fatalf("expected 1 primitive, got %d", count)
 	}
@@ -92,8 +92,8 @@ func TestRegisterInterface_PromptFromMCPBinding(t *testing.T) {
 		},
 	}
 	srv := gomcp.NewServer(&gomcp.Implementation{Name: "test"}, nil)
-	exec := openbindings.NewOperationExecutor()
-	count := RegisterInterface(srv, iface, "assistant", exec)
+	invoker := openbindings.NewOperationInvoker()
+	count := RegisterInterface(srv, iface, "assistant", invoker)
 	if count != 1 {
 		t.Fatalf("expected 1 primitive, got %d", count)
 	}
@@ -118,8 +118,8 @@ func TestRegisterInterface_MixedPrimitives(t *testing.T) {
 		},
 	}
 	srv := gomcp.NewServer(&gomcp.Implementation{Name: "test"}, nil)
-	exec := openbindings.NewOperationExecutor()
-	count := RegisterInterface(srv, iface, "mixed", exec)
+	invoker := openbindings.NewOperationInvoker()
+	count := RegisterInterface(srv, iface, "mixed", invoker)
 	if count != 3 {
 		t.Fatalf("expected 3 primitives, got %d", count)
 	}

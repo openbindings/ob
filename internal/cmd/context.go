@@ -16,7 +16,7 @@ func newContextCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "context",
 		Short: "Manage binding context (credentials, headers, environment)",
-		Long: `Manage URL-keyed contexts for operation execution.
+		Long: `Manage URL-keyed contexts for operation invocation.
 
 A context is scoped to a target URL and contains credentials, headers,
 cookies, environment variables, and metadata. When executing an operation,

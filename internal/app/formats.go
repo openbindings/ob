@@ -41,7 +41,7 @@ func RenderFormatList(formats []FormatInfo) string {
 }
 
 // ListFormats returns all formats that ob can handle, both built-in (native
-// Go SDK executors) and external delegates.
+// Go SDK drivers) and external delegates.
 func ListFormats() []FormatInfo {
 	var formats []FormatInfo
 
@@ -69,7 +69,7 @@ func ListFormats() []FormatInfo {
 func getNativeTokens() []string {
 	nativeTokensOnce.Do(func() {
 		nativeTokens = []string{"openbindings@" + openbindings.MaxTestedVersion}
-		for _, fi := range DefaultExecutor().Formats() {
+		for _, fi := range DefaultInvoker().Formats() {
 			nativeTokens = append(nativeTokens, fi.Token)
 		}
 	})

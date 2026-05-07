@@ -1,14 +1,14 @@
 {
-  "openbindings": "0.1.0",
-  "name": "OpenBindings Host",
+  "openbindings": "0.2.0",
+  "name": "OpenBindings Local Service",
   "version": "0.1.0",
-  "description": "OpenBindings host server \u2014 provides binding execution, interface resolution, context management, format discovery, and HTTP client capabilities.",
+  "description": "Local OpenBindings service for binding invocation, interface resolution, context management, format discovery, source inspection, and HTTP client capabilities.",
   "roles": {
-    "openbindings.host": "https://openbindings.org/spec/interfaces/openbindings.host/0.1.json",
     "openbindings.software-descriptor": "https://openbindings.org/spec/interfaces/openbindings.software-descriptor/0.1.json",
-    "openbindings.binding-executor": "https://openbindings.org/spec/interfaces/openbindings.binding-executor/0.1.json",
+    "openbindings.binding-invoker": "https://openbindings.org/spec/interfaces/openbindings.binding-invoker/0.1.json",
     "openbindings.context-store": "https://openbindings.org/spec/interfaces/openbindings.context-store/0.1.json",
     "openbindings.interface-creator": "https://openbindings.org/spec/interfaces/openbindings.interface-creator/0.1.json",
+    "openbindings.source-inspector": "https://openbindings.org/spec/interfaces/openbindings.source-inspector/0.1.json",
     "openbindings.http-client": "https://openbindings.org/spec/interfaces/openbindings.http-client/0.1.json"
   },
   "security": {
@@ -178,7 +178,7 @@
       ],
       "additionalProperties": true
     },
-    "ExecuteSource": {
+    "InvokeSource": {
       "type": "object",
       "properties": {
         "format": {
@@ -206,11 +206,111 @@
       ],
       "additionalProperties": false
     },
+    "Source": {
+      "type": "object",
+      "properties": {
+        "format": {
+          "type": "string"
+        },
+        "location": {
+          "type": "string"
+        },
+        "content": {},
+        "description": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "format"
+      ],
+      "oneOf": [
+        {
+          "required": [
+            "location"
+          ]
+        },
+        {
+          "required": [
+            "content"
+          ]
+        }
+      ],
+      "additionalProperties": false
+    },
+    "Operation": {
+      "type": "object",
+      "properties": {
+        "description": {
+          "type": "string"
+        },
+        "deprecated": {
+          "type": "boolean"
+        },
+        "tags": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "input": {},
+        "output": {}
+      },
+      "additionalProperties": true
+    },
+    "BindableTarget": {
+      "type": "object",
+      "properties": {
+        "ref": {
+          "type": "string"
+        },
+        "operationKey": {
+          "type": "string"
+        },
+        "operation": {
+          "$ref": "#/schemas/Operation"
+        }
+      },
+      "required": [
+        "ref"
+      ],
+      "additionalProperties": true
+    },
+    "InspectSourceInput": {
+      "type": "object",
+      "properties": {
+        "source": {
+          "$ref": "#/schemas/Source"
+        }
+      },
+      "required": [
+        "source"
+      ],
+      "additionalProperties": false
+    },
+    "SourceInspection": {
+      "type": "object",
+      "properties": {
+        "targets": {
+          "type": "array",
+          "items": {
+            "$ref": "#/schemas/BindableTarget"
+          }
+        },
+        "exhaustive": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "targets",
+        "exhaustive"
+      ],
+      "additionalProperties": true
+    },
     "BindingContext": {
       "type": "object",
       "additionalProperties": true
     },
-    "ExecutionOptions": {
+    "InvocationOptions": {
       "type": "object",
       "properties": {
         "headers": {
@@ -238,11 +338,11 @@
       },
       "additionalProperties": false
     },
-    "ExecuteBindingInput": {
+    "InvokeBindingInput": {
       "type": "object",
       "properties": {
         "source": {
-          "$ref": "#/schemas/ExecuteSource"
+          "$ref": "#/schemas/InvokeSource"
         },
         "ref": {
           "type": "string"
@@ -252,7 +352,7 @@
           "$ref": "#/schemas/BindingContext"
         },
         "options": {
-          "$ref": "#/schemas/ExecutionOptions"
+          "$ref": "#/schemas/InvocationOptions"
         }
       },
       "required": [
@@ -278,7 +378,7 @@
       ],
       "additionalProperties": false
     },
-    "ExecuteBindingOutput": {
+    "InvokeBindingOutput": {
       "type": "object",
       "properties": {
         "output": {},
@@ -409,11 +509,7 @@
           "operation": "getInfo"
         },
         {
-          "role": "openbindings.binding-executor",
-          "operation": "getInfo"
-        },
-        {
-          "role": "openbindings.host",
+          "role": "openbindings.binding-invoker",
           "operation": "getInfo"
         }
       ]
@@ -429,7 +525,7 @@
       },
       "satisfies": [
         {
-          "role": "openbindings.binding-executor",
+          "role": "openbindings.binding-invoker",
           "operation": "listFormats"
         },
         {
@@ -437,7 +533,7 @@
           "operation": "listFormats"
         },
         {
-          "role": "openbindings.host",
+          "role": "openbindings.source-inspector",
           "operation": "listFormats"
         }
       ]
@@ -454,29 +550,36 @@
         {
           "role": "openbindings.interface-creator",
           "operation": "createInterface"
-        },
-        {
-          "role": "openbindings.host",
-          "operation": "createInterface"
         }
       ]
     },
-    "executeBinding": {
-      "description": "Execute a resolved binding.",
+    "inspectSource": {
+      "description": "Inspect a binding source artifact and return bindable targets.",
       "input": {
-        "$ref": "#/schemas/ExecuteBindingInput"
+        "$ref": "#/schemas/InspectSourceInput"
       },
       "output": {
-        "$ref": "#/schemas/ExecuteBindingOutput"
+        "$ref": "#/schemas/SourceInspection"
       },
       "satisfies": [
         {
-          "role": "openbindings.binding-executor",
-          "operation": "executeBinding"
-        },
+          "role": "openbindings.source-inspector",
+          "operation": "inspectSource"
+        }
+      ]
+    },
+    "invokeBinding": {
+      "description": "Invoke a resolved binding.",
+      "input": {
+        "$ref": "#/schemas/InvokeBindingInput"
+      },
+      "output": {
+        "$ref": "#/schemas/InvokeBindingOutput"
+      },
+      "satisfies": [
         {
-          "role": "openbindings.host",
-          "operation": "executeBinding"
+          "role": "openbindings.binding-invoker",
+          "operation": "invokeBinding"
         }
       ]
     },
@@ -492,10 +595,6 @@
       "satisfies": [
         {
           "role": "openbindings.context-store",
-          "operation": "listContexts"
-        },
-        {
-          "role": "openbindings.host",
           "operation": "listContexts"
         }
       ]
@@ -521,10 +620,6 @@
       "satisfies": [
         {
           "role": "openbindings.context-store",
-          "operation": "getContext"
-        },
-        {
-          "role": "openbindings.host",
           "operation": "getContext"
         }
       ]
@@ -552,10 +647,6 @@
         {
           "role": "openbindings.context-store",
           "operation": "setContext"
-        },
-        {
-          "role": "openbindings.host",
-          "operation": "setContext"
         }
       ]
     },
@@ -577,10 +668,6 @@
         {
           "role": "openbindings.context-store",
           "operation": "deleteContext"
-        },
-        {
-          "role": "openbindings.host",
-          "operation": "deleteContext"
         }
       ]
     },
@@ -591,13 +678,7 @@
       },
       "output": {
         "$ref": "#/schemas/ResolveInterfaceOutput"
-      },
-      "satisfies": [
-        {
-          "role": "openbindings.host",
-          "operation": "resolveInterface"
-        }
-      ]
+      }
     },
     "request": {
       "description": "Make an HTTP request and return the complete response.",
@@ -655,10 +736,16 @@
       "ref": "#/paths/~1interfaces~1create/post",
       "security": "session"
     },
-    "executeBinding.openapi": {
-      "operation": "executeBinding",
+    "inspectSource.openapi": {
+      "operation": "inspectSource",
       "source": "openapi",
-      "ref": "#/paths/~1bindings~1execute/post",
+      "ref": "#/paths/~1sources~1inspect/post",
+      "security": "session"
+    },
+    "invokeBinding.openapi": {
+      "operation": "invokeBinding",
+      "source": "openapi",
+      "ref": "#/paths/~1bindings~1invoke/post",
       "priority": 0,
       "security": "session"
     },
@@ -672,34 +759,22 @@
       "operation": "getContext",
       "source": "openapi",
       "ref": "#/paths/~1contexts~1{url}/get",
-      "inputTransform": {
-        "type": "jsonata",
-        "expression": "{ \"url\": key }"
-      },
-      "outputTransform": {
-        "type": "jsonata",
-        "expression": "{ \"key\": url, \"context\": $ ~> | $ | {}, [\"url\", \"hasCredentials\", \"headerCount\", \"cookieCount\", \"envCount\"] | }"
-      },
+      "inputTransform": "{ \"url\": key }",
+      "outputTransform": "{ \"key\": url, \"context\": $ ~> | $ | {}, [\"url\", \"hasCredentials\", \"headerCount\", \"cookieCount\", \"envCount\"] | }",
       "security": "session"
     },
     "setContext.openapi": {
       "operation": "setContext",
       "source": "openapi",
       "ref": "#/paths/~1contexts~1{url}/put",
-      "inputTransform": {
-        "type": "jsonata",
-        "expression": "{ \"url\": key, \"bearerToken\": context.bearerToken, \"apiKey\": context.apiKey, \"headers\": context.headers, \"cookies\": context.cookies, \"environment\": context.environment, \"metadata\": context.metadata }"
-      },
+      "inputTransform": "{ \"url\": key, \"bearerToken\": context.bearerToken, \"apiKey\": context.apiKey, \"headers\": context.headers, \"cookies\": context.cookies, \"environment\": context.environment, \"metadata\": context.metadata }",
       "security": "session"
     },
     "deleteContext.openapi": {
       "operation": "deleteContext",
       "source": "openapi",
       "ref": "#/paths/~1contexts~1{url}/delete",
-      "inputTransform": {
-        "type": "jsonata",
-        "expression": "{ \"url\": key }"
-      },
+      "inputTransform": "{ \"url\": key }",
       "security": "session"
     },
     "resolveInterface.openapi": {
@@ -714,10 +789,10 @@
       "ref": "#/paths/~1http~1request/post",
       "security": "session"
     },
-    "executeBinding.asyncapi": {
-      "operation": "executeBinding",
+    "invokeBinding.asyncapi": {
+      "operation": "invokeBinding",
       "source": "asyncapi",
-      "ref": "#/operations/executeBinding",
+      "ref": "#/operations/invokeBinding",
       "priority": 0,
       "security": "session"
     },
@@ -739,10 +814,10 @@
       "ref": "tools/createInterface",
       "security": "session"
     },
-    "executeBinding.mcp": {
-      "operation": "executeBinding",
+    "invokeBinding.mcp": {
+      "operation": "invokeBinding",
       "source": "mcp",
-      "ref": "tools/executeBinding",
+      "ref": "tools/invokeBinding",
       "security": "session"
     },
     "listContexts.mcp": {
@@ -785,10 +860,7 @@
       "operation": "readQuickReference",
       "source": "openapi",
       "ref": "#/paths/~1spec~1{name}/get",
-      "inputTransform": {
-        "type": "jsonata",
-        "expression": "{ \"name\": 'quick-reference.md' }"
-      },
+      "inputTransform": "{ \"name\": 'quick-reference.md' }",
       "security": "session"
     },
     "readQuickReference.mcp": {

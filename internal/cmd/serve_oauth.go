@@ -372,4 +372,3 @@ func redirectWithError(w http.ResponseWriter, r *http.Request, redirectURI, stat
 	}
 	http.Redirect(w, r, location, http.StatusFound)
 }
-

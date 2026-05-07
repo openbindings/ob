@@ -170,8 +170,8 @@ func selectDelegate(cmd *cobra.Command, location, delegateArg string, yes bool) 
 
 	if len(claims) == 0 {
 		return app.DelegateClaim{}, app.ExitResult{
-			Code:    1,
-			Message: "no delegates can handle this source",
+			Code:     1,
+			Message:  "no delegates can handle this source",
 			ToStderr: true,
 		}
 	}

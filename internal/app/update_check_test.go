@@ -21,7 +21,7 @@ func TestVersionLess(t *testing.T) {
 		{"0.1.0", "0.2.0", true},
 		{"0.9.9", "1.0.0", true},
 		{"1.0.0", "0.9.9", false},
-		{"v0.1.0", "v0.1.1", true}, // leading v tolerated
+		{"v0.1.0", "v0.1.1", true},    // leading v tolerated
 		{"0.1.0-rc1", "0.1.0", false}, // pre-release suffix ignored
 		{"0.1.0", "0.1.0+build1", false},
 		{"not-a-version", "0.1.0", false}, // parse error → false

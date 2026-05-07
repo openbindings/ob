@@ -47,12 +47,12 @@ Examples:
 		Args: cobra.MinimumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			logger := slog.New(slog.NewTextHandler(os.Stderr, nil)).With("component", "ob-mcp")
-			executor := app.DefaultExecutor()
+			invoker := app.DefaultInvoker()
 
 			// Resolve token from flag, file, or environment.
 			token := resolveToken(tokenFlag, tokenFile)
 			if token != "" {
-				executor = withBearerToken(executor, token, args)
+				invoker = withBearerToken(invoker, token, args)
 			}
 
 			if serverName == "" {
@@ -75,7 +75,7 @@ Examples:
 					return app.ExitResult{Code: 2, Message: fmt.Sprintf("invalid URL: %s", rawURL), ToStderr: true}
 				}
 
-				ic := openbindings.NewUnboundClient(executor)
+				ic := openbindings.NewUnboundClient(invoker)
 				if err := ic.Resolve(ctx, normalized); err != nil {
 					logger.Warn("failed to resolve interface", "url", normalized, "error", err)
 					continue
@@ -88,7 +88,7 @@ Examples:
 
 				label := labelFromURL(normalized)
 				namespace := mcpbridge.DeriveNamespace(iface, label, fmt.Sprintf("arg-%d", i))
-				count := mcpbridge.RegisterInterface(mcpServer, iface, namespace, executor)
+				count := mcpbridge.RegisterInterface(mcpServer, iface, namespace, invoker)
 				logger.Info("resolved interface", "url", normalized, "namespace", namespace, "primitives", count)
 			}
 
@@ -142,12 +142,12 @@ func resolveToken(flag, file string) string {
 	return os.Getenv("OB_TOKEN")
 }
 
-// withBearerToken wraps the executor's context store to overlay Bearer
+// withBearerToken wraps the dispatcher's context store to overlay Bearer
 // credentials for the given URLs. This avoids writing to the persistent
-// keychain while making auth available for resolution and execution.
-func withBearerToken(executor *openbindings.OperationExecutor, token string, rawURLs []string) *openbindings.OperationExecutor {
+// keychain while making auth available for resolution and invocation.
+func withBearerToken(invoker *openbindings.OperationInvoker, token string, rawURLs []string) *openbindings.OperationInvoker {
 	overlay := &tokenOverlayStore{
-		inner: executor.ContextStore,
+		inner: invoker.ContextStore,
 		creds: make(map[string]map[string]any),
 	}
 	for _, rawURL := range rawURLs {
@@ -155,15 +155,15 @@ func withBearerToken(executor *openbindings.OperationExecutor, token string, raw
 		if normalized == "" {
 			continue
 		}
-		// The MCP format executor normalizes store keys to host[:port]
+		// The MCP format driver normalizes store keys to host[:port]
 		// (scheme and path stripped) via NormalizeContextKey. Match that.
 		if parsed, err := url.Parse(normalized); err == nil && parsed.Host != "" {
 			overlay.creds[parsed.Host] = map[string]any{"bearerToken": token}
 		}
-		// Also key by the full and origin URLs for other executors.
+		// Also key by the full and origin URLs for other drivers.
 		overlay.creds[normalized] = map[string]any{"bearerToken": token}
 	}
-	return executor.WithRuntime(overlay, executor.PlatformCallbacks)
+	return invoker.WithRuntime(overlay, invoker.PlatformCallbacks)
 }
 
 // tokenOverlayStore wraps a ContextStore, overlaying in-memory credentials
@@ -178,7 +178,7 @@ func (s *tokenOverlayStore) Get(ctx context.Context, key string) (map[string]any
 	if cred, ok := s.creds[key]; ok {
 		return cred, nil
 	}
-	// Try host-only matching: the MCP executor normalizes keys to
+	// Try host-only matching: the MCP driver normalizes keys to
 	// host[:port] (scheme stripped). Try extracting just the host.
 	if parsed, err := url.Parse(key); err == nil && parsed.Host != "" {
 		if cred, ok := s.creds[parsed.Host]; ok {

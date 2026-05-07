@@ -11,9 +11,9 @@ import (
 )
 
 const (
-	defaultHTTPClientTimeout     = 30 * time.Second
-	maxHTTPClientTimeout         = 120 * time.Second
-	defaultMaxHTTPResponseBytes  = 10 * 1024 * 1024 // 10MB
+	defaultHTTPClientTimeout    = 30 * time.Second
+	maxHTTPClientTimeout        = 120 * time.Second
+	defaultMaxHTTPResponseBytes = 10 * 1024 * 1024 // 10MB
 )
 
 type httpRequestInput struct {

@@ -32,7 +32,7 @@ const (
 // SourceMeta is the x-ob metadata for a Source object.
 type SourceMeta struct {
 	Ref         string `json:"ref"`
-	Resolve     string `json:"resolve"`              // "location" or "content"
+	Resolve     string `json:"resolve"`               // "location" or "content"
 	URI         string `json:"uri,omitempty"`         // override location URI
 	ContentHash string `json:"contentHash,omitempty"` // "sha256:<hex>" of source at last sync
 	LastSynced  string `json:"lastSynced,omitempty"`  // ISO 8601
@@ -298,4 +298,3 @@ func makeRelativeRef(ref string, obiDir string) string {
 	// Already relative — assumed to be relative to obiDir.
 	return ref
 }
-

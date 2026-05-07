@@ -229,7 +229,7 @@ func deleteKeychainCredentials(key string) error {
 // first, then walks up the path (like cookies) to find the most specific match.
 // Context contains credentials (opaque, well-known fields).
 // Options contains developer-configured headers, cookies, env, metadata.
-func LoadContext(rawURL string) (bindCtx map[string]any, opts *openbindings.ExecutionOptions, err error) {
+func LoadContext(rawURL string) (bindCtx map[string]any, opts *openbindings.InvocationOptions, err error) {
 	if rawURL == "" {
 		return nil, nil, nil
 	}
@@ -255,9 +255,9 @@ func LoadContext(rawURL string) (bindCtx map[string]any, opts *openbindings.Exec
 // resolveContextURL finds the best matching context URL for a target.
 // Tries exact match first, then walks up the URL path hierarchy.
 // For example, for "https://api.example.com/v1/spec.json", tries:
-//   1. https://api.example.com/v1/spec.json  (exact)
-//   2. https://api.example.com/v1
-//   3. https://api.example.com
+//  1. https://api.example.com/v1/spec.json  (exact)
+//  2. https://api.example.com/v1
+//  3. https://api.example.com
 func resolveContextURL(targetURL string) string {
 	if ContextExists(targetURL) {
 		return targetURL
@@ -306,7 +306,7 @@ func resolveContextURL(targetURL string) string {
 // LoadContextForSource loads context for a specific source within a target.
 // Source-level overrides are merged on top of the target-level context.
 // Source-level credentials replace (not merge with) target-level credentials.
-func LoadContextForSource(targetURL, sourceName string) (bindCtx map[string]any, opts *openbindings.ExecutionOptions, err error) {
+func LoadContextForSource(targetURL, sourceName string) (bindCtx map[string]any, opts *openbindings.InvocationOptions, err error) {
 	if targetURL == "" {
 		return nil, nil, nil
 	}
@@ -346,15 +346,15 @@ func LoadContextForSource(targetURL, sourceName string) (bindCtx map[string]any,
 	return cred, mergedOpts, nil
 }
 
-// configToOptions converts a ContextConfig's non-credential fields to ExecutionOptions.
-func configToOptions(cfg *ContextConfig) *openbindings.ExecutionOptions {
+// configToOptions converts a ContextConfig's non-credential fields to InvocationOptions.
+func configToOptions(cfg *ContextConfig) *openbindings.InvocationOptions {
 	if cfg == nil {
 		return nil
 	}
 	if len(cfg.Headers) == 0 && len(cfg.Cookies) == 0 && len(cfg.Environment) == 0 && len(cfg.Metadata) == 0 {
 		return nil
 	}
-	return &openbindings.ExecutionOptions{
+	return &openbindings.InvocationOptions{
 		Headers:     cfg.Headers,
 		Cookies:     cfg.Cookies,
 		Environment: cfg.Environment,
@@ -362,8 +362,8 @@ func configToOptions(cfg *ContextConfig) *openbindings.ExecutionOptions {
 	}
 }
 
-// mergeOptions merges a ContextOverride on top of base ExecutionOptions.
-func mergeOptions(base *openbindings.ExecutionOptions, override *ContextOverride) *openbindings.ExecutionOptions {
+// mergeOptions merges a ContextOverride on top of base InvocationOptions.
+func mergeOptions(base *openbindings.InvocationOptions, override *ContextOverride) *openbindings.InvocationOptions {
 	if override == nil {
 		return base
 	}
@@ -372,7 +372,7 @@ func mergeOptions(base *openbindings.ExecutionOptions, override *ContextOverride
 	if base != nil {
 		bh, bc, be, bm = base.Headers, base.Cookies, base.Environment, base.Metadata
 	}
-	merged := &openbindings.ExecutionOptions{
+	merged := &openbindings.InvocationOptions{
 		Headers:     mergeMaps(bh, override.Headers),
 		Cookies:     mergeMaps(bc, override.Cookies),
 		Environment: mergeMaps(be, override.Environment),
@@ -534,7 +534,7 @@ func GetContextSummary(rawURL string) (ContextSummary, error) {
 }
 
 // cliContextStore implements openbindings.ContextStore by wrapping the CLI's
-// existing file+keychain persistence. The SDK and executors call this through
+// existing file+keychain persistence. The SDK and drivers call this through
 // the ContextStore interface — they never import this package directly.
 type cliContextStore struct{}
 

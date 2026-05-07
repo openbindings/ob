@@ -5,11 +5,23 @@ All notable changes to `ob` will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
-## [0.1.1] - Unreleased
+## [0.2.0] - Unreleased
 
-**Spec:** implements OpenBindings 0.1 (unchanged).
+**Spec:** implements OpenBindings 0.2.0 (working draft).
 
 ### Changed
+
+- **CLI commands renamed** to align with the OpenBindings spec 0.2.0 "executor → invoker / invoke" rename. Pre-1.0 hard rename, no deprecated aliases.
+  - `ob op exec` → `ob op invoke`. The `execute` alias was removed.
+  - `ob binding exec` → `ob binding invoke`. Source file `internal/cmd/binding_exec.go` → `binding_invoke.go`.
+  - SDK identifier consumers updated throughout: `OperationExecutor` → `OperationInvoker`, `BindingExecutionInput` → `BindingInvocationInput`, `ExecuteBinding(...)` → `InvokeBinding(...)`, `ExecuteOperation(...)` → `Invoke(...)`, `AddBindingExecutor` → `AddBindingInvoker`, per-format `NewExecutor` → `NewInvoker`, `ExecutionOptions` → `InvocationOptions`, `ExecuteError` → `InvocationError`, `ExecuteOutput` → `InvocationOutput`.
+  - App-level types: `ExecuteOperationInput`/`Output` → `InvokeOperationInput`/`Output`; `ExecuteOBIOperation` → `InvokeOBIOperation`; `ExecuteBindingInput`/`Result` → `InvokeBindingInput`/`Result`; `DefaultExecutor` → `DefaultInvoker` (and helpers).
+  - OBI files: role `openbindings.binding-executor` → `openbindings.binding-invoker` (path + URL) in `internal/app/ob.obi.json` and `internal/server/host.obi.json`; `satisfies[*].operation` value `executeBinding` → `invokeBinding`.
+  - `usage.kdl`: subcommand `cmd "exec"` (under both `operation` and `binding` parents) → `cmd "invoke"`.
+  - Demo command output (`ob demo`) updated to print `ob op invoke ...` examples.
+  - README "Execute an operation" section → "Invoke an operation"; prose "binding executor" → "binding invoker" throughout.
+
+
 
 - `ob serve` now listens on HTTP and HTTPS simultaneously by default. HTTP on
   `--port` (default 20290), HTTPS on port+1 (default 20291). Clients pick

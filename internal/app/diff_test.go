@@ -164,15 +164,15 @@ func TestDiff_MetadataDiff(t *testing.T) {
 
 	a := writeInterface(t, dir, "a.json", map[string]any{
 		"openbindings": "0.1.0",
-		"name":        "My API",
-		"version":     "1.0.0",
-		"operations":  map[string]any{},
+		"name":         "My API",
+		"version":      "1.0.0",
+		"operations":   map[string]any{},
 	})
 	b := writeInterface(t, dir, "b.json", map[string]any{
 		"openbindings": "0.1.0",
-		"name":        "My API v2",
-		"version":     "2.0.0",
-		"operations":  map[string]any{},
+		"name":         "My API v2",
+		"version":      "2.0.0",
+		"operations":   map[string]any{},
 	})
 
 	report, err := Diff(DiffInput{

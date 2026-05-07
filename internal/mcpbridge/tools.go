@@ -21,7 +21,7 @@ func RegisterInterface(
 	srv *mcp.Server,
 	iface *openbindings.Interface,
 	namespace string,
-	executor *openbindings.OperationExecutor,
+	invoker *openbindings.OperationInvoker,
 ) int {
 	count := 0
 	for opKey, op := range iface.Operations {
@@ -30,11 +30,11 @@ func RegisterInterface(
 
 		switch kind {
 		case "resources":
-			registerResource(srv, toolName, op, iface, opKey, ref, executor)
+			registerResource(srv, toolName, op, iface, opKey, ref, invoker)
 		case "prompts":
-			registerPrompt(srv, toolName, op, iface, opKey, ref, executor)
+			registerPrompt(srv, toolName, op, iface, opKey, ref, invoker)
 		default:
-			registerTool(srv, toolName, op, iface, opKey, executor)
+			registerTool(srv, toolName, op, iface, opKey, invoker)
 		}
 		count++
 	}
@@ -73,7 +73,7 @@ func registerTool(
 	op openbindings.Operation,
 	iface *openbindings.Interface,
 	opKey string,
-	executor *openbindings.OperationExecutor,
+	invoker *openbindings.OperationInvoker,
 ) {
 	srv.AddTool(&mcp.Tool{
 		Name:        toolName,
@@ -90,7 +90,7 @@ func registerTool(
 			}
 		}
 
-		ch, err := executor.ExecuteOperation(ctx, &openbindings.OperationExecutionInput{
+		ch, err := invoker.Invoke(ctx, &openbindings.OperationInvocationInput{
 			Interface: iface,
 			Operation: opKey,
 			Input:     input,
@@ -133,7 +133,7 @@ func registerResource(
 	iface *openbindings.Interface,
 	opKey string,
 	ref string,
-	executor *openbindings.OperationExecutor,
+	invoker *openbindings.OperationInvoker,
 ) {
 	uri := strings.TrimPrefix(ref, "resources/")
 
@@ -143,7 +143,7 @@ func registerResource(
 		Description: op.Description,
 		MIMEType:    guessMIME(uri),
 	}, func(ctx context.Context, req *mcp.ReadResourceRequest) (*mcp.ReadResourceResult, error) {
-		ch, err := executor.ExecuteOperation(ctx, &openbindings.OperationExecutionInput{
+		ch, err := invoker.Invoke(ctx, &openbindings.OperationInvocationInput{
 			Interface: iface,
 			Operation: opKey,
 			Input:     map[string]any{"uri": req.Params.URI},
@@ -186,7 +186,7 @@ func registerPrompt(
 	iface *openbindings.Interface,
 	opKey string,
 	ref string,
-	executor *openbindings.OperationExecutor,
+	invoker *openbindings.OperationInvoker,
 ) {
 	promptName := strings.TrimPrefix(ref, "prompts/")
 
@@ -211,7 +211,7 @@ func registerPrompt(
 			input = m
 		}
 
-		ch, err := executor.ExecuteOperation(ctx, &openbindings.OperationExecutionInput{
+		ch, err := invoker.Invoke(ctx, &openbindings.OperationInvocationInput{
 			Interface: iface,
 			Operation: opKey,
 			Input:     input,
@@ -228,7 +228,7 @@ func registerPrompt(
 			lastData = ev.Data
 		}
 
-		// The executor returns the prompt result as an object with
+		// The dispatcher returns the prompt result as an object with
 		// "messages" and optional "description".
 		result := &mcp.GetPromptResult{}
 		b, _ := json.Marshal(lastData)

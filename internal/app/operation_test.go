@@ -214,9 +214,9 @@ func TestOperationRename_MultipleBindings(t *testing.T) {
 			"other": map[string]any{},
 		},
 		"bindings": map[string]any{
-			"hello.src1":  map[string]any{"operation": "hello", "source": "src1"},
-			"hello.src2":  map[string]any{"operation": "hello", "source": "src2"},
-			"other.src1":  map[string]any{"operation": "other", "source": "src1"},
+			"hello.src1": map[string]any{"operation": "hello", "source": "src1"},
+			"hello.src2": map[string]any{"operation": "hello", "source": "src2"},
+			"other.src1": map[string]any{"operation": "other", "source": "src1"},
 		},
 	}
 	obiPath := writeInterface(t, dir, "test.obi.json", obiData)
@@ -370,7 +370,7 @@ func TestRenameBindingKey(t *testing.T) {
 	}{
 		{"hello.usage", "hello", "greet", "greet.usage"},
 		{"hello.src", "hello", "greet", "greet.src"},
-		{"other.src", "hello", "greet", "other.src"},         // no match
+		{"other.src", "hello", "greet", "other.src"},           // no match
 		{"helloWorld.src", "hello", "greet", "helloWorld.src"}, // prefix but not at dot boundary
 	}
 

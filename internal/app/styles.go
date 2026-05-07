@@ -60,13 +60,13 @@ func initStyles() styles {
 
 	return styles{
 		Header:  lipgloss.NewStyle().Bold(true),
-		Key:     lipgloss.NewStyle().Foreground(lipgloss.Color("6")),  // Cyan
-		Dim:     lipgloss.NewStyle().Foreground(lipgloss.Color("8")),  // Gray
-		Success: lipgloss.NewStyle().Foreground(lipgloss.Color("2")),  // Green
-		Warning: lipgloss.NewStyle().Foreground(lipgloss.Color("3")),  // Yellow
-		Error:   lipgloss.NewStyle().Foreground(lipgloss.Color("1")),  // Red
-		Added:   lipgloss.NewStyle().Foreground(lipgloss.Color("2")),  // Green
-		Removed: lipgloss.NewStyle().Foreground(lipgloss.Color("1")),  // Red
-		Bullet:  lipgloss.NewStyle().Foreground(lipgloss.Color("8")),  // Gray
+		Key:     lipgloss.NewStyle().Foreground(lipgloss.Color("6")), // Cyan
+		Dim:     lipgloss.NewStyle().Foreground(lipgloss.Color("8")), // Gray
+		Success: lipgloss.NewStyle().Foreground(lipgloss.Color("2")), // Green
+		Warning: lipgloss.NewStyle().Foreground(lipgloss.Color("3")), // Yellow
+		Error:   lipgloss.NewStyle().Foreground(lipgloss.Color("1")), // Red
+		Added:   lipgloss.NewStyle().Foreground(lipgloss.Color("2")), // Green
+		Removed: lipgloss.NewStyle().Foreground(lipgloss.Color("1")), // Red
+		Bullet:  lipgloss.NewStyle().Foreground(lipgloss.Color("8")), // Gray
 	}
 }

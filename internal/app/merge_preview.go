@@ -9,10 +9,10 @@ import (
 
 // MergePreviewEntry describes the merge outcome for a single object.
 type MergePreviewEntry struct {
-	Key       string          // operation or binding key
-	Type      string          // "operation" or "binding"
-	Result    MergeResult     // three-way merge result
-	IsNew     bool            // true if the object doesn't exist in the OBI yet
+	Key    string      // operation or binding key
+	Type   string      // "operation" or "binding"
+	Result MergeResult // three-way merge result
+	IsNew  bool        // true if the object doesn't exist in the OBI yet
 }
 
 // MergePreview holds the merge preview for all sources.
@@ -115,9 +115,9 @@ func PreviewSourceMerge(src openbindings.Source, srcKey string, iface *openbindi
 		existing, exists := iface.Operations[opKey]
 		if !exists {
 			entries = append(entries, MergePreviewEntry{
-				Key:    opKey,
-				Type:   "operation",
-				IsNew:  true,
+				Key:   opKey,
+				Type:  "operation",
+				IsNew: true,
 			})
 			continue
 		}
@@ -149,9 +149,9 @@ func PreviewSourceMerge(src openbindings.Source, srcKey string, iface *openbindi
 		existing, exists := iface.Bindings[bindKey]
 		if !exists {
 			entries = append(entries, MergePreviewEntry{
-				Key:    bindKey,
-				Type:   "binding",
-				IsNew:  true,
+				Key:   bindKey,
+				Type:  "binding",
+				IsNew: true,
 			})
 			continue
 		}

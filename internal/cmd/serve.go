@@ -43,7 +43,7 @@ func newServeCmd() *cobra.Command {
 		Use:   "serve",
 		Short: "Start a local HTTP server exposing ob operations",
 		Long: `Start a local HTTP/REST server that exposes ob's full capability surface.
-Authorized clients can execute operations, browse interfaces,
+Authorized clients can invoke operations, browse interfaces,
 and manage contexts through the same operations available via the CLI.
 
 A session token is generated on startup and printed to the terminal.
@@ -193,8 +193,7 @@ func handleHealthz(w http.ResponseWriter, r *http.Request) {
 
 func handleOBI(port int) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		// Serve the host OBI (not the CLI OBI). The host OBI conforms to
-		// openbindings.host role.
+		// Serve the local service OBI (not the CLI OBI).
 		raw := server.HostOBI()
 		var iface map[string]any
 		if err := json.Unmarshal(raw, &iface); err != nil {

@@ -78,10 +78,10 @@ ob sync interface.json
 
 `ob` re-reads the drifted sources, updates operations and bindings, and preserves any hand-authored operations you added manually.
 
-### 5. Execute an operation
+### 5. Invoke an operation
 
 ```bash
-ob operation exec interface.json getMenu
+ob operation invoke interface.json getMenu
 ```
 
 `ob` finds the binding for `getMenu`, resolves the source (OpenAPI spec), makes the HTTP call, and returns the result. You never write protocol-specific code.
@@ -133,7 +133,7 @@ ob codegen interface.json --lang typescript -o client.ts
 ob codegen interface.json --lang go -o client.go --package myapi
 ```
 
-The generated client has a typed method for each operation. At runtime, the client uses the OBI's bindings to route calls through the appropriate binding executor -- your code calls `client.getMenu()`, the executor handles HTTP, gRPC, or whatever protocol the binding uses.
+The generated client has a typed method for each operation. At runtime, the client uses the OBI's bindings to route calls through the appropriate binding invoker -- your code calls `client.getMenu()`, the invoker handles HTTP, gRPC, or whatever protocol the binding uses.
 
 You can also point `codegen` at a URL. If it's not an OBI, `ob` tries to synthesize one:
 
@@ -163,7 +163,7 @@ ob conform host.json my-service.obi.json --dry-run
 
 ## Delegates
 
-Delegates extend `ob` with binding format support. A delegate is any program that implements the `openbindings.binding-executor` and/or `openbindings.interface-creator` roles. When `ob` encounters a binding format, it asks its registered delegates which one handles it and routes `createInterface` / `executeBinding` calls there. Credentials and context flow through the same `ContextStore` pipeline as in-process execution.
+Delegates extend `ob` with binding format support. A delegate is any program that implements the `openbindings.binding-invoker` and/or `openbindings.interface-creator` roles. When `ob` encounters a binding format, it asks its registered delegates which one handles it and routes `createInterface` / `invokeBinding` calls there. Credentials and context flow through the same `ContextStore` pipeline as in-process execution.
 
 `ob` itself is a delegate. A fresh `ob init` registers two default delegates: `exec:ob` (this binary, which provides OpenAPI, AsyncAPI, gRPC, Connect, MCP, GraphQL, and usage-spec) and `http://localhost:8787` (a conventional local host). Removing a default with `ob delegate remove` records it under `removedDefaultDelegates` so a later `ob init` doesn't bring it back; re-adding clears that record.
 
@@ -183,24 +183,24 @@ ob delegate list
 ob format list   # should now include the formats the delegate handles
 
 ob create thrift@1.0:./service.thrift -o interface.json
-ob operation exec interface.json getUser
+ob operation invoke interface.json getUser
 ```
 
-For `exec:` and local-path delegates, `ob` invokes `<delegate> --openbindings` at registration time to read its OBI and probe `listFormats`, so `ob format list` immediately reflects what it handles. HTTP delegates are not probed today — they participate in execution but you'll need to know which formats they handle. Streaming operations don't cross delegate boundaries; subscriptions only run against in-process executors.
+For `exec:` and local-path delegates, `ob` invokes `<delegate> --openbindings` at registration time to read its OBI and probe `listFormats`, so `ob format list` immediately reflects what it handles. HTTP delegates are not probed today — they participate in invocation but you'll need to know which formats they handle. Streaming operations don't cross delegate boundaries; subscriptions only run against in-process invokers.
 
 ### Building a delegate
 
-The simplest path: scaffold the binding-executor role into a new OBI and implement the operations.
+The simplest path: scaffold the binding-invoker role into a new OBI and implement the operations.
 
 ```bash
-ob conform openbindings.binding-executor.json my-delegate.obi.json --yes
+ob conform openbindings.binding-invoker.json my-delegate.obi.json --yes
 ```
 
 A minimal `exec:` delegate is a CLI that:
 
 1. Responds to `--openbindings` by printing its OBI to stdout.
 2. Binds `listFormats` via a `usage@…` source so `ob` can enumerate supported format tokens at registration.
-3. Implements `executeBinding` (and optionally `createInterface`) per its declared role.
+3. Implements `invokeBinding` (and optionally `createInterface`) per its declared role.
 
 ## Source Resolution
 
@@ -271,7 +271,7 @@ ob sync interface.json -o dist/interface.json --pure  # publish clean
 
 | Command | Description |
 |---------|-------------|
-| `ob operation exec <obi> <op>` | Execute an operation via its binding |
+| `ob operation invoke <obi> <op>` | Invoke an operation via its binding |
 | `ob operation list <obi>` | List operations |
 | `ob operation add <obi> <name>` | Add a new operation |
 | `ob operation remove <obi> <name>` | Remove an operation and its bindings |

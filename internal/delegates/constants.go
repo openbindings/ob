@@ -25,7 +25,7 @@ const (
 // WellKnownPath re-exports the SDK constant for backward compatibility.
 const WellKnownPath = openbindings.WellKnownPath
 
-// Standard operation names from the OpenBindings binding executor interface.
+// Standard operation names from the OpenBindings binding invoker interface.
 const (
 	// OpListFormats is the listFormats operation.
 	OpListFormats = "listFormats"

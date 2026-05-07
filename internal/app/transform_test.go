@@ -18,11 +18,7 @@ func TestApplyTransform_Nil(t *testing.T) {
 }
 
 func TestApplyTransform_SimpleRename(t *testing.T) {
-	transform := &openbindings.Transform{
-		Type:       "jsonata",
-		Expression: `{ "to": openbindingsVersion }`,
-	}
-	tor := &openbindings.TransformOrRef{Transform: transform}
+	tor := &openbindings.TransformOrRef{Inline: `{ "to": openbindingsVersion }`}
 
 	input := map[string]any{"openbindingsVersion": "0.1.0"}
 	result, err := ApplyTransform(nil, tor, input)
@@ -41,11 +37,7 @@ func TestApplyTransform_SimpleRename(t *testing.T) {
 
 func TestApplyTransform_FullCreateInterfaceInput(t *testing.T) {
 	// This is the actual transform expression used in ob.obi.json
-	transform := &openbindings.Transform{
-		Type:       "jsonata",
-		Expression: `{ "flags": { "to": openbindingsVersion, "id": id, "name": name, "version": version, "description": description }, "args": sources.(format & ":" & location & (embed ? "?embed" : "")) }`,
-	}
-	tor := &openbindings.TransformOrRef{Transform: transform}
+	tor := &openbindings.TransformOrRef{Inline: `{ "flags": { "to": openbindingsVersion, "id": id, "name": name, "version": version, "description": description }, "args": sources.(format & ":" & location & (embed ? "?embed" : "")) }`}
 
 	input := map[string]any{
 		"openbindingsVersion": "0.1.0",
@@ -107,10 +99,7 @@ func TestApplyTransform_FullCreateInterfaceInput(t *testing.T) {
 
 func TestApplyTransform_ResolveRef(t *testing.T) {
 	transforms := map[string]openbindings.Transform{
-		"myTransform": {
-			Type:       "jsonata",
-			Expression: `{ "renamed": original }`,
-		},
+		"myTransform": `{ "renamed": original }`,
 	}
 	tor := &openbindings.TransformOrRef{Ref: "#/transforms/myTransform"}
 
@@ -138,25 +127,8 @@ func TestApplyTransform_RefNotFound(t *testing.T) {
 	}
 }
 
-func TestApplyTransform_UnsupportedType(t *testing.T) {
-	transform := &openbindings.Transform{
-		Type:       "xslt",
-		Expression: `<xsl:template/>`,
-	}
-	tor := &openbindings.TransformOrRef{Transform: transform}
-
-	_, err := ApplyTransform(nil, tor, map[string]any{})
-	if err == nil {
-		t.Error("expected error for unsupported type, got nil")
-	}
-}
-
 func TestApplyTransform_EmptyExpression(t *testing.T) {
-	transform := &openbindings.Transform{
-		Type:       "jsonata",
-		Expression: "",
-	}
-	tor := &openbindings.TransformOrRef{Transform: transform}
+	tor := &openbindings.TransformOrRef{Inline: ""}
 
 	_, err := ApplyTransform(nil, tor, map[string]any{})
 	if err == nil {
@@ -165,11 +137,7 @@ func TestApplyTransform_EmptyExpression(t *testing.T) {
 }
 
 func TestApplyTransform_InvalidExpression(t *testing.T) {
-	transform := &openbindings.Transform{
-		Type:       "jsonata",
-		Expression: `{ invalid syntax !!!`,
-	}
-	tor := &openbindings.TransformOrRef{Transform: transform}
+	tor := &openbindings.TransformOrRef{Inline: `{ invalid syntax !!!`}
 
 	_, err := ApplyTransform(nil, tor, map[string]any{})
 	if err == nil {
@@ -178,11 +146,7 @@ func TestApplyTransform_InvalidExpression(t *testing.T) {
 }
 
 func TestApplyTransform_NilInput(t *testing.T) {
-	transform := &openbindings.Transform{
-		Type:       "jsonata",
-		Expression: `{ "value": $ }`,
-	}
-	tor := &openbindings.TransformOrRef{Transform: transform}
+	tor := &openbindings.TransformOrRef{Inline: `{ "value": $ }`}
 
 	result, err := ApplyTransform(nil, tor, nil)
 	if err != nil {

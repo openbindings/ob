@@ -107,7 +107,6 @@ Exit codes:
 	cmd.Flags().StringArrayVar(&operations, "op", nil, "only merge this operation (repeatable)")
 	cmd.Flags().StringArrayVar(&excludeOps, "exclude-op", nil, "exclude this operation from merge (repeatable)")
 
-
 	return cmd
 }
 

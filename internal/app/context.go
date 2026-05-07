@@ -10,7 +10,7 @@ import (
 
 // GetContext loads context and execution options for a target URL from the store.
 // Returns nil, nil if the URL is empty or no context exists.
-func GetContext(targetURL string) (map[string]any, *openbindings.ExecutionOptions, error) {
+func GetContext(targetURL string) (map[string]any, *openbindings.InvocationOptions, error) {
 	if targetURL == "" {
 		return nil, nil, nil
 	}
@@ -23,7 +23,7 @@ func GetContext(targetURL string) (map[string]any, *openbindings.ExecutionOption
 
 // GetContextForSource loads context and execution options for a specific source
 // within a target URL. Source-level overrides are merged on top of target-level.
-func GetContextForSource(targetURL, sourceName string) (map[string]any, *openbindings.ExecutionOptions, error) {
+func GetContextForSource(targetURL, sourceName string) (map[string]any, *openbindings.InvocationOptions, error) {
 	if targetURL == "" {
 		return nil, nil, nil
 	}
@@ -36,7 +36,7 @@ func GetContextForSource(targetURL, sourceName string) (map[string]any, *openbin
 
 // RenderBindingContext returns a human-friendly representation of binding context
 // and execution options.
-func RenderBindingContext(bindCtx map[string]any, opts *openbindings.ExecutionOptions) string {
+func RenderBindingContext(bindCtx map[string]any, opts *openbindings.InvocationOptions) string {
 	s := Styles
 	var sb strings.Builder
 

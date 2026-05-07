@@ -13,7 +13,7 @@ They are the building blocks used by delegates and orchestrators.`,
 	}
 
 	c.AddCommand(
-		newBindingExecCmd(),
+		newBindingInvokeCmd(),
 	)
 
 	return c
