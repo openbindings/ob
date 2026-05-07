@@ -237,7 +237,7 @@ func handleOBI(port int) http.HandlerFunc {
 			}
 		}
 
-		writeJSON(w, http.StatusOK, iface)
+		writeOBI(w, http.StatusOK, iface)
 	}
 }
 
@@ -556,6 +556,19 @@ func writeJSON(w http.ResponseWriter, status int, v any) {
 	w.WriteHeader(status)
 	if err := json.NewEncoder(w).Encode(v); err != nil {
 		slog.Error("writeJSON encode failed", "error", err)
+	}
+}
+
+// writeOBI writes an OBI document using the vendor-registered media type
+// (application/vnd.openbindings+json) per spec §7.1 (Discovery response
+// contract) and §14.2 (IANA media-type registration). Clients that send
+// only Accept: application/json still receive the same body; per §7.1 the
+// vendor type is SHOULD-level, not a hard requirement.
+func writeOBI(w http.ResponseWriter, status int, v any) {
+	w.Header().Set("Content-Type", "application/vnd.openbindings+json; charset=utf-8")
+	w.WriteHeader(status)
+	if err := json.NewEncoder(w).Encode(v); err != nil {
+		slog.Error("writeOBI encode failed", "error", err)
 	}
 }
 

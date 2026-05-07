@@ -19,7 +19,7 @@ import (
 // making ob serve a binding invoker host.
 func registerBindingRoutes(srv *server.Server, logger *slog.Logger) {
 	mux := srv.Mux()
-	mux.HandleFunc("/bindings/invoke", handleBindingExecute(srv, logger))
+	mux.HandleFunc("/bindings/invoke", handleBindingInvoke(srv, logger))
 	mux.HandleFunc("POST /interfaces/create", handleInterfaceCreate)
 	mux.HandleFunc("POST /sources/inspect", handleSourceInspect)
 	mux.HandleFunc("POST /http/request", handleHttpRequest(logger))
@@ -37,10 +37,10 @@ type wsStreamEvent struct {
 	Error *wsErrorDetail `json:"error,omitempty"`
 }
 
-func handleBindingExecute(srv *server.Server, logger *slog.Logger) http.HandlerFunc {
+func handleBindingInvoke(srv *server.Server, logger *slog.Logger) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		if isWebSocketUpgrade(r) {
-			handleBindingExecuteWS(srv, logger, w, r)
+			handleBindingInvokeWS(srv, logger, w, r)
 			return
 		}
 
@@ -82,7 +82,7 @@ func handleBindingExecute(srv *server.Server, logger *slog.Logger) http.HandlerF
 	}
 }
 
-func handleBindingExecuteWS(srv *server.Server, logger *slog.Logger, w http.ResponseWriter, r *http.Request) {
+func handleBindingInvokeWS(srv *server.Server, logger *slog.Logger, w http.ResponseWriter, r *http.Request) {
 	// Origin checking is skipped to match the CORS policy (any HTTPS
 	// origin + any localhost origin). Bearer-token auth in the first
 	// WebSocket message is the security boundary, not the origin header.
