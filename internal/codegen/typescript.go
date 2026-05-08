@@ -18,9 +18,9 @@ func EmitTypeScript(r *CodegenResult) string {
 		}
 	}
 
-	execOptsType := "InvocationOptions"
+	invokeOptsType := "InvocationOptions"
 	if hasInvocationOptions {
-		execOptsType = "SDKInvocationOptions"
+		invokeOptsType = "SDKInvocationOptions"
 	}
 
 	// --- Imports ---
@@ -151,9 +151,9 @@ func EmitTypeScript(r *CodegenResult) string {
 
 	// Operation methods — unary + stream.
 	for _, op := range r.Operations {
-		emitTSUnaryMethod(&b, op, execOptsType)
+		emitTSUnaryMethod(&b, op, invokeOptsType)
 		b.WriteString("\n")
-		emitTSStreamMethod(&b, op, execOptsType)
+		emitTSStreamMethod(&b, op, invokeOptsType)
 		b.WriteString("\n")
 	}
 
@@ -169,7 +169,7 @@ func EmitTypeScript(r *CodegenResult) string {
 }
 
 // emitTSUnaryMethod emits a Promise-returning convenience method.
-func emitTSUnaryMethod(b *strings.Builder, op OperationSig, execOptsType string) {
+func emitTSUnaryMethod(b *strings.Builder, op OperationSig, invokeOptsType string) {
 	methodName := toCamelCase(op.Key)
 
 	isVoid := op.Output == nil
@@ -195,7 +195,7 @@ func emitTSUnaryMethod(b *strings.Builder, op OperationSig, execOptsType string)
 	if op.Input != nil {
 		params = append(params, fmt.Sprintf("input: %s", tsTypeRef(*op.Input)))
 	}
-	params = append(params, fmt.Sprintf("options?: %s", execOptsType))
+	params = append(params, fmt.Sprintf("options?: %s", invokeOptsType))
 
 	returnType := outputType
 	if isVoid {
@@ -209,7 +209,7 @@ func emitTSUnaryMethod(b *strings.Builder, op OperationSig, execOptsType string)
 	if op.Input != nil {
 		inputArg = "input"
 	}
-	b.WriteString(fmt.Sprintf("    for await (const event of this.client.execute(\"%s\", %s, options)) {\n", op.Key, inputArg))
+	b.WriteString(fmt.Sprintf("    for await (const event of this.client.invoke(\"%s\", %s, options)) {\n", op.Key, inputArg))
 	b.WriteString("      if (event.error) {\n")
 	b.WriteString("        throw new ClientOperationError(event.error.code, event.error.message, event.error.details);\n")
 	b.WriteString("      }\n")
@@ -228,7 +228,7 @@ func emitTSUnaryMethod(b *strings.Builder, op OperationSig, execOptsType string)
 }
 
 // emitTSStreamMethod emits an AsyncGenerator-returning method with Stream suffix.
-func emitTSStreamMethod(b *strings.Builder, op OperationSig, execOptsType string) {
+func emitTSStreamMethod(b *strings.Builder, op OperationSig, invokeOptsType string) {
 	methodName := toCamelCase(op.Key) + "Stream"
 
 	outputType := "unknown"
@@ -244,7 +244,7 @@ func emitTSStreamMethod(b *strings.Builder, op OperationSig, execOptsType string
 	if op.Input != nil {
 		params = append(params, fmt.Sprintf("input: %s", tsTypeRef(*op.Input)))
 	}
-	params = append(params, fmt.Sprintf("options?: %s", execOptsType))
+	params = append(params, fmt.Sprintf("options?: %s", invokeOptsType))
 
 	b.WriteString(fmt.Sprintf("  async *%s(%s): AsyncGenerator<TypedStreamEvent<%s>> {\n",
 		methodName, strings.Join(params, ", "), outputType))
@@ -254,7 +254,7 @@ func emitTSStreamMethod(b *strings.Builder, op OperationSig, execOptsType string
 	if op.Input != nil {
 		inputArg = "input"
 	}
-	b.WriteString(fmt.Sprintf("    for await (const event of this.client.execute(\"%s\", %s, options)) {\n", op.Key, inputArg))
+	b.WriteString(fmt.Sprintf("    for await (const event of this.client.invoke(\"%s\", %s, options)) {\n", op.Key, inputArg))
 	b.WriteString(fmt.Sprintf("      yield event as TypedStreamEvent<%s>;\n", outputType))
 	b.WriteString("    }\n")
 	b.WriteString("  }\n")

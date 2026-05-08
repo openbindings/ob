@@ -107,7 +107,7 @@ func emitGoMethod(b *strings.Builder, op OperationSig, clientName string) {
 	// Doc comment.
 	if op.Description != "" || op.Deprecated {
 		var doc strings.Builder
-		doc.WriteString(fmt.Sprintf("%s executes the %s operation.", methodName, op.Key))
+		doc.WriteString(fmt.Sprintf("%s invokes the %s operation.", methodName, op.Key))
 		if op.Description != "" {
 			doc.WriteString("\n")
 			doc.WriteString(op.Description)
@@ -157,13 +157,13 @@ func emitGoMethod(b *strings.Builder, op OperationSig, clientName string) {
 	}
 
 	if returnsSlice {
-		b.WriteString(fmt.Sprintf("\tv, err := execUnary[%s](ctx, c.client, \"%s\", %s)\n", outputType, op.Key, inputArg))
+		b.WriteString(fmt.Sprintf("\tv, err := invokeUnary[%s](ctx, c.client, \"%s\", %s)\n", outputType, op.Key, inputArg))
 		b.WriteString("\tif err != nil {\n")
 		b.WriteString("\t\treturn nil, err\n")
 		b.WriteString("\t}\n")
 		b.WriteString("\treturn *v, nil\n")
 	} else {
-		b.WriteString(fmt.Sprintf("\treturn execUnary[%s](ctx, c.client, \"%s\", %s)\n", outputType, op.Key, inputArg))
+		b.WriteString(fmt.Sprintf("\treturn invokeUnary[%s](ctx, c.client, \"%s\", %s)\n", outputType, op.Key, inputArg))
 	}
 	b.WriteString("}\n\n")
 }
@@ -171,9 +171,9 @@ func emitGoMethod(b *strings.Builder, op OperationSig, clientName string) {
 func emitGoHelpers(b *strings.Builder) {
 	b.WriteString("// --- Helpers ---\n\n")
 
-	// execUnary.
-	b.WriteString("func execUnary[T any](ctx context.Context, c *openbindings.InterfaceClient, op string, input any) (*T, error) {\n")
-	b.WriteString("\tch, err := c.Execute(ctx, op, input)\n")
+	// invokeUnary.
+	b.WriteString("func invokeUnary[T any](ctx context.Context, c *openbindings.InterfaceClient, op string, input any) (*T, error) {\n")
+	b.WriteString("\tch, err := c.Invoke(ctx, op, input)\n")
 	b.WriteString("\tif err != nil {\n")
 	b.WriteString("\t\treturn nil, err\n")
 	b.WriteString("\t}\n")

@@ -152,9 +152,9 @@ func TestEmitGoDemo(t *testing.T) {
 		t.Error("missing GetMenu method")
 	}
 
-	// Should have execUnary helper.
-	if !strings.Contains(code, "func execUnary[T any]") {
-		t.Error("missing execUnary helper")
+	// Should have invokeUnary helper.
+	if !strings.Contains(code, "func invokeUnary[T any]") {
+		t.Error("missing invokeUnary helper")
 	}
 }
 
