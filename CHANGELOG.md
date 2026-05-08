@@ -28,6 +28,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
   whichever matches their page protocol. `--no-tls` still available to skip
   the HTTPS listener and CA trust setup entirely (useful in CI and sandboxed
   environments).
+- `ob serve`'s discovery endpoint (`/.well-known/openbindings`) now responds
+  with `Content-Type: application/vnd.openbindings+json; charset=utf-8` per
+  spec §7.1 / §14.2. Clients accepting `application/json` continue to receive
+  the same body.
 - The local HTTPS CA is installed into the system keychain on first run, not
   the user-login keychain, so Chrome and every other browser trust it without
   additional setup. Prompts once for the sudo password.
@@ -44,6 +48,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
   CSP-shaped error Chrome produced when HTTP pages fetched `http://localhost`.
 - `ob info` output now includes the spec version range this CLI supports,
   sourced from the Go SDK's `MinSupportedVersion` / `MaxTestedVersion`.
+- `ob compat` now drives a structural OBI comparison feature
+  (`internal/app/comparison.go` plus a conformance test corpus) that powers
+  cross-document compatibility analysis used by registries and authoring
+  workflows.
+
+### Fixed
+
+- `ob codegen` previously generated client code that called `c.Execute(...)`
+  in Go and `this.client.execute(...)` in TypeScript. After the spec 0.2.0
+  rename those SDK methods became `Invoke` / `invoke`, and the generated
+  code no longer compiled against the SDKs. Generated Go now calls
+  `c.Invoke(...)` (with helper renamed `execUnary` to `invokeUnary`), and
+  generated TS calls `this.client.invoke(...)`.
 
 ### Notes for upgraders
 
