@@ -68,7 +68,7 @@ func newContextListCmd() *cobra.Command {
 func newContextGetCmd() *cobra.Command {
 	return &cobra.Command{
 		Use:   "get <url>",
-		Short: "Get context details for a target URL (secrets masked)",
+		Short: "Get context details for a target URL (text format masks secrets; JSON returns the raw payload)",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			targetURL := args[0]
@@ -77,8 +77,8 @@ func newContextGetCmd() *cobra.Command {
 				return app.ExitResult{Code: 1, Message: err.Error(), ToStderr: true}
 			}
 			format, outputPath := getOutputFlags(cmd)
-			combined := map[string]any{"context": bindCtx, "options": opts}
-			return app.OutputResultText(combined, format, outputPath, func() string {
+			payload := app.UnifyContext(bindCtx, opts)
+			return app.OutputResultText(payload, format, outputPath, func() string {
 				return app.RenderBindingContext(bindCtx, opts)
 			})
 		},
@@ -94,7 +94,6 @@ func newContextSetCmd() *cobra.Command {
 		cookies     []string
 		envVars     []string
 		metaEntries []string
-		source      string
 		fromCurl    string
 	)
 
@@ -114,7 +113,6 @@ echoing (keeps secrets out of shell history).
 Non-secret flags (--header, --cookie, --env, --meta) are stored in
 a config file and can be specified multiple times.
 
-Use --source to scope context to a specific source within the target.
 Use --from-curl to import credentials from a curl command.
 
 Examples:
@@ -124,14 +122,13 @@ Examples:
   ob context set https://api.example.com --basic
   ob context set https://api.example.com --header "Accept: application/json"
   ob context set exec:kubectl --env KUBECONFIG=/home/me/.kube/prod
-  ob context set https://api.stripe.com/openapi.json --source payments-v2 --bearer-token TOKEN
   ob context set https://api.github.com --from-curl 'curl -H "Authorization: Bearer ghp_xxx" https://api.github.com'`,
 		Args: cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			targetURL := args[0]
 
 			if fromCurl != "" {
-				return handleFromCurl(targetURL, source, fromCurl)
+				return handleFromCurl(targetURL, fromCurl)
 			}
 
 			cfg, err := app.LoadContextConfig(targetURL)
@@ -139,12 +136,7 @@ Examples:
 				return app.ExitResult{Code: 1, Message: err.Error(), ToStderr: true}
 			}
 
-			var cred map[string]any
-			if source != "" {
-				cred, err = app.LoadSourceContextCredentials(targetURL, source)
-			} else {
-				cred, err = app.LoadContextCredentials(targetURL)
-			}
+			cred, err := app.LoadContextCredentials(targetURL)
 			if err != nil {
 				return app.ExitResult{Code: 1, Message: err.Error(), ToStderr: true}
 			}
@@ -198,34 +190,9 @@ Examples:
 				credChanged = true
 			}
 
-			// Resolve which target maps the KV fields should write into.
-			// Source-scoped context writes to SourceOverrides[source];
-			// target-level context writes to cfg directly.
-			var targetHeaders, targetCookies, targetEnv *map[string]string
-			var targetMeta *map[string]any
-			if source != "" {
-				if cfg.SourceOverrides == nil {
-					cfg.SourceOverrides = make(map[string]*app.ContextOverride)
-				}
-				ov := cfg.SourceOverrides[source]
-				if ov == nil {
-					ov = &app.ContextOverride{}
-					cfg.SourceOverrides[source] = ov
-				}
-				targetHeaders = &ov.Headers
-				targetCookies = &ov.Cookies
-				targetEnv = &ov.Environment
-				targetMeta = &ov.Metadata
-			} else {
-				targetHeaders = &cfg.Headers
-				targetCookies = &cfg.Cookies
-				targetEnv = &cfg.Environment
-				targetMeta = &cfg.Metadata
-			}
-
 			cfgChanged, err := applyContextKVFields(
 				headers, cookies, envVars, metaEntries,
-				targetHeaders, targetCookies, targetEnv, targetMeta,
+				&cfg.Headers, &cfg.Cookies, &cfg.Environment, &cfg.Metadata,
 			)
 			if err != nil {
 				return err
@@ -236,14 +203,8 @@ Examples:
 			}
 
 			if credChanged {
-				if source != "" {
-					if err := app.SaveSourceContextCredentials(targetURL, source, cred); err != nil {
-						return app.ExitResult{Code: 1, Message: err.Error(), ToStderr: true}
-					}
-				} else {
-					if err := app.SaveContextCredentials(targetURL, cred); err != nil {
-						return app.ExitResult{Code: 1, Message: err.Error(), ToStderr: true}
-					}
+				if err := app.SaveContextCredentials(targetURL, cred); err != nil {
+					return app.ExitResult{Code: 1, Message: err.Error(), ToStderr: true}
 				}
 			}
 
@@ -253,11 +214,7 @@ Examples:
 				}
 			}
 
-			if source != "" {
-				fmt.Fprintf(os.Stderr, "Context for %q (source %q) updated.\n", targetURL, source)
-			} else {
-				fmt.Fprintf(os.Stderr, "Context for %q updated.\n", targetURL)
-			}
+			fmt.Fprintf(os.Stderr, "Context for %q updated.\n", targetURL)
 			return nil
 		},
 	}
@@ -269,7 +226,6 @@ Examples:
 	cmd.Flags().StringArrayVar(&cookies, "cookie", nil, "add cookie as \"Key=Value\" (repeatable)")
 	cmd.Flags().StringArrayVar(&envVars, "env", nil, "add env var as \"VAR=value\" (repeatable)")
 	cmd.Flags().StringArrayVar(&metaEntries, "meta", nil, "add metadata as \"key=value\" (repeatable)")
-	cmd.Flags().StringVar(&source, "source", "", "scope context to a specific source within the target")
 	cmd.Flags().StringVar(&fromCurl, "from-curl", "", "import context from a curl command string")
 
 	return cmd
@@ -295,7 +251,7 @@ func newContextRemoveCmd() *cobra.Command {
 	}
 }
 
-func handleFromCurl(targetURL, source, curlCmd string) error {
+func handleFromCurl(targetURL, curlCmd string) error {
 	parsed := parseCurlCommand(curlCmd)
 
 	cfg, err := app.LoadContextConfig(targetURL)
@@ -303,12 +259,7 @@ func handleFromCurl(targetURL, source, curlCmd string) error {
 		return app.ExitResult{Code: 1, Message: err.Error(), ToStderr: true}
 	}
 
-	var cred map[string]any
-	if source != "" {
-		cred, err = app.LoadSourceContextCredentials(targetURL, source)
-	} else {
-		cred, err = app.LoadContextCredentials(targetURL)
-	}
+	cred, err := app.LoadContextCredentials(targetURL)
 	if err != nil {
 		return app.ExitResult{Code: 1, Message: err.Error(), ToStderr: true}
 	}
@@ -326,54 +277,26 @@ func handleFromCurl(targetURL, source, curlCmd string) error {
 		cred["basic"] = parsed.basic
 	}
 
-	setHeaders := func(h map[string]string, target *map[string]string) {
-		if len(h) == 0 {
-			return
+	if len(parsed.headers) > 0 {
+		if cfg.Headers == nil {
+			cfg.Headers = make(map[string]string)
 		}
-		if *target == nil {
-			*target = make(map[string]string)
-		}
-		for k, v := range h {
-			(*target)[k] = v
+		for k, v := range parsed.headers {
+			cfg.Headers[k] = v
 		}
 	}
-	setCookies := func(c map[string]string, target *map[string]string) {
-		if len(c) == 0 {
-			return
+	if len(parsed.cookies) > 0 {
+		if cfg.Cookies == nil {
+			cfg.Cookies = make(map[string]string)
 		}
-		if *target == nil {
-			*target = make(map[string]string)
+		for k, v := range parsed.cookies {
+			cfg.Cookies[k] = v
 		}
-		for k, v := range c {
-			(*target)[k] = v
-		}
-	}
-
-	if source != "" {
-		if cfg.SourceOverrides == nil {
-			cfg.SourceOverrides = make(map[string]*app.ContextOverride)
-		}
-		ov := cfg.SourceOverrides[source]
-		if ov == nil {
-			ov = &app.ContextOverride{}
-			cfg.SourceOverrides[source] = ov
-		}
-		setHeaders(parsed.headers, &ov.Headers)
-		setCookies(parsed.cookies, &ov.Cookies)
-	} else {
-		setHeaders(parsed.headers, &cfg.Headers)
-		setCookies(parsed.cookies, &cfg.Cookies)
 	}
 
 	if len(cred) > 0 {
-		if source != "" {
-			if err := app.SaveSourceContextCredentials(targetURL, source, cred); err != nil {
-				return app.ExitResult{Code: 1, Message: err.Error(), ToStderr: true}
-			}
-		} else {
-			if err := app.SaveContextCredentials(targetURL, cred); err != nil {
-				return app.ExitResult{Code: 1, Message: err.Error(), ToStderr: true}
-			}
+		if err := app.SaveContextCredentials(targetURL, cred); err != nil {
+			return app.ExitResult{Code: 1, Message: err.Error(), ToStderr: true}
 		}
 	}
 

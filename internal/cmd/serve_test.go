@@ -41,6 +41,23 @@ func (m *mockStreamInvoker) InvokeBinding(_ context.Context, _ *openbindings.Bin
 	return ch, nil
 }
 
+// rawStreamInvoker yields pre-built StreamEvents verbatim, letting tests
+// exercise frames with data, error, or both set simultaneously.
+type rawStreamInvoker struct {
+	formats []openbindings.FormatInfo
+	events  []openbindings.StreamEvent
+}
+
+func (m *rawStreamInvoker) Formats() []openbindings.FormatInfo { return m.formats }
+func (m *rawStreamInvoker) InvokeBinding(_ context.Context, _ *openbindings.BindingInvocationInput) (<-chan openbindings.StreamEvent, error) {
+	ch := make(chan openbindings.StreamEvent, len(m.events))
+	for _, ev := range m.events {
+		ch <- ev
+	}
+	close(ch)
+	return ch, nil
+}
+
 func testEnv(t *testing.T) *httptest.Server {
 	t.Helper()
 	srv, err := server.New(server.Config{
@@ -582,6 +599,151 @@ func TestServeBindingExecute_WS_StreamE2E(t *testing.T) {
 		if received[i] != want {
 			t.Errorf("event[%d] = %v, want %q", i, received[i], want)
 		}
+	}
+}
+
+func TestServeBindingExecute_WS_FrameCarriesDataAndError(t *testing.T) {
+	// OBI-T-08: the SDK yields a StreamEvent with both Data and Error
+	// populated when output validation fails. The WebSocket frame must
+	// preserve both so clients can render the response alongside the
+	// diagnostic. The `type` discriminator stays "event" (data is the
+	// headline); pure-error frames remain `type: "error"`.
+	mockInvoker := &rawStreamInvoker{
+		formats: []openbindings.FormatInfo{{Token: "mock-stream@1.0"}},
+		events: []openbindings.StreamEvent{
+			{
+				Data: map[string]any{"count": 2, "next": nil},
+				Error: &openbindings.InvocationError{
+					Code:    "validation_failed",
+					Message: `openbindings: output validation failed for "abilityList.api": ...`,
+					Details: openbindings.ValidationFailureDetails{
+						Failures: []openbindings.ValidationFailure{
+							{Path: "/next", Message: `expected type "string", got null`},
+						},
+					},
+				},
+			},
+		},
+	}
+	cleanup := app.OverrideInvokerForTest(
+		openbindings.NewOperationInvoker(mockInvoker),
+	)
+	defer cleanup()
+
+	ts := testEnv(t)
+	defer ts.Close()
+
+	ctx := t.Context()
+	wsURL := strings.Replace(ts.URL, "http://", "ws://", 1) + "/bindings/invoke"
+	conn, _, err := websocket.Dial(ctx, wsURL, nil)
+	if err != nil {
+		t.Fatalf("websocket dial failed: %v", err)
+	}
+	defer conn.CloseNow()
+
+	if err := wsjson.Write(ctx, conn, map[string]any{
+		"source":      map[string]any{"format": "mock-stream@1.0", "location": "mock://test"},
+		"ref":         "#/test",
+		"bearerToken": "test-token",
+	}); err != nil {
+		t.Fatalf("write initial message: %v", err)
+	}
+
+	var frame struct {
+		Type  string         `json:"type"`
+		Data  any            `json:"data,omitempty"`
+		Error map[string]any `json:"error,omitempty"`
+	}
+	if err := wsjson.Read(ctx, conn, &frame); err != nil {
+		t.Fatalf("read frame: %v", err)
+	}
+	if frame.Type != "event" {
+		t.Errorf("expected type=event (data is headline), got %q", frame.Type)
+	}
+	data, ok := frame.Data.(map[string]any)
+	if !ok {
+		t.Fatalf("expected data map, got %#v", frame.Data)
+	}
+	if data["count"].(float64) != 2 {
+		t.Errorf("data.count = %#v, want 2", data["count"])
+	}
+	if frame.Error == nil {
+		t.Fatal("expected error to be carried on the same frame")
+	}
+	if frame.Error["code"] != "validation_failed" {
+		t.Errorf("error.code = %#v, want validation_failed", frame.Error["code"])
+	}
+	// Structured failure details should flow through the wire so clients
+	// can render per-field diagnostics without parsing message strings.
+	details, ok := frame.Error["details"].(map[string]any)
+	if !ok {
+		t.Fatalf("expected error.details object, got %#v", frame.Error["details"])
+	}
+	failures, ok := details["failures"].([]any)
+	if !ok || len(failures) == 0 {
+		t.Fatalf("expected details.failures non-empty array, got %#v", details["failures"])
+	}
+	first := failures[0].(map[string]any)
+	if first["path"] != "/next" {
+		t.Errorf("failures[0].path = %#v, want /next", first["path"])
+	}
+}
+
+func TestServeBindingExecute_WS_PureErrorFrameStillUsesErrorType(t *testing.T) {
+	// A StreamEvent with Error but no Data still produces a frame with
+	// type="error" for backward compatibility with clients that branch
+	// on the discriminator.
+	mockInvoker := &rawStreamInvoker{
+		formats: []openbindings.FormatInfo{{Token: "mock-stream@1.0"}},
+		events: []openbindings.StreamEvent{
+			{
+				Error: &openbindings.InvocationError{
+					Code:    "auth_required",
+					Message: "unauthorized",
+				},
+			},
+		},
+	}
+	cleanup := app.OverrideInvokerForTest(
+		openbindings.NewOperationInvoker(mockInvoker),
+	)
+	defer cleanup()
+
+	ts := testEnv(t)
+	defer ts.Close()
+
+	ctx := t.Context()
+	wsURL := strings.Replace(ts.URL, "http://", "ws://", 1) + "/bindings/invoke"
+	conn, _, err := websocket.Dial(ctx, wsURL, nil)
+	if err != nil {
+		t.Fatalf("websocket dial failed: %v", err)
+	}
+	defer conn.CloseNow()
+
+	if err := wsjson.Write(ctx, conn, map[string]any{
+		"source":      map[string]any{"format": "mock-stream@1.0", "location": "mock://test"},
+		"ref":         "#/test",
+		"bearerToken": "test-token",
+	}); err != nil {
+		t.Fatalf("write initial message: %v", err)
+	}
+
+	var frame struct {
+		Type  string         `json:"type"`
+		Data  any            `json:"data,omitempty"`
+		Error map[string]any `json:"error,omitempty"`
+	}
+	if err := wsjson.Read(ctx, conn, &frame); err != nil {
+		t.Fatalf("read frame: %v", err)
+	}
+	if frame.Type != "error" {
+		t.Errorf("expected type=error for pure error frame, got %q", frame.Type)
+	}
+	if frame.Data != nil {
+		t.Errorf("expected no data, got %#v", frame.Data)
+	}
+	if frame.Error == nil || frame.Error["code"] != "auth_required" {
+		t.Errorf("error frame missing or wrong code: %#v", frame.Error)
 	}
 }
 

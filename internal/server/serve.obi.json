@@ -51,8 +51,7 @@
       },
       "required": [
         "name"
-      ],
-      "additionalProperties": false
+      ]
     },
     "FormatInfo": {
       "type": "object",
@@ -66,8 +65,7 @@
       },
       "required": [
         "token"
-      ],
-      "additionalProperties": false
+      ]
     },
     "CreateInterfaceSource": {
       "type": "object",
@@ -394,21 +392,41 @@
       },
       "additionalProperties": true
     },
-    "ContextEntry": {
+    "Context": {
       "type": "object",
+      "description": "Opaque per-target context payload — credentials, session state, headers, cookies, environment, metadata, or any other invoker-managed state. Well-known fields include 'bearerToken', 'apiKey', 'basic', 'headers', 'cookies', 'environment', 'metadata'.",
+      "additionalProperties": true
+    },
+    "ContextSummary": {
+      "type": "object",
+      "description": "Non-secret metadata about a stored context entry. Returned by listContexts; never includes secret values.",
       "properties": {
-        "key": {
+        "url": {
           "type": "string"
         },
-        "context": {
-          "type": "object",
-          "additionalProperties": true
+        "hasCredentials": {
+          "type": "boolean"
+        },
+        "headerCount": {
+          "type": "integer"
+        },
+        "cookieCount": {
+          "type": "integer"
+        },
+        "envCount": {
+          "type": "integer"
+        },
+        "metadataCount": {
+          "type": "integer"
+        },
+        "loadError": {
+          "type": "string"
         }
       },
       "required": [
-        "key"
-      ],
-      "additionalProperties": false
+        "url",
+        "hasCredentials"
+      ]
     },
     "ResolveInterfaceInput": {
       "type": "object",
@@ -428,11 +446,21 @@
         "interface": {
           "$ref": "#/schemas/OpenBindingsInterface"
         },
+        "url": {
+          "type": "string",
+          "description": "URL the OBI was resolved from (after well-known discovery, before redirects)."
+        },
+        "finalUrl": {
+          "type": "string",
+          "description": "URL after following any redirects."
+        },
         "synthesized": {
-          "type": "boolean"
+          "type": "boolean",
+          "description": "True when the OBI was created from a raw spec (e.g. OpenAPI) rather than loaded from a published OBI."
         },
         "sourceFormat": {
-          "type": "string"
+          "type": "string",
+          "description": "Detected binding format token (e.g. \"openapi@3.0.3\") when synthesized. Empty for native OBIs."
         }
       },
       "additionalProperties": false
@@ -584,23 +612,17 @@
       ]
     },
     "listContexts": {
-      "description": "List all stored context entries.",
+      "description": "List metadata summaries for all stored contexts (no secret values). Not part of the openbindings.context-store role contract — this is ob's management surface.",
       "idempotent": true,
       "output": {
         "type": "array",
         "items": {
-          "$ref": "#/schemas/ContextEntry"
+          "$ref": "#/schemas/ContextSummary"
         }
-      },
-      "satisfies": [
-        {
-          "role": "openbindings.context-store",
-          "operation": "listContexts"
-        }
-      ]
+      }
     },
     "getContext": {
-      "description": "Get a stored context entry by key.",
+      "description": "Get the stored context for a key. Returns the unified context payload (credentials, headers, cookies, environment, metadata in a single opaque map), or null when no context exists for the key.",
       "idempotent": true,
       "input": {
         "type": "object",
@@ -615,7 +637,10 @@
         "additionalProperties": false
       },
       "output": {
-        "$ref": "#/schemas/ContextEntry"
+        "oneOf": [
+          { "$ref": "#/schemas/Context" },
+          { "type": "null" }
+        ]
       },
       "satisfies": [
         {
@@ -625,7 +650,8 @@
       ]
     },
     "setContext": {
-      "description": "Set or update a context entry.",
+      "description": "Create or replace the context for a key. The supplied context fully replaces any existing context.",
+      "idempotent": true,
       "input": {
         "type": "object",
         "properties": {
@@ -633,8 +659,7 @@
             "type": "string"
           },
           "context": {
-            "type": "object",
-            "additionalProperties": true
+            "$ref": "#/schemas/Context"
           }
         },
         "required": [
@@ -651,7 +676,8 @@
       ]
     },
     "deleteContext": {
-      "description": "Delete a stored context entry.",
+      "description": "Delete the stored context for a key. Deleting an absent key succeeds.",
+      "idempotent": true,
       "input": {
         "type": "object",
         "properties": {
@@ -760,14 +786,13 @@
       "source": "openapi",
       "ref": "#/paths/~1contexts~1{url}/get",
       "inputTransform": "{ \"url\": key }",
-      "outputTransform": "{ \"key\": url, \"context\": $ ~> | $ | {}, [\"url\", \"hasCredentials\", \"headerCount\", \"cookieCount\", \"envCount\"] | }",
       "security": "session"
     },
     "setContext.openapi": {
       "operation": "setContext",
       "source": "openapi",
       "ref": "#/paths/~1contexts~1{url}/put",
-      "inputTransform": "{ \"url\": key, \"bearerToken\": context.bearerToken, \"apiKey\": context.apiKey, \"headers\": context.headers, \"cookies\": context.cookies, \"environment\": context.environment, \"metadata\": context.metadata }",
+      "inputTransform": "$merge([{ \"url\": key }, context])",
       "security": "session"
     },
     "deleteContext.openapi": {

@@ -21,17 +21,113 @@ func GetContext(targetURL string) (map[string]any, *openbindings.InvocationOptio
 	return ctx, opts, nil
 }
 
-// GetContextForSource loads context and execution options for a specific source
-// within a target URL. Source-level overrides are merged on top of target-level.
-func GetContextForSource(targetURL, sourceName string) (map[string]any, *openbindings.InvocationOptions, error) {
-	if targetURL == "" {
-		return nil, nil, nil
-	}
-	ctx, opts, err := LoadContextForSource(targetURL, sourceName)
+// transportFields are the well-known context fields that map to InvocationOptions
+// rather than to the keychain credentials blob. Anything else in a unified context
+// payload goes to the keychain.
+var transportFields = map[string]bool{
+	"headers":     true,
+	"cookies":     true,
+	"environment": true,
+	"metadata":    true,
+}
+
+// BuildUnifiedContext returns the unified context payload stored for a URL,
+// or nil if nothing is stored. The unified shape carries credential fields
+// (bearerToken, apiKey, basic, ...) alongside transport fields (headers,
+// cookies, environment, metadata) in a single opaque map — matching the
+// openbindings.context-store role's Context schema.
+func BuildUnifiedContext(rawURL string) (map[string]any, error) {
+	cred, opts, err := LoadContext(rawURL)
 	if err != nil {
-		return nil, nil, fmt.Errorf("loading context for %q (source %q): %w", targetURL, sourceName, err)
+		return nil, fmt.Errorf("loading context for %q: %w", rawURL, err)
 	}
-	return ctx, opts, nil
+	return UnifyContext(cred, opts), nil
+}
+
+// UnifyContext combines a credential map and InvocationOptions into the
+// unified Context payload shape (the openbindings.context-store role's
+// Context schema). Returns nil if both inputs are empty.
+func UnifyContext(cred map[string]any, opts *openbindings.InvocationOptions) map[string]any {
+	if len(cred) == 0 && (opts == nil || (len(opts.Headers) == 0 && len(opts.Cookies) == 0 && len(opts.Environment) == 0 && len(opts.Metadata) == 0)) {
+		return nil
+	}
+	result := make(map[string]any, len(cred)+4)
+	for k, v := range cred {
+		result[k] = v
+	}
+	if opts != nil {
+		if len(opts.Headers) > 0 {
+			result["headers"] = stringMapToAny(opts.Headers)
+		}
+		if len(opts.Cookies) > 0 {
+			result["cookies"] = stringMapToAny(opts.Cookies)
+		}
+		if len(opts.Environment) > 0 {
+			result["environment"] = stringMapToAny(opts.Environment)
+		}
+		if len(opts.Metadata) > 0 {
+			result["metadata"] = opts.Metadata
+		}
+	}
+	return result
+}
+
+// SaveUnifiedContext stores a unified context payload under a URL, fully
+// replacing any prior context for the key (per the context-store role's
+// setContext contract). The payload's transport fields go to the on-disk
+// config file; everything else goes to the OS keychain.
+func SaveUnifiedContext(rawURL string, ctx map[string]any) error {
+	cfg := ContextConfig{}
+	cred := map[string]any{}
+	for k, v := range ctx {
+		if !transportFields[k] {
+			cred[k] = v
+			continue
+		}
+		switch k {
+		case "headers":
+			if m, ok := v.(map[string]any); ok {
+				cfg.Headers = anyMapToString(m)
+			}
+		case "cookies":
+			if m, ok := v.(map[string]any); ok {
+				cfg.Cookies = anyMapToString(m)
+			}
+		case "environment":
+			if m, ok := v.(map[string]any); ok {
+				cfg.Environment = anyMapToString(m)
+			}
+		case "metadata":
+			if m, ok := v.(map[string]any); ok {
+				cfg.Metadata = m
+			}
+		}
+	}
+	if err := SaveContextConfig(rawURL, cfg); err != nil {
+		return err
+	}
+	if len(cred) == 0 {
+		return DeleteContextCredentials(rawURL)
+	}
+	return SaveContextCredentials(rawURL, cred)
+}
+
+func stringMapToAny(m map[string]string) map[string]any {
+	out := make(map[string]any, len(m))
+	for k, v := range m {
+		out[k] = v
+	}
+	return out
+}
+
+func anyMapToString(m map[string]any) map[string]string {
+	out := make(map[string]string, len(m))
+	for k, v := range m {
+		if s, ok := v.(string); ok {
+			out[k] = s
+		}
+	}
+	return out
 }
 
 // RenderBindingContext returns a human-friendly representation of binding context
@@ -137,9 +233,6 @@ func RenderContextList(summaries []ContextSummary) string {
 		}
 		if cs.MetadataCount > 0 {
 			parts = append(parts, fmt.Sprintf("%d metadata", cs.MetadataCount))
-		}
-		if cs.SourceCount > 0 {
-			parts = append(parts, fmt.Sprintf("%d source overrides", cs.SourceCount))
 		}
 		if len(parts) > 0 {
 			sb.WriteString(s.Dim.Render(" (" + strings.Join(parts, ", ") + ")"))

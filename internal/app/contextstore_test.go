@@ -186,38 +186,6 @@ func TestSaveContextConfig_EmptyConfig(t *testing.T) {
 	}
 }
 
-func TestSourceOverrides(t *testing.T) {
-	setupContextTestDir(t)
-
-	url := "https://api.multi.com/spec.json"
-	cfg := ContextConfig{
-		Headers: map[string]string{"X-Base": "base-val"},
-		SourceOverrides: map[string]*ContextOverride{
-			"payments-v2": {
-				Headers: map[string]string{"X-Source": "source-val"},
-			},
-		},
-	}
-	if err := SaveContextConfig(url, cfg); err != nil {
-		t.Fatalf("SaveContextConfig: %v", err)
-	}
-
-	loaded, err := LoadContextConfig(url)
-	if err != nil {
-		t.Fatalf("LoadContextConfig: %v", err)
-	}
-	if loaded.SourceOverrides == nil {
-		t.Fatal("expected source overrides")
-	}
-	ov, ok := loaded.SourceOverrides["payments-v2"]
-	if !ok {
-		t.Fatal("expected payments-v2 override")
-	}
-	if ov.Headers["X-Source"] != "source-val" {
-		t.Errorf("source header mismatch: got %q", ov.Headers["X-Source"])
-	}
-}
-
 func TestListContexts(t *testing.T) {
 	setupContextTestDir(t)
 

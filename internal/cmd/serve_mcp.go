@@ -126,7 +126,7 @@ func registerMCPTools(srv *mcp.Server, logger *slog.Logger) {
 
 	srv.AddTool(&mcp.Tool{
 		Name:        "getContext",
-		Description: "Get a stored context entry by key.",
+		Description: "Get the stored context for a key. Returns the unified context payload (credentials, headers, cookies, env, metadata in one opaque map), or null if no context exists for the key.",
 		InputSchema: map[string]any{
 			"type":       "object",
 			"properties": map[string]any{"key": map[string]any{"type": "string"}},
@@ -139,16 +139,16 @@ func registerMCPTools(srv *mcp.Server, logger *slog.Logger) {
 		if err := json.Unmarshal(req.Params.Arguments, &input); err != nil {
 			return errorResult("invalid arguments: " + err.Error()), nil
 		}
-		summary, err := app.GetContextSummary(input.Key)
+		payload, err := app.BuildUnifiedContext(input.Key)
 		if err != nil {
 			return errorResult(err.Error()), nil
 		}
-		return jsonResult(summary)
+		return jsonResult(payload)
 	})
 
 	srv.AddTool(&mcp.Tool{
 		Name:        "setContext",
-		Description: "Set or update a context entry.",
+		Description: "Create or replace the context for a key. The supplied context fully replaces any existing context (full replacement, not partial update).",
 		InputSchema: map[string]any{
 			"type": "object",
 			"properties": map[string]any{
@@ -168,35 +168,8 @@ func registerMCPTools(srv *mcp.Server, logger *slog.Logger) {
 		if input.Key == "" {
 			return errorResult("key is required"), nil
 		}
-
-		cfg := app.ContextConfig{}
-		if h, ok := input.Context["headers"].(map[string]any); ok {
-			cfg.Headers = toStringMap(h)
-		}
-		if c, ok := input.Context["cookies"].(map[string]any); ok {
-			cfg.Cookies = toStringMap(c)
-		}
-		if e, ok := input.Context["environment"].(map[string]any); ok {
-			cfg.Environment = toStringMap(e)
-		}
-		if m, ok := input.Context["metadata"].(map[string]any); ok {
-			cfg.Metadata = m
-		}
-		if err := app.SaveContextConfig(input.Key, cfg); err != nil {
+		if err := app.SaveUnifiedContext(input.Key, input.Context); err != nil {
 			return errorResult(err.Error()), nil
-		}
-
-		cred := map[string]any{}
-		if bt, ok := input.Context["bearerToken"].(string); ok && bt != "" {
-			cred["bearerToken"] = bt
-		}
-		if ak, ok := input.Context["apiKey"].(string); ok && ak != "" {
-			cred["apiKey"] = ak
-		}
-		if len(cred) > 0 {
-			if err := app.SaveContextCredentials(input.Key, cred); err != nil {
-				return errorResult(err.Error()), nil
-			}
 		}
 		return jsonResult(map[string]string{"key": input.Key, "status": "updated"})
 	})
@@ -249,10 +222,11 @@ func registerMCPTools(srv *mcp.Server, logger *slog.Logger) {
 			return errorResult("remote interface returned invalid JSON"), nil
 		}
 		return jsonResult(map[string]any{
-			"interface":   iface,
-			"url":         result.OBIURL,
-			"finalUrl":    result.FinalURL,
-			"synthesized": result.Synthesized,
+			"interface":    iface,
+			"url":          result.OBIURL,
+			"finalUrl":     result.FinalURL,
+			"synthesized":  result.Synthesized,
+			"sourceFormat": result.SourceFormat,
 		})
 	})
 
@@ -419,12 +393,3 @@ func errorResult(msg string) *mcp.CallToolResult {
 	}
 }
 
-func toStringMap(m map[string]any) map[string]string {
-	result := make(map[string]string, len(m))
-	for k, v := range m {
-		if s, ok := v.(string); ok {
-			result[k] = s
-		}
-	}
-	return result
-}

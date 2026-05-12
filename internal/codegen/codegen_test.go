@@ -97,9 +97,17 @@ func TestEmitTypeScriptDemo(t *testing.T) {
 		t.Error("missing getMenuStream method")
 	}
 
-	// Should have connect method.
-	if !strings.Contains(code, "async connect(") {
-		t.Error("missing connect method")
+	// Should take OBI in constructor (no async connect).
+	if !strings.Contains(code, "constructor(iface: OBInterface, invoker: OperationInvoker)") {
+		t.Error("missing OBI-taking constructor")
+	}
+	if strings.Contains(code, "async connect(") {
+		t.Error("generated client still emits connect() — should be removed")
+	}
+
+	// Should expose the contract for opt-in validation by callers.
+	if !strings.Contains(code, "static readonly CONTRACT: OBInterface") {
+		t.Error("missing static CONTRACT export")
 	}
 
 	// Should have ClientOperationError.

@@ -28,13 +28,7 @@ func EmitTypeScript(r *CodegenResult) string {
 	b.WriteString("import {\n")
 	b.WriteString("  InterfaceClient,\n")
 	b.WriteString("  OperationInvoker,\n")
-	b.WriteString("  MemoryStore,\n")
-	b.WriteString("  normalizeContextKey,\n")
-	b.WriteString("  type InterfaceClientOptions,\n")
 	b.WriteString("  type OBInterface,\n")
-	b.WriteString("  type StreamEvent,\n")
-	b.WriteString("  type ContextStore,\n")
-	b.WriteString("  type PlatformCallbacks,\n")
 	if !hasInvocationOptions {
 		b.WriteString("  type InvocationOptions,\n")
 	} else {
@@ -59,26 +53,46 @@ func EmitTypeScript(r *CodegenResult) string {
 
 	// --- ClientOperationError ---
 	b.WriteString("// --- Error ---\n\n")
+	b.WriteString("/**\n")
+	b.WriteString(" * Thrown by generated client methods when the operation fails.\n")
+	b.WriteString(" *\n")
+	b.WriteString(" * For OBI-T-08 output-validation failures the SDK yields both the\n")
+	b.WriteString(" * underlying response AND a validation error in the same event. The\n")
+	b.WriteString(" * generated method still throws (preserving the throwing-function\n")
+	b.WriteString(" * API), but attaches the response on `data` so catchers can opt\n")
+	b.WriteString(" * into using it:\n")
+	b.WriteString(" *\n")
+	b.WriteString(" *   try {\n")
+	b.WriteString(" *     const info = await client.getInfo();\n")
+	b.WriteString(" *   } catch (e) {\n")
+	b.WriteString(" *     if (e instanceof ClientOperationError && e.data) {\n")
+	b.WriteString(" *       // soft mismatch — data was produced, validation flagged it\n")
+	b.WriteString(" *     }\n")
+	b.WriteString(" *   }\n")
+	b.WriteString(" *\n")
+	b.WriteString(" * Pre-data failures (transport, auth, transform, input validation)\n")
+	b.WriteString(" * leave `data` undefined.\n")
+	b.WriteString(" */\n")
 	b.WriteString("export class ClientOperationError extends Error {\n")
 	b.WriteString("  readonly code: string;\n")
 	b.WriteString("  readonly details?: unknown;\n")
-	b.WriteString("  constructor(code: string, message: string, details?: unknown) {\n")
+	b.WriteString("  readonly data?: unknown;\n")
+	b.WriteString("  constructor(code: string, message: string, details?: unknown, data?: unknown) {\n")
 	b.WriteString("    super(message);\n")
 	b.WriteString("    this.name = 'ClientOperationError';\n")
 	b.WriteString("    this.code = code;\n")
 	b.WriteString("    this.details = details;\n")
+	b.WriteString("    this.data = data;\n")
 	b.WriteString("  }\n")
 	b.WriteString("}\n\n")
 
-	// --- ConnectOptions ---
-	b.WriteString("// --- Options ---\n\n")
-	b.WriteString("export interface ConnectOptions {\n")
-	b.WriteString("  bearerToken?: string;\n")
-	b.WriteString("  contextStore?: ContextStore;\n")
-	b.WriteString("  platformCallbacks?: PlatformCallbacks;\n")
-	b.WriteString("  signal?: AbortSignal;\n")
-	b.WriteString("}\n\n")
-
+	// --- Embedded contract --- (must precede the Client class which references it
+	// in a static initializer; class declarations don't hoist, but `const INTERFACE`
+	// must be initialized before the class body runs.)
+	b.WriteString("// --- Embedded contract ---\n\n")
+	b.WriteString("const INTERFACE: OBInterface = JSON.parse('")
+	b.WriteString(tsEscapeSingleQuoteString(string(r.RawOBI)))
+	b.WriteString("');\n\n")
 
 	// --- Operations type map ---
 	b.WriteString("// --- Operation type map ---\n\n")
@@ -109,44 +123,15 @@ func EmitTypeScript(r *CodegenResult) string {
 
 	opsType := fmt.Sprintf("%sOperations", r.InterfaceName)
 	b.WriteString(fmt.Sprintf("export class %sClient {\n", r.InterfaceName))
-	b.WriteString("  private invoker: OperationInvoker;\n")
-	b.WriteString(fmt.Sprintf("  private _client: InterfaceClient<%s> | null = null;\n", opsType))
+	b.WriteString(fmt.Sprintf("  /** The OBI contract this client was generated against. Operations + schemas only; no bindings. */\n"))
+	b.WriteString("  static readonly CONTRACT: OBInterface = INTERFACE;\n")
+	b.WriteString(fmt.Sprintf("  private readonly client: InterfaceClient<%s>;\n\n", opsType))
 
-	// Constructor — takes a pre-built OperationInvoker, matching the Go codegen pattern.
-	// The caller configures the invoker with whatever options they need (transform evaluator,
-	// context store, callbacks, binding selector, etc.) before passing it in.
-	b.WriteString("\n  constructor(invoker: OperationInvoker) {\n")
-	b.WriteString("    this.invoker = invoker;\n")
-	b.WriteString("  }\n\n")
-
-	// connect method.
-	b.WriteString("  /**\n")
-	b.WriteString("   * Connect to a service. Resolves the OBI, sets up auth context,\n")
-	b.WriteString("   * and prepares the client for operation calls.\n")
-	b.WriteString("   */\n")
-	b.WriteString("  async connect(url: string, opts?: ConnectOptions): Promise<void> {\n")
-	b.WriteString("    const store = opts?.contextStore ?? this.invoker.contextStore ?? new MemoryStore();\n")
-	b.WriteString("    const callbacks = opts?.platformCallbacks ?? this.invoker.platformCallbacks;\n")
-	b.WriteString("    if (opts?.bearerToken) {\n")
-	b.WriteString("      const key = normalizeContextKey(url);\n")
-	b.WriteString("      await store.set(key, { bearerToken: opts.bearerToken });\n")
-	b.WriteString("    }\n")
-	b.WriteString("    const invoker = this.invoker.withRuntime(store, callbacks);\n")
-	b.WriteString(fmt.Sprintf("    const client = new InterfaceClient<%s>(INTERFACE, invoker, {\n", opsType))
-	b.WriteString("      contextStore: store,\n")
-	b.WriteString("      platformCallbacks: callbacks,\n")
-	b.WriteString("    });\n")
-	b.WriteString("    await client.resolve(url, { signal: opts?.signal });\n")
-	b.WriteString("    if (client.state.kind === 'error') {\n")
-	b.WriteString("      throw new Error(client.state.message);\n")
-	b.WriteString("    }\n")
-	b.WriteString("    this._client = client;\n")
-	b.WriteString("  }\n\n")
-
-	// Private client getter.
-	b.WriteString(fmt.Sprintf("  private get client(): InterfaceClient<%s> {\n", opsType))
-	b.WriteString("    if (!this._client) throw new Error('Not connected. Call connect() first.');\n")
-	b.WriteString("    return this._client;\n")
+	// Constructor takes the resolved OBI directly. The caller is responsible
+	// for acquiring it (e.g. via `fetchInterface(url)`) and may validate
+	// against `static CONTRACT` before construction.
+	b.WriteString("  constructor(iface: OBInterface, invoker: OperationInvoker) {\n")
+	b.WriteString(fmt.Sprintf("    this.client = new InterfaceClient<%s>(iface, invoker);\n", opsType))
 	b.WriteString("  }\n\n")
 
 	// Operation methods — unary + stream.
@@ -158,12 +143,6 @@ func EmitTypeScript(r *CodegenResult) string {
 	}
 
 	b.WriteString("}\n\n")
-
-	// --- Embedded interface ---
-	b.WriteString("// --- Embedded interface ---\n\n")
-	b.WriteString("const INTERFACE: OBInterface = JSON.parse('")
-	b.WriteString(tsEscapeSingleQuoteString(string(r.RawOBI)))
-	b.WriteString("');\n")
 
 	return b.String()
 }
@@ -211,7 +190,7 @@ func emitTSUnaryMethod(b *strings.Builder, op OperationSig, invokeOptsType strin
 	}
 	b.WriteString(fmt.Sprintf("    for await (const event of this.client.invoke(\"%s\", %s, options)) {\n", op.Key, inputArg))
 	b.WriteString("      if (event.error) {\n")
-	b.WriteString("        throw new ClientOperationError(event.error.code, event.error.message, event.error.details);\n")
+	b.WriteString("        throw new ClientOperationError(event.error.code, event.error.message, event.error.details, event.data);\n")
 	b.WriteString("      }\n")
 	if isVoid {
 		b.WriteString("      return;\n")

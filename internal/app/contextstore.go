@@ -19,16 +19,7 @@ import (
 // ContextConfig holds the non-secret fields of a URL-keyed context.
 // Persisted as JSON in ~/.config/openbindings/contexts/<sanitized-url>.json.
 type ContextConfig struct {
-	URL             string                      `json:"url"`
-	Headers         map[string]string           `json:"headers,omitempty"`
-	Cookies         map[string]string           `json:"cookies,omitempty"`
-	Environment     map[string]string           `json:"environment,omitempty"`
-	Metadata        map[string]any              `json:"metadata,omitempty"`
-	SourceOverrides map[string]*ContextOverride `json:"sourceOverrides,omitempty"`
-}
-
-// ContextOverride holds per-source context overrides within a target context.
-type ContextOverride struct {
+	URL         string            `json:"url"`
 	Headers     map[string]string `json:"headers,omitempty"`
 	Cookies     map[string]string `json:"cookies,omitempty"`
 	Environment map[string]string `json:"environment,omitempty"`
@@ -43,7 +34,6 @@ type ContextSummary struct {
 	CookieCount    int    `json:"cookieCount,omitempty"`
 	EnvCount       int    `json:"envCount,omitempty"`
 	MetadataCount  int    `json:"metadataCount,omitempty"`
-	SourceCount    int    `json:"sourceCount,omitempty"`
 	LoadError      string `json:"loadError,omitempty"`
 }
 
@@ -150,25 +140,11 @@ func SaveContextConfig(rawURL string, cfg ContextConfig) error {
 	return AtomicWriteFile(path, data, FilePerm)
 }
 
-// keychainKey returns the keychain key for a URL-keyed context.
-// For source-level overrides, appends the source name.
-func keychainKey(url, source string) string {
-	if source != "" {
-		return url + "\x00" + source
-	}
-	return url
-}
-
 // LoadContextCredentials reads credentials from the OS keychain for a URL.
 // Returns nil (not an error) if no credentials are stored.
 // The returned map uses well-known field names (bearerToken, apiKey, basic).
 func LoadContextCredentials(url string) (map[string]any, error) {
-	return loadKeychainCredentials(keychainKey(url, ""))
-}
-
-// LoadSourceContextCredentials reads credentials for a source-level override.
-func LoadSourceContextCredentials(url, source string) (map[string]any, error) {
-	return loadKeychainCredentials(keychainKey(url, source))
+	return loadKeychainCredentials(url)
 }
 
 func loadKeychainCredentials(key string) (map[string]any, error) {
@@ -189,12 +165,7 @@ func loadKeychainCredentials(key string) (map[string]any, error) {
 // SaveContextCredentials writes credentials to the OS keychain for a URL.
 // The map should use well-known field names (bearerToken, apiKey, basic).
 func SaveContextCredentials(url string, cred map[string]any) error {
-	return saveKeychainCredentials(keychainKey(url, ""), cred)
-}
-
-// SaveSourceContextCredentials writes credentials for a source-level override.
-func SaveSourceContextCredentials(url, source string, cred map[string]any) error {
-	return saveKeychainCredentials(keychainKey(url, source), cred)
+	return saveKeychainCredentials(url, cred)
 }
 
 func saveKeychainCredentials(key string, cred map[string]any) error {
@@ -213,7 +184,7 @@ func saveKeychainCredentials(key string, cred map[string]any) error {
 
 // DeleteContextCredentials removes credentials from the OS keychain.
 func DeleteContextCredentials(url string) error {
-	return deleteKeychainCredentials(keychainKey(url, ""))
+	return deleteKeychainCredentials(url)
 }
 
 func deleteKeychainCredentials(key string) error {
@@ -303,49 +274,6 @@ func resolveContextURL(targetURL string) string {
 	return ""
 }
 
-// LoadContextForSource loads context for a specific source within a target.
-// Source-level overrides are merged on top of the target-level context.
-// Source-level credentials replace (not merge with) target-level credentials.
-func LoadContextForSource(targetURL, sourceName string) (bindCtx map[string]any, opts *openbindings.InvocationOptions, err error) {
-	if targetURL == "" {
-		return nil, nil, nil
-	}
-	targetURL = normalizeContextKey(targetURL)
-
-	matchedURL := resolveContextURL(targetURL)
-	if matchedURL == "" {
-		return nil, nil, nil
-	}
-
-	cfg, err := LoadContextConfig(matchedURL)
-	if err != nil {
-		return nil, nil, err
-	}
-	cred, err := LoadContextCredentials(matchedURL)
-	if err != nil {
-		return nil, nil, err
-	}
-
-	baseOpts := configToOptions(&cfg)
-
-	if sourceName == "" {
-		return cred, baseOpts, nil
-	}
-
-	override, ok := cfg.SourceOverrides[sourceName]
-	if !ok || override == nil {
-		return cred, baseOpts, nil
-	}
-
-	srcCred, err := LoadSourceContextCredentials(matchedURL, sourceName)
-	if err == nil && len(srcCred) > 0 {
-		cred = srcCred
-	}
-
-	mergedOpts := mergeOptions(baseOpts, override)
-	return cred, mergedOpts, nil
-}
-
 // configToOptions converts a ContextConfig's non-credential fields to InvocationOptions.
 func configToOptions(cfg *ContextConfig) *openbindings.InvocationOptions {
 	if cfg == nil {
@@ -362,68 +290,11 @@ func configToOptions(cfg *ContextConfig) *openbindings.InvocationOptions {
 	}
 }
 
-// mergeOptions merges a ContextOverride on top of base InvocationOptions.
-func mergeOptions(base *openbindings.InvocationOptions, override *ContextOverride) *openbindings.InvocationOptions {
-	if override == nil {
-		return base
-	}
-	var bh, bc, be map[string]string
-	var bm map[string]any
-	if base != nil {
-		bh, bc, be, bm = base.Headers, base.Cookies, base.Environment, base.Metadata
-	}
-	merged := &openbindings.InvocationOptions{
-		Headers:     mergeMaps(bh, override.Headers),
-		Cookies:     mergeMaps(bc, override.Cookies),
-		Environment: mergeMaps(be, override.Environment),
-		Metadata:    mergeAnyMaps(bm, override.Metadata),
-	}
-	if len(merged.Headers) == 0 && len(merged.Cookies) == 0 && len(merged.Environment) == 0 && len(merged.Metadata) == 0 {
-		return nil
-	}
-	return merged
-}
-
-func mergeMaps(base, overlay map[string]string) map[string]string {
-	if len(overlay) == 0 {
-		return base
-	}
-	result := make(map[string]string, len(base)+len(overlay))
-	for k, v := range base {
-		result[k] = v
-	}
-	for k, v := range overlay {
-		result[k] = v
-	}
-	return result
-}
-
-func mergeAnyMaps(base, overlay map[string]any) map[string]any {
-	if len(overlay) == 0 {
-		return base
-	}
-	result := make(map[string]any, len(base)+len(overlay))
-	for k, v := range base {
-		result[k] = v
-	}
-	for k, v := range overlay {
-		result[k] = v
-	}
-	return result
-}
-
 // DeleteContext removes both the config file and keychain entry for a URL-keyed context.
 func DeleteContext(url string) error {
 	path, err := contextConfigPath(url)
 	if err != nil {
 		return err
-	}
-	// Also delete source-level keychain entries
-	cfg, _ := LoadContextConfig(url)
-	if cfg.SourceOverrides != nil {
-		for src := range cfg.SourceOverrides {
-			_ = deleteKeychainCredentials(keychainKey(url, src))
-		}
 	}
 	if err := os.Remove(path); err != nil && !os.IsNotExist(err) {
 		return fmt.Errorf("removing context config for %q: %w", url, err)
@@ -440,7 +311,7 @@ func ContextExists(url string) bool {
 	if _, err := os.Stat(path); err == nil {
 		return true
 	}
-	_, err = keyring.Get(KeychainService, keychainKey(url, ""))
+	_, err = keyring.Get(KeychainService, url)
 	return err == nil
 }
 
@@ -480,7 +351,7 @@ func ListContexts() ([]ContextSummary, error) {
 			cfg.URL = strings.TrimSuffix(e.Name(), ".json")
 		}
 		hasCreds := false
-		if _, kerr := keyring.Get(KeychainService, keychainKey(cfg.URL, "")); kerr == nil {
+		if _, kerr := keyring.Get(KeychainService, cfg.URL); kerr == nil {
 			hasCreds = true
 		}
 		summaries = append(summaries, ContextSummary{
@@ -490,7 +361,6 @@ func ListContexts() ([]ContextSummary, error) {
 			CookieCount:    len(cfg.Cookies),
 			EnvCount:       len(cfg.Environment),
 			MetadataCount:  len(cfg.Metadata),
-			SourceCount:    len(cfg.SourceOverrides),
 		})
 	}
 
@@ -508,7 +378,7 @@ func GetContextSummary(rawURL string) (ContextSummary, error) {
 	if err != nil {
 		if os.IsNotExist(err) {
 			hasCreds := false
-			if _, kerr := keyring.Get(KeychainService, keychainKey(targetURL, "")); kerr == nil {
+			if _, kerr := keyring.Get(KeychainService, targetURL); kerr == nil {
 				hasCreds = true
 			}
 			if hasCreds {
@@ -519,7 +389,7 @@ func GetContextSummary(rawURL string) (ContextSummary, error) {
 		return ContextSummary{URL: targetURL, LoadError: err.Error()}, err
 	}
 	hasCreds := false
-	if _, kerr := keyring.Get(KeychainService, keychainKey(targetURL, "")); kerr == nil {
+	if _, kerr := keyring.Get(KeychainService, targetURL); kerr == nil {
 		hasCreds = true
 	}
 	return ContextSummary{
@@ -529,13 +399,19 @@ func GetContextSummary(rawURL string) (ContextSummary, error) {
 		CookieCount:    len(cfg.Cookies),
 		EnvCount:       len(cfg.Environment),
 		MetadataCount:  len(cfg.Metadata),
-		SourceCount:    len(cfg.SourceOverrides),
 	}, nil
 }
 
 // cliContextStore implements openbindings.ContextStore by wrapping the CLI's
-// existing file+keychain persistence. The SDK and drivers call this through
-// the ContextStore interface — they never import this package directly.
+// file+keychain persistence. The SDK and drivers call this through the
+// ContextStore interface — they never import this package directly.
+//
+// Following the openbindings.context-store role, values are unified Context
+// payloads: credential fields (bearerToken, apiKey, basic, ...) alongside
+// transport fields (headers, cookies, environment, metadata) in a single
+// opaque map. The implementation splits storage internally — secrets to the
+// OS keychain, transport fields to the on-disk config file — but that split
+// is not part of the role contract.
 type cliContextStore struct{}
 
 // NewCLIContextStore returns a ContextStore backed by the CLI's file-system
@@ -543,16 +419,15 @@ type cliContextStore struct{}
 func NewCLIContextStore() openbindings.ContextStore { return &cliContextStore{} }
 
 func (s *cliContextStore) Get(_ context.Context, key string) (map[string]any, error) {
-	cred, _, err := LoadContext(key)
-	return cred, err
+	return BuildUnifiedContext(key)
 }
 
 func (s *cliContextStore) Set(_ context.Context, key string, value map[string]any) error {
-	return SaveContextCredentials(key, value)
+	return SaveUnifiedContext(key, value)
 }
 
 func (s *cliContextStore) Delete(_ context.Context, key string) error {
-	return DeleteContextCredentials(key)
+	return DeleteContext(key)
 }
 
 // DetectLegacyContexts checks for old-style named context files (those without

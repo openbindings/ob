@@ -8,6 +8,11 @@ import (
 )
 
 // SoftwareInfo contains identity and metadata for a piece of software.
+// It mirrors the openbindings.software-descriptor role's schema, which is
+// a generic identity contract — any software implementing the role can
+// return one. Do not add OB-specific fields (like supported spec range)
+// here; they belong on OB-specific roles or are derivable from the OBI
+// document itself.
 type SoftwareInfo struct {
 	Name        string `json:"name"`
 	Version     string `json:"version,omitempty"`
@@ -15,14 +20,11 @@ type SoftwareInfo struct {
 	Homepage    string `json:"homepage,omitempty"`
 	Repository  string `json:"repository,omitempty"`
 	Maintainer  string `json:"maintainer,omitempty"`
-	// SpecRange is the range of OpenBindings spec versions this build
-	// understands, sourced from the SDK (openbindings-go's
-	// MinSupportedVersion / MaxTestedVersion constants). Formatted as
-	// "min..max" (or just "min" when min == max).
-	SpecRange string `json:"specRange,omitempty"`
 }
 
-// RenderSoftwareInfo returns a human-friendly styled representation of SoftwareInfo.
+// RenderSoftwareInfo returns a human-friendly styled representation of
+// SoftwareInfo. Pure renderer: no ob-specific extras. Use RenderObInfo
+// when rendering ob's own info.
 func RenderSoftwareInfo(sw SoftwareInfo) string {
 	s := Styles
 	var sb strings.Builder
@@ -65,20 +67,29 @@ func RenderSoftwareInfo(sw SoftwareInfo) string {
 		sb.WriteString(s.Key.Render(sw.Repository))
 	}
 
-	if sw.SpecRange != "" {
-		sb.WriteString("\n  ")
-		sb.WriteString(s.Bullet.Render("•"))
-		sb.WriteString(" ")
-		sb.WriteString(s.Dim.Render("Spec:       "))
-		sb.WriteString(sw.SpecRange)
-	}
-
 	return sb.String()
 }
 
-// specRange formats the SDK's supported spec range for display.
-// "0.1.0" when min == max; "0.1.0..0.2.0" when a genuine range.
-func specRange() string {
+// RenderObInfo renders ob's own SoftwareInfo with the supported spec
+// version range appended. The range comes from the SDK's
+// MinSupportedVersion / MaxTestedVersion constants, not from any
+// wire-level field. Use RenderSoftwareInfo for rendering generic
+// SoftwareInfo values from other sources.
+func RenderObInfo(sw SoftwareInfo) string {
+	s := Styles
+	out := RenderSoftwareInfo(sw)
+	var sb strings.Builder
+	sb.WriteString(out)
+	sb.WriteString("\n  ")
+	sb.WriteString(s.Bullet.Render("•"))
+	sb.WriteString(" ")
+	sb.WriteString(s.Dim.Render("Spec:       "))
+	sb.WriteString(formatSpecRange())
+	return sb.String()
+}
+
+// formatSpecRange returns "0.1.0" when min == max, "0.1.0..0.2.0" otherwise.
+func formatSpecRange() string {
 	min, max := openbindings.SupportedRange()
 	if min == max {
 		return min
@@ -95,6 +106,5 @@ func Info() SoftwareInfo {
 		Homepage:    "https://openbindings.com",
 		Repository:  "https://github.com/openbindings/ob",
 		Maintainer:  "OpenBindings Project",
-		SpecRange:   specRange(),
 	}
 }

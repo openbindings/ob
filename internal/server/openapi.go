@@ -29,10 +29,14 @@ func AsyncAPISpec() []byte {
 	return asyncapiSpec
 }
 
-//go:embed host.obi.json
-var hostOBI []byte
+//go:embed serve.obi.json
+var serveOBI []byte
 
-// HostOBI returns the embedded host OpenBindings interface.
-func HostOBI() []byte {
-	return hostOBI
+// ServeOBI returns the embedded OBI document that `ob serve` publishes.
+// It declares which role interfaces this binary's serve subcommand
+// satisfies (software-descriptor, binding-invoker, interface-creator,
+// source-inspector, context-store, http-client). The historical name
+// "host.obi.json" predates the move to modular role-based interfaces.
+func ServeOBI() []byte {
+	return serveOBI
 }

@@ -75,12 +75,12 @@ Examples:
 					return app.ExitResult{Code: 2, Message: fmt.Sprintf("invalid URL: %s", rawURL), ToStderr: true}
 				}
 
-				ic := openbindings.NewUnboundClient(invoker)
-				if err := ic.Resolve(ctx, normalized); err != nil {
+				fetched, err := openbindings.FetchInterface(ctx, normalized)
+				if err != nil {
 					logger.Warn("failed to resolve interface", "url", normalized, "error", err)
 					continue
 				}
-				iface := ic.Resolved()
+				iface := fetched.Interface
 				if iface == nil {
 					logger.Warn("no interface resolved", "url", normalized)
 					continue

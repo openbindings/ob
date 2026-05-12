@@ -193,8 +193,9 @@ func handleHealthz(w http.ResponseWriter, r *http.Request) {
 
 func handleOBI(port int) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		// Serve the local service OBI (not the CLI OBI).
-		raw := server.HostOBI()
+		// Serve the OBI describing what this `ob serve` instance
+		// publishes (not the CLI OBI).
+		raw := server.ServeOBI()
 		var iface map[string]any
 		if err := json.Unmarshal(raw, &iface); err != nil {
 			writeJSON(w, http.StatusInternalServerError, ErrorResponse{Error: err.Error()})
@@ -354,12 +355,12 @@ func handleContextGet(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	summary, err := app.GetContextSummary(targetURL)
+	payload, err := app.BuildUnifiedContext(targetURL)
 	if err != nil {
 		writeJSON(w, http.StatusInternalServerError, ErrorResponse{Error: err.Error()})
 		return
 	}
-	writeJSON(w, http.StatusOK, summary)
+	writeJSON(w, http.StatusOK, payload)
 }
 
 func handleContextSet(w http.ResponseWriter, r *http.Request) {
@@ -369,14 +370,7 @@ func handleContextSet(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var body struct {
-		Headers     map[string]string `json:"headers,omitempty"`
-		Cookies     map[string]string `json:"cookies,omitempty"`
-		Environment map[string]string `json:"environment,omitempty"`
-		Metadata    map[string]any    `json:"metadata,omitempty"`
-		BearerToken string            `json:"bearerToken,omitempty"`
-		APIKey      string            `json:"apiKey,omitempty"`
-	}
+	var body map[string]any
 	if r.Body != nil {
 		r.Body = http.MaxBytesReader(w, r.Body, maxRequestBodyBytes)
 		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
@@ -385,29 +379,9 @@ func handleContextSet(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	cfg := app.ContextConfig{
-		Headers:     body.Headers,
-		Cookies:     body.Cookies,
-		Environment: body.Environment,
-		Metadata:    body.Metadata,
-	}
-	if err := app.SaveContextConfig(targetURL, cfg); err != nil {
+	if err := app.SaveUnifiedContext(targetURL, body); err != nil {
 		writeJSON(w, http.StatusInternalServerError, ErrorResponse{Error: err.Error()})
 		return
-	}
-
-	if body.BearerToken != "" || body.APIKey != "" {
-		cred := map[string]any{}
-		if body.BearerToken != "" {
-			cred["bearerToken"] = body.BearerToken
-		}
-		if body.APIKey != "" {
-			cred["apiKey"] = body.APIKey
-		}
-		if err := app.SaveContextCredentials(targetURL, cred); err != nil {
-			writeJSON(w, http.StatusInternalServerError, ErrorResponse{Error: err.Error()})
-			return
-		}
 	}
 
 	writeJSON(w, http.StatusOK, map[string]string{"url": targetURL, "status": "updated"})
@@ -461,10 +435,11 @@ func handleResolve(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]any{
-		"interface":   iface,
-		"url":         result.OBIURL,
-		"finalUrl":    result.FinalURL,
-		"synthesized": result.Synthesized,
+		"interface":    iface,
+		"url":          result.OBIURL,
+		"finalUrl":     result.FinalURL,
+		"synthesized":  result.Synthesized,
+		"sourceFormat": result.SourceFormat,
 	})
 }
 

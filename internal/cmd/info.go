@@ -14,7 +14,7 @@ func newInfoCmd() *cobra.Command {
 			info := app.Info()
 			format, outputPath := getOutputFlags(cmd)
 			return app.OutputResultText(info, format, outputPath, func() string {
-				return app.RenderSoftwareInfo(info)
+				return app.RenderObInfo(info)
 			})
 		},
 	}

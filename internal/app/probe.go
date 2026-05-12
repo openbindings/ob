@@ -190,27 +190,21 @@ func ProbeOBI(rawURL string, timeout time.Duration) ProbeResult {
 	return probeHTTP(u, timeout)
 }
 
-// probeHTTP uses the SDK's InterfaceClient to resolve an HTTP URL, then maps
-// the result into a ProbeResult. An empty required interface is used so any
-// valid OBI is accepted (compatibility isn't the concern of ProbeOBI).
+// probeHTTP uses FetchInterface to resolve an HTTP URL, then maps the
+// result into a ProbeResult.
 func probeHTTP(u string, timeout time.Duration) ProbeResult {
-	invoker := DefaultInvoker()
-	ic := openbindings.NewUnboundClient(invoker)
-
 	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
 
-	err := ic.Resolve(ctx, u, DefaultCreator())
+	fetched, err := openbindings.FetchInterface(ctx, u, openbindings.WithCreators(DefaultCreator()))
 	if err != nil {
 		return ProbeResult{Status: ProbeStatusBad, Detail: err.Error()}
 	}
-
-	resolved := ic.Resolved()
-	if resolved == nil {
+	if fetched == nil || fetched.Interface == nil {
 		return ProbeResult{Status: ProbeStatusBad, Detail: "openbindings not found"}
 	}
 
-	data, err := json.MarshalIndent(resolved, "", "  ")
+	data, err := json.MarshalIndent(fetched.Interface, "", "  ")
 	if err != nil {
 		return ProbeResult{Status: ProbeStatusBad, Detail: err.Error()}
 	}
@@ -219,12 +213,12 @@ func probeHTTP(u string, timeout time.Duration) ProbeResult {
 		Status:      ProbeStatusOK,
 		OBI:         string(data),
 		OBIURL:      u,
-		FinalURL:    ic.ResolvedURL(),
-		Synthesized: ic.Synthesized(),
+		FinalURL:    u,
+		Synthesized: fetched.Synthesized,
 	}
 
-	if ic.Synthesized() {
-		srcFormat := firstSourceFormat(resolved)
+	if fetched.Synthesized {
+		srcFormat := firstSourceFormat(fetched.Interface)
 		result.SourceFormat = srcFormat
 		result.Detail = "synthesized"
 		if srcFormat != "" {
@@ -250,20 +244,17 @@ func FetchOBI(urlOrHost string) ([]byte, error) {
 		return nil, fmt.Errorf("fetch requires an HTTP(S) URL or host (got %q)", urlOrHost)
 	}
 
-	invoker := DefaultInvoker()
-	ic := openbindings.NewUnboundClient(invoker)
-
 	ctx, cancel := context.WithTimeout(context.Background(), delegates.DefaultProbeTimeout)
 	defer cancel()
 
-	if err := ic.Resolve(ctx, u, DefaultCreator()); err != nil {
+	fetched, err := openbindings.FetchInterface(ctx, u, openbindings.WithCreators(DefaultCreator()))
+	if err != nil {
 		return nil, err
 	}
-	resolved := ic.Resolved()
-	if resolved == nil {
+	if fetched == nil || fetched.Interface == nil {
 		return nil, fmt.Errorf("no OpenBindings interface at %s (try %s%s)", u, strings.TrimSuffix(u, "/"), openbindings.WellKnownPath)
 	}
-	return json.MarshalIndent(resolved, "", "  ")
+	return json.MarshalIndent(fetched.Interface, "", "  ")
 }
 
 func normalizeOBIJSON(body []byte) (string, bool) {

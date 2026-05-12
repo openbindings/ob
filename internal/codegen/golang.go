@@ -39,24 +39,22 @@ func EmitGo(r *CodegenResult, packageName string) string {
 	b.WriteString("\tclient *openbindings.InterfaceClient\n")
 	b.WriteString("}\n\n")
 
-	// Constructor.
-	b.WriteString(fmt.Sprintf("// New%s creates a new typed client.\n", clientName))
-	b.WriteString(fmt.Sprintf("func New%s(invoker *openbindings.OperationInvoker, opts ...openbindings.InterfaceClientOption) *%s {\n", clientName, clientName))
+	// Contract accessor — exposes the OBI contract this client was generated
+	// against, for opt-in compatibility validation by callers.
+	b.WriteString(fmt.Sprintf("// %sContract returns the OBI contract this client was generated against.\n", clientName))
+	b.WriteString("// Operations + schemas only; bindings are stripped for HTTP-fetchable sources.\n")
+	b.WriteString(fmt.Sprintf("func %sContract() *openbindings.Interface {\n", clientName))
+	b.WriteString("\treturn mustParseInterface()\n")
+	b.WriteString("}\n\n")
+
+	// Constructor takes the resolved OBI directly. The caller is responsible
+	// for acquiring it (e.g. via openbindings.FetchInterface(ctx, url)) and
+	// may validate against the contract before construction.
+	b.WriteString(fmt.Sprintf("// New%s constructs a client bound to the given OBI.\n", clientName))
+	b.WriteString(fmt.Sprintf("func New%s(iface *openbindings.Interface, invoker *openbindings.OperationInvoker, opts ...openbindings.InterfaceClientOption) *%s {\n", clientName, clientName))
 	b.WriteString(fmt.Sprintf("\treturn &%s{\n", clientName))
-	b.WriteString("\t\tclient: openbindings.NewInterfaceClient(mustParseInterface(), invoker, opts...),\n")
+	b.WriteString("\t\tclient: openbindings.NewInterfaceClient(iface, invoker, opts...),\n")
 	b.WriteString("\t}\n")
-	b.WriteString("}\n\n")
-
-	// Resolve method.
-	b.WriteString(fmt.Sprintf("// Resolve connects the client to a target.\n"))
-	b.WriteString(fmt.Sprintf("func (c *%s) Resolve(ctx context.Context, target string) error {\n", clientName))
-	b.WriteString("\treturn c.client.Resolve(ctx, target)\n")
-	b.WriteString("}\n\n")
-
-	// State method.
-	b.WriteString(fmt.Sprintf("// State returns the current client state.\n"))
-	b.WriteString(fmt.Sprintf("func (c *%s) State() openbindings.InterfaceClientState {\n", clientName))
-	b.WriteString("\treturn c.client.State()\n")
 	b.WriteString("}\n\n")
 
 	// Operation methods.

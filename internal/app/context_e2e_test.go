@@ -43,66 +43,6 @@ func TestContextE2E_URLKeyedRoundTrip(t *testing.T) {
 	}
 }
 
-func TestContextE2E_SourceOverrideMerge(t *testing.T) {
-	setupContextTestDir(t)
-
-	targetURL := "https://api.multi.com/spec.json"
-
-	cfg := ContextConfig{
-		Headers: map[string]string{"X-Base": "base", "X-Shared": "from-base"},
-		SourceOverrides: map[string]*ContextOverride{
-			"payments-v2": {
-				Headers: map[string]string{"X-Source": "source-only", "X-Shared": "from-source"},
-			},
-		},
-	}
-	if err := SaveContextConfig(targetURL, cfg); err != nil {
-		t.Fatalf("SaveContextConfig: %v", err)
-	}
-
-	_, baseOpts, err := GetContext(targetURL)
-	if err != nil {
-		t.Fatalf("GetContext: %v", err)
-	}
-	if baseOpts == nil {
-		t.Fatal("GetContext: expected non-nil InvocationOptions")
-	}
-	if baseOpts.Headers["X-Base"] != "base" {
-		t.Errorf("base header mismatch: %q", baseOpts.Headers["X-Base"])
-	}
-	if baseOpts.Headers["X-Shared"] != "from-base" {
-		t.Errorf("shared header should be base-level: %q", baseOpts.Headers["X-Shared"])
-	}
-
-	_, mergedOpts, err := GetContextForSource(targetURL, "payments-v2")
-	if err != nil {
-		t.Fatalf("GetContextForSource: %v", err)
-	}
-	if mergedOpts == nil {
-		t.Fatal("GetContextForSource: expected non-nil InvocationOptions")
-	}
-	if mergedOpts.Headers["X-Base"] != "base" {
-		t.Errorf("base header should carry through merge: %q", mergedOpts.Headers["X-Base"])
-	}
-	if mergedOpts.Headers["X-Source"] != "source-only" {
-		t.Errorf("source header missing: %q", mergedOpts.Headers["X-Source"])
-	}
-	if mergedOpts.Headers["X-Shared"] != "from-source" {
-		t.Errorf("source override should win: %q", mergedOpts.Headers["X-Shared"])
-	}
-
-	_, noOverrideOpts, err := GetContextForSource(targetURL, "nonexistent-source")
-	if err != nil {
-		t.Fatalf("GetContextForSource (no override): %v", err)
-	}
-	if noOverrideOpts == nil {
-		t.Fatal("GetContextForSource: expected non-nil InvocationOptions")
-	}
-	if noOverrideOpts.Headers["X-Shared"] != "from-base" {
-		t.Errorf("no override should return base: %q", noOverrideOpts.Headers["X-Shared"])
-	}
-}
-
 func TestContextE2E_EmptyURLReturnsEmpty(t *testing.T) {
 	setupContextTestDir(t)
 

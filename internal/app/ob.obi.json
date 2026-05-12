@@ -136,8 +136,7 @@
       "ref": "#/paths/~1contexts~1{url}/get",
       "source": "openapi",
       "x-ob": {},
-      "inputTransform": "{ \"url\": key }",
-      "outputTransform": "{ \"key\": url, \"context\": $ ~> | $ | {}, [\"url\", \"hasCredentials\", \"headerCount\", \"cookieCount\", \"envCount\"] | }"
+      "inputTransform": "{ \"url\": key }"
     },
     "getContext.usage": {
       "operation": "getContext",
@@ -192,8 +191,7 @@
       "operation": "listContexts",
       "ref": "#/paths/~1contexts/get",
       "source": "openapi",
-      "x-ob": {},
-      "outputTransform": "$.{ \"key\": url }"
+      "x-ob": {}
     },
     "listContexts.usage": {
       "operation": "listContexts",
@@ -266,7 +264,7 @@
       "ref": "#/paths/~1contexts~1{url}/put",
       "source": "openapi",
       "x-ob": {},
-      "inputTransform": "{ \"url\": key, \"bearerToken\": context.bearerToken, \"apiKey\": context.apiKey, \"headers\": context.headers, \"cookies\": context.cookies, \"environment\": context.environment, \"metadata\": context.metadata }"
+      "inputTransform": "$merge([{ \"url\": key }, context])"
     },
     "setContext.usage": {
       "operation": "setContext",
@@ -537,7 +535,8 @@
       "x-ob": {}
     },
     "deleteContext": {
-      "description": "Delete a stored context entry.",
+      "description": "Delete the stored context for a key. Deleting an absent key succeeds.",
+      "idempotent": true,
       "input": {
         "type": "object",
         "properties": {
@@ -745,7 +744,7 @@
       "x-ob": {}
     },
     "getContext": {
-      "description": "Get a stored context entry by key.",
+      "description": "Get the stored context for a key. Returns the unified context payload (credentials, headers, cookies, environment, metadata in a single opaque map), or null when no context exists for the key.",
       "idempotent": true,
       "input": {
         "type": "object",
@@ -761,7 +760,10 @@
         "additionalProperties": false
       },
       "output": {
-        "$ref": "#/schemas/ContextEntry"
+        "oneOf": [
+          { "$ref": "#/schemas/Context" },
+          { "type": "null" }
+        ]
       },
       "satisfies": [
         {
@@ -897,20 +899,14 @@
       "x-ob": {}
     },
     "listContexts": {
-      "description": "List all stored context entries.",
+      "description": "List metadata summaries for all stored contexts (no secret values). Not part of the openbindings.context-store role contract — this is ob's management surface.",
       "idempotent": true,
       "output": {
         "type": "array",
         "items": {
-          "$ref": "#/schemas/ContextEntry"
+          "$ref": "#/schemas/ContextSummary"
         }
       },
-      "satisfies": [
-        {
-          "role": "openbindings.context-store",
-          "operation": "listContexts"
-        }
-      ],
       "tags": [
         "context"
       ]
@@ -1171,7 +1167,8 @@
       "x-ob": {}
     },
     "setContext": {
-      "description": "Set or update a context entry.",
+      "description": "Create or replace the context for a key. The supplied context fully replaces any existing context (full replacement, not partial update).",
+      "idempotent": true,
       "input": {
         "type": "object",
         "properties": {
@@ -1180,9 +1177,7 @@
             "description": "Context store key."
           },
           "context": {
-            "type": "object",
-            "description": "Credential map to store.",
-            "additionalProperties": true
+            "$ref": "#/schemas/Context"
           }
         },
         "required": [
@@ -1421,24 +1416,48 @@
   },
   "version": "0.1.0",
   "schemas": {
-    "ContextEntry": {
+    "Context": {
       "type": "object",
-      "description": "A stored context entry.",
+      "description": "Opaque per-target context payload — credentials, session state, headers, cookies, environment, metadata, or any other invoker-managed state. Well-known fields include 'bearerToken', 'apiKey', 'basic', 'headers', 'cookies', 'environment', 'metadata'.",
+      "additionalProperties": true
+    },
+    "ContextSummary": {
+      "type": "object",
+      "description": "Non-secret metadata about a stored context entry. Returned by listContexts; never includes secret values.",
       "properties": {
-        "key": {
+        "url": {
           "type": "string",
-          "description": "Context store key (typically a normalized API origin)."
+          "description": "Context store key (normalized API origin or other stable identifier)."
         },
-        "context": {
-          "type": "object",
-          "description": "Opaque credential map. Well-known fields include 'bearerToken', 'apiKey', 'basic'.",
-          "additionalProperties": true
+        "hasCredentials": {
+          "type": "boolean",
+          "description": "Whether the keychain holds credentials for this key."
+        },
+        "headerCount": {
+          "type": "integer",
+          "description": "Number of stored headers."
+        },
+        "cookieCount": {
+          "type": "integer",
+          "description": "Number of stored cookies."
+        },
+        "envCount": {
+          "type": "integer",
+          "description": "Number of stored environment variables."
+        },
+        "metadataCount": {
+          "type": "integer",
+          "description": "Number of stored metadata keys."
+        },
+        "loadError": {
+          "type": "string",
+          "description": "Set if the entry's config file could not be parsed."
         }
       },
       "required": [
-        "key"
-      ],
-      "additionalProperties": false
+        "url",
+        "hasCredentials"
+      ]
     },
     "CreateInterfaceSource": {
       "type": "object",

@@ -28,6 +28,10 @@ func registerBindingRoutes(srv *server.Server, logger *slog.Logger) {
 type wsErrorDetail struct {
 	Message string `json:"message"`
 	Code    string `json:"code,omitempty"`
+	// Details carries structured info from the SDK's InvocationError.Details.
+	// For OBI-T-07 / OBI-T-08 validation failures, this is a
+	// ValidationFailureDetails value with a Failures slice.
+	Details any `json:"details,omitempty"`
 }
 
 // wsStreamEvent is the JSON envelope sent over WebSocket for each stream event.
@@ -155,17 +159,28 @@ func handleBindingInvokeWS(srv *server.Server, logger *slog.Logger, w http.Respo
 	}
 
 	for ev := range events {
-		if ev.Error != nil {
-			if err := wsjson.Write(ctx, conn, wsStreamEvent{
-				Type:  "error",
-				Error: &wsErrorDetail{Message: ev.Error.Message, Code: ev.Error.Code},
-			}); err != nil {
-				logger.Error("websocket write failed", "error", err)
-				return
-			}
-			continue
+		// A StreamEvent may carry both Data and Error when OBI-T-08
+		// output validation fails: the response was produced but didn't
+		// match the declared schema. Emit a single frame carrying both
+		// so clients can render the response alongside the diagnostic.
+		// The `type` discriminator stays "event" whenever data is
+		// present (since data is the headline) and "error" only when
+		// the frame is purely a diagnostic.
+		frame := wsStreamEvent{Type: "event"}
+		if ev.Data != nil {
+			frame.Data = ev.Data
 		}
-		if err := wsjson.Write(ctx, conn, wsStreamEvent{Type: "event", Data: ev.Data}); err != nil {
+		if ev.Error != nil {
+			frame.Error = &wsErrorDetail{
+				Message: ev.Error.Message,
+				Code:    ev.Error.Code,
+				Details: ev.Error.Details,
+			}
+			if ev.Data == nil {
+				frame.Type = "error"
+			}
+		}
+		if err := wsjson.Write(ctx, conn, frame); err != nil {
 			logger.Error("websocket write failed", "error", err)
 			return
 		}

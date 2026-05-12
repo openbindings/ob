@@ -107,10 +107,13 @@ paths:
     x-path-style: remainder
     get:
       operationId: getContext
-      summary: Get context details for a target URL
+      summary: Get the unified stored context for a target URL
       description: >
-        The {url} parameter captures the remainder of the path (including slashes).
-        Clients should append the target URL directly after /contexts/ without encoding slashes.
+        Returns the unified context payload (credentials, headers, cookies,
+        environment, metadata in a single opaque map) for the target URL, or
+        null when no context exists. The {url} parameter captures the
+        remainder of the path (including slashes); clients should append the
+        target URL directly after /contexts/ without encoding slashes.
       parameters:
         - name: url
           in: path
@@ -120,14 +123,20 @@ paths:
           description: Target URL (remainder path — slashes are literal, not encoded)
       responses:
         "200":
-          description: Context summary
+          description: Stored context payload, or null when no context exists
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/ContextSummary"
+                oneOf:
+                  - $ref: "#/components/schemas/Context"
+                  - type: "null"
     put:
       operationId: setContext
-      summary: Set context fields for a target URL
+      summary: Create or replace the stored context for a target URL
+      description: >
+        Full replacement. The request body is the unified context payload —
+        credentials, headers, cookies, environment, and metadata fields in a
+        single opaque map. Any existing context for the URL is replaced.
       parameters:
         - name: url
           in: path
@@ -139,26 +148,7 @@ paths:
         content:
           application/json:
             schema:
-              type: object
-              properties:
-                headers:
-                  type: object
-                  additionalProperties:
-                    type: string
-                cookies:
-                  type: object
-                  additionalProperties:
-                    type: string
-                environment:
-                  type: object
-                  additionalProperties:
-                    type: string
-                metadata:
-                  type: object
-                bearerToken:
-                  type: string
-                apiKey:
-                  type: string
+              $ref: "#/components/schemas/Context"
       responses:
         "200":
           description: Context updated
@@ -628,6 +618,15 @@ components:
         delegateCount:
           type: integer
 
+    Context:
+      type: object
+      description: >
+        Opaque per-target context payload — credentials, session state,
+        headers, cookies, environment, metadata, or any other invoker-managed
+        state. Well-known fields include bearerToken, apiKey, basic, headers,
+        cookies, environment, metadata.
+      additionalProperties: true
+
     ContextSummary:
       type: object
       properties:
@@ -641,6 +640,10 @@ components:
           type: integer
         envCount:
           type: integer
+        metadataCount:
+          type: integer
+        loadError:
+          type: string
 
     Delegate:
       type: object
