@@ -44,10 +44,10 @@ func EmitTypeScript(r *CodegenResult) string {
 		}
 	}
 
-	// --- TypedStreamEvent ---
-	b.WriteString("// --- Stream event ---\n\n")
-	b.WriteString("export interface TypedStreamEvent<T> {\n")
-	b.WriteString("  data?: T;\n")
+	// --- TypedInvocationOutput ---
+	b.WriteString("// --- Invocation output ---\n\n")
+	b.WriteString("export interface TypedInvocationOutput<T> {\n")
+	b.WriteString("  output?: T;\n")
 	b.WriteString("  error?: { code: string; message: string; details?: unknown };\n")
 	b.WriteString("}\n\n")
 
@@ -190,13 +190,13 @@ func emitTSUnaryMethod(b *strings.Builder, op OperationSig, invokeOptsType strin
 	}
 	b.WriteString(fmt.Sprintf("    for await (const event of this.client.invoke(\"%s\", %s, options)) {\n", op.Key, inputArg))
 	b.WriteString("      if (event.error) {\n")
-	b.WriteString("        throw new ClientOperationError(event.error.code, event.error.message, event.error.details, event.data);\n")
+	b.WriteString("        throw new ClientOperationError(event.error.code, event.error.message, event.error.details, event.output);\n")
 	b.WriteString("      }\n")
 	if isVoid {
 		b.WriteString("      return;\n")
 	} else {
-		b.WriteString("      if (event.data !== undefined) {\n")
-		b.WriteString(fmt.Sprintf("        return event.data as %s;\n", outputType))
+		b.WriteString("      if (event.output !== undefined) {\n")
+		b.WriteString(fmt.Sprintf("        return event.output as %s;\n", outputType))
 		b.WriteString("      }\n")
 	}
 	b.WriteString("    }\n")
@@ -225,7 +225,7 @@ func emitTSStreamMethod(b *strings.Builder, op OperationSig, invokeOptsType stri
 	}
 	params = append(params, fmt.Sprintf("options?: %s", invokeOptsType))
 
-	b.WriteString(fmt.Sprintf("  async *%s(%s): AsyncGenerator<TypedStreamEvent<%s>> {\n",
+	b.WriteString(fmt.Sprintf("  async *%s(%s): AsyncGenerator<TypedInvocationOutput<%s>> {\n",
 		methodName, strings.Join(params, ", "), outputType))
 
 	// Body.
@@ -234,7 +234,7 @@ func emitTSStreamMethod(b *strings.Builder, op OperationSig, invokeOptsType stri
 		inputArg = "input"
 	}
 	b.WriteString(fmt.Sprintf("    for await (const event of this.client.invoke(\"%s\", %s, options)) {\n", op.Key, inputArg))
-	b.WriteString(fmt.Sprintf("      yield event as TypedStreamEvent<%s>;\n", outputType))
+	b.WriteString(fmt.Sprintf("      yield event as TypedInvocationOutput<%s>;\n", outputType))
 	b.WriteString("    }\n")
 	b.WriteString("  }\n")
 }

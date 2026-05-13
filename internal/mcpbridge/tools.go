@@ -110,7 +110,7 @@ func registerTool(
 					Content: []mcp.Content{&mcp.TextContent{Text: ev.Error.Message}},
 				}, nil
 			}
-			lastData = ev.Data
+			lastData = ev.Output
 		}
 
 		data, err := json.Marshal(lastData)
@@ -157,7 +157,7 @@ func registerResource(
 			if ev.Error != nil {
 				return nil, fmt.Errorf("%s: %s", ev.Error.Code, ev.Error.Message)
 			}
-			lastData = ev.Data
+			lastData = ev.Output
 		}
 
 		text := ""
@@ -225,7 +225,7 @@ func registerPrompt(
 			if ev.Error != nil {
 				return nil, fmt.Errorf("%s: %s", ev.Error.Code, ev.Error.Message)
 			}
-			lastData = ev.Data
+			lastData = ev.Output
 		}
 
 		// The dispatcher returns the prompt result as an object with

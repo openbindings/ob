@@ -166,10 +166,10 @@ func (e *echoMockInvoker) Formats() []openbindings.FormatInfo {
 	return []openbindings.FormatInfo{{Token: "x-mock", Description: "echo mock"}}
 }
 
-func (e *echoMockInvoker) InvokeBinding(_ context.Context, in *openbindings.BindingInvocationInput) (<-chan openbindings.StreamEvent, error) {
-	ch := make(chan openbindings.StreamEvent, 1)
-	ch <- openbindings.StreamEvent{
-		Data:   in.Input,
+func (e *echoMockInvoker) InvokeBinding(_ context.Context, in *openbindings.BindingInvocationInput) (<-chan openbindings.InvocationOutput, error) {
+	ch := make(chan openbindings.InvocationOutput, 1)
+	ch <- openbindings.InvocationOutput{
+		Output:   in.Input,
 		Status: 200,
 	}
 	close(ch)

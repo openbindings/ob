@@ -34,11 +34,12 @@ type wsErrorDetail struct {
 	Details any `json:"details,omitempty"`
 }
 
-// wsStreamEvent is the JSON envelope sent over WebSocket for each stream event.
-type wsStreamEvent struct {
-	Type  string         `json:"type"`
-	Data  any            `json:"data,omitempty"`
-	Error *wsErrorDetail `json:"error,omitempty"`
+// wsInvocationOutput is the JSON envelope sent over WebSocket for each output
+// of a streaming invocation.
+type wsInvocationOutput struct {
+	Type   string         `json:"type"`
+	Output any            `json:"output,omitempty"`
+	Error  *wsErrorDetail `json:"error,omitempty"`
 }
 
 func handleBindingInvoke(srv *server.Server, logger *slog.Logger) http.HandlerFunc {
@@ -147,28 +148,28 @@ func handleBindingInvokeWS(srv *server.Server, logger *slog.Logger, w http.Respo
 		// Streaming not available for this operation — fall back to unary.
 		out := app.InvokeOperationWithContext(ctx, execInput)
 		if out.Error != nil {
-			_ = wsjson.Write(ctx, conn, wsStreamEvent{
+			_ = wsjson.Write(ctx, conn, wsInvocationOutput{
 				Type:  "error",
 				Error: &wsErrorDetail{Message: out.Error.Message, Code: out.Error.Code},
 			})
 		} else {
-			_ = wsjson.Write(ctx, conn, wsStreamEvent{Type: "event", Data: out.Output})
+			_ = wsjson.Write(ctx, conn, wsInvocationOutput{Type: "event", Output: out.Output})
 		}
 		conn.Close(websocket.StatusNormalClosure, "")
 		return
 	}
 
 	for ev := range events {
-		// A StreamEvent may carry both Data and Error when OBI-T-08
+		// A InvocationOutput may carry both Data and Error when OBI-T-08
 		// output validation fails: the response was produced but didn't
 		// match the declared schema. Emit a single frame carrying both
 		// so clients can render the response alongside the diagnostic.
 		// The `type` discriminator stays "event" whenever data is
 		// present (since data is the headline) and "error" only when
 		// the frame is purely a diagnostic.
-		frame := wsStreamEvent{Type: "event"}
-		if ev.Data != nil {
-			frame.Data = ev.Data
+		frame := wsInvocationOutput{Type: "event"}
+		if ev.Output != nil {
+			frame.Output = ev.Output
 		}
 		if ev.Error != nil {
 			frame.Error = &wsErrorDetail{
@@ -176,7 +177,7 @@ func handleBindingInvokeWS(srv *server.Server, logger *slog.Logger, w http.Respo
 				Code:    ev.Error.Code,
 				Details: ev.Error.Details,
 			}
-			if ev.Data == nil {
+			if ev.Output == nil {
 				frame.Type = "error"
 			}
 		}

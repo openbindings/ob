@@ -152,8 +152,8 @@ func isHostPort(s string) bool {
 	return err == nil
 }
 
-// StreamEvent is an app-layer alias for openbindings.StreamEvent.
-type StreamEvent = openbindings.StreamEvent
+// InvocationOutput is an app-layer alias for openbindings.InvocationOutput.
+type InvocationOutput = openbindings.InvocationOutput
 
 // InvokeOBIOperation invokes an operation from an OBI file and returns a
 // stream of events. Every operation is a stream — unary calls produce one
@@ -161,12 +161,12 @@ type StreamEvent = openbindings.StreamEvent
 //
 // If the resolved format has a builtin streaming driver, it is used.
 // Otherwise, the unary invocation path is used and its result is wrapped as
-// a single StreamEvent.
+// a single InvocationOutput.
 //
 // Exactly one of opKey or bindingKey must be non-empty:
 //   - opKey: selects the highest-priority binding for that operation.
 //   - bindingKey: looks up the binding directly (operation is read from the entry).
-func InvokeOBIOperation(ctx context.Context, obiPath string, opKey string, bindingKey string, input any) (<-chan StreamEvent, error) {
+func InvokeOBIOperation(ctx context.Context, obiPath string, opKey string, bindingKey string, input any) (<-chan InvocationOutput, error) {
 	iface, err := resolveInterface(obiPath)
 	if err != nil {
 		return nil, fmt.Errorf("load OBI %q: %w", obiPath, err)
@@ -207,11 +207,11 @@ func InvokeOBIOperation(ctx context.Context, obiPath string, opKey string, bindi
 		}
 	}
 
-	ch := make(chan StreamEvent, 1)
+	ch := make(chan InvocationOutput, 1)
 	if result.Error != nil {
-		ch <- StreamEvent{Error: &openbindings.InvocationError{Code: result.Error.Code, Message: result.Error.Message}}
+		ch <- InvocationOutput{Error: &openbindings.InvocationError{Code: result.Error.Code, Message: result.Error.Message}}
 	} else {
-		ch <- StreamEvent{Data: result.Output}
+		ch <- InvocationOutput{Output: result.Output}
 	}
 	close(ch)
 	return ch, nil
@@ -219,27 +219,27 @@ func InvokeOBIOperation(ctx context.Context, obiPath string, opKey string, bindi
 
 // transformEventStream applies the binding's outputTransform to each event.
 // Returns the source channel directly if no transform is configured.
-func transformEventStream(src <-chan StreamEvent, iface *openbindings.Interface, resolved *resolvedBinding) <-chan StreamEvent {
+func transformEventStream(src <-chan InvocationOutput, iface *openbindings.Interface, resolved *resolvedBinding) <-chan InvocationOutput {
 	if resolved.binding.OutputTransform == nil {
 		return src
 	}
-	out := make(chan StreamEvent)
+	out := make(chan InvocationOutput)
 	go func() {
 		defer close(out)
 		for ev := range src {
-			if ev.Error != nil || ev.Data == nil {
+			if ev.Error != nil || ev.Output == nil {
 				out <- ev
 				continue
 			}
-			transformed, err := ApplyTransform(iface.Transforms, resolved.binding.OutputTransform, ev.Data)
+			transformed, err := ApplyTransform(iface.Transforms, resolved.binding.OutputTransform, ev.Output)
 			if err != nil {
-				out <- StreamEvent{Error: &openbindings.InvocationError{
+				out <- InvocationOutput{Error: &openbindings.InvocationError{
 					Code:    "output_transform_error",
 					Message: fmt.Sprintf("output transform failed: %v", err),
 				}}
 				continue
 			}
-			out <- StreamEvent{Data: transformed}
+			out <- InvocationOutput{Output: transformed}
 		}
 	}()
 	return out
@@ -248,7 +248,7 @@ func transformEventStream(src <-chan StreamEvent, iface *openbindings.Interface,
 // SubscribeOBIOperationDirect opens a streaming subscription using
 // pre-resolved binding components. Used by the TUI which already has the
 // interface, binding, and source loaded.
-func SubscribeOBIOperationDirect(ctx context.Context, binding *openbindings.BindingEntry, source openbindings.Source, obiDir string) (<-chan StreamEvent, error) {
+func SubscribeOBIOperationDirect(ctx context.Context, binding *openbindings.BindingEntry, source openbindings.Source, obiDir string) (<-chan InvocationOutput, error) {
 	es := resolveSourceLocation(source, obiDir)
 	return DefaultInvoker().InvokeBinding(ctx, &openbindings.BindingInvocationInput{
 		Source: es,
@@ -355,7 +355,7 @@ func InvokeOperationWithContext(ctx context.Context, input InvokeOperationInput)
 // support. Mirrors InvokeOperationWithContext but returns a channel of events
 // instead of a single output. External delegates are not supported (streaming
 // across process boundaries requires a transport protocol; use builtin drivers).
-func SubscribeOperationWithContext(ctx context.Context, input InvokeOperationInput) (<-chan StreamEvent, error) {
+func SubscribeOperationWithContext(ctx context.Context, input InvokeOperationInput) (<-chan InvocationOutput, error) {
 	if input.Source.Format == "" {
 		return nil, fmt.Errorf("source.format is required")
 	}
@@ -415,7 +415,7 @@ func invokeViaBuiltin(ctx context.Context, input InvokeOperationInput) InvokeOpe
 		}
 	}
 
-	var last *openbindings.StreamEvent
+	var last *openbindings.InvocationOutput
 	for ev := range ch {
 		ev := ev
 		last = &ev
@@ -435,7 +435,7 @@ func invokeViaBuiltin(ctx context.Context, input InvokeOperationInput) InvokeOpe
 		}
 	}
 	return InvokeOperationOutput{
-		Output:     last.Data,
+		Output:     last.Output,
 		Status:     last.Status,
 		DurationMs: last.DurationMs,
 	}

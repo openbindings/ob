@@ -182,7 +182,7 @@ func emitGoHelpers(b *strings.Builder) {
 	b.WriteString("\t\tif event.Error != nil {\n")
 	b.WriteString("\t\t\treturn nil, fmt.Errorf(\"%s: %s\", event.Error.Code, event.Error.Message)\n")
 	b.WriteString("\t\t}\n")
-	b.WriteString("\t\tb, err := json.Marshal(event.Data)\n")
+	b.WriteString("\t\tb, err := json.Marshal(event.Output)\n")
 	b.WriteString("\t\tif err != nil {\n")
 	b.WriteString("\t\t\treturn nil, fmt.Errorf(\"marshal event data: %w\", err)\n")
 	b.WriteString("\t\t}\n")

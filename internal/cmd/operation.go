@@ -109,7 +109,7 @@ Examples:
 					hadError = true
 					continue
 				}
-				if err := enc.Encode(ev.Data); err != nil {
+				if err := enc.Encode(ev.Output); err != nil {
 					return app.ExitResult{Code: 1, Message: fmt.Sprintf("write error: %v", err), ToStderr: true}
 				}
 			}

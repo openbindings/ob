@@ -116,7 +116,7 @@ func TestContextGitHub_DispatcherDrivenInvocation(t *testing.T) {
 			}
 			t.Fatalf("InvokeOBIOperation stream error: %s (code: %s)", ev.Error.Message, ev.Error.Code)
 		}
-		lastData = ev.Data
+		lastData = ev.Output
 	}
 
 	outputMap, ok := lastData.(map[string]any)

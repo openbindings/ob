@@ -32,25 +32,25 @@ type mockStreamInvoker struct {
 }
 
 func (m *mockStreamInvoker) Formats() []openbindings.FormatInfo { return m.formats }
-func (m *mockStreamInvoker) InvokeBinding(_ context.Context, _ *openbindings.BindingInvocationInput) (<-chan openbindings.StreamEvent, error) {
-	ch := make(chan openbindings.StreamEvent, len(m.events))
+func (m *mockStreamInvoker) InvokeBinding(_ context.Context, _ *openbindings.BindingInvocationInput) (<-chan openbindings.InvocationOutput, error) {
+	ch := make(chan openbindings.InvocationOutput, len(m.events))
 	for _, ev := range m.events {
-		ch <- openbindings.StreamEvent{Data: ev}
+		ch <- openbindings.InvocationOutput{Output: ev}
 	}
 	close(ch)
 	return ch, nil
 }
 
-// rawStreamInvoker yields pre-built StreamEvents verbatim, letting tests
+// rawStreamInvoker yields pre-built InvocationOutputs verbatim, letting tests
 // exercise frames with data, error, or both set simultaneously.
 type rawStreamInvoker struct {
 	formats []openbindings.FormatInfo
-	events  []openbindings.StreamEvent
+	events  []openbindings.InvocationOutput
 }
 
 func (m *rawStreamInvoker) Formats() []openbindings.FormatInfo { return m.formats }
-func (m *rawStreamInvoker) InvokeBinding(_ context.Context, _ *openbindings.BindingInvocationInput) (<-chan openbindings.StreamEvent, error) {
-	ch := make(chan openbindings.StreamEvent, len(m.events))
+func (m *rawStreamInvoker) InvokeBinding(_ context.Context, _ *openbindings.BindingInvocationInput) (<-chan openbindings.InvocationOutput, error) {
+	ch := make(chan openbindings.InvocationOutput, len(m.events))
 	for _, ev := range m.events {
 		ch <- ev
 	}
@@ -577,7 +577,7 @@ func TestServeBindingExecute_WS_StreamE2E(t *testing.T) {
 	for {
 		var msg struct {
 			Type string `json:"type"`
-			Data any    `json:"data,omitempty"`
+			Output any    `json:"output,omitempty"`
 		}
 		if err := wsjson.Read(ctx, conn, &msg); err != nil {
 			// Normal close frame signals end of stream.
@@ -589,7 +589,7 @@ func TestServeBindingExecute_WS_StreamE2E(t *testing.T) {
 		if msg.Type != "event" {
 			t.Fatalf("unexpected message type %q", msg.Type)
 		}
-		received = append(received, msg.Data)
+		received = append(received, msg.Output)
 	}
 
 	if len(received) != 3 {
@@ -603,16 +603,16 @@ func TestServeBindingExecute_WS_StreamE2E(t *testing.T) {
 }
 
 func TestServeBindingExecute_WS_FrameCarriesDataAndError(t *testing.T) {
-	// OBI-T-08: the SDK yields a StreamEvent with both Data and Error
+	// OBI-T-08: the SDK yields a InvocationOutput with both Data and Error
 	// populated when output validation fails. The WebSocket frame must
 	// preserve both so clients can render the response alongside the
 	// diagnostic. The `type` discriminator stays "event" (data is the
 	// headline); pure-error frames remain `type: "error"`.
 	mockInvoker := &rawStreamInvoker{
 		formats: []openbindings.FormatInfo{{Token: "mock-stream@1.0"}},
-		events: []openbindings.StreamEvent{
+		events: []openbindings.InvocationOutput{
 			{
-				Data: map[string]any{"count": 2, "next": nil},
+				Output: map[string]any{"count": 2, "next": nil},
 				Error: &openbindings.InvocationError{
 					Code:    "validation_failed",
 					Message: `openbindings: output validation failed for "abilityList.api": ...`,
@@ -651,7 +651,7 @@ func TestServeBindingExecute_WS_FrameCarriesDataAndError(t *testing.T) {
 
 	var frame struct {
 		Type  string         `json:"type"`
-		Data  any            `json:"data,omitempty"`
+		Output any            `json:"output,omitempty"`
 		Error map[string]any `json:"error,omitempty"`
 	}
 	if err := wsjson.Read(ctx, conn, &frame); err != nil {
@@ -660,9 +660,9 @@ func TestServeBindingExecute_WS_FrameCarriesDataAndError(t *testing.T) {
 	if frame.Type != "event" {
 		t.Errorf("expected type=event (data is headline), got %q", frame.Type)
 	}
-	data, ok := frame.Data.(map[string]any)
+	data, ok := frame.Output.(map[string]any)
 	if !ok {
-		t.Fatalf("expected data map, got %#v", frame.Data)
+		t.Fatalf("expected data map, got %#v", frame.Output)
 	}
 	if data["count"].(float64) != 2 {
 		t.Errorf("data.count = %#v, want 2", data["count"])
@@ -690,12 +690,12 @@ func TestServeBindingExecute_WS_FrameCarriesDataAndError(t *testing.T) {
 }
 
 func TestServeBindingExecute_WS_PureErrorFrameStillUsesErrorType(t *testing.T) {
-	// A StreamEvent with Error but no Data still produces a frame with
+	// A InvocationOutput with Error but no Data still produces a frame with
 	// type="error" for backward compatibility with clients that branch
 	// on the discriminator.
 	mockInvoker := &rawStreamInvoker{
 		formats: []openbindings.FormatInfo{{Token: "mock-stream@1.0"}},
-		events: []openbindings.StreamEvent{
+		events: []openbindings.InvocationOutput{
 			{
 				Error: &openbindings.InvocationError{
 					Code:    "auth_required",
@@ -730,7 +730,7 @@ func TestServeBindingExecute_WS_PureErrorFrameStillUsesErrorType(t *testing.T) {
 
 	var frame struct {
 		Type  string         `json:"type"`
-		Data  any            `json:"data,omitempty"`
+		Output any            `json:"output,omitempty"`
 		Error map[string]any `json:"error,omitempty"`
 	}
 	if err := wsjson.Read(ctx, conn, &frame); err != nil {
@@ -739,8 +739,8 @@ func TestServeBindingExecute_WS_PureErrorFrameStillUsesErrorType(t *testing.T) {
 	if frame.Type != "error" {
 		t.Errorf("expected type=error for pure error frame, got %q", frame.Type)
 	}
-	if frame.Data != nil {
-		t.Errorf("expected no data, got %#v", frame.Data)
+	if frame.Output != nil {
+		t.Errorf("expected no data, got %#v", frame.Output)
 	}
 	if frame.Error == nil || frame.Error["code"] != "auth_required" {
 		t.Errorf("error frame missing or wrong code: %#v", frame.Error)
