@@ -1580,39 +1580,6 @@
       "description": "Opaque runtime context for binding invocation.",
       "additionalProperties": true
     },
-    "InvocationOptions": {
-      "type": "object",
-      "description": "Developer-supplied per-request invocation options.",
-      "properties": {
-        "headers": {
-          "type": "object",
-          "description": "HTTP headers.",
-          "additionalProperties": {
-            "type": "string"
-          }
-        },
-        "cookies": {
-          "type": "object",
-          "description": "Cookies.",
-          "additionalProperties": {
-            "type": "string"
-          }
-        },
-        "environment": {
-          "type": "object",
-          "description": "Environment variables.",
-          "additionalProperties": {
-            "type": "string"
-          }
-        },
-        "metadata": {
-          "type": "object",
-          "description": "Open metadata map.",
-          "additionalProperties": true
-        }
-      },
-      "additionalProperties": false
-    },
     "InvokeBindingInput": {
       "type": "object",
       "description": "Input for executing a resolved binding.",
@@ -1631,10 +1598,6 @@
         "context": {
           "$ref": "#/schemas/BindingContext",
           "description": "Runtime binding context."
-        },
-        "options": {
-          "$ref": "#/schemas/InvocationOptions",
-          "description": "Developer-supplied invocation options."
         }
       },
       "required": [
