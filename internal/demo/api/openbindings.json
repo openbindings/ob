@@ -178,10 +178,10 @@
       "description": "GraphQL API — flexible queries with field selection"
     },
     "placeAndTrackGraph": {
-      "format": "openbindings.operation-graph@0.1.0",
+      "format": "openbindings.operation-graph@0.2.0",
       "description": "Operation graph — places an order and tracks it via the SSE event stream until ready",
       "content": {
-        "openbindings.operation-graph": "0.1.0",
+        "openbindings.operation-graph": "0.2.0",
         "graphs": {
           "placeAndTrack": {
             "description": "Place a coffee order, subscribe to live updates, and return when the order is ready.",
@@ -192,17 +192,11 @@
               "combined":  { "type": "combine" },
               "match":     {
                 "type": "filter",
-                "transform": {
-                  "type": "jsonata",
-                  "expression": "place != null and subscribe != null and subscribe.orderId = place.orderId and subscribe.status in ['ready', 'picked_up']"
-                }
+                "transform": "place != null and subscribe != null and subscribe.orderId = place.orderId and subscribe.status in ['ready', 'picked_up']"
               },
               "shape":     {
                 "type": "transform",
-                "transform": {
-                  "type": "jsonata",
-                  "expression": "subscribe"
-                }
+                "transform": "subscribe"
               },
               "done":      { "type": "exit", "onError": "out" },
               "out":       { "type": "output" }
