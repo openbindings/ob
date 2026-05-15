@@ -82,9 +82,9 @@ func TestEmitTypeScriptDemo(t *testing.T) {
 		t.Error("missing MenuItem interface")
 	}
 
-	// Should have client class.
-	if !strings.Contains(code, "export class OpenBlendingsClient") {
-		t.Error("missing client class")
+	// Should have typed invoker class.
+	if !strings.Contains(code, "export class OpenBlendingsInvoker") {
+		t.Error("missing typed invoker class")
 	}
 
 	// Should have unary method.
@@ -97,12 +97,12 @@ func TestEmitTypeScriptDemo(t *testing.T) {
 		t.Error("missing getMenuStream method")
 	}
 
-	// Should take OBI in constructor (no async connect).
-	if !strings.Contains(code, "constructor(iface: OBInterface, invoker: OperationInvoker)") {
-		t.Error("missing OBI-taking constructor")
+	// Should take only the invoker at construction; the OBI is passed per call.
+	if !strings.Contains(code, "constructor(private readonly invoker: OperationInvoker)") {
+		t.Error("missing invoker-only constructor")
 	}
 	if strings.Contains(code, "async connect(") {
-		t.Error("generated client still emits connect() — should be removed")
+		t.Error("generated invoker still emits connect() — should be removed")
 	}
 
 	// Should expose the contract for opt-in validation by callers.
@@ -110,14 +110,14 @@ func TestEmitTypeScriptDemo(t *testing.T) {
 		t.Error("missing static CONTRACT export")
 	}
 
-	// Should have ClientOperationError.
-	if !strings.Contains(code, "class ClientOperationError") {
-		t.Error("missing ClientOperationError")
+	// Should have OperationError.
+	if !strings.Contains(code, "class OperationError") {
+		t.Error("missing OperationError")
 	}
 
-	// Should have operations type map.
-	if !strings.Contains(code, "type OpenBlendingsOperations") {
-		t.Error("missing operations type map")
+	// Methods should take the interface as the first parameter.
+	if !strings.Contains(code, "getMenu(iface: OBInterface") {
+		t.Error("getMenu should take iface as first parameter")
 	}
 
 	// Should have embedded OBI.
@@ -145,19 +145,22 @@ func TestEmitGoDemo(t *testing.T) {
 		t.Error("missing MenuItem struct")
 	}
 
-	// Should have client.
-	if !strings.Contains(code, "type OpenBlendingsClient struct") {
-		t.Error("missing client struct")
+	// Should have typed invoker struct.
+	if !strings.Contains(code, "type OpenBlendingsInvoker struct") {
+		t.Error("missing typed invoker struct")
 	}
 
 	// Should have constructor.
-	if !strings.Contains(code, "func NewOpenBlendingsClient") {
+	if !strings.Contains(code, "func NewOpenBlendingsInvoker") {
 		t.Error("missing constructor")
 	}
 
-	// Should have methods.
-	if !strings.Contains(code, "func (c *OpenBlendingsClient) GetMenu") {
+	// Should have methods taking iface as a parameter.
+	if !strings.Contains(code, "func (inv *OpenBlendingsInvoker) GetMenu") {
 		t.Error("missing GetMenu method")
+	}
+	if !strings.Contains(code, "iface *openbindings.Interface") {
+		t.Error("methods should take iface parameter")
 	}
 
 	// Should have invokeUnary helper.

@@ -5,7 +5,12 @@ import (
 	"strings"
 )
 
-// EmitGo generates a Go client file from a CodegenResult.
+// EmitGo generates a Go typed-operation-invoker file from a CodegenResult.
+//
+// The output is a struct named <InterfaceName>Invoker that wraps an
+// *openbindings.OperationInvoker. Each operation becomes a typed method.
+// The interface is passed per call so a single typed invoker can dispatch
+// against multiple providers of the same role contract.
 func EmitGo(r *CodegenResult, packageName string) string {
 	if packageName == "" {
 		packageName = SanitizePackageName(r.InterfaceName)
@@ -30,36 +35,31 @@ func EmitGo(r *CodegenResult, packageName string) string {
 		}
 	}
 
-	// Client struct.
-	clientName := r.InterfaceName + "Client"
-	if r.Description != "" {
-		b.WriteString(goDocComment(fmt.Sprintf("%s wraps an InterfaceClient with typed methods.", clientName), ""))
-	}
-	b.WriteString(fmt.Sprintf("type %s struct {\n", clientName))
-	b.WriteString("\tclient *openbindings.InterfaceClient\n")
+	// Typed operation invoker.
+	invokerName := r.InterfaceName + "Invoker"
+	b.WriteString(goDocComment(fmt.Sprintf("%s exposes typed methods for the operations declared by the codegen-time OBI contract. The runtime interface is passed per call so one invoker can dispatch against any OBI that satisfies the contract.", invokerName), ""))
+	b.WriteString(fmt.Sprintf("type %s struct {\n", invokerName))
+	b.WriteString("\tinvoker *openbindings.OperationInvoker\n")
 	b.WriteString("}\n\n")
 
-	// Contract accessor — exposes the OBI contract this client was generated
+	// Contract accessor — exposes the OBI contract this invoker was generated
 	// against, for opt-in compatibility validation by callers.
-	b.WriteString(fmt.Sprintf("// %sContract returns the OBI contract this client was generated against.\n", clientName))
+	b.WriteString(fmt.Sprintf("// %sContract returns the OBI contract this invoker was generated against.\n", invokerName))
 	b.WriteString("// Operations + schemas only; bindings are stripped for HTTP-fetchable sources.\n")
-	b.WriteString(fmt.Sprintf("func %sContract() *openbindings.Interface {\n", clientName))
+	b.WriteString(fmt.Sprintf("func %sContract() *openbindings.Interface {\n", invokerName))
 	b.WriteString("\treturn mustParseInterface()\n")
 	b.WriteString("}\n\n")
 
-	// Constructor takes the resolved OBI directly. The caller is responsible
-	// for acquiring it (e.g. via openbindings.FetchInterface(ctx, url)) and
-	// may validate against the contract before construction.
-	b.WriteString(fmt.Sprintf("// New%s constructs a client bound to the given OBI.\n", clientName))
-	b.WriteString(fmt.Sprintf("func New%s(iface *openbindings.Interface, invoker *openbindings.OperationInvoker, opts ...openbindings.InterfaceClientOption) *%s {\n", clientName, clientName))
-	b.WriteString(fmt.Sprintf("\treturn &%s{\n", clientName))
-	b.WriteString("\t\tclient: openbindings.NewInterfaceClient(iface, invoker, opts...),\n")
-	b.WriteString("\t}\n")
+	// Constructor wraps an OperationInvoker. The runtime OBI is supplied
+	// per call.
+	b.WriteString(fmt.Sprintf("// New%s wraps an OperationInvoker with typed methods.\n", invokerName))
+	b.WriteString(fmt.Sprintf("func New%s(invoker *openbindings.OperationInvoker) *%s {\n", invokerName, invokerName))
+	b.WriteString(fmt.Sprintf("\treturn &%s{invoker: invoker}\n", invokerName))
 	b.WriteString("}\n\n")
 
 	// Operation methods.
 	for _, op := range r.Operations {
-		emitGoMethod(&b, op, clientName)
+		emitGoMethod(&b, op, invokerName)
 	}
 
 	// Helpers.
@@ -99,13 +99,13 @@ func emitGoStruct(b *strings.Builder, td TypeDef) {
 	b.WriteString("}\n\n")
 }
 
-func emitGoMethod(b *strings.Builder, op OperationSig, clientName string) {
+func emitGoMethod(b *strings.Builder, op OperationSig, invokerName string) {
 	methodName := toPascalCase(op.Key)
 
 	// Doc comment.
 	if op.Description != "" || op.Deprecated {
 		var doc strings.Builder
-		doc.WriteString(fmt.Sprintf("%s invokes the %s operation.", methodName, op.Key))
+		doc.WriteString(fmt.Sprintf("%s invokes the %s operation against the supplied interface.", methodName, op.Key))
 		if op.Description != "" {
 			doc.WriteString("\n")
 			doc.WriteString(op.Description)
@@ -116,37 +116,39 @@ func emitGoMethod(b *strings.Builder, op OperationSig, clientName string) {
 		b.WriteString(goDocComment(doc.String(), ""))
 	}
 
-	// All operations use unary pattern for v1.
 	hasInput := op.Input != nil
 	hasOutput := op.Output != nil
 
-	// Build signature.
+	// Build signature: ctx, iface, [input,] bindCtx.
 	var params []string
 	params = append(params, "ctx context.Context")
+	params = append(params, "iface *openbindings.Interface")
 	if hasInput {
 		inputType := goTypeRef(*op.Input, false)
-		// Use pointer for named/struct inputs.
 		if op.Input.Kind == KindNamed {
 			params = append(params, "input *"+inputType)
 		} else {
 			params = append(params, "input "+inputType)
 		}
 	}
+	params = append(params, "bindCtx map[string]any")
 
 	outputType := "any"
 	if hasOutput {
 		outputType = goTypeRef(*op.Output, false)
 	}
 
-	// For array outputs, return the value directly (not a pointer to a slice).
 	returnsSlice := hasOutput && op.Output.Kind == KindArray
 
-	if returnsSlice {
-		b.WriteString(fmt.Sprintf("func (c *%s) %s(%s) (%s, error) {\n",
-			clientName, methodName, strings.Join(params, ", "), outputType))
+	if !hasOutput {
+		b.WriteString(fmt.Sprintf("func (inv *%s) %s(%s) error {\n",
+			invokerName, methodName, strings.Join(params, ", ")))
+	} else if returnsSlice {
+		b.WriteString(fmt.Sprintf("func (inv *%s) %s(%s) (%s, error) {\n",
+			invokerName, methodName, strings.Join(params, ", "), outputType))
 	} else {
-		b.WriteString(fmt.Sprintf("func (c *%s) %s(%s) (*%s, error) {\n",
-			clientName, methodName, strings.Join(params, ", "), outputType))
+		b.WriteString(fmt.Sprintf("func (inv *%s) %s(%s) (*%s, error) {\n",
+			invokerName, methodName, strings.Join(params, ", "), outputType))
 	}
 
 	inputArg := "nil"
@@ -154,14 +156,17 @@ func emitGoMethod(b *strings.Builder, op OperationSig, clientName string) {
 		inputArg = "input"
 	}
 
-	if returnsSlice {
-		b.WriteString(fmt.Sprintf("\tv, err := invokeUnary[%s](ctx, c.client, \"%s\", %s)\n", outputType, op.Key, inputArg))
+	if !hasOutput {
+		b.WriteString(fmt.Sprintf("\t_, err := invokeUnary[any](ctx, inv.invoker, iface, \"%s\", %s, bindCtx)\n", op.Key, inputArg))
+		b.WriteString("\treturn err\n")
+	} else if returnsSlice {
+		b.WriteString(fmt.Sprintf("\tv, err := invokeUnary[%s](ctx, inv.invoker, iface, \"%s\", %s, bindCtx)\n", outputType, op.Key, inputArg))
 		b.WriteString("\tif err != nil {\n")
 		b.WriteString("\t\treturn nil, err\n")
 		b.WriteString("\t}\n")
 		b.WriteString("\treturn *v, nil\n")
 	} else {
-		b.WriteString(fmt.Sprintf("\treturn invokeUnary[%s](ctx, c.client, \"%s\", %s)\n", outputType, op.Key, inputArg))
+		b.WriteString(fmt.Sprintf("\treturn invokeUnary[%s](ctx, inv.invoker, iface, \"%s\", %s, bindCtx)\n", outputType, op.Key, inputArg))
 	}
 	b.WriteString("}\n\n")
 }
@@ -169,9 +174,20 @@ func emitGoMethod(b *strings.Builder, op OperationSig, clientName string) {
 func emitGoHelpers(b *strings.Builder) {
 	b.WriteString("// --- Helpers ---\n\n")
 
-	// invokeUnary.
-	b.WriteString("func invokeUnary[T any](ctx context.Context, c *openbindings.InterfaceClient, op string, input any) (*T, error) {\n")
-	b.WriteString("\tch, err := c.Invoke(ctx, op, input)\n")
+	b.WriteString("func invokeUnary[T any](\n")
+	b.WriteString("\tctx context.Context,\n")
+	b.WriteString("\topInv *openbindings.OperationInvoker,\n")
+	b.WriteString("\tiface *openbindings.Interface,\n")
+	b.WriteString("\top string,\n")
+	b.WriteString("\tinput any,\n")
+	b.WriteString("\tbindCtx map[string]any,\n")
+	b.WriteString(") (*T, error) {\n")
+	b.WriteString("\tch, err := opInv.Invoke(ctx, &openbindings.OperationInvocationInput{\n")
+	b.WriteString("\t\tInterface: iface,\n")
+	b.WriteString("\t\tOperation: op,\n")
+	b.WriteString("\t\tInput:     input,\n")
+	b.WriteString("\t\tContext:   bindCtx,\n")
+	b.WriteString("\t})\n")
 	b.WriteString("\tif err != nil {\n")
 	b.WriteString("\t\treturn nil, err\n")
 	b.WriteString("\t}\n")
@@ -184,7 +200,7 @@ func emitGoHelpers(b *strings.Builder) {
 	b.WriteString("\t\t}\n")
 	b.WriteString("\t\tb, err := json.Marshal(event.Output)\n")
 	b.WriteString("\t\tif err != nil {\n")
-	b.WriteString("\t\t\treturn nil, fmt.Errorf(\"marshal event data: %w\", err)\n")
+	b.WriteString("\t\t\treturn nil, fmt.Errorf(\"marshal event output: %w\", err)\n")
 	b.WriteString("\t\t}\n")
 	b.WriteString("\t\tvar result T\n")
 	b.WriteString("\t\tif err := json.Unmarshal(b, &result); err != nil {\n")
@@ -194,7 +210,6 @@ func emitGoHelpers(b *strings.Builder) {
 	b.WriteString("\t}\n")
 	b.WriteString("\treturn nil, fmt.Errorf(\"%s: no events received\", op)\n")
 	b.WriteString("}\n\n")
-
 }
 
 // goTypeRef converts an IR TypeRef to a Go type string.
