@@ -8,68 +8,26 @@ import (
 	openbindings "github.com/openbindings/openbindings-go"
 )
 
-// GetContext loads context and execution options for a target URL from the store.
-// Returns nil, nil if the URL is empty or no context exists.
-func GetContext(targetURL string) (map[string]any, *openbindings.InvocationOptions, error) {
+// GetContext loads the unified context payload for a target URL.
+// Returns nil if the URL is empty or no context exists.
+func GetContext(targetURL string) (map[string]any, error) {
 	if targetURL == "" {
-		return nil, nil, nil
+		return nil, nil
 	}
-	ctx, opts, err := LoadContext(targetURL)
+	ctx, err := LoadContext(targetURL)
 	if err != nil {
-		return nil, nil, fmt.Errorf("loading context for %q: %w", targetURL, err)
+		return nil, fmt.Errorf("loading context for %q: %w", targetURL, err)
 	}
-	return ctx, opts, nil
+	return ctx, nil
 }
 
-// transportFields are the well-known context fields that map to InvocationOptions
-// rather than to the keychain credentials blob. Anything else in a unified context
-// payload goes to the keychain.
+// transportFields are the well-known context fields that the CLI stores in
+// the on-disk config file rather than the keychain credentials blob.
 var transportFields = map[string]bool{
 	"headers":     true,
 	"cookies":     true,
 	"environment": true,
 	"metadata":    true,
-}
-
-// BuildUnifiedContext returns the unified context payload stored for a URL,
-// or nil if nothing is stored. The unified shape carries credential fields
-// (bearerToken, apiKey, basic, ...) alongside transport fields (headers,
-// cookies, environment, metadata) in a single opaque map — matching the
-// openbindings.context-store role's Context schema.
-func BuildUnifiedContext(rawURL string) (map[string]any, error) {
-	cred, opts, err := LoadContext(rawURL)
-	if err != nil {
-		return nil, fmt.Errorf("loading context for %q: %w", rawURL, err)
-	}
-	return UnifyContext(cred, opts), nil
-}
-
-// UnifyContext combines a credential map and InvocationOptions into the
-// unified Context payload shape (the openbindings.context-store role's
-// Context schema). Returns nil if both inputs are empty.
-func UnifyContext(cred map[string]any, opts *openbindings.InvocationOptions) map[string]any {
-	if len(cred) == 0 && (opts == nil || (len(opts.Headers) == 0 && len(opts.Cookies) == 0 && len(opts.Environment) == 0 && len(opts.Metadata) == 0)) {
-		return nil
-	}
-	result := make(map[string]any, len(cred)+4)
-	for k, v := range cred {
-		result[k] = v
-	}
-	if opts != nil {
-		if len(opts.Headers) > 0 {
-			result["headers"] = stringMapToAny(opts.Headers)
-		}
-		if len(opts.Cookies) > 0 {
-			result["cookies"] = stringMapToAny(opts.Cookies)
-		}
-		if len(opts.Environment) > 0 {
-			result["environment"] = stringMapToAny(opts.Environment)
-		}
-		if len(opts.Metadata) > 0 {
-			result["metadata"] = opts.Metadata
-		}
-	}
-	return result
 }
 
 // SaveUnifiedContext stores a unified context payload under a URL, fully
@@ -130,38 +88,42 @@ func anyMapToString(m map[string]any) map[string]string {
 	return out
 }
 
-// RenderBindingContext returns a human-friendly representation of binding context
-// and execution options.
-func RenderBindingContext(bindCtx map[string]any, opts *openbindings.InvocationOptions) string {
+// RenderBindingContext returns a human-friendly representation of a unified
+// context payload.
+func RenderBindingContext(ctx map[string]any) string {
 	s := Styles
 	var sb strings.Builder
 
-	empty := len(bindCtx) == 0 && (opts == nil || (len(opts.Headers) == 0 && len(opts.Cookies) == 0 && len(opts.Environment) == 0 && len(opts.Metadata) == 0))
-	if empty {
+	if len(ctx) == 0 {
 		sb.WriteString(s.Dim.Render("No context configured"))
 		return sb.String()
 	}
 
 	sb.WriteString(s.Header.Render("Binding Context"))
 
-	if len(bindCtx) > 0 {
+	hasCred := openbindings.ContextBearerToken(ctx) != "" ||
+		openbindings.ContextAPIKey(ctx) != ""
+	if _, _, ok := openbindings.ContextBasicAuth(ctx); ok {
+		hasCred = true
+	}
+	if hasCred {
 		sb.WriteString("\n\n")
 		sb.WriteString(s.Dim.Render("Credentials:"))
-		if token := openbindings.ContextBearerToken(bindCtx); token != "" {
+		if token := openbindings.ContextBearerToken(ctx); token != "" {
 			sb.WriteString("\n  ")
 			sb.WriteString(s.Bullet.Render("•"))
 			sb.WriteString(" ")
 			sb.WriteString(s.Dim.Render("Bearer: "))
 			sb.WriteString(maskSecret(token))
 		}
-		if key := openbindings.ContextAPIKey(bindCtx); key != "" {
+		if key := openbindings.ContextAPIKey(ctx); key != "" {
 			sb.WriteString("\n  ")
 			sb.WriteString(s.Bullet.Render("•"))
 			sb.WriteString(" ")
 			sb.WriteString(s.Dim.Render("API Key: "))
 			sb.WriteString(maskSecret(key))
 		}
-		if u, _, ok := openbindings.ContextBasicAuth(bindCtx); ok {
+		if u, _, ok := openbindings.ContextBasicAuth(ctx); ok {
 			sb.WriteString("\n  ")
 			sb.WriteString(s.Bullet.Render("•"))
 			sb.WriteString(" ")
@@ -170,27 +132,26 @@ func RenderBindingContext(bindCtx map[string]any, opts *openbindings.InvocationO
 		}
 	}
 
-	if opts != nil {
-		renderStringMap(&sb, s, "Headers:", opts.Headers, ": ", false)
-		renderStringMap(&sb, s, "Cookies:", opts.Cookies, "=", true)
-		renderStringMap(&sb, s, "Environment:", opts.Environment, "=", true)
+	renderStringMap(&sb, s, "Headers:", openbindings.ContextHeaders(ctx), ": ", false)
+	renderStringMap(&sb, s, "Cookies:", openbindings.ContextCookies(ctx), "=", true)
+	renderStringMap(&sb, s, "Environment:", openbindings.ContextEnvironment(ctx), "=", true)
 
-		if len(opts.Metadata) > 0 {
-			sb.WriteString("\n\n")
-			sb.WriteString(s.Dim.Render("Metadata:"))
-			metaKeys := make([]string, 0, len(opts.Metadata))
-			for k := range opts.Metadata {
-				metaKeys = append(metaKeys, k)
-			}
-			sort.Strings(metaKeys)
-			for _, k := range metaKeys {
-				sb.WriteString("\n  ")
-				sb.WriteString(s.Bullet.Render("•"))
-				sb.WriteString(" ")
-				sb.WriteString(s.Key.Render(k))
-				sb.WriteString(s.Dim.Render(": "))
-				sb.WriteString(fmt.Sprintf("%v", opts.Metadata[k]))
-			}
+	meta := openbindings.ContextMetadata(ctx)
+	if len(meta) > 0 {
+		sb.WriteString("\n\n")
+		sb.WriteString(s.Dim.Render("Metadata:"))
+		metaKeys := make([]string, 0, len(meta))
+		for k := range meta {
+			metaKeys = append(metaKeys, k)
+		}
+		sort.Strings(metaKeys)
+		for _, k := range metaKeys {
+			sb.WriteString("\n  ")
+			sb.WriteString(s.Bullet.Render("•"))
+			sb.WriteString(" ")
+			sb.WriteString(s.Key.Render(k))
+			sb.WriteString(s.Dim.Render(": "))
+			sb.WriteString(fmt.Sprintf("%v", meta[k]))
 		}
 	}
 

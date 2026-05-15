@@ -195,32 +195,38 @@ func deleteKeychainCredentials(key string) error {
 	return nil
 }
 
-// LoadContext loads binding context and execution options from config file +
-// keychain for a target URL. Uses hierarchical matching: tries the exact URL
-// first, then walks up the path (like cookies) to find the most specific match.
-// Context contains credentials (opaque, well-known fields).
-// Options contains developer-configured headers, cookies, env, metadata.
-func LoadContext(rawURL string) (bindCtx map[string]any, opts *openbindings.InvocationOptions, err error) {
+// LoadContext returns the unified context payload for a target URL, matching
+// the openbindings.context-store role's Context schema. Credential fields
+// (bearerToken, apiKey, basic, ...) sit alongside transport fields (headers,
+// cookies, environment, metadata) in a single opaque map. Internally the
+// implementation splits storage — secrets to the OS keychain, transport
+// fields to the on-disk config file — but that split is not part of the
+// outward contract.
+//
+// Hierarchical matching: tries the exact URL first, then walks up the path
+// (like cookies) to find the most specific match. Returns nil if no context
+// exists for the URL.
+func LoadContext(rawURL string) (map[string]any, error) {
 	if rawURL == "" {
-		return nil, nil, nil
+		return nil, nil
 	}
 	targetURL := normalizeContextKey(rawURL)
 
 	matchedURL := resolveContextURL(targetURL)
 	if matchedURL == "" {
-		return nil, nil, nil
+		return nil, nil
 	}
 
 	cfg, err := LoadContextConfig(matchedURL)
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
 	cred, err := LoadContextCredentials(matchedURL)
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
 
-	return cred, configToOptions(&cfg), nil
+	return mergeConfigAndCredentials(&cfg, cred), nil
 }
 
 // resolveContextURL finds the best matching context URL for a target.
@@ -274,20 +280,32 @@ func resolveContextURL(targetURL string) string {
 	return ""
 }
 
-// configToOptions converts a ContextConfig's non-credential fields to InvocationOptions.
-func configToOptions(cfg *ContextConfig) *openbindings.InvocationOptions {
-	if cfg == nil {
+// mergeConfigAndCredentials combines stored credentials and the non-secret
+// config into a single unified Context payload. Returns nil if both are empty.
+func mergeConfigAndCredentials(cfg *ContextConfig, cred map[string]any) map[string]any {
+	hasConfig := cfg != nil && (len(cfg.Headers) > 0 || len(cfg.Cookies) > 0 || len(cfg.Environment) > 0 || len(cfg.Metadata) > 0)
+	if len(cred) == 0 && !hasConfig {
 		return nil
 	}
-	if len(cfg.Headers) == 0 && len(cfg.Cookies) == 0 && len(cfg.Environment) == 0 && len(cfg.Metadata) == 0 {
-		return nil
+	out := make(map[string]any, len(cred)+4)
+	for k, v := range cred {
+		out[k] = v
 	}
-	return &openbindings.InvocationOptions{
-		Headers:     cfg.Headers,
-		Cookies:     cfg.Cookies,
-		Environment: cfg.Environment,
-		Metadata:    cfg.Metadata,
+	if cfg != nil {
+		if len(cfg.Headers) > 0 {
+			out["headers"] = stringMapToAny(cfg.Headers)
+		}
+		if len(cfg.Cookies) > 0 {
+			out["cookies"] = stringMapToAny(cfg.Cookies)
+		}
+		if len(cfg.Environment) > 0 {
+			out["environment"] = stringMapToAny(cfg.Environment)
+		}
+		if len(cfg.Metadata) > 0 {
+			out["metadata"] = cfg.Metadata
+		}
 	}
+	return out
 }
 
 // DeleteContext removes both the config file and keychain entry for a URL-keyed context.
@@ -419,7 +437,7 @@ type cliContextStore struct{}
 func NewCLIContextStore() openbindings.ContextStore { return &cliContextStore{} }
 
 func (s *cliContextStore) Get(_ context.Context, key string) (map[string]any, error) {
-	return BuildUnifiedContext(key)
+	return LoadContext(key)
 }
 
 func (s *cliContextStore) Set(_ context.Context, key string, value map[string]any) error {

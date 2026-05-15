@@ -355,7 +355,7 @@ func handleContextGet(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	payload, err := app.BuildUnifiedContext(targetURL)
+	payload, err := app.LoadContext(targetURL)
 	if err != nil {
 		writeJSON(w, http.StatusInternalServerError, ErrorResponse{Error: err.Error()})
 		return

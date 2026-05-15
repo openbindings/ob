@@ -29,12 +29,11 @@ type InvokeSource struct {
 
 // InvokeOperationInput is the input for invokeBinding.
 type InvokeOperationInput struct {
-	Source    InvokeSource                    `json:"source"`
-	Ref       string                          `json:"ref"`
-	Input     any                             `json:"input,omitempty"`
-	Context   map[string]any                  `json:"context,omitempty"`
-	Options   *openbindings.InvocationOptions `json:"options,omitempty"`
-	Interface *openbindings.Interface         `json:"interface,omitempty"`
+	Source    InvokeSource            `json:"source"`
+	Ref       string                  `json:"ref"`
+	Input     any                     `json:"input,omitempty"`
+	Context   map[string]any          `json:"context,omitempty"`
+	Interface *openbindings.Interface `json:"interface,omitempty"`
 }
 
 // InvokeOperationOutput is the output of invokeBinding.
@@ -67,6 +66,28 @@ func bindingByKey(bindingKey string, iface *openbindings.Interface) *openbinding
 		return nil
 	}
 	return &b
+}
+
+// withBinaryMetadata returns a context with the binary hint set under metadata.
+// It clones the input context (and the metadata sub-map) so existing callers
+// don't observe a mutation.
+func withBinaryMetadata(ctx map[string]any, binary string) map[string]any {
+	out := make(map[string]any, len(ctx)+1)
+	for k, v := range ctx {
+		out[k] = v
+	}
+	var meta map[string]any
+	if existing, ok := out["metadata"].(map[string]any); ok {
+		meta = make(map[string]any, len(existing)+1)
+		for k, v := range existing {
+			meta[k] = v
+		}
+	} else {
+		meta = make(map[string]any, 1)
+	}
+	meta["binary"] = binary
+	out["metadata"] = meta
+	return out
 }
 
 // resolvedBinding holds the resolved components for an OBI operation invocation.
@@ -376,22 +397,15 @@ func SubscribeOperationWithContext(ctx context.Context, input InvokeOperationInp
 		Ref:       input.Ref,
 		Input:     input.Input,
 		Context:   input.Context,
-		Options:   input.Options,
 		Interface: input.Interface,
 	})
 }
 
 // invokeViaBuiltin invokes an operation using the built-in OperationInvoker.
 func invokeViaBuiltin(ctx context.Context, input InvokeOperationInput) InvokeOperationOutput {
-	opts := input.Options
+	bindCtx := input.Context
 	if input.Source.Binary != "" {
-		if opts == nil {
-			opts = &openbindings.InvocationOptions{}
-		}
-		if opts.Metadata == nil {
-			opts.Metadata = map[string]any{}
-		}
-		opts.Metadata["binary"] = input.Source.Binary
+		bindCtx = withBinaryMetadata(bindCtx, input.Source.Binary)
 	}
 
 	ch, err := DefaultInvoker().InvokeBinding(ctx, &openbindings.BindingInvocationInput{
@@ -402,8 +416,7 @@ func invokeViaBuiltin(ctx context.Context, input InvokeOperationInput) InvokeOpe
 		},
 		Ref:       input.Ref,
 		Input:     input.Input,
-		Context:   input.Context,
-		Options:   opts,
+		Context:   bindCtx,
 		Interface: input.Interface,
 	})
 	if err != nil {
@@ -499,7 +512,6 @@ func invokeViaExternalDelegate(ctx context.Context, resolved delegates.Resolved,
 		Ref:     binding.Ref,
 		Input:   inputPayload,
 		Context: input.Context,
-		Options: input.Options,
 	}
 
 	es := resolveSourceLocation(source, "")

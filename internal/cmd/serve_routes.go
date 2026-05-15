@@ -56,12 +56,11 @@ func handleBindingInvoke(srv *server.Server, logger *slog.Logger) http.HandlerFu
 
 		r.Body = http.MaxBytesReader(w, r.Body, maxRequestBodyBytes)
 		var body struct {
-			Source    app.InvokeSource                `json:"source"`
-			Ref       string                          `json:"ref"`
-			Input     any                             `json:"input,omitempty"`
-			Context   map[string]any                  `json:"context,omitempty"`
-			Options   *openbindings.InvocationOptions `json:"options,omitempty"`
-			Interface *openbindings.Interface         `json:"interface,omitempty"`
+			Source    app.InvokeSource        `json:"source"`
+			Ref       string                  `json:"ref"`
+			Input     any                     `json:"input,omitempty"`
+			Context   map[string]any          `json:"context,omitempty"`
+			Interface *openbindings.Interface `json:"interface,omitempty"`
 		}
 		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
 			writeJSON(w, http.StatusBadRequest, ErrorResponse{Error: "invalid request body"})
@@ -75,7 +74,6 @@ func handleBindingInvoke(srv *server.Server, logger *slog.Logger) http.HandlerFu
 			Ref:       body.Ref,
 			Input:     body.Input,
 			Context:   body.Context,
-			Options:   body.Options,
 			Interface: body.Interface,
 		})
 
@@ -105,13 +103,12 @@ func handleBindingInvokeWS(srv *server.Server, logger *slog.Logger, w http.Respo
 	ctx := r.Context()
 
 	var body struct {
-		Source      app.InvokeSource                `json:"source"`
-		Ref         string                          `json:"ref"`
-		Input       any                             `json:"input,omitempty"`
-		Context     map[string]any                  `json:"context,omitempty"`
-		Options     *openbindings.InvocationOptions `json:"options,omitempty"`
-		Interface   *openbindings.Interface         `json:"interface,omitempty"`
-		BearerToken string                          `json:"bearerToken,omitempty"`
+		Source      app.InvokeSource        `json:"source"`
+		Ref         string                  `json:"ref"`
+		Input       any                     `json:"input,omitempty"`
+		Context     map[string]any          `json:"context,omitempty"`
+		Interface   *openbindings.Interface `json:"interface,omitempty"`
+		BearerToken string                  `json:"bearerToken,omitempty"`
 	}
 	if err := wsjson.Read(ctx, conn, &body); err != nil {
 		logger.Error("websocket read initial message failed", "error", err)
@@ -139,7 +136,6 @@ func handleBindingInvokeWS(srv *server.Server, logger *slog.Logger, w http.Respo
 		Ref:       body.Ref,
 		Input:     body.Input,
 		Context:   body.Context,
-		Options:   body.Options,
 		Interface: body.Interface,
 	}
 

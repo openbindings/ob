@@ -148,7 +148,7 @@ func TestContextGitHub_HierarchicalAPIBaseURL(t *testing.T) {
 	}
 
 	deepURL := "https://api.github.com/repos/openbindings/openbindings/contents"
-	bindCtx, _, err := GetContext(deepURL)
+	bindCtx, err := GetContext(deepURL)
 	if err != nil {
 		t.Fatalf("GetContext: %v", err)
 	}
@@ -159,7 +159,7 @@ func TestContextGitHub_HierarchicalAPIBaseURL(t *testing.T) {
 		t.Error("token should match the one set on base URL")
 	}
 
-	unrelatedCtx, _, err := GetContext("https://unrelated.example.com/api")
+	unrelatedCtx, err := GetContext("https://unrelated.example.com/api")
 	if err != nil {
 		t.Fatalf("GetContext unrelated: %v", err)
 	}
@@ -314,21 +314,21 @@ func TestContext_HTTPSNormalization(t *testing.T) {
 	}
 
 	// Should be able to load via https:// even though set via http://
-	_, opts, err := LoadContext("https://api.example.com")
+	ctx, err := LoadContext("https://api.example.com")
 	if err != nil {
 		t.Fatalf("LoadContext: %v", err)
 	}
-	if opts == nil || opts.Headers["X-Test"] != "normalized" {
-		t.Errorf("expected normalized lookup to work, got: %v", opts)
+	if openbindings.ContextHeaders(ctx)["X-Test"] != "normalized" {
+		t.Errorf("expected normalized lookup to work, got: %v", ctx)
 	}
 
 	// Vice versa — load via http:// should also work
-	_, opts2, err := LoadContext("http://api.example.com")
+	ctx2, err := LoadContext("http://api.example.com")
 	if err != nil {
 		t.Fatalf("LoadContext (http): %v", err)
 	}
-	if opts2 == nil || opts2.Headers["X-Test"] != "normalized" {
-		t.Errorf("expected http lookup to work, got: %v", opts2)
+	if openbindings.ContextHeaders(ctx2)["X-Test"] != "normalized" {
+		t.Errorf("expected http lookup to work, got: %v", ctx2)
 	}
 }
 

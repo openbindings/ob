@@ -72,14 +72,13 @@ func newContextGetCmd() *cobra.Command {
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			targetURL := args[0]
-			bindCtx, opts, err := app.GetContext(targetURL)
+			ctx, err := app.GetContext(targetURL)
 			if err != nil {
 				return app.ExitResult{Code: 1, Message: err.Error(), ToStderr: true}
 			}
 			format, outputPath := getOutputFlags(cmd)
-			payload := app.UnifyContext(bindCtx, opts)
-			return app.OutputResultText(payload, format, outputPath, func() string {
-				return app.RenderBindingContext(bindCtx, opts)
+			return app.OutputResultText(ctx, format, outputPath, func() string {
+				return app.RenderBindingContext(ctx)
 			})
 		},
 	}

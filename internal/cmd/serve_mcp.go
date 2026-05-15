@@ -139,7 +139,7 @@ func registerMCPTools(srv *mcp.Server, logger *slog.Logger) {
 		if err := json.Unmarshal(req.Params.Arguments, &input); err != nil {
 			return errorResult("invalid arguments: " + err.Error()), nil
 		}
-		payload, err := app.BuildUnifiedContext(input.Key)
+		payload, err := app.LoadContext(input.Key)
 		if err != nil {
 			return errorResult(err.Error()), nil
 		}
