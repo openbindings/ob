@@ -277,6 +277,13 @@ ob sync interface.json -o dist/interface.json --pure  # publish clean
 | `ob operation remove <obi> <name>` | Remove an operation and its bindings |
 | `ob operation rename <obi> <old> <new>` | Rename an operation |
 
+### Serving
+
+| Command | Description |
+|---------|-------------|
+| `ob serve` | Run `ob` as a local HTTP/HTTPS service exposing every CLI operation over a stable API |
+| `ob mcp <url>...` | Expose one or more OBI URLs as an MCP server for AI agents |
+
 ### Environment
 
 | Command | Description |
@@ -296,3 +303,109 @@ ob sync interface.json -o dist/interface.json --pure  # publish clean
 | `ob validate <obi>` | Validate an OBI document |
 | `ob diff <a> <b>` | Compare two OBIs structurally |
 | `ob compat <target> <candidate>` | Check interface compatibility |
+
+## Serve and integrate
+
+`ob` is more than a CLI — it can run as a local service that exposes every CLI operation over HTTP and WebSocket (`ob serve`) or over the Model Context Protocol (`ob mcp`). Other applications, browser UIs, and AI agents can use those endpoints instead of shelling out to the CLI.
+
+### `ob serve` — local HTTP/HTTPS service
+
+```bash
+ob serve                 # http://localhost:20290 + https://localhost:20291
+ob serve --port 18000    # custom port
+ob serve --no-tls        # HTTP only
+ob serve --token-file ~/.ob/serve.token  # supply bearer token instead of random
+```
+
+On startup `ob serve` prints the address it bound and a random bearer token. The HTTPS listener uses a local CA installed into the system keychain (first run prompts for `sudo`; subsequent runs are silent).
+
+**Authentication.** Every endpoint except `/`, `/healthz`, `/.well-known/openbindings`, `/openapi.yaml`, `/asyncapi.yaml`, `/oauth/authorize`, and `/oauth/token` requires `Authorization: Bearer <token>`. The token comes from one of:
+- `--token` or the `OB_SERVE_TOKEN` env var (static)
+- `--token-file` (loaded once at startup)
+- Auto-generated at startup if neither is provided (printed once, lost on restart)
+- An OAuth2 access token obtained via `/oauth/authorize` + `/oauth/token` (PKCE flow)
+
+**CORS.** `ob serve` accepts requests from any origin allowed by `--allowed-origin` (repeatable). Private Network Access preflights (`Access-Control-Request-Private-Network: true`) are honored when the origin is allowlisted, so browser apps served from `https://app.example.com` can reach `https://localhost:20291`.
+
+#### HTTP endpoints
+
+The complete API is described by [`internal/server/openapi.yaml`](internal/server/openapi.yaml) (also served at `GET /openapi.yaml`). Headline endpoints:
+
+| Endpoint | Method | Purpose |
+|---|---|---|
+| `/healthz` | GET | Health probe (no auth) |
+| `/.well-known/openbindings` | GET | OBI for `ob serve` itself (no auth) |
+| `/info` | GET | Identity and version metadata |
+| `/formats` | GET | Format tokens this `ob` can handle |
+| `/delegates` | GET | Registered delegates |
+| `/status` | GET | Environment status |
+| `/contexts` | GET / DELETE | Inspect or clear per-host context entries |
+| `/bindings/invoke` | POST | Invoke a binding (unary; see WS variant for streaming) |
+| `/interfaces/create` | POST | Create an OBI from a binding source |
+| `/sources/inspect` | POST | Enumerate refs in a source |
+| `/resolve` | POST | Fetch an OBI from a URL (synthesizes if served raw) |
+| `/validate` | POST | Validate an OBI |
+| `/diff` | POST | Structural diff between two OBIs |
+| `/compatibility` | POST | Compatibility check |
+| `/http/request` | POST | Generic HTTP proxy (for clients with CSP/CORS limits) |
+| `/oauth/authorize` + `/oauth/token` | GET / POST | OAuth2 Authorization Code + PKCE |
+| `/spec/{name}` | GET | Embedded spec resources |
+| `/openapi.yaml`, `/asyncapi.yaml` | GET | Self-description specs (no auth) |
+
+Each POST endpoint accepts and returns JSON. Example:
+
+```bash
+TOKEN=$(cat ~/.ob/serve.token)
+curl -X POST https://localhost:20291/bindings/invoke \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "source": { "format": "openapi@3.1", "location": "https://api.example.com/openapi.json" },
+    "ref":    "#/paths/~1users/get",
+    "input":  { "limit": 10 },
+    "context": { "bearerToken": "user-token" }
+  }'
+```
+
+#### WebSocket streaming
+
+`POST /bindings/invoke` is the unary variant. For streaming operations (SSE, gRPC server-stream, WebSocket subscriptions), upgrade `GET /bindings/invoke` to a WebSocket. The complete WS protocol is described by [`internal/server/asyncapi.yaml`](internal/server/asyncapi.yaml).
+
+WS protocol:
+1. Client opens a WebSocket to `wss://host/bindings/invoke`.
+2. Client sends one JSON message with the invocation envelope (including a `bearerToken` field — browsers can't set headers on the upgrade request).
+3. Server streams back `{type: "event", output: …}` frames as outputs are produced.
+4. On error: server sends `{type: "error", error: {message, code}}` and closes with status 1000.
+5. On normal completion: server closes the connection.
+
+First-message envelope:
+
+```json
+{
+  "source": { "format": "asyncapi@3.0", "location": "wss://target.example.com" },
+  "ref": "#/operations/subscribeOrders",
+  "input": { "customerId": "abc" },
+  "context": { "bearerToken": "user-token" },
+  "bearerToken": "<ob-serve-token>"
+}
+```
+
+### `ob mcp` — Model Context Protocol bridge
+
+`ob mcp` exposes one or more OBI URLs as an MCP server. AI agents (Claude Desktop, Cursor, etc.) that speak MCP can connect and call the underlying service's operations as MCP tools, with `ob` translating the MCP requests into native binding invocations.
+
+```bash
+ob mcp https://api.example.com           # stdio transport (for Claude Desktop, Cursor)
+ob mcp --http --port 9100 https://api.example.com    # HTTP transport
+ob mcp --token "$API_TOKEN" https://api.example.com  # bearer credential for the target API
+```
+
+Multiple URLs can be passed; all of their operations are merged into a single MCP tool list. Use `--token-file` or `OB_TOKEN` to avoid putting credentials on the command line.
+
+When invoked through MCP, an operation's input schema is exposed as the tool's input schema; the response body is returned as the tool result.
+
+### When to use which
+
+- **`ob serve`**: another process (a browser app, a worker, a server-side host) needs to make binding invocations and you want REST/WS access. Use it when the consumer can speak HTTP.
+- **`ob mcp`**: an AI agent (Claude, Cursor) needs to discover and call your service's operations. Use it when the consumer speaks MCP.
+- Both can run at once — they're independent processes.

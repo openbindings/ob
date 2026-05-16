@@ -156,13 +156,13 @@ func handleBindingInvokeWS(srv *server.Server, logger *slog.Logger, w http.Respo
 	}
 
 	for ev := range events {
-		// A InvocationOutput may carry both Data and Error when OBI-T-08
+		// A InvocationOutput may carry both Output and Error when OBI-T-08
 		// output validation fails: the response was produced but didn't
 		// match the declared schema. Emit a single frame carrying both
 		// so clients can render the response alongside the diagnostic.
-		// The `type` discriminator stays "event" whenever data is
-		// present (since data is the headline) and "error" only when
-		// the frame is purely a diagnostic.
+		// The `type` discriminator stays "event" whenever output is
+		// present (since the response is the headline) and "error" only
+		// when the frame is purely a diagnostic.
 		frame := wsInvocationOutput{Type: "event"}
 		if ev.Output != nil {
 			frame.Output = ev.Output
