@@ -235,7 +235,7 @@ func TestInvokeOBIOperation_BindingKeyNotFound(t *testing.T) {
 func TestInvokeOBIOperation_InputTransformError(t *testing.T) {
 	dir := t.TempDir()
 	obi := writeOBIFile(t, dir, map[string]any{
-		"openbindings": "0.1.0",
+		"openbindings": "0.2.0",
 		"id":           "test",
 		"operations": map[string]any{
 			"listPets": map[string]any{},
@@ -248,13 +248,10 @@ func TestInvokeOBIOperation_InputTransformError(t *testing.T) {
 		},
 		"bindings": map[string]any{
 			"listPets.usage1": map[string]any{
-				"operation": "listPets",
-				"source":    "usage1",
-				"ref":       "list pets",
-				"inputTransform": map[string]any{
-					"type":       "jsonata",
-					"expression": "$$$$invalid$$$$",
-				},
+				"operation":      "listPets",
+				"source":         "usage1",
+				"ref":            "list pets",
+				"inputTransform": "$$$$invalid$$$$",
 			},
 		},
 	})

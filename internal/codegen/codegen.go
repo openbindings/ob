@@ -123,22 +123,20 @@ func Generate(iface *openbindings.Interface) (*CodegenResult, error) {
 }
 
 // buildContractOBI produces a minified JSON containing the fields needed
-// for the embedded interface contract baked into a codegenned client.
+// for the embedded interface contract baked into a codegenned typed invoker.
 //
 // For HTTP-fetchable OBIs (openapi/asyncapi/graphql with http(s) source
-// locations), the embedded contract contains only operations + schemas
-// — the runtime client re-fetches the live OBI from the URL passed to
-// `connect()` and uses that for binding dispatch. Stripping bindings
-// keeps the codegen output compact (the live OBI is the source of
-// truth at runtime).
+// locations), the embedded contract contains only operations + schemas.
+// At runtime, the caller fetches a live OBI from the target URL (via
+// `fetchInterface`) and passes it to the typed invoker's methods. Binding
+// dispatch uses that live OBI, so stripping bindings from the embedded
+// contract keeps the codegen output compact.
 //
-// For non-HTTP-fetchable OBIs (workers-rpc, usage exec, etc), the
-// embedded contract MUST include bindings + sources. The runtime
-// client can't fetch the OBI from a symbolic URL like
-// `workers-rpc://service-name`, so the codegen output is the only
-// place these come from. The InterfaceClient.resolve() fallback path
-// detects non-HTTP URLs and uses the embedded interface directly,
-// so dispatch needs the bindings to be present.
+// For non-HTTP-fetchable OBIs (workers-rpc, usage exec, etc), the embedded
+// contract MUST include bindings + sources. There is no remote URL to fetch
+// from at runtime — the caller uses the codegen output's static `CONTRACT`
+// constant as the OBI, so dispatch needs the bindings + sources to be
+// present in that embedded contract.
 //
 // The decision is per-OBI: if ANY source has a non-HTTP location, all
 // bindings + sources are embedded. This is conservative — mixed-transport

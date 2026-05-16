@@ -45,17 +45,25 @@ An OpenBindings Interface (OBI) is a JSON document that defines operations and b
 | Connect | `connect` | Same as gRPC |
 | MCP | `mcp@2025-11-25` | `tools/name`, `resources/uri` |
 | GraphQL | `graphql` | `Query/field`, `Mutation/field` |
-| Operation Graph | `openbindings.operation-graph@0.1.0` | Native composition |
+| Operation Graph | `openbindings.operation-graph@0.2.0` | Native composition |
 
 ## Transforms
 
-Bindings can have `inputTransform` and `outputTransform` using JSONata:
+Bindings can have `inputTransform` and `outputTransform` using JSONata. Inline transforms are bare JSONata expression strings, or `{"$ref": "#/transforms/<name>"}` to reference a named transform.
 
 ```json
 {
-  "inputTransform": {
-    "type": "jsonata",
-    "expression": "{ \"userId\": id }"
+  "inputTransform": "{ \"userId\": id }",
+  "outputTransform": { "$ref": "#/transforms/unwrap" }
+}
+```
+
+Named transforms in `#/transforms` are plain JSONata strings keyed by name:
+
+```json
+{
+  "transforms": {
+    "unwrap": "data.user"
   }
 }
 ```
