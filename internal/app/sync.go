@@ -133,7 +133,7 @@ func Sync(input SyncInput) (SyncOutput, error) {
 	preDiscovered := map[string]DeriveResult{}
 
 	// sourceData holds fresh file content read in phase 1, passed to phase 2 as
-	// Content to bypass the driver's in-process spec cache.
+	// Content to bypass the invoker's in-process spec cache.
 	sourceData := map[string][]byte{}
 
 	for _, key := range targetKeys {
@@ -224,7 +224,7 @@ func Sync(input SyncInput) (SyncOutput, error) {
 	}
 
 	// Phase 2: Three-way merge of operations and bindings.
-	// For each synced source, re-derive via the dispatcher and merge against the OBI.
+	// For each synced source, re-derive via the creator and merge against the OBI.
 	// Hand-authored objects (no x-ob) are never touched.
 	opFilter := toStringSet(input.OperationKeys)
 
@@ -242,7 +242,7 @@ func Sync(input SyncInput) (SyncOutput, error) {
 			// Use the pre-discovered result (live discovery path).
 			derived = pre
 		} else {
-			// Pass fresh content from phase 1 to bypass the driver's spec cache.
+			// Pass fresh content from phase 1 to bypass the invoker's spec cache.
 			if freshData, ok := sourceData[key]; ok {
 				src.Content = string(freshData)
 			}

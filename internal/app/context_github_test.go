@@ -25,18 +25,18 @@ func skipIfKeychainUnavailable(t *testing.T) {
 	_ = keyring.Delete(KeychainService, probeKey)
 }
 
-// TestContextGitHub_DispatcherDrivenInvocation tests the full dispatcher-driven
+// TestContextGitHub_OperationInvokerDriven tests the full operation-invoker-driven
 // context resolution pipeline:
 //  1. Gets a real GitHub token via `gh auth token`
 //  2. Creates a minimal OpenAPI spec and OBI for GET /user
 //  3. Sets context for https://api.github.com (the normalizeContextKey-derived key)
-//  4. Invokes via InvokeOBIOperation — the dispatcher derives the same key
+//  4. Invokes via InvokeOBIOperation — the operation invoker derives the same key
 //     via NormalizeContextKey and looks up context from the store internally
 //  5. Validates the response contains the authenticated user's login
 //
 // Requires: `gh` CLI installed and authenticated.
 // Skipped in environments without `gh` or network access.
-func TestContextGitHub_DispatcherDrivenInvocation(t *testing.T) {
+func TestContextGitHub_OperationInvokerDriven(t *testing.T) {
 	skipIfKeychainUnavailable(t)
 	ghToken := getGitHubToken(t)
 	setupContextTestDir(t)
@@ -93,7 +93,7 @@ func TestContextGitHub_DispatcherDrivenInvocation(t *testing.T) {
 		t.Fatalf("write obi: %v", err)
 	}
 
-	// Set context for the API base URL (the key the OpenAPI driver returns).
+	// Set context for the API base URL (the key the OpenAPI invoker returns).
 	cfg := ContextConfig{}
 	if err := SaveContextConfig("https://api.github.com", cfg); err != nil {
 		t.Fatalf("SaveContextConfig: %v", err)
@@ -168,7 +168,7 @@ func TestContextGitHub_HierarchicalAPIBaseURL(t *testing.T) {
 	}
 }
 
-// TestContextGitHub_SecuritySchemeApplication tests that the OpenAPI driver
+// TestContextGitHub_SecuritySchemeApplication tests that the OpenAPI invoker
 // correctly reads securitySchemes and places the bearer token in the
 // Authorization header.
 func TestContextGitHub_SecuritySchemeApplication(t *testing.T) {
@@ -242,7 +242,7 @@ func TestContextGitHub_NoCredentialsFails(t *testing.T) {
 	setupContextTestDir(t)
 
 	// Ensure no stored credentials from prior tests are picked up by
-	// the dispatcher's context resolution.
+	// the operation invoker's context resolution.
 	_ = DeleteContextCredentials("https://api.github.com")
 	t.Cleanup(func() { _ = DeleteContextCredentials("https://api.github.com") })
 

@@ -23,7 +23,7 @@ var ErrCommandTimeout = errors.New("command timeout")
 // by running its listFormats operation.
 func ProbeFormats(path string, timeout time.Duration) ([]string, error) {
 	if IsHTTPURL(path) {
-		return nil, fmt.Errorf("formats require dispatcher")
+		return nil, fmt.Errorf("formats require operation invoker")
 	}
 	if IsExecURL(path) {
 		cmd, err := execref.RootCommand(path)

@@ -142,8 +142,8 @@ func resolveToken(flag, file string) string {
 	return os.Getenv("OB_TOKEN")
 }
 
-// withBearerToken wraps the dispatcher's context store to overlay Bearer
-// credentials for the given URLs. This avoids writing to the persistent
+// withBearerToken wraps the operation invoker's context store to overlay
+// Bearer credentials for the given URLs. This avoids writing to the persistent
 // keychain while making auth available for resolution and invocation.
 func withBearerToken(invoker *openbindings.OperationInvoker, token string, rawURLs []string) *openbindings.OperationInvoker {
 	overlay := &tokenOverlayStore{
@@ -155,12 +155,12 @@ func withBearerToken(invoker *openbindings.OperationInvoker, token string, rawUR
 		if normalized == "" {
 			continue
 		}
-		// The MCP format driver normalizes store keys to host[:port]
+		// The MCP format invoker normalizes store keys to host[:port]
 		// (scheme and path stripped) via NormalizeContextKey. Match that.
 		if parsed, err := url.Parse(normalized); err == nil && parsed.Host != "" {
 			overlay.creds[parsed.Host] = map[string]any{"bearerToken": token}
 		}
-		// Also key by the full and origin URLs for other drivers.
+		// Also key by the full and origin URLs for other invokers.
 		overlay.creds[normalized] = map[string]any{"bearerToken": token}
 	}
 	return invoker.WithRuntime(overlay, invoker.PlatformCallbacks)
@@ -178,7 +178,7 @@ func (s *tokenOverlayStore) Get(ctx context.Context, key string) (map[string]any
 	if cred, ok := s.creds[key]; ok {
 		return cred, nil
 	}
-	// Try host-only matching: the MCP driver normalizes keys to
+	// Try host-only matching: the MCP invoker normalizes keys to
 	// host[:port] (scheme stripped). Try extracting just the host.
 	if parsed, err := url.Parse(key); err == nil && parsed.Host != "" {
 		if cred, ok := s.creds[parsed.Host]; ok {

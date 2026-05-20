@@ -10,7 +10,7 @@ import (
 // These tests simulate a user managing an OBI across multiple usage-spec source
 // files: create from multiple sources, edit sources, sync, add source, merge
 // --from-sources, and ensure hand-authored parts are preserved.
-// Only the usage driver is used; other format drivers can be added later.
+// Only the usage invoker is used; other format invokers can be added later.
 
 const usageFormat = "usage@2.0.0"
 

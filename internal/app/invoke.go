@@ -180,7 +180,7 @@ type InvocationOutput = openbindings.InvocationOutput
 // stream of events. Every operation is a stream — unary calls produce one
 // event. Input/output transforms are applied as declared in the binding entry.
 //
-// If the resolved format has a builtin streaming driver, it is used.
+// If the resolved format has a builtin streaming invoker, it is used.
 // Otherwise, the unary invocation path is used and its result is wrapped as
 // a single InvocationOutput.
 //
@@ -385,7 +385,7 @@ func SubscribeOperationWithContext(ctx context.Context, input InvokeOperationInp
 	}
 
 	if !BuiltinSupportsFormat(input.Source.Format) {
-		return nil, fmt.Errorf("streaming not supported for format %q (no builtin driver)", input.Source.Format)
+		return nil, fmt.Errorf("streaming not supported for format %q (no builtin invoker)", input.Source.Format)
 	}
 
 	return DefaultInvoker().InvokeBinding(ctx, &openbindings.BindingInvocationInput{

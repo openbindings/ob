@@ -27,8 +27,8 @@ type InvokeBindingResult struct {
 // input/output transforms, and invokes the operation. This is the domain
 // logic that both the TUI and CLI can share.
 //
-// Context resolution is handled by the dispatcher via the ContextStore and
-// PlatformCallbacks wired into the DefaultInvoker.
+// Context resolution is handled by the operation invoker via the ContextStore
+// and PlatformCallbacks wired into the DefaultInvoker.
 func InvokeBinding(ctx context.Context, in InvokeBindingInput) InvokeBindingResult {
 	if in.Interface == nil {
 		return InvokeBindingResult{Error: fmt.Errorf("no interface")}

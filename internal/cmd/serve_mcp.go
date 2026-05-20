@@ -18,7 +18,7 @@ import (
 
 // registerMCPEndpoint creates a native MCP server for ob serve's own interface
 // and mounts it at /mcp. The handlers call app functions directly, same pattern
-// as the HTTP handlers. No dispatcher, no binding resolution.
+// as the HTTP handlers. No operation invoker, no binding resolution.
 func registerMCPEndpoint(srv *server.Server, logger *slog.Logger) {
 	mcpSrv := mcp.NewServer(&mcp.Implementation{
 		Name:    "ob",

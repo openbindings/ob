@@ -58,7 +58,7 @@ func TestMCPCommand_BridgesInterfaceToTools(t *testing.T) {
 		},
 	}
 
-	// Use a mock driver that just echoes the input back as output.
+	// Use a mock invoker that just echoes the input back as output.
 	invoker := openbindings.NewOperationInvoker(&echoMockInvoker{})
 
 	// Build the MCP server the same way internal/cmd/mcp.go does.
@@ -137,7 +137,7 @@ func TestMCPCommand_BridgesInterfaceToTools(t *testing.T) {
 		t.Fatalf("tool returned IsError=true: %v", msgs)
 	}
 
-	// The mock driver echoes the input as the output. Verify the bridge
+	// The mock invoker echoes the input as the output. Verify the bridge
 	// surfaces it back through the MCP content channel.
 	if len(callResult.Content) == 0 {
 		t.Fatal("tool result has no content")
@@ -146,7 +146,7 @@ func TestMCPCommand_BridgesInterfaceToTools(t *testing.T) {
 	if !ok {
 		t.Fatalf("expected TextContent, got %T", callResult.Content[0])
 	}
-	// The text content is JSON-encoded output from the driver; just verify
+	// The text content is JSON-encoded output from the invoker; just verify
 	// the message round-tripped through.
 	var decoded map[string]any
 	if err := json.Unmarshal([]byte(tc.Text), &decoded); err != nil {

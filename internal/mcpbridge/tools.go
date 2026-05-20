@@ -228,7 +228,7 @@ func registerPrompt(
 			lastData = ev.Output
 		}
 
-		// The dispatcher returns the prompt result as an object with
+		// The operation invoker returns the prompt result as an object with
 		// "messages" and optional "description".
 		result := &mcp.GetPromptResult{}
 		b, _ := json.Marshal(lastData)

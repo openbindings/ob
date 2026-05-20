@@ -35,7 +35,7 @@ type DeriveResult struct {
 // are resolved against this directory (D5). Pass "" if the source artifact
 // path is already absolute or pre-resolved.
 //
-// This function uses the default dispatcher to dispatch format-specific
+// This function uses the default creator to dispatch format-specific
 // conversion and is the shared building block for diff --from-sources
 // and merge --from-sources.
 func DeriveFromSource(source openbindings.Source, sourceKey string, obiDir string) (DeriveResult, error) {
@@ -79,13 +79,13 @@ type deriveSourcesResult struct {
 	// Assembled is a merged Interface containing all derived operations,
 	// bindings, and source entries.
 	Assembled *openbindings.Interface
-	// Warnings collects non-fatal issues (missing drivers, empty sources).
+	// Warnings collects non-fatal issues (missing invokers, empty sources).
 	Warnings []string
 }
 
 // deriveFromAllSources iterates through an OBI's sources, derives operations
-// from each via the default dispatcher, and assembles the results. Sources
-// without an artifact/inline are skipped with a warning. Driver failures
+// from each via the default creator, and assembles the results. Sources
+// without an artifact/inline are skipped with a warning. Creator failures
 // are treated as warnings (D8), not hard errors.
 //
 // onlySource optionally scopes derivation to a single source key. Pass ""
@@ -119,7 +119,7 @@ func deriveFromAllSources(iface *openbindings.Interface, obiDir string, onlySour
 
 		result, err := DeriveFromSource(src, key, obiDir)
 		if err != nil {
-			// D8: warn and skip on driver unavailability.
+			// D8: warn and skip on creator unavailability.
 			warnings = append(warnings, fmt.Sprintf("source %q: %v", key, err))
 			continue
 		}

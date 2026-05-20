@@ -25,7 +25,7 @@ import (
 	"github.com/openbindings/ob/internal/server"
 )
 
-// mockStreamInvoker is a test-only driver that streams canned events.
+// mockStreamInvoker is a test-only invoker that streams canned events.
 type mockStreamInvoker struct {
 	formats []openbindings.FormatInfo
 	events  []any
@@ -460,7 +460,7 @@ func TestServeContextList(t *testing.T) {
 
 // --- /bindings/invoke ---
 
-func TestServeBindingExecute_InvalidBody(t *testing.T) {
+func TestServeBindingInvoke_InvalidBody(t *testing.T) {
 	ts := testEnv(t)
 	defer ts.Close()
 
@@ -473,7 +473,7 @@ func TestServeBindingExecute_InvalidBody(t *testing.T) {
 	}
 }
 
-func TestServeBindingExecute_POST_StillWorks(t *testing.T) {
+func TestServeBindingInvoke_POST_StillWorks(t *testing.T) {
 	ts := testEnv(t)
 	defer ts.Close()
 
@@ -487,7 +487,7 @@ func TestServeBindingExecute_POST_StillWorks(t *testing.T) {
 	}
 }
 
-func TestServeBindingExecute_MethodNotAllowed(t *testing.T) {
+func TestServeBindingInvoke_MethodNotAllowed(t *testing.T) {
 	ts := testEnv(t)
 	defer ts.Close()
 
@@ -503,7 +503,7 @@ func TestServeBindingExecute_MethodNotAllowed(t *testing.T) {
 	}
 }
 
-func TestServeBindingExecute_WS_Upgrade(t *testing.T) {
+func TestServeBindingInvoke_WS_Upgrade(t *testing.T) {
 	ts := testEnv(t)
 	defer ts.Close()
 
@@ -543,7 +543,7 @@ func TestServeBindingExecute_WS_Upgrade(t *testing.T) {
 	}
 }
 
-func TestServeBindingExecute_WS_StreamE2E(t *testing.T) {
+func TestServeBindingInvoke_WS_StreamE2E(t *testing.T) {
 	mockInvoker := &mockStreamInvoker{
 		formats: []openbindings.FormatInfo{{Token: "mock-stream@1.0"}},
 		events:  []any{"event-1", "event-2", "event-3"},
@@ -602,7 +602,7 @@ func TestServeBindingExecute_WS_StreamE2E(t *testing.T) {
 	}
 }
 
-func TestServeBindingExecute_WS_FrameCarriesDataAndError(t *testing.T) {
+func TestServeBindingInvoke_WS_FrameCarriesDataAndError(t *testing.T) {
 	// OBI-T-08: the SDK yields a InvocationOutput with both Data and Error
 	// populated when output validation fails. The WebSocket frame must
 	// preserve both so clients can render the response alongside the
@@ -689,7 +689,7 @@ func TestServeBindingExecute_WS_FrameCarriesDataAndError(t *testing.T) {
 	}
 }
 
-func TestServeBindingExecute_WS_PureErrorFrameStillUsesErrorType(t *testing.T) {
+func TestServeBindingInvoke_WS_PureErrorFrameStillUsesErrorType(t *testing.T) {
 	// A InvocationOutput with Error but no Data still produces a frame with
 	// type="error" for backward compatibility with clients that branch
 	// on the discriminator.
@@ -747,7 +747,7 @@ func TestServeBindingExecute_WS_PureErrorFrameStillUsesErrorType(t *testing.T) {
 	}
 }
 
-func TestServeBindingExecute_WS_NoAuth(t *testing.T) {
+func TestServeBindingInvoke_WS_NoAuth(t *testing.T) {
 	ts := testEnv(t)
 	defer ts.Close()
 
