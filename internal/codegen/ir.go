@@ -30,7 +30,7 @@ type TypeRef struct {
 	Variants  []TypeRef // KindUnion: oneOf/anyOf variants
 	Enum      []any     // for enums (string, integer, or mixed)
 	Nullable  bool
-	Const     any       // for const values (discriminated union narrowing)
+	Const     any // for const values (discriminated union narrowing)
 }
 
 // TypeDef is a named object type (struct / interface).
@@ -42,12 +42,12 @@ type TypeDef struct {
 
 // Field is a single property in a TypeDef.
 type Field struct {
-	Name        string  // PascalCase (Go) / camelCase (TS) — language-neutral PascalCase stored here
-	JSONName    string  // original JSON property name
+	Name        string // PascalCase (Go) / camelCase (TS) — language-neutral PascalCase stored here
+	JSONName    string // original JSON property name
 	Type        TypeRef
 	Required    bool
 	Description string
-	Default     any     // JSON Schema default value, for doc comments
+	Default     any // JSON Schema default value, for doc comments
 }
 
 // OperationSig describes one operation for code generation.

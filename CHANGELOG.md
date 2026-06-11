@@ -11,6 +11,43 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ### Changed
 
+- **Migrated to the SDK's cardinality-agnostic Invocation handle** (the 0.2
+  invoker model: write inputs until done, read outputs until done; one shape
+  for unary, streaming, and bidirectional bindings).
+  - `ob codegen` emits typed invokers in the settled shape: one method per
+    operation returning the typed invocation handle (`Invocation<I, O>` in TS,
+    `*openbindings.TypedInvocation[I, O]` in Go) with per-call
+    `InvokerCallOpts` and the runtime interface bound at construction
+    (defaulting to the embedded contract). No Promise-returning unary
+    wrappers, no `*Stream` twins, no per-event envelope, no thrown
+    `OperationError` — terminal failures are `InvocationError` on the handle.
+    Emitted headers declare the SDK range they target.
+  - The app layer owns CONTEXT_REQUIRED negotiation for its binding-level
+    calls: challenges raised before any output are resolved through the
+    configured resolver and re-driven with merged context. The CLI's resolver
+    composes the context store (under the challenge key) with interactive
+    per-requirement prompts, persisting acquired credentials; `ob mcp`'s
+    bearer token flows as invocation context.
+  - `ob serve`'s WebSocket `/bindings/invoke` emits disjoint `event`/`error`
+    frames; a terminal error ends the stream (the combined data+error frame
+    left with the old envelope's OBI-T-08 surfacing).
+  - Error codes follow the SDKs' new SCREAMING wire values (`ERR_CANCELLED`,
+    `CONTEXT_REQUIRED`, ...).
+
+- **Roles/satisfies removed** per spec 0.2.0: correspondence to a shared
+  contract is the operation key+alias namespace (OBI-T-12).
+  - `ob conform` scaffolds under the contract's operation name and declares
+    correspondence with aliases; `--role-key` removed.
+  - `ob validate` no longer performs role-conformance fetching; `--skip-roles`
+    removed.
+  - `ob compat` and `ob diff`/comparison pair operations by key+alias only
+    (the `paired_via.satisfies` counter is gone from comparison reports).
+  - ob's own OBI documents (`ob.obi.json`, `serve.obi.json`) drop their
+    `roles`, `satisfies`, and `security` fields.
+  - The comparison fixture corpus moved into this repo
+    (`internal/app/testdata/comparison-corpus`), per the spec repo's decision
+    that comparison semantics are a tool concern.
+
 - **CLI commands renamed** to align with the OpenBindings spec 0.2.0 "executor → invoker / invoke" rename. Pre-1.0 hard rename, no deprecated aliases.
   - `ob op exec` → `ob op invoke`. The `execute` alias was removed.
   - `ob binding exec` → `ob binding invoke`. Source file `internal/cmd/binding_exec.go` → `binding_invoke.go`.

@@ -33,7 +33,7 @@ An OpenBindings Interface (OBI) is a JSON document that defines operations and b
 - **Operation**: named unit of capability with input/output JSON Schemas
 - **Source**: reference to a binding artifact (OpenAPI doc, proto file, MCP server)
 - **Binding**: mapping from an operation to a specific entry point in a source
-- **Role**: published interface a service can declare it satisfies
+- **Role**: published contract interface; an operation fulfills a role operation by carrying its name as the key or an alias
 
 ## Format Tokens
 
@@ -96,4 +96,4 @@ Bindings reference security entries: `"security": "api-auth"`
 
 - Outputs: covariant (provided must be at least as specific as required)
 - Inputs: contravariant (provided must accept at least what required accepts)
-- Three-strategy operation matching: direct key, satisfies, aliases
+- Operation matching: the key+alias namespace (direct key, then aliases — OBI-T-12)

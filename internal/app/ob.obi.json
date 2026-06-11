@@ -310,12 +310,7 @@
       "x-ob": {}
     }
   },
-  "description": "Portable interfaces, flexible bindings – the ob command-line tool",
-  "roles": {
-    "openbindings.binding-invoker": "https://openbindings.org/spec/interfaces/openbindings.binding-invoker/0.1.json",
-    "openbindings.context-store": "https://openbindings.org/spec/interfaces/openbindings.context-store/0.1.json",
-    "openbindings.software-descriptor": "https://openbindings.org/spec/interfaces/openbindings.software-descriptor/0.1.json"
-  },
+  "description": "Portable interfaces, flexible bindings \u2013 the ob command-line tool",
   "name": "OpenBindings CLI",
   "openbindings": "0.2.0",
   "operations": {
@@ -433,12 +428,6 @@
       "output": {
         "$ref": "#/schemas/OpenBindingsInterface"
       },
-      "satisfies": [
-        {
-          "role": "openbindings.binding-invoker",
-          "operation": "createInterface"
-        }
-      ],
       "tags": [
         "authoring"
       ]
@@ -550,12 +539,6 @@
         ],
         "additionalProperties": false
       },
-      "satisfies": [
-        {
-          "role": "openbindings.context-store",
-          "operation": "deleteContext"
-        }
-      ],
       "tags": [
         "context"
       ]
@@ -667,12 +650,6 @@
       "output": {
         "$ref": "#/schemas/InvokeBindingOutput"
       },
-      "satisfies": [
-        {
-          "role": "openbindings.binding-invoker",
-          "operation": "invokeBinding"
-        }
-      ],
       "tags": [
         "binding"
       ]
@@ -761,16 +738,14 @@
       },
       "output": {
         "oneOf": [
-          { "$ref": "#/schemas/Context" },
-          { "type": "null" }
+          {
+            "$ref": "#/schemas/Context"
+          },
+          {
+            "type": "null"
+          }
         ]
       },
-      "satisfies": [
-        {
-          "role": "openbindings.context-store",
-          "operation": "getContext"
-        }
-      ],
       "tags": [
         "context"
       ]
@@ -805,16 +780,6 @@
       "output": {
         "$ref": "#/schemas/SoftwareInfo"
       },
-      "satisfies": [
-        {
-          "role": "openbindings.software-descriptor",
-          "operation": "getInfo"
-        },
-        {
-          "role": "openbindings.binding-invoker",
-          "operation": "getInfo"
-        }
-      ],
       "tags": [
         "info"
       ]
@@ -899,7 +864,7 @@
       "x-ob": {}
     },
     "listContexts": {
-      "description": "List metadata summaries for all stored contexts (no secret values). Not part of the openbindings.context-store role contract — this is ob's management surface.",
+      "description": "List metadata summaries for all stored contexts (no secret values). Not part of the openbindings.context-store role contract \u2014 this is ob's management surface.",
       "idempotent": true,
       "output": {
         "type": "array",
@@ -944,12 +909,6 @@
           "$ref": "#/schemas/FormatInfo"
         }
       },
-      "satisfies": [
-        {
-          "role": "openbindings.binding-invoker",
-          "operation": "listFormats"
-        }
-      ],
       "tags": [
         "format"
       ]
@@ -1186,12 +1145,6 @@
         ],
         "additionalProperties": false
       },
-      "satisfies": [
-        {
-          "role": "openbindings.context-store",
-          "operation": "setContext"
-        }
-      ],
       "tags": [
         "context"
       ]
@@ -1404,12 +1357,12 @@
     },
     "usage": {
       "format": "usage@2.0.0",
-      "location": "exec:/tmp/ob-gen --usage-spec",
+      "location": "exec:ob --usage-spec",
       "x-ob": {
         "delegate": "ob",
         "lastSynced": "2026-03-25T01:52:57Z",
         "obVersion": "dev",
-        "ref": "exec:/tmp/ob-gen --usage-spec",
+        "ref": "exec:ob --usage-spec",
         "resolve": "location"
       }
     }
@@ -1418,7 +1371,7 @@
   "schemas": {
     "Context": {
       "type": "object",
-      "description": "Opaque per-target context payload — credentials, session state, headers, cookies, environment, metadata, or any other invoker-managed state. Well-known fields include 'bearerToken', 'apiKey', 'basic', 'headers', 'cookies', 'environment', 'metadata'.",
+      "description": "Opaque per-target context payload \u2014 credentials, session state, headers, cookies, environment, metadata, or any other invoker-managed state. Well-known fields include 'bearerToken', 'apiKey', 'basic', 'headers', 'cookies', 'environment', 'metadata'.",
       "additionalProperties": true
     },
     "ContextSummary": {

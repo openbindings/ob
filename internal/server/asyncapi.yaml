@@ -84,18 +84,6 @@ components:
             type: string
             const: event
           output: {}
-          error:
-            type: object
-            description: >
-              Present when this event carries an output-validation diagnostic
-              alongside the produced output (the response was produced but
-              didn't match the declared schema). Pure errors use the separate
-              streamError message with type "error".
-            properties:
-              message:
-                type: string
-              code:
-                type: string
 
     StreamErrorMessage:
       name: streamError

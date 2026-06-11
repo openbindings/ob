@@ -72,9 +72,12 @@ func TestEmitTypeScriptDemo(t *testing.T) {
 
 	code := EmitTypeScript(result)
 
-	// Should import from @openbindings/sdk.
+	// Should import from @openbindings/sdk, including the handle type.
 	if !strings.Contains(code, `from "@openbindings/sdk"`) {
 		t.Error("missing @openbindings/sdk import")
+	}
+	if !strings.Contains(code, "type Invocation,") {
+		t.Error("missing Invocation type import")
 	}
 
 	// Should have typed interfaces.
@@ -82,42 +85,43 @@ func TestEmitTypeScriptDemo(t *testing.T) {
 		t.Error("missing MenuItem interface")
 	}
 
-	// Should have typed invoker class.
-	if !strings.Contains(code, "export class OpenBlendingsInvoker") {
-		t.Error("missing typed invoker class")
+	// Should have the typed invoker interface + factory binding iface once.
+	if !strings.Contains(code, "export interface OpenBlendingsInvoker") {
+		t.Error("missing typed invoker interface")
+	}
+	if !strings.Contains(code, "export function createOpenBlendingsInvoker(") {
+		t.Error("missing factory function")
+	}
+	if !strings.Contains(code, "iface: OBInterface = INTERFACE") {
+		t.Error("factory should bind iface at construction, defaulting to the embedded contract")
 	}
 
-	// Should have unary method.
-	if !strings.Contains(code, "async getMenu(") {
-		t.Error("missing getMenu unary method")
+	// Methods return the cardinality-agnostic handle with per-call opts.
+	if !strings.Contains(code, "getMenu(opts?: InvokerCallOpts): Invocation<") {
+		t.Error("getMenu should return the Invocation handle")
+	}
+	if !strings.Contains(code, "export interface InvokerCallOpts") {
+		t.Error("missing InvokerCallOpts")
 	}
 
-	// Should have stream method.
-	if !strings.Contains(code, "async *getMenuStream(") {
-		t.Error("missing getMenuStream method")
+	// No cardinality wrappers: no Promise-returning unary methods, no
+	// *Stream twins, no per-event envelope, no throwing error class.
+	if strings.Contains(code, "Stream(") {
+		t.Error("generated invoker must not emit *Stream twin methods")
 	}
-
-	// Should take only the invoker at construction; the OBI is passed per call.
-	if !strings.Contains(code, "constructor(private readonly invoker: OperationInvoker)") {
-		t.Error("missing invoker-only constructor")
+	if strings.Contains(code, "Promise<") {
+		t.Error("generated invoker must not emit Promise-returning unary wrappers")
 	}
-	if strings.Contains(code, "async connect(") {
-		t.Error("generated invoker still emits connect() — should be removed")
+	if strings.Contains(code, "TypedInvocationOutput") {
+		t.Error("generated invoker must not emit a per-event envelope")
+	}
+	if strings.Contains(code, "class OperationError") {
+		t.Error("generated invoker must not emit OperationError (terminal errors are InvocationError on the handle)")
 	}
 
 	// Should expose the contract for opt-in validation by callers.
-	if !strings.Contains(code, "static readonly CONTRACT: OBInterface") {
-		t.Error("missing static CONTRACT export")
-	}
-
-	// Should have OperationError.
-	if !strings.Contains(code, "class OperationError") {
-		t.Error("missing OperationError")
-	}
-
-	// Methods should take the interface as the first parameter.
-	if !strings.Contains(code, "getMenu(iface: OBInterface") {
-		t.Error("getMenu should take iface as first parameter")
+	if !strings.Contains(code, "export const CONTRACT: OBInterface") {
+		t.Error("missing CONTRACT export")
 	}
 
 	// Should have embedded OBI.
@@ -145,27 +149,34 @@ func TestEmitGoDemo(t *testing.T) {
 		t.Error("missing MenuItem struct")
 	}
 
-	// Should have typed invoker struct.
+	// Should have the typed invoker struct binding iface at construction.
 	if !strings.Contains(code, "type OpenBlendingsInvoker struct") {
 		t.Error("missing typed invoker struct")
 	}
-
-	// Should have constructor.
-	if !strings.Contains(code, "func NewOpenBlendingsInvoker") {
-		t.Error("missing constructor")
+	if !strings.Contains(code, "func NewOpenBlendingsInvoker(invoker *openbindings.OperationInvoker, iface *openbindings.Interface)") {
+		t.Error("constructor should bind the interface at construction")
 	}
 
-	// Should have methods taking iface as a parameter.
-	if !strings.Contains(code, "func (inv *OpenBlendingsInvoker) GetMenu") {
-		t.Error("missing GetMenu method")
+	// Methods return the cardinality-agnostic typed handle with per-call opts.
+	if !strings.Contains(code, "func (inv *OpenBlendingsInvoker) GetMenu(ctx context.Context, opts InvokerCallOpts) *openbindings.TypedInvocation[") {
+		t.Error("GetMenu should return the typed invocation handle")
 	}
-	if !strings.Contains(code, "iface *openbindings.Interface") {
-		t.Error("methods should take iface parameter")
+	if !strings.Contains(code, "type InvokerCallOpts struct") {
+		t.Error("missing InvokerCallOpts")
 	}
 
-	// Should have invokeUnary helper.
-	if !strings.Contains(code, "func invokeUnary[T any]") {
-		t.Error("missing invokeUnary helper")
+	// No cardinality wrappers: no unary channel-drain helper, no (*T, error)
+	// returns, no Stream twins.
+	if strings.Contains(code, "invokeUnary") {
+		t.Error("generated invoker must not emit the invokeUnary channel-drain helper")
+	}
+	if strings.Contains(code, "Stream(ctx") {
+		t.Error("generated invoker must not emit *Stream twin methods")
+	}
+
+	// Should expose the contract for opt-in validation by callers.
+	if !strings.Contains(code, "func OpenBlendingsInvokerContract() *openbindings.Interface") {
+		t.Error("missing contract accessor")
 	}
 }
 
@@ -357,7 +368,7 @@ func TestSchemaConverterEnum(t *testing.T) {
 func TestSchemaConverterMapType(t *testing.T) {
 	root := map[string]any{}
 	schema := map[string]any{
-		"type": "object",
+		"type":                 "object",
 		"additionalProperties": map[string]any{"type": "string"},
 	}
 

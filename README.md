@@ -143,15 +143,20 @@ ob codegen https://api.example.com/openapi.json --lang typescript
 
 ## Role Conformance
 
-`ob conform` scaffolds operations in your OBI to satisfy a role interface:
+`ob conform` scaffolds operations in your OBI to fulfill a contract interface
+(such as one of the spec's published roles). Correspondence is expressed
+through the operation key+alias namespace — an operation fulfills a contract
+operation by carrying its name as the key or an alias (spec OBI-T-12); there
+is no separate roles/satisfies layer.
 
 ```bash
 ob conform openbindings.context-store.json my-service.obi.json
 ```
 
-For each operation in the role interface:
-- **Missing**: scaffolded with schemas and a `satisfies` reference
-- **Present but incompatible**: offers to replace the schema
+For each operation in the contract interface:
+- **Missing**: scaffolded under the contract's operation name with its schemas
+- **Present but incompatible**: offers to replace the schema (declaring the
+  correspondence with an alias when the keys differ)
 - **Compatible**: reports "in sync"
 
 Use `--yes` for CI, `--dry-run` to preview:
