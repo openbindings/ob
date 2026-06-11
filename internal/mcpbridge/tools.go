@@ -13,26 +13,38 @@ import (
 	openbindings "github.com/openbindings/openbindings-go"
 )
 
-// drainOperation drives an operation invocation to its last output: it writes
-// the input (when non-nil), closes the input side, and returns the final
-// output value or the terminal error. MCP primitives surface the last value
-// the operation produces.
+// drainOperation drives an operation invocation to completion: it writes the
+// input (when non-nil), closes the input side, and collects every output.
+//
+// MCP tool/resource/prompt results are request/response, so a streaming
+// operation's outputs are surfaced as a JSON array — a unary operation's single
+// output is returned as-is (a scalar), preserving the common shape, while a
+// multi-output operation returns the FULL sequence rather than silently
+// dropping all but the last value. A terminal error before EOF surfaces as the
+// MCP error (collected outputs are discarded, matching how callers render it).
 func drainOperation(ctx context.Context, call openbindings.Invocation[any, any], input any) (any, *openbindings.InvocationError) {
 	if input != nil {
 		_ = call.Write(ctx, input)
 	}
 	_ = call.Close()
 	out := call.Outputs()
-	var last any
+	var outputs []any
 	for {
 		v, err := out.Read(ctx)
 		if errors.Is(err, io.EOF) {
-			return last, nil
+			switch len(outputs) {
+			case 0:
+				return nil, nil
+			case 1:
+				return outputs[0], nil
+			default:
+				return outputs, nil
+			}
 		}
 		if err != nil {
-			return last, openbindings.AsInvocationError(err)
+			return nil, openbindings.AsInvocationError(err)
 		}
-		last = v
+		outputs = append(outputs, v)
 	}
 }
 

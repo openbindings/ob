@@ -15,6 +15,7 @@ import (
 	"regexp"
 	"strings"
 	"testing"
+	"time"
 
 	"nhooyr.io/websocket"
 	"nhooyr.io/websocket/wsjson"
@@ -24,6 +25,30 @@ import (
 	"github.com/openbindings/ob/internal/app"
 	"github.com/openbindings/ob/internal/server"
 )
+
+// mockBlockingInvoker emits one output then streams forever, closing tornDown
+// when the invocation finally terminates (its EmitOutput returns the terminal
+// error). It models an infinite server-stream so a client disconnect must be
+// what tears it down.
+type mockBlockingInvoker struct {
+	formats  []openbindings.FormatInfo
+	tornDown chan struct{}
+}
+
+func (m *mockBlockingInvoker) Formats() []openbindings.FormatInfo { return m.formats }
+func (m *mockBlockingInvoker) InvokeBinding(ctx context.Context, _ *openbindings.BindingInvocationArgs) openbindings.Invocation[any, any] {
+	inv := openbindings.NewInvocationImpl[any, any](ctx)
+	go func() {
+		_ = inv.CloseInput()
+		for {
+			if err := inv.EmitOutput("tick"); err != nil {
+				close(m.tornDown)
+				return
+			}
+		}
+	}()
+	return inv
+}
 
 // mockStreamInvoker is a test-only invoker that emits canned output values as
 // a stream, then closes cleanly.
@@ -1122,5 +1147,54 @@ func TestSpecHandlerConformance(t *testing.T) {
 				t.Errorf("documented endpoint returned %d — handler likely missing", resp.StatusCode)
 			}
 		})
+	}
+}
+
+// TestServeBindingInvoke_WS_ClientDisconnectTearsDown is a regression test for
+// the WS-disconnect leak: websocket.Accept hijacks the connection, so a client
+// disconnect no longer cancels r.Context(). The handler must derive a
+// connection-scoped cancellable ctx (via CloseRead) so that disconnecting an
+// in-flight stream tears the invocation — and its upstream transport — down.
+func TestServeBindingInvoke_WS_ClientDisconnectTearsDown(t *testing.T) {
+	torn := make(chan struct{})
+	mock := &mockBlockingInvoker{
+		formats:  []openbindings.FormatInfo{{Token: "mock-block@1.0"}},
+		tornDown: torn,
+	}
+	cleanup := app.OverrideInvokerForTest(openbindings.NewOperationInvoker(mock))
+	defer cleanup()
+
+	ts := testEnv(t)
+	defer ts.Close()
+
+	ctx := context.Background()
+	wsURL := strings.Replace(ts.URL, "http://", "ws://", 1) + "/bindings/invoke"
+	conn, _, err := websocket.Dial(ctx, wsURL, nil)
+	if err != nil {
+		t.Fatalf("websocket dial failed: %v", err)
+	}
+
+	if err := wsjson.Write(ctx, conn, map[string]any{
+		"source":      map[string]any{"format": "mock-block@1.0", "location": "mock://test"},
+		"ref":         "#/test",
+		"bearerToken": "test-token",
+	}); err != nil {
+		t.Fatalf("write initial message: %v", err)
+	}
+
+	// Read one frame to confirm the stream is live, then abruptly disconnect.
+	var msg struct {
+		Type   string `json:"type"`
+		Output any    `json:"output,omitempty"`
+	}
+	if err := wsjson.Read(ctx, conn, &msg); err != nil {
+		t.Fatalf("read first frame: %v", err)
+	}
+	_ = conn.CloseNow()
+
+	select {
+	case <-torn:
+	case <-time.After(5 * time.Second):
+		t.Fatal("invocation was not torn down after client disconnect (goroutine + transport leak)")
 	}
 }

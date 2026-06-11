@@ -1,10 +1,12 @@
 package app
 
 import (
+	"context"
 	"os"
 	"path/filepath"
 	"testing"
 
+	openbindings "github.com/openbindings/openbindings-go"
 	"github.com/zalando/go-keyring"
 )
 
@@ -250,5 +252,32 @@ func TestMigrationDetection(t *testing.T) {
 	}
 	if summaries[0].HeaderCount != 1 {
 		t.Errorf("expected 1 header, got %d", summaries[0].HeaderCount)
+	}
+}
+
+// TestCLIContextStore_OriginChallengeFindsPathScopedContext is a regression
+// test for the challenge-key mismatch: a credential saved via
+// `ob context set https://api.example.com/openapi.json` must be resolvable by
+// the SDK's origin-only challenge key ("api.example.com").
+func TestCLIContextStore_OriginChallengeFindsPathScopedContext(t *testing.T) {
+	setupContextTestDir(t)
+
+	saved := map[string]any{"bearerToken": "secret-tok"}
+	if err := SaveUnifiedContext("https://api.example.com/openapi.json", saved); err != nil {
+		t.Fatalf("SaveUnifiedContext: %v", err)
+	}
+
+	store := NewCLIContextStore()
+	got, err := store.Get(context.Background(), "api.example.com")
+	if err != nil {
+		t.Fatalf("Get: %v", err)
+	}
+	if openbindings.ContextBearerToken(got) != "secret-tok" {
+		t.Fatalf("origin challenge did not resolve path-scoped context: %#v", got)
+	}
+
+	// A non-matching origin must still miss (no false positives).
+	if other, err := store.Get(context.Background(), "api.other.com"); err != nil || len(other) != 0 {
+		t.Fatalf("unexpected match for unrelated origin: %#v (err %v)", other, err)
 	}
 }

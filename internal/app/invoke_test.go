@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	openbindings "github.com/openbindings/openbindings-go"
 )
@@ -259,5 +260,51 @@ func TestInvokeOBIOperation_InputTransformError(t *testing.T) {
 	_, err := InvokeOBIOperation(context.Background(), obi, "listPets", "", map[string]any{"limit": 10})
 	if err == nil {
 		t.Fatal("expected error for bad input transform")
+	}
+}
+
+// TestDriveBindingTearsDownOnCancel is a regression test for the WS-disconnect
+// leak: when the consumer abandons the output channel (a disconnected client),
+// cancelling the lifetime ctx must unblock driveBinding's goroutine and close
+// the channel, rather than parking forever on a full, unread channel.
+func TestDriveBindingTearsDownOnCancel(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+
+	invoke := func(c context.Context, _ map[string]any) openbindings.Invocation[any, any] {
+		inv := openbindings.NewInvocationImpl[any, any](c)
+		go func() {
+			// Infinite producer that honors the handle's terminal model:
+			// EmitOutput returns a terminal error once the invocation is
+			// cancelled, ending the loop.
+			for i := 0; ; i++ {
+				if err := inv.EmitOutput(i); err != nil {
+					return
+				}
+			}
+		}()
+		return inv
+	}
+
+	ch := driveBinding(ctx, invoke, nil, nil, nil)
+
+	// Confirm the stream is flowing, then ABANDON it (stop draining) so the
+	// 16-slot buffer fills and driveBinding parks on its send.
+	<-ch
+	<-ch
+
+	cancel()
+
+	// The goroutine must exit and close ch promptly. Drain whatever is buffered
+	// until the close; a leak would hang here.
+	done := make(chan struct{})
+	go func() {
+		for range ch { //nolint:revive // draining to the close
+		}
+		close(done)
+	}()
+	select {
+	case <-done:
+	case <-time.After(2 * time.Second):
+		t.Fatal("driveBinding did not tear down after cancel (goroutine leak)")
 	}
 }

@@ -103,6 +103,13 @@ components:
                 type: string
               code:
                 type: string
+              details:
+                type: object
+                description: >-
+                  Structured terminal-error details, when present. For a
+                  CONTEXT_REQUIRED challenge this carries {key, alternatives};
+                  for an OBI-T-07/T-08 validation failure it carries the
+                  failing field paths.
 
   securitySchemes:
     bearer:

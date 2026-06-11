@@ -49,13 +49,45 @@ func CLIContextResolver() openbindings.ContextResolver {
 				candidate[k] = v
 			}
 			if promptForAlternative(ctx, alt, candidate) && openbindings.ContextSatisfies(candidate, details) {
-				// 3. Persist resolved context under the challenge key.
-				_ = store.Set(ctx, details.Key, candidate)
+				// 3. Persist only the durable portion under the challenge key.
+				// Non-durable context (e.g. a short-lived token) MUST NOT be
+				// written to disk/keychain; it is re-acquired each call. The
+				// resolved candidate is still returned in full for this call.
+				if persistable := durableSubset(alt, candidate); len(persistable) > 0 {
+					_ = store.Set(ctx, details.Key, persistable)
+				}
 				return candidate, nil
 			}
 		}
 		return nil, nil
 	}
+}
+
+// requirementField maps a requirement family to the context field it
+// populates (mirrors promptForAlternative and the SDK's field mapping).
+var requirementField = map[string]string{
+	"auth.bearer": "bearerToken",
+	"auth.apiKey": "apiKey",
+	"auth.basic":  "basic",
+	"auth.oauth2": "accessToken",
+}
+
+// durableSubset returns a copy of candidate with the fields contributed by
+// non-durable requirements of alt removed, so only persistable context is
+// stored. A requirement is durable unless it explicitly sets Durable=false.
+func durableSubset(alt openbindings.ContextAlternative, candidate map[string]any) map[string]any {
+	out := make(map[string]any, len(candidate))
+	for k, v := range candidate {
+		out[k] = v
+	}
+	for _, req := range alt.Requirements {
+		if req.Durable != nil && !*req.Durable {
+			if field, ok := requirementField[req.Type]; ok {
+				delete(out, field)
+			}
+		}
+	}
+	return out
 }
 
 // promptForAlternative prompts for every requirement in one alternative,

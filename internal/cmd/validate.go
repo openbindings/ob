@@ -21,8 +21,11 @@ The locator may be a local file path, HTTP(S) URL, or exec: reference.
 Checks structural correctness: required fields, operation kinds, alias
 uniqueness, binding source references, transform validity, and more.
 
-With --strict, additionally rejects unknown (non-x-) fields and requires
-a supported OpenBindings version.
+A document declaring a too-new OpenBindings version (a higher major, or
+while pre-1.0 a higher minor, than this build supports) is refused in every
+mode, per OBI-T-04.
+
+With --strict, additionally rejects unknown (non-x-) fields.
 
 Exit code 0 if valid, 1 if invalid or an error occurred.
 
@@ -53,7 +56,7 @@ Examples:
 	}
 
 	cmd.Flags().BoolVarP(&quiet, "quiet", "q", false, "suppress output, exit code only")
-	cmd.Flags().BoolVar(&strict, "strict", false, "reject unknown fields and require supported version")
+	cmd.Flags().BoolVar(&strict, "strict", false, "reject unknown (non-x-) fields")
 
 	return cmd
 }

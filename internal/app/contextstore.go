@@ -442,13 +442,44 @@ func (s *cliContextStore) Get(_ context.Context, key string) (map[string]any, er
 		return ctx, err
 	}
 	// Bridge key conventions: the binding-invoker role's challenge keys are
-	// normalized origins (host[:port], no scheme) while ob's store keys are
-	// URLs. Retry with an https scheme so challenge-driven lookups find
-	// contexts saved by `ob context set <url>`.
+	// normalized origins (host[:port], no scheme, no path — the same identity
+	// openbindings.NormalizeEndpoint derives), while `ob context set <url>`
+	// persists under the URL the user supplied (commonly with a path). The
+	// hierarchical resolver only walks path-specific→general, so an origin
+	// challenge can't reach a context saved at a deeper URL. Resolve by origin
+	// identity: find a stored context whose endpoint normalizes to the same
+	// origin as the challenge key.
 	if !strings.Contains(key, "://") {
-		return LoadContext("https://" + key)
+		if matched := findStoredContextByOrigin(key); matched != "" {
+			return LoadContext(matched)
+		}
 	}
 	return ctx, nil
+}
+
+// findStoredContextByOrigin returns the stored context URL whose endpoint
+// shares the challenge key's normalized origin (host[:port]), or "" when none
+// match. When several stored URLs share the origin (different paths), the
+// shortest (closest to the bare origin) wins, deterministically.
+func findStoredContextByOrigin(originKey string) string {
+	want := openbindings.NormalizeEndpoint(originKey)
+	if want == "" {
+		return ""
+	}
+	summaries, err := ListContexts()
+	if err != nil {
+		return ""
+	}
+	best := ""
+	for _, sum := range summaries {
+		if openbindings.NormalizeEndpoint(sum.URL) != want {
+			continue
+		}
+		if best == "" || len(sum.URL) < len(best) {
+			best = sum.URL
+		}
+	}
+	return best
 }
 
 func (s *cliContextStore) Set(_ context.Context, key string, value map[string]any) error {

@@ -251,11 +251,22 @@ func driveBinding(
 							break // next round re-invokes with merged context
 						}
 					}
-					ch <- InvocationOutput{Error: ie, Status: statusFromError(ie)}
+					// Select on ctx so an abandoned consumer (e.g. a WS client
+					// that disconnected) cannot strand this goroutine on a full,
+					// unread channel. Cancelling ctx tears the binding down via
+					// the SDK's terminal model; we exit rather than block.
+					select {
+					case ch <- InvocationOutput{Error: ie, Status: statusFromError(ie)}:
+					case <-ctx.Done():
+					}
 					return
 				}
 				emitted = true
-				ch <- InvocationOutput{Output: v}
+				select {
+				case ch <- InvocationOutput{Output: v}:
+				case <-ctx.Done():
+					return
+				}
 			}
 		}
 	}()

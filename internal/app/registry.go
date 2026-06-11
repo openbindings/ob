@@ -54,6 +54,12 @@ func newDefaultInvoker() *openbindings.OperationInvoker {
 	// operation nodes invoke sub-operations). Register after construction.
 	invoker.AddBindingInvoker(operationgraph.NewInvoker(invoker))
 	invoker.TransformEvaluator = &jsonataEvaluator{}
+	// ContextResolver drives CONTEXT_REQUIRED negotiation. NOTE: the app layer
+	// reaches bindings via invoker.InvokeBinding and owns its own bounded
+	// resolve-replay loop (driveBinding), so the SDK's operation-layer loop in
+	// invoker.Invoke stays dormant on that path. If any app-layer code is ever
+	// moved onto invoker.Invoke, remove driveBinding's loop first — otherwise
+	// both loops fire and a single challenge is retried up to 3×3 times.
 	invoker.ContextResolver = CLIContextResolver()
 	return invoker
 }

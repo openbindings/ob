@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"context"
 	"encoding/json"
 	"log/slog"
 	"net/http"
@@ -100,7 +101,13 @@ func handleBindingInvokeWS(srv *server.Server, logger *slog.Logger, w http.Respo
 
 	conn.SetReadLimit(maxRequestBodyBytes)
 
-	ctx := r.Context()
+	// The lifetime ctx must be cancelled when the client disconnects.
+	// websocket.Accept hijacks the connection, so r.Context() is no longer
+	// cancelled on client close; without an explicit cancel the invocation
+	// goroutine and its upstream transport would leak on every abandoned
+	// stream. cancel() also fires on every early return below.
+	ctx, cancel := context.WithCancel(r.Context())
+	defer cancel()
 
 	var body struct {
 		Source      app.InvokeSource        `json:"source"`
@@ -129,6 +136,12 @@ func handleBindingInvokeWS(srv *server.Server, logger *slog.Logger, w http.Respo
 		}
 	}
 
+	// After the single request frame, this is a server→client stream. Hand the
+	// read side to CloseRead, whose returned context is cancelled when the
+	// client sends anything (including a close frame) or the connection drops —
+	// that cancellation tears down the invocation and unblocks driveBinding.
+	ctx = conn.CloseRead(ctx)
+
 	logger.Info("bindings/invoke (ws)", "format", body.Source.Format, "ref", body.Ref)
 
 	execInput := app.InvokeOperationInput{
@@ -145,8 +158,12 @@ func handleBindingInvokeWS(srv *server.Server, logger *slog.Logger, w http.Respo
 		out := app.InvokeOperationWithContext(ctx, execInput)
 		if out.Error != nil {
 			_ = wsjson.Write(ctx, conn, wsInvocationOutput{
-				Type:  "error",
-				Error: &wsErrorDetail{Message: out.Error.Message, Code: out.Error.Code},
+				Type: "error",
+				Error: &wsErrorDetail{
+					Message: out.Error.Message,
+					Code:    out.Error.Code,
+					Details: out.Error.Details,
+				},
 			})
 		} else {
 			_ = wsjson.Write(ctx, conn, wsInvocationOutput{Type: "event", Output: out.Output})
