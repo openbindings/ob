@@ -1,0 +1,127 @@
+{
+  "version": "ob-comparison-fixture/v1",
+  "description": "Input schema raises maximum; implementation accepts a wider numeric range.",
+  "left": {
+    "openbindings": "0.2.0",
+    "operations": {
+      "check": {
+        "input": {
+          "type": "number",
+          "maximum": 50
+        }
+      }
+    }
+  },
+  "right": {
+    "openbindings": "0.2.0",
+    "operations": {
+      "check": {
+        "input": {
+          "type": "number",
+          "maximum": 100
+        }
+      }
+    }
+  },
+  "mode": "subsume",
+  "options": {
+    "profile": "OB-2020-12"
+  },
+  "expected": {
+    "format_version": "ob-comparison-report/v1",
+    "profile": "OB-2020-12@<corpus-sha>",
+    "mode": "subsume",
+    "tool": {
+      "name": "ob",
+      "version": "<tool.version>"
+    },
+    "generated_at": "<generated_at>",
+    "inputs": {
+      "left": {
+        "source": "file",
+        "uri": "<input.left.uri>",
+        "content_sha256": "4d221d8563bcaa55b76ca0579be6ac3cb745a24614830b5b58ace922c84addbd",
+        "label": "left"
+      },
+      "right": {
+        "source": "file",
+        "uri": "<input.right.uri>",
+        "content_sha256": "3d3b989fcb10d3040180e0441cd4aac3926a2c0e23450bbafb5f5120b918d46d",
+        "label": "right"
+      }
+    },
+    "summary": {
+      "verdict": "compatible",
+      "coverage": {
+        "total_operations": 1,
+        "paired": 1,
+        "only_left": 0,
+        "only_right": 0,
+        "paired_via": {
+          "direct": 1,
+          "alias": 0
+        }
+      },
+      "counts": {
+        "numeric.maximum.loosened": 1
+      },
+      "categories": {
+        "breaking": 0,
+        "non_breaking": 1,
+        "compliance": 0,
+        "structural": 0
+      }
+    },
+    "operations": [
+      {
+        "status": "paired",
+        "left": {
+          "key": "check",
+          "pointer": "/operations/check"
+        },
+        "right": {
+          "key": "check",
+          "pointer": "/operations/check"
+        },
+        "match": {
+          "strategy": "direct",
+          "left": "check",
+          "right": "check"
+        },
+        "input": {
+          "verdict": "compatible",
+          "direction": "input",
+          "reasons": [
+            {
+              "kind": "numeric.maximum.loosened",
+              "pointer": "/operations/check/input/maximum",
+              "side": "right"
+            }
+          ]
+        },
+        "findings": [
+          {
+            "kind": "numeric.maximum.loosened",
+            "category": [
+              "non_breaking"
+            ],
+            "severity": "warn",
+            "location": {
+              "side": "right",
+              "pointer": "/operations/check/input/maximum"
+            },
+            "before": 50,
+            "after": 100
+          }
+        ]
+      }
+    ],
+    "schemas": [],
+    "metadata": [],
+    "sources": [],
+    "bindings": [],
+    "transforms": [],
+    "security": [],
+    "suppressed": []
+  }
+}

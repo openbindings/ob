@@ -12,22 +12,24 @@ import (
 
 func newConformCmd() *cobra.Command {
 	var (
-		roleKey string
-		yes     bool
-		dryRun  bool
+		yes    bool
+		dryRun bool
 	)
 
 	cmd := &cobra.Command{
-		Use:   "conform <role-interface> <target-obi>",
-		Short: "Scaffold or update operations to conform to a role interface",
-		Long: `Scaffold or update operations in a target OBI to conform to a role interface.
+		Use:   "conform <contract-interface> <target-obi>",
+		Short: "Scaffold or update operations to fulfill a contract interface",
+		Long: `Scaffold or update operations in a target OBI to fulfill a contract interface.
 
-For each operation in the role interface:
-  - If missing from the target: scaffolds it (copies schema, adds satisfies)
-  - If present but incompatible: offers to replace the schema
+For each operation in the contract interface:
+  - If missing from the target: scaffolds it (keyed by the contract operation
+    name, copying its schemas)
+  - If present but incompatible: offers to replace the schema, declaring the
+    correspondence with an alias when the keys differ
   - If present and compatible: reports "in sync"
 
-Also adds the role to the target's roles map.
+Correspondence is expressed purely through the operation key+alias namespace
+(spec OBI-T-12); there is no separate roles/satisfies layer.
 
 Use --yes to auto-accept all changes (for CI/scripting).
 Use --dry-run to preview changes without modifying the file.
@@ -35,7 +37,6 @@ Use --dry-run to preview changes without modifying the file.
 Examples:
   ob conform context-store.json my-service.obi.json
   ob conform https://openbindings.org/interfaces/host.json ./interface.json --yes
-  ob conform context-store.json my-service.obi.json --role-key openbindings.context-store
   ob conform context-store.json my-service.obi.json --dry-run`,
 		Args: cobra.ExactArgs(2),
 		RunE: func(cmd *cobra.Command, args []string) error {
@@ -52,7 +53,6 @@ Examples:
 
 			output := app.ConformToRole(app.ConformInput{
 				RoleLocator: args[0],
-				RoleKey:     roleKey,
 				TargetPath:  args[1],
 				Yes:         yes,
 				DryRun:      dryRun,
@@ -63,7 +63,6 @@ Examples:
 		},
 	}
 
-	cmd.Flags().StringVar(&roleKey, "role-key", "", "key for the role in the target's roles map (default: derived from interface name)")
 	cmd.Flags().BoolVarP(&yes, "yes", "y", false, "auto-accept all scaffolding and replacements")
 	cmd.Flags().BoolVar(&dryRun, "dry-run", false, "preview changes without modifying files")
 

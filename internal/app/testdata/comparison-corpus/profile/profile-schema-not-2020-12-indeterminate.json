@@ -1,0 +1,127 @@
+{
+  "version": "ob-comparison-fixture/v1",
+  "description": "Input schema uses draft-04 boolean exclusiveMinimum; profile conformance error is indeterminate, not unverified.",
+  "left": {
+    "openbindings": "0.2.0",
+    "operations": {
+      "check": {
+        "input": {
+          "type": "number",
+          "minimum": 0
+        }
+      }
+    }
+  },
+  "right": {
+    "openbindings": "0.2.0",
+    "operations": {
+      "check": {
+        "input": {
+          "type": "number",
+          "minimum": 0,
+          "exclusiveMinimum": true
+        }
+      }
+    }
+  },
+  "mode": "subsume",
+  "options": {
+    "profile": "OB-2020-12"
+  },
+  "expected": {
+    "format_version": "ob-comparison-report/v1",
+    "profile": "OB-2020-12@<corpus-sha>",
+    "mode": "subsume",
+    "tool": {
+      "name": "ob",
+      "version": "<tool.version>"
+    },
+    "generated_at": "<generated_at>",
+    "inputs": {
+      "left": {
+        "source": "file",
+        "uri": "<input.left.uri>",
+        "content_sha256": "233425445e1720355c1237083e1225a9be222e7a7a60fc2670642c442c31191b",
+        "label": "left"
+      },
+      "right": {
+        "source": "file",
+        "uri": "<input.right.uri>",
+        "content_sha256": "c2570e2c65dcabdf962d4b4d266e53abcd58a8e62e566988118cbfb539b4e483",
+        "label": "right"
+      }
+    },
+    "summary": {
+      "verdict": "indeterminate",
+      "coverage": {
+        "total_operations": 1,
+        "paired": 1,
+        "only_left": 0,
+        "only_right": 0,
+        "paired_via": {
+          "direct": 1,
+          "alias": 0
+        }
+      },
+      "counts": {
+        "profile.schema.not_2020_12": 1
+      },
+      "categories": {
+        "breaking": 0,
+        "non_breaking": 0,
+        "compliance": 0,
+        "structural": 1
+      }
+    },
+    "operations": [
+      {
+        "status": "paired",
+        "left": {
+          "key": "check",
+          "pointer": "/operations/check"
+        },
+        "right": {
+          "key": "check",
+          "pointer": "/operations/check"
+        },
+        "match": {
+          "strategy": "direct",
+          "left": "check",
+          "right": "check"
+        },
+        "input": {
+          "verdict": "indeterminate",
+          "direction": "input",
+          "reasons": [
+            {
+              "kind": "profile.schema.not_2020_12",
+              "pointer": "/operations/check/input/exclusiveMinimum",
+              "side": "right"
+            }
+          ]
+        },
+        "findings": [
+          {
+            "kind": "profile.schema.not_2020_12",
+            "category": [
+              "structural"
+            ],
+            "severity": "error",
+            "location": {
+              "side": "right",
+              "pointer": "/operations/check/input/exclusiveMinimum"
+            },
+            "after": true
+          }
+        ]
+      }
+    ],
+    "schemas": [],
+    "metadata": [],
+    "sources": [],
+    "bindings": [],
+    "transforms": [],
+    "security": [],
+    "suppressed": []
+  }
+}

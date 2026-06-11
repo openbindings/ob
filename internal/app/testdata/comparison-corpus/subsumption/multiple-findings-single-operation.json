@@ -1,0 +1,159 @@
+{
+  "version": "ob-comparison-fixture/v1",
+  "description": "Two subsumption violations in a single operation; both projected to breaking in input direction.",
+  "left": {
+    "openbindings": "0.2.0",
+    "operations": {
+      "check": {
+        "input": {
+          "type": "object",
+          "properties": {
+            "value": {
+              "type": "number"
+            }
+          }
+        }
+      }
+    }
+  },
+  "right": {
+    "openbindings": "0.2.0",
+    "operations": {
+      "check": {
+        "input": {
+          "type": "object",
+          "properties": {
+            "value": {
+              "type": "integer"
+            }
+          },
+          "required": [
+            "value"
+          ]
+        }
+      }
+    }
+  },
+  "mode": "subsume",
+  "options": {
+    "profile": "OB-2020-12"
+  },
+  "expected": {
+    "format_version": "ob-comparison-report/v1",
+    "profile": "OB-2020-12@<corpus-sha>",
+    "mode": "subsume",
+    "tool": {
+      "name": "ob",
+      "version": "<tool.version>"
+    },
+    "generated_at": "<generated_at>",
+    "inputs": {
+      "left": {
+        "source": "file",
+        "uri": "<input.left.uri>",
+        "content_sha256": "4f10c53a0c3513c5bd0e7c5a5d4119c662e3ef0a665bf25d97619c23cd62c92a",
+        "label": "left"
+      },
+      "right": {
+        "source": "file",
+        "uri": "<input.right.uri>",
+        "content_sha256": "53e23fa61958c8c3dc0db90f4d9e2d1448b86ff25c1b7760433b2a01fb10f631",
+        "label": "right"
+      }
+    },
+    "summary": {
+      "verdict": "incompatible",
+      "coverage": {
+        "total_operations": 1,
+        "paired": 1,
+        "only_left": 0,
+        "only_right": 0,
+        "paired_via": {
+          "direct": 1,
+          "alias": 0
+        }
+      },
+      "counts": {
+        "required.added": 1,
+        "type.number_to_integer": 1
+      },
+      "categories": {
+        "breaking": 2,
+        "non_breaking": 0,
+        "compliance": 0,
+        "structural": 0
+      }
+    },
+    "operations": [
+      {
+        "status": "paired",
+        "left": {
+          "key": "check",
+          "pointer": "/operations/check"
+        },
+        "right": {
+          "key": "check",
+          "pointer": "/operations/check"
+        },
+        "match": {
+          "strategy": "direct",
+          "left": "check",
+          "right": "check"
+        },
+        "input": {
+          "verdict": "incompatible",
+          "direction": "input",
+          "reasons": [
+            {
+              "kind": "required.added",
+              "pointer": "/operations/check/input/required/0",
+              "side": "right"
+            },
+            {
+              "kind": "type.number_to_integer",
+              "pointer": "/operations/check/input/properties/value/type",
+              "side": "right"
+            }
+          ]
+        },
+        "findings": [
+          {
+            "kind": "required.added",
+            "category": [
+              "breaking"
+            ],
+            "severity": "error",
+            "location": {
+              "side": "right",
+              "pointer": "/operations/check/input/required/0"
+            },
+            "before": [],
+            "after": [
+              "value"
+            ]
+          },
+          {
+            "kind": "type.number_to_integer",
+            "category": [
+              "breaking"
+            ],
+            "severity": "error",
+            "location": {
+              "side": "right",
+              "pointer": "/operations/check/input/properties/value/type"
+            },
+            "before": "number",
+            "after": "integer"
+          }
+        ]
+      }
+    ],
+    "schemas": [],
+    "metadata": [],
+    "sources": [],
+    "bindings": [],
+    "transforms": [],
+    "security": [],
+    "suppressed": []
+  }
+}

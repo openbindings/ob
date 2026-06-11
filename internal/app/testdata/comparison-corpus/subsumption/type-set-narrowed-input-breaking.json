@@ -1,0 +1,135 @@
+{
+  "version": "ob-comparison-fixture/v1",
+  "description": "Input schema narrows the type set; implementation rejects values the contract accepted.",
+  "left": {
+    "openbindings": "0.2.0",
+    "operations": {
+      "check": {
+        "input": {
+          "type": [
+            "string",
+            "number"
+          ]
+        }
+      }
+    }
+  },
+  "right": {
+    "openbindings": "0.2.0",
+    "operations": {
+      "check": {
+        "input": {
+          "type": [
+            "string"
+          ]
+        }
+      }
+    }
+  },
+  "mode": "subsume",
+  "options": {
+    "profile": "OB-2020-12"
+  },
+  "expected": {
+    "format_version": "ob-comparison-report/v1",
+    "profile": "OB-2020-12@<corpus-sha>",
+    "mode": "subsume",
+    "tool": {
+      "name": "ob",
+      "version": "<tool.version>"
+    },
+    "generated_at": "<generated_at>",
+    "inputs": {
+      "left": {
+        "source": "file",
+        "uri": "<input.left.uri>",
+        "content_sha256": "3957da7e282e79997f3047e3ffc8c53d8eef3e5b66b4299729175772cc744020",
+        "label": "left"
+      },
+      "right": {
+        "source": "file",
+        "uri": "<input.right.uri>",
+        "content_sha256": "3084599009e1dac6e2e4cea89b54f50d8a294df89c57615c0aef50f1190af308",
+        "label": "right"
+      }
+    },
+    "summary": {
+      "verdict": "incompatible",
+      "coverage": {
+        "total_operations": 1,
+        "paired": 1,
+        "only_left": 0,
+        "only_right": 0,
+        "paired_via": {
+          "direct": 1,
+          "alias": 0
+        }
+      },
+      "counts": {
+        "type.set.narrowed": 1
+      },
+      "categories": {
+        "breaking": 1,
+        "non_breaking": 0,
+        "compliance": 0,
+        "structural": 0
+      }
+    },
+    "operations": [
+      {
+        "status": "paired",
+        "left": {
+          "key": "check",
+          "pointer": "/operations/check"
+        },
+        "right": {
+          "key": "check",
+          "pointer": "/operations/check"
+        },
+        "match": {
+          "strategy": "direct",
+          "left": "check",
+          "right": "check"
+        },
+        "input": {
+          "verdict": "incompatible",
+          "direction": "input",
+          "reasons": [
+            {
+              "kind": "type.set.narrowed",
+              "pointer": "/operations/check/input/type",
+              "side": "right"
+            }
+          ]
+        },
+        "findings": [
+          {
+            "kind": "type.set.narrowed",
+            "category": [
+              "breaking"
+            ],
+            "severity": "error",
+            "location": {
+              "side": "right",
+              "pointer": "/operations/check/input/type"
+            },
+            "before": [
+              "string",
+              "number"
+            ],
+            "after": [
+              "string"
+            ]
+          }
+        ]
+      }
+    ],
+    "schemas": [],
+    "metadata": [],
+    "sources": [],
+    "bindings": [],
+    "transforms": [],
+    "security": [],
+    "suppressed": []
+  }
+}

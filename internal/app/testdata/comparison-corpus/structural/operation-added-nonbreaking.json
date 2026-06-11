@@ -1,0 +1,135 @@
+{
+  "version": "ob-comparison-fixture/v1",
+  "description": "Implementation adds an operation not present in the contract.",
+  "left": {
+    "openbindings": "0.2.0",
+    "operations": {
+      "check": {
+        "output": {
+          "type": "string"
+        }
+      }
+    }
+  },
+  "right": {
+    "openbindings": "0.2.0",
+    "operations": {
+      "check": {
+        "output": {
+          "type": "string"
+        }
+      },
+      "extra": {
+        "output": {
+          "type": "string"
+        }
+      }
+    }
+  },
+  "mode": "subsume",
+  "options": {
+    "profile": "OB-2020-12"
+  },
+  "expected": {
+    "format_version": "ob-comparison-report/v1",
+    "profile": "OB-2020-12@<corpus-sha>",
+    "mode": "subsume",
+    "tool": {
+      "name": "ob",
+      "version": "<tool.version>"
+    },
+    "generated_at": "<generated_at>",
+    "inputs": {
+      "left": {
+        "source": "file",
+        "uri": "<input.left.uri>",
+        "content_sha256": "a97ee89330bfd8ee96cf9e19d4c7453edd342e16eebf5637c46b942730ec1339",
+        "label": "left"
+      },
+      "right": {
+        "source": "file",
+        "uri": "<input.right.uri>",
+        "content_sha256": "f4618f4f78487a0c8aed97cea232ee1915959b93db06050ed2fafaca01cb1d9f",
+        "label": "right"
+      }
+    },
+    "summary": {
+      "verdict": "compatible",
+      "coverage": {
+        "total_operations": 1,
+        "paired": 1,
+        "only_left": 0,
+        "only_right": 1,
+        "paired_via": {
+          "direct": 1,
+          "alias": 0
+        }
+      },
+      "counts": {
+        "operation.added": 1
+      },
+      "categories": {
+        "breaking": 0,
+        "non_breaking": 1,
+        "compliance": 0,
+        "structural": 0
+      }
+    },
+    "operations": [
+      {
+        "status": "paired",
+        "left": {
+          "key": "check",
+          "pointer": "/operations/check"
+        },
+        "right": {
+          "key": "check",
+          "pointer": "/operations/check"
+        },
+        "match": {
+          "strategy": "direct",
+          "left": "check",
+          "right": "check"
+        },
+        "output": {
+          "verdict": "identical",
+          "direction": "output",
+          "reasons": []
+        },
+        "findings": []
+      },
+      {
+        "status": "only_right",
+        "right": {
+          "key": "extra",
+          "pointer": "/operations/extra"
+        },
+        "findings": [
+          {
+            "kind": "operation.added",
+            "category": [
+              "non_breaking"
+            ],
+            "severity": "info",
+            "location": {
+              "side": "right",
+              "pointer": "/operations/extra"
+            },
+            "after": {
+              "output": {
+                "type": "string"
+              }
+            }
+          }
+        ]
+      }
+    ],
+    "schemas": [],
+    "metadata": [],
+    "sources": [],
+    "bindings": [],
+    "transforms": [],
+    "security": [],
+    "suppressed": []
+  }
+}

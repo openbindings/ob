@@ -1,0 +1,121 @@
+{
+  "version": "ob-comparison-fixture/v1",
+  "description": "Identical mode ignores annotation-only metadata and object key ordering.",
+  "left": {
+    "openbindings": "0.2.0",
+    "operations": {
+      "check": {
+        "input": {
+          "type": "object",
+          "properties": {
+            "id": {
+              "type": "string",
+              "description": "old docs"
+            }
+          },
+          "required": [
+            "id"
+          ]
+        }
+      }
+    }
+  },
+  "right": {
+    "openbindings": "0.2.0",
+    "operations": {
+      "check": {
+        "input": {
+          "required": [
+            "id"
+          ],
+          "properties": {
+            "id": {
+              "description": "new docs",
+              "type": "string"
+            }
+          },
+          "type": "object"
+        }
+      }
+    }
+  },
+  "mode": "identical",
+  "options": {
+    "profile": "OB-2020-12"
+  },
+  "expected": {
+    "format_version": "ob-comparison-report/v1",
+    "profile": "OB-2020-12@<corpus-sha>",
+    "mode": "identical",
+    "tool": {
+      "name": "ob",
+      "version": "<tool.version>"
+    },
+    "generated_at": "<generated_at>",
+    "inputs": {
+      "left": {
+        "source": "file",
+        "uri": "<input.left.uri>",
+        "content_sha256": "0563e90ed32164de0a3aec05644295e768ecc9a73e361608b27ed797c2ee6a6b",
+        "label": "left"
+      },
+      "right": {
+        "source": "file",
+        "uri": "<input.right.uri>",
+        "content_sha256": "1d2335f8bac8b199769488e6e82938a0408d78a402a58548ea28dae686f2a7e3",
+        "label": "right"
+      }
+    },
+    "summary": {
+      "verdict": "compatible",
+      "coverage": {
+        "total_operations": 1,
+        "paired": 1,
+        "only_left": 0,
+        "only_right": 0,
+        "paired_via": {
+          "direct": 1,
+          "alias": 0
+        }
+      },
+      "counts": {},
+      "categories": {
+        "breaking": 0,
+        "non_breaking": 0,
+        "compliance": 0,
+        "structural": 0
+      }
+    },
+    "operations": [
+      {
+        "status": "paired",
+        "left": {
+          "key": "check",
+          "pointer": "/operations/check"
+        },
+        "right": {
+          "key": "check",
+          "pointer": "/operations/check"
+        },
+        "match": {
+          "strategy": "direct",
+          "left": "check",
+          "right": "check"
+        },
+        "input": {
+          "verdict": "identical",
+          "direction": "input",
+          "reasons": []
+        },
+        "findings": []
+      }
+    ],
+    "schemas": [],
+    "metadata": [],
+    "sources": [],
+    "bindings": [],
+    "transforms": [],
+    "security": [],
+    "suppressed": []
+  }
+}

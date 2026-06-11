@@ -92,16 +92,15 @@ func TestComparisonConformanceCorpus(t *testing.T) {
 	}
 }
 
+// findComparisonCorpus returns the comparison fixture corpus. The corpus is
+// owned by ob (the spec repo deliberately removed it: comparison semantics
+// are a tool concern, not part of what an OBI document is) and vendored
+// under testdata.
 func findComparisonCorpus(t *testing.T) string {
 	t.Helper()
-	for _, candidate := range []string{
-		"../spec/conformance/comparison",
-		"../../spec/conformance/comparison",
-		"../../../spec/conformance/comparison",
-	} {
-		if st, err := os.Stat(candidate); err == nil && st.IsDir() {
-			return candidate
-		}
+	const corpus = "testdata/comparison-corpus"
+	if st, err := os.Stat(corpus); err == nil && st.IsDir() {
+		return corpus
 	}
 	t.Fatal("comparison conformance corpus not found")
 	return ""

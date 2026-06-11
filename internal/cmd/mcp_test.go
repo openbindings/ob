@@ -68,7 +68,7 @@ func TestMCPCommand_BridgesInterfaceToTools(t *testing.T) {
 	}, nil)
 
 	namespace := mcpbridge.DeriveNamespace(iface, "test", "fallback")
-	count := mcpbridge.RegisterInterface(mcpServer, iface, namespace, invoker)
+	count := mcpbridge.RegisterInterface(mcpServer, iface, namespace, invoker, nil)
 	if count != 1 {
 		t.Fatalf("expected 1 registered primitive, got %d", count)
 	}
@@ -166,12 +166,20 @@ func (e *echoMockInvoker) Formats() []openbindings.FormatInfo {
 	return []openbindings.FormatInfo{{Token: "x-mock", Description: "echo mock"}}
 }
 
-func (e *echoMockInvoker) InvokeBinding(_ context.Context, in *openbindings.BindingInvocationInput) (<-chan openbindings.InvocationOutput, error) {
-	ch := make(chan openbindings.InvocationOutput, 1)
-	ch <- openbindings.InvocationOutput{
-		Output:   in.Input,
-		Status: 200,
-	}
-	close(ch)
-	return ch, nil
+func (e *echoMockInvoker) InvokeBinding(ctx context.Context, args *openbindings.BindingInvocationArgs) openbindings.Invocation[any, any] {
+	inv := openbindings.NewInvocationImpl[any, any](ctx)
+	go func() {
+		// Echo the first input message back as the single output.
+		first, err := inv.ReadInput(ctx)
+		_ = inv.CloseInput()
+		if err != nil {
+			// No input written: echo an empty object.
+			first = map[string]any{}
+		}
+		if err := inv.EmitOutput(first); err != nil {
+			return
+		}
+		inv.CloseOutput()
+	}()
+	return inv
 }

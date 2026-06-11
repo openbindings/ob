@@ -25,37 +25,49 @@ import (
 	"github.com/openbindings/ob/internal/server"
 )
 
-// mockStreamInvoker is a test-only invoker that streams canned events.
+// mockStreamInvoker is a test-only invoker that emits canned output values as
+// a stream, then closes cleanly.
 type mockStreamInvoker struct {
 	formats []openbindings.FormatInfo
 	events  []any
 }
 
 func (m *mockStreamInvoker) Formats() []openbindings.FormatInfo { return m.formats }
-func (m *mockStreamInvoker) InvokeBinding(_ context.Context, _ *openbindings.BindingInvocationInput) (<-chan openbindings.InvocationOutput, error) {
-	ch := make(chan openbindings.InvocationOutput, len(m.events))
-	for _, ev := range m.events {
-		ch <- openbindings.InvocationOutput{Output: ev}
-	}
-	close(ch)
-	return ch, nil
+func (m *mockStreamInvoker) InvokeBinding(ctx context.Context, _ *openbindings.BindingInvocationArgs) openbindings.Invocation[any, any] {
+	inv := openbindings.NewInvocationImpl[any, any](ctx)
+	go func() {
+		_ = inv.CloseInput()
+		for _, ev := range m.events {
+			if err := inv.EmitOutput(ev); err != nil {
+				return
+			}
+		}
+		inv.CloseOutput()
+	}()
+	return inv
 }
 
-// rawStreamInvoker yields pre-built InvocationOutputs verbatim, letting tests
-// exercise frames with data, error, or both set simultaneously.
-type rawStreamInvoker struct {
+// errorStreamInvoker emits zero or more outputs and then terminates with a
+// terminal error, letting tests exercise error frames.
+type errorStreamInvoker struct {
 	formats []openbindings.FormatInfo
-	events  []openbindings.InvocationOutput
+	outputs []any
+	err     *openbindings.InvocationError
 }
 
-func (m *rawStreamInvoker) Formats() []openbindings.FormatInfo { return m.formats }
-func (m *rawStreamInvoker) InvokeBinding(_ context.Context, _ *openbindings.BindingInvocationInput) (<-chan openbindings.InvocationOutput, error) {
-	ch := make(chan openbindings.InvocationOutput, len(m.events))
-	for _, ev := range m.events {
-		ch <- ev
-	}
-	close(ch)
-	return ch, nil
+func (m *errorStreamInvoker) Formats() []openbindings.FormatInfo { return m.formats }
+func (m *errorStreamInvoker) InvokeBinding(ctx context.Context, _ *openbindings.BindingInvocationArgs) openbindings.Invocation[any, any] {
+	inv := openbindings.NewInvocationImpl[any, any](ctx)
+	go func() {
+		_ = inv.CloseInput()
+		for _, ev := range m.outputs {
+			if err := inv.EmitOutput(ev); err != nil {
+				return
+			}
+		}
+		inv.FireError(m.err)
+	}()
+	return inv
 }
 
 func testEnv(t *testing.T) *httptest.Server {
@@ -576,7 +588,7 @@ func TestServeBindingInvoke_WS_StreamE2E(t *testing.T) {
 	var received []any
 	for {
 		var msg struct {
-			Type string `json:"type"`
+			Type   string `json:"type"`
 			Output any    `json:"output,omitempty"`
 		}
 		if err := wsjson.Read(ctx, conn, &msg); err != nil {
@@ -602,25 +614,19 @@ func TestServeBindingInvoke_WS_StreamE2E(t *testing.T) {
 	}
 }
 
-func TestServeBindingInvoke_WS_FrameCarriesDataAndError(t *testing.T) {
-	// OBI-T-08: the SDK yields a InvocationOutput with both Data and Error
-	// populated when output validation fails. The WebSocket frame must
-	// preserve both so clients can render the response alongside the
-	// diagnostic. The `type` discriminator stays "event" (data is the
-	// headline); pure-error frames remain `type: "error"`.
-	mockInvoker := &rawStreamInvoker{
+func TestServeBindingInvoke_WS_StreamThenError(t *testing.T) {
+	// Outputs are outputs, errors are errors: a stream that emits values and
+	// then hits a terminal error surfaces the values as "event" frames
+	// followed by a single "error" frame carrying structured details.
+	mockInvoker := &errorStreamInvoker{
 		formats: []openbindings.FormatInfo{{Token: "mock-stream@1.0"}},
-		events: []openbindings.InvocationOutput{
-			{
-				Output: map[string]any{"count": 2, "next": nil},
-				Error: &openbindings.InvocationError{
-					Code:    "validation_failed",
-					Message: `openbindings: output validation failed for "abilityList.api": ...`,
-					Details: openbindings.ValidationFailureDetails{
-						Failures: []openbindings.ValidationFailure{
-							{Path: "/next", Message: `expected type "string", got null`},
-						},
-					},
+		outputs: []any{map[string]any{"count": 2}},
+		err: &openbindings.InvocationError{
+			Code:    "ERR_VALIDATION_FAILED",
+			Message: `openbindings: output validation failed for "abilityList.api": ...`,
+			Details: openbindings.ValidationFailureDetails{
+				Failures: []openbindings.ValidationFailure{
+					{Path: "/next", Message: `expected type "string", got null`},
 				},
 			},
 		},
@@ -649,59 +655,56 @@ func TestServeBindingInvoke_WS_FrameCarriesDataAndError(t *testing.T) {
 		t.Fatalf("write initial message: %v", err)
 	}
 
-	var frame struct {
+	// First frame: the data event.
+	var dataFrame struct {
+		Type   string `json:"type"`
+		Output any    `json:"output,omitempty"`
+	}
+	if err := wsjson.Read(ctx, conn, &dataFrame); err != nil {
+		t.Fatalf("read data frame: %v", err)
+	}
+	if dataFrame.Type != "event" {
+		t.Errorf("expected first frame type=event, got %q", dataFrame.Type)
+	}
+	if data, ok := dataFrame.Output.(map[string]any); !ok || data["count"].(float64) != 2 {
+		t.Errorf("data frame = %#v, want {count:2}", dataFrame.Output)
+	}
+
+	// Second frame: the terminal error, with structured details.
+	var errFrame struct {
 		Type  string         `json:"type"`
-		Output any            `json:"output,omitempty"`
 		Error map[string]any `json:"error,omitempty"`
 	}
-	if err := wsjson.Read(ctx, conn, &frame); err != nil {
-		t.Fatalf("read frame: %v", err)
+	if err := wsjson.Read(ctx, conn, &errFrame); err != nil {
+		t.Fatalf("read error frame: %v", err)
 	}
-	if frame.Type != "event" {
-		t.Errorf("expected type=event (data is headline), got %q", frame.Type)
+	if errFrame.Type != "error" {
+		t.Errorf("expected error frame type=error, got %q", errFrame.Type)
 	}
-	data, ok := frame.Output.(map[string]any)
+	if errFrame.Error == nil || errFrame.Error["code"] != "ERR_VALIDATION_FAILED" {
+		t.Fatalf("error frame missing or wrong code: %#v", errFrame.Error)
+	}
+	details, ok := errFrame.Error["details"].(map[string]any)
 	if !ok {
-		t.Fatalf("expected data map, got %#v", frame.Output)
-	}
-	if data["count"].(float64) != 2 {
-		t.Errorf("data.count = %#v, want 2", data["count"])
-	}
-	if frame.Error == nil {
-		t.Fatal("expected error to be carried on the same frame")
-	}
-	if frame.Error["code"] != "validation_failed" {
-		t.Errorf("error.code = %#v, want validation_failed", frame.Error["code"])
-	}
-	// Structured failure details should flow through the wire so clients
-	// can render per-field diagnostics without parsing message strings.
-	details, ok := frame.Error["details"].(map[string]any)
-	if !ok {
-		t.Fatalf("expected error.details object, got %#v", frame.Error["details"])
+		t.Fatalf("expected error.details object, got %#v", errFrame.Error["details"])
 	}
 	failures, ok := details["failures"].([]any)
 	if !ok || len(failures) == 0 {
 		t.Fatalf("expected details.failures non-empty array, got %#v", details["failures"])
 	}
-	first := failures[0].(map[string]any)
-	if first["path"] != "/next" {
+	if first := failures[0].(map[string]any); first["path"] != "/next" {
 		t.Errorf("failures[0].path = %#v, want /next", first["path"])
 	}
 }
 
 func TestServeBindingInvoke_WS_PureErrorFrameStillUsesErrorType(t *testing.T) {
-	// A InvocationOutput with Error but no Data still produces a frame with
-	// type="error" for backward compatibility with clients that branch
-	// on the discriminator.
-	mockInvoker := &rawStreamInvoker{
+	// A terminal error with no preceding output produces a frame with
+	// type="error" so clients that branch on the discriminator still work.
+	mockInvoker := &errorStreamInvoker{
 		formats: []openbindings.FormatInfo{{Token: "mock-stream@1.0"}},
-		events: []openbindings.InvocationOutput{
-			{
-				Error: &openbindings.InvocationError{
-					Code:    "auth_required",
-					Message: "unauthorized",
-				},
-			},
+		err: &openbindings.InvocationError{
+			Code:    "ERR_AUTH_REQUIRED",
+			Message: "unauthorized",
 		},
 	}
 	cleanup := app.OverrideInvokerForTest(
@@ -729,9 +732,9 @@ func TestServeBindingInvoke_WS_PureErrorFrameStillUsesErrorType(t *testing.T) {
 	}
 
 	var frame struct {
-		Type  string         `json:"type"`
+		Type   string         `json:"type"`
 		Output any            `json:"output,omitempty"`
-		Error map[string]any `json:"error,omitempty"`
+		Error  map[string]any `json:"error,omitempty"`
 	}
 	if err := wsjson.Read(ctx, conn, &frame); err != nil {
 		t.Fatalf("read frame: %v", err)
@@ -742,7 +745,7 @@ func TestServeBindingInvoke_WS_PureErrorFrameStillUsesErrorType(t *testing.T) {
 	if frame.Output != nil {
 		t.Errorf("expected no data, got %#v", frame.Output)
 	}
-	if frame.Error == nil || frame.Error["code"] != "auth_required" {
+	if frame.Error == nil || frame.Error["code"] != "ERR_AUTH_REQUIRED" {
 		t.Errorf("error frame missing or wrong code: %#v", frame.Error)
 	}
 }

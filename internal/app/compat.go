@@ -104,9 +104,9 @@ func CompatibilityCheck(input CompatInput) CompatibilityReport {
 		}
 	}
 
-	// Build the report.
-	// Pass target locator so satisfies/roles matching can resolve references.
-	ops := compareOps(input.Target, target, candidate)
+	// Build the report. Operations are paired by the spec's key+alias
+	// resolution (OBI-T-12); there is no separate roles/satisfies layer.
+	ops := compareOps(target, candidate)
 
 	compat, missing, incompat := countResults(ops)
 	total := len(ops)
@@ -140,9 +140,7 @@ func CompatibilityCheck(input CompatInput) CompatibilityReport {
 }
 
 // compareOps checks each target operation against the candidate per the spec.
-// targetLocator is the original locator string for the target (file path, URL, exec: ref)
-// so that satisfies/roles matching can resolve references.
-func compareOps(targetLocator string, target, candidate *openbindings.Interface) []OperationReport {
+func compareOps(target, candidate *openbindings.Interface) []OperationReport {
 	// Sort operation keys for deterministic output.
 	opKeys := make([]string, 0, len(target.Operations))
 	for k := range target.Operations {
@@ -157,8 +155,8 @@ func compareOps(targetLocator string, target, candidate *openbindings.Interface)
 	for _, opName := range opKeys {
 		tgtOp := target.Operations[opName]
 
-		// Operation matching per spec: satisfies first (preferred), then key/alias fallback.
-		candOp, matched := matchOperation(opName, tgtOp, targetLocator, candidate)
+		// Operation matching per spec (OBI-T-12): key/alias resolution.
+		candOp, matched := matchOperation(opName, tgtOp, candidate)
 
 		if !matched {
 			reports = append(reports, OperationReport{
@@ -176,48 +174,13 @@ func compareOps(targetLocator string, target, candidate *openbindings.Interface)
 	return reports
 }
 
-// matchOperation finds a matching operation in the candidate per the spec's
-// deterministic matching algorithm:
-//
-//  1. Explicit match (preferred): any candidate operation that declares
-//     satisfies: [{ role: <roleKey>, operation: <opOrAlias> }]
-//     where candidate.roles[roleKey] resolves to targetLocator,
-//     and opOrAlias resolves to the target operation name or one of its aliases.
-//  2. Fallback match: key or alias matching (only if no explicit match exists).
-//
-// The match MUST be unique — if multiple candidates match, we take the first
-// explicit match (satisfies) or first fallback match.
-func matchOperation(name string, tgtOp openbindings.Operation, targetLocator string, candidate *openbindings.Interface) (openbindings.Operation, bool) {
-	// Phase 1: Check satisfies declarations (preferred).
-	if candidate.Roles != nil && targetLocator != "" {
-		// Build a set of role keys that resolve to the target.
-		targetRoleKeys := make(map[string]bool)
-		for key, loc := range candidate.Roles {
-			if loc == targetLocator {
-				targetRoleKeys[key] = true
-			}
-		}
-
-		if len(targetRoleKeys) > 0 {
-			// Build the set of names that resolve to this target operation.
-			targetNames := map[string]bool{name: true}
-			for _, alias := range tgtOp.Aliases {
-				targetNames[alias] = true
-			}
-
-			// Scan candidate operations for satisfies declarations.
-			for _, candOp := range candidate.Operations {
-				for _, sat := range candOp.Satisfies {
-					if targetRoleKeys[sat.Role] && targetNames[sat.Operation] {
-						return candOp, true
-					}
-				}
-			}
-		}
-	}
-
-	// Phase 2: Fallback — key and alias matching.
-
+// matchOperation finds the candidate operation corresponding to a target
+// operation by the spec's key+alias resolution (OBI-T-12): the key and aliases
+// form one flat namespace, and a name matches if it equals the candidate's key
+// or appears in its aliases (in either direction). Correspondence to a shared
+// contract is declared purely by aliases; there is no separate roles/satisfies
+// layer.
+func matchOperation(name string, tgtOp openbindings.Operation, candidate *openbindings.Interface) (openbindings.Operation, bool) {
 	// Direct key match.
 	if op, ok := candidate.Operations[name]; ok {
 		return op, true

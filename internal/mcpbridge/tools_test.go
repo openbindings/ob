@@ -33,7 +33,7 @@ func TestRegisterInterface_ToolsFromNonMCPBindings(t *testing.T) {
 	}
 	srv := gomcp.NewServer(&gomcp.Implementation{Name: "test"}, nil)
 	invoker := openbindings.NewOperationInvoker()
-	count := RegisterInterface(srv, iface, "petstore", invoker)
+	count := RegisterInterface(srv, iface, "petstore", invoker, nil)
 	if count != 2 {
 		t.Fatalf("expected 2 primitives, got %d", count)
 	}
@@ -59,7 +59,7 @@ func TestRegisterInterface_ResourceFromMCPBinding(t *testing.T) {
 	}
 	srv := gomcp.NewServer(&gomcp.Implementation{Name: "test"}, nil)
 	invoker := openbindings.NewOperationInvoker()
-	count := RegisterInterface(srv, iface, "docs", invoker)
+	count := RegisterInterface(srv, iface, "docs", invoker, nil)
 	if count != 1 {
 		t.Fatalf("expected 1 primitive, got %d", count)
 	}
@@ -93,7 +93,7 @@ func TestRegisterInterface_PromptFromMCPBinding(t *testing.T) {
 	}
 	srv := gomcp.NewServer(&gomcp.Implementation{Name: "test"}, nil)
 	invoker := openbindings.NewOperationInvoker()
-	count := RegisterInterface(srv, iface, "assistant", invoker)
+	count := RegisterInterface(srv, iface, "assistant", invoker, nil)
 	if count != 1 {
 		t.Fatalf("expected 1 primitive, got %d", count)
 	}
@@ -119,7 +119,7 @@ func TestRegisterInterface_MixedPrimitives(t *testing.T) {
 	}
 	srv := gomcp.NewServer(&gomcp.Implementation{Name: "test"}, nil)
 	invoker := openbindings.NewOperationInvoker()
-	count := RegisterInterface(srv, iface, "mixed", invoker)
+	count := RegisterInterface(srv, iface, "mixed", invoker, nil)
 	if count != 3 {
 		t.Fatalf("expected 3 primitives, got %d", count)
 	}
@@ -157,7 +157,6 @@ func TestFindMCPBinding_ResourceRef(t *testing.T) {
 		t.Fatalf("unexpected ref %q", ref)
 	}
 }
-
 
 func TestDeriveNamespace(t *testing.T) {
 	tests := []struct {

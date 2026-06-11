@@ -4,12 +4,37 @@ package mcpbridge
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
+	"io"
 	"strings"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 	openbindings "github.com/openbindings/openbindings-go"
 )
+
+// drainOperation drives an operation invocation to its last output: it writes
+// the input (when non-nil), closes the input side, and returns the final
+// output value or the terminal error. MCP primitives surface the last value
+// the operation produces.
+func drainOperation(ctx context.Context, call openbindings.Invocation[any, any], input any) (any, *openbindings.InvocationError) {
+	if input != nil {
+		_ = call.Write(ctx, input)
+	}
+	_ = call.Close()
+	out := call.Outputs()
+	var last any
+	for {
+		v, err := out.Read(ctx)
+		if errors.Is(err, io.EOF) {
+			return last, nil
+		}
+		if err != nil {
+			return last, openbindings.AsInvocationError(err)
+		}
+		last = v
+	}
+}
 
 // RegisterInterface maps an OBI's operations to MCP primitives on the given
 // server. Operations with MCP bindings are registered as the correct primitive
@@ -17,11 +42,14 @@ import (
 // without MCP bindings are registered as tools.
 //
 // Returns the number of primitives registered.
+// baseContext is per-call invocation context (e.g. a bearer credential for the
+// bridged remote) merged into every operation invocation. nil when none.
 func RegisterInterface(
 	srv *mcp.Server,
 	iface *openbindings.Interface,
 	namespace string,
 	invoker *openbindings.OperationInvoker,
+	baseContext map[string]any,
 ) int {
 	count := 0
 	for opKey, op := range iface.Operations {
@@ -30,11 +58,11 @@ func RegisterInterface(
 
 		switch kind {
 		case "resources":
-			registerResource(srv, toolName, op, iface, opKey, ref, invoker)
+			registerResource(srv, toolName, op, iface, opKey, ref, invoker, baseContext)
 		case "prompts":
-			registerPrompt(srv, toolName, op, iface, opKey, ref, invoker)
+			registerPrompt(srv, toolName, op, iface, opKey, ref, invoker, baseContext)
 		default:
-			registerTool(srv, toolName, op, iface, opKey, invoker)
+			registerTool(srv, toolName, op, iface, opKey, invoker, baseContext)
 		}
 		count++
 	}
@@ -74,6 +102,7 @@ func registerTool(
 	iface *openbindings.Interface,
 	opKey string,
 	invoker *openbindings.OperationInvoker,
+	baseContext map[string]any,
 ) {
 	srv.AddTool(&mcp.Tool{
 		Name:        toolName,
@@ -90,27 +119,17 @@ func registerTool(
 			}
 		}
 
-		ch, err := invoker.Invoke(ctx, &openbindings.OperationInvocationInput{
+		call := invoker.Invoke(ctx, &openbindings.OperationInvocationArgs{
 			Interface: iface,
 			Operation: opKey,
-			Input:     input,
+			Context:   baseContext,
 		})
-		if err != nil {
+		lastData, ierr := drainOperation(ctx, call, input)
+		if ierr != nil {
 			return &mcp.CallToolResult{
 				IsError: true,
-				Content: []mcp.Content{&mcp.TextContent{Text: err.Error()}},
+				Content: []mcp.Content{&mcp.TextContent{Text: ierr.Message}},
 			}, nil
-		}
-
-		var lastData any
-		for ev := range ch {
-			if ev.Error != nil {
-				return &mcp.CallToolResult{
-					IsError: true,
-					Content: []mcp.Content{&mcp.TextContent{Text: ev.Error.Message}},
-				}, nil
-			}
-			lastData = ev.Output
 		}
 
 		data, err := json.Marshal(lastData)
@@ -134,6 +153,7 @@ func registerResource(
 	opKey string,
 	ref string,
 	invoker *openbindings.OperationInvoker,
+	baseContext map[string]any,
 ) {
 	uri := strings.TrimPrefix(ref, "resources/")
 
@@ -143,21 +163,14 @@ func registerResource(
 		Description: op.Description,
 		MIMEType:    guessMIME(uri),
 	}, func(ctx context.Context, req *mcp.ReadResourceRequest) (*mcp.ReadResourceResult, error) {
-		ch, err := invoker.Invoke(ctx, &openbindings.OperationInvocationInput{
+		call := invoker.Invoke(ctx, &openbindings.OperationInvocationArgs{
 			Interface: iface,
 			Operation: opKey,
-			Input:     map[string]any{"uri": req.Params.URI},
+			Context:   baseContext,
 		})
-		if err != nil {
-			return nil, err
-		}
-
-		var lastData any
-		for ev := range ch {
-			if ev.Error != nil {
-				return nil, fmt.Errorf("%s: %s", ev.Error.Code, ev.Error.Message)
-			}
-			lastData = ev.Output
+		lastData, ierr := drainOperation(ctx, call, map[string]any{"uri": req.Params.URI})
+		if ierr != nil {
+			return nil, fmt.Errorf("%s: %s", ierr.Code, ierr.Message)
 		}
 
 		text := ""
@@ -187,6 +200,7 @@ func registerPrompt(
 	opKey string,
 	ref string,
 	invoker *openbindings.OperationInvoker,
+	baseContext map[string]any,
 ) {
 	promptName := strings.TrimPrefix(ref, "prompts/")
 
@@ -211,21 +225,14 @@ func registerPrompt(
 			input = m
 		}
 
-		ch, err := invoker.Invoke(ctx, &openbindings.OperationInvocationInput{
+		call := invoker.Invoke(ctx, &openbindings.OperationInvocationArgs{
 			Interface: iface,
 			Operation: opKey,
-			Input:     input,
+			Context:   baseContext,
 		})
-		if err != nil {
-			return nil, err
-		}
-
-		var lastData any
-		for ev := range ch {
-			if ev.Error != nil {
-				return nil, fmt.Errorf("%s: %s", ev.Error.Code, ev.Error.Message)
-			}
-			lastData = ev.Output
+		lastData, ierr := drainOperation(ctx, call, input)
+		if ierr != nil {
+			return nil, fmt.Errorf("%s: %s", ierr.Code, ierr.Message)
 		}
 
 		// The operation invoker returns the prompt result as an object with

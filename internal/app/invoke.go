@@ -4,7 +4,9 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
+	"io"
 	"net"
 	"os"
 	"os/exec"
@@ -153,8 +155,8 @@ func resolveBindingAndSource(iface *openbindings.Interface, opKey, bindingKey st
 // resolveSourceLocation resolves a source location relative to the OBI directory.
 // exec: refs, URIs, absolute paths, and host:port addresses pass through unchanged;
 // relative file paths are joined with obiDir.
-func resolveSourceLocation(source openbindings.Source, obiDir string) openbindings.BindingInvocationSource {
-	es := openbindings.BindingInvocationSource{Format: source.Format}
+func resolveSourceLocation(source openbindings.Source, obiDir string) openbindings.InvocationSource {
+	es := openbindings.InvocationSource{Format: source.Format}
 	if source.Location != "" {
 		loc := source.Location
 		if !execref.IsExec(loc) && !strings.Contains(loc, "://") && !filepath.IsAbs(loc) && !isHostPort(loc) && obiDir != "" {
@@ -173,8 +175,111 @@ func isHostPort(s string) bool {
 	return err == nil
 }
 
-// InvocationOutput is an app-layer alias for openbindings.InvocationOutput.
-type InvocationOutput = openbindings.InvocationOutput
+// InvocationOutput is the app-layer event shape: one output value, or a
+// terminal error. The SDK's invocation handle yields bare output values and a
+// separate terminal error; ob's internal consumers (serve, mcpbridge,
+// operation, TUI) work over a channel of these, so this type bridges the two.
+// Status is best-effort (derived from an HTTP error's Details when present);
+// DurationMs is filled by the caller.
+type InvocationOutput struct {
+	Output     any                           `json:"output,omitempty"`
+	Error      *openbindings.InvocationError `json:"error,omitempty"`
+	Status     int                           `json:"status,omitempty"`
+	DurationMs int64                         `json:"durationMs,omitempty"`
+}
+
+// maxBindingContextRounds caps CONTEXT_REQUIRED resolve-and-retry rounds for
+// the app-level binding paths, mirroring the SDK operation layer's cap.
+const maxBindingContextRounds = 3
+
+// driveBinding invokes a binding (via the supplied invoke function), writes
+// the single input (when non-nil), closes the input side, and streams the
+// handle's outputs (and any terminal error) onto a channel of app-layer
+// InvocationOutput.
+//
+// ob's app layer drives the BINDING layer directly (it resolves the binding,
+// source, and transforms itself), so it owns the CONTEXT_REQUIRED negotiation
+// the SDK's operation layer would otherwise provide: a challenge raised before
+// any output is resolved through the configured resolver and the binding is
+// re-invoked with the merged context, replaying the input. Once the binding
+// shows observable progress, challenges surface to the caller instead.
+//
+// Write errors are not reported here — the output read loop owns terminal
+// reporting (matching the SDK's own pattern). The channel closes when the
+// invocation ends.
+func driveBinding(
+	ctx context.Context,
+	invoke func(context.Context, map[string]any) openbindings.Invocation[any, any],
+	contextData map[string]any,
+	input any,
+	resolver openbindings.ContextResolver,
+) <-chan InvocationOutput {
+	ch := make(chan InvocationOutput, 16)
+	go func() {
+		defer close(ch)
+
+		for round := 0; ; round++ {
+			call := invoke(ctx, contextData)
+			if input != nil {
+				_ = call.Write(ctx, input)
+			}
+			_ = call.Close()
+
+			out := call.Outputs()
+			emitted := false
+			for {
+				v, err := out.Read(ctx)
+				if errors.Is(err, io.EOF) {
+					return
+				}
+				if err != nil {
+					ie := openbindings.AsInvocationError(err)
+					// Resolve-and-retry: only before any observable progress,
+					// only with a resolver, and only a bounded number of times.
+					if details := openbindings.ContextRequiredFrom(ie); details != nil &&
+						!emitted && resolver != nil && round < maxBindingContextRounds {
+						resolved, rerr := resolver(ctx, details)
+						if rerr == nil && len(resolved) > 0 {
+							merged := make(map[string]any, len(contextData)+len(resolved))
+							for k, val := range contextData {
+								merged[k] = val
+							}
+							for k, val := range resolved {
+								merged[k] = val
+							}
+							contextData = merged
+							break // next round re-invokes with merged context
+						}
+					}
+					ch <- InvocationOutput{Error: ie, Status: statusFromError(ie)}
+					return
+				}
+				emitted = true
+				ch <- InvocationOutput{Output: v}
+			}
+		}
+	}()
+	return ch
+}
+
+// statusFromError extracts an HTTP status from a terminal error's Details
+// (HTTP-based format invokers carry {"status": N}); returns 0 when absent.
+func statusFromError(err *openbindings.InvocationError) int {
+	if err == nil {
+		return 0
+	}
+	d, ok := err.Details.(map[string]any)
+	if !ok {
+		return 0
+	}
+	switch s := d["status"].(type) {
+	case int:
+		return s
+	case float64:
+		return int(s)
+	}
+	return 0
+}
 
 // InvokeOBIOperation invokes an operation from an OBI file and returns a
 // stream of events. Every operation is a stream — unary calls produce one
@@ -271,10 +376,15 @@ func transformEventStream(src <-chan InvocationOutput, iface *openbindings.Inter
 // interface, binding, and source loaded.
 func SubscribeOBIOperationDirect(ctx context.Context, binding *openbindings.BindingEntry, source openbindings.Source, obiDir string) (<-chan InvocationOutput, error) {
 	es := resolveSourceLocation(source, obiDir)
-	return DefaultInvoker().InvokeBinding(ctx, &openbindings.BindingInvocationInput{
-		Source: es,
-		Ref:    binding.Ref,
-	})
+	invoker := DefaultInvoker()
+	invoke := func(ctx context.Context, ctxData map[string]any) openbindings.Invocation[any, any] {
+		return invoker.InvokeBinding(ctx, &openbindings.BindingInvocationArgs{
+			Source:  es,
+			Ref:     binding.Ref,
+			Context: ctxData,
+		})
+	}
+	return driveBinding(ctx, invoke, nil, nil, invoker.ContextResolver), nil
 }
 
 var (
@@ -388,17 +498,20 @@ func SubscribeOperationWithContext(ctx context.Context, input InvokeOperationInp
 		return nil, fmt.Errorf("streaming not supported for format %q (no builtin invoker)", input.Source.Format)
 	}
 
-	return DefaultInvoker().InvokeBinding(ctx, &openbindings.BindingInvocationInput{
-		Source: openbindings.BindingInvocationSource{
-			Format:   input.Source.Format,
-			Location: input.Source.Location,
-			Content:  input.Source.Content,
-		},
-		Ref:       input.Ref,
-		Input:     input.Input,
-		Context:   input.Context,
-		Interface: input.Interface,
-	})
+	invoker := DefaultInvoker()
+	invoke := func(ctx context.Context, ctxData map[string]any) openbindings.Invocation[any, any] {
+		return invoker.InvokeBinding(ctx, &openbindings.BindingInvocationArgs{
+			Source: openbindings.InvocationSource{
+				Format:   input.Source.Format,
+				Location: input.Source.Location,
+				Content:  input.Source.Content,
+			},
+			Ref:       input.Ref,
+			Context:   ctxData,
+			Interface: input.Interface,
+		})
+	}
+	return driveBinding(ctx, invoke, input.Context, input.Input, invoker.ContextResolver), nil
 }
 
 // invokeViaBuiltin invokes an operation using the built-in OperationInvoker.
@@ -408,28 +521,22 @@ func invokeViaBuiltin(ctx context.Context, input InvokeOperationInput) InvokeOpe
 		bindCtx = withBinaryMetadata(bindCtx, input.Source.Binary)
 	}
 
-	ch, err := DefaultInvoker().InvokeBinding(ctx, &openbindings.BindingInvocationInput{
-		Source: openbindings.BindingInvocationSource{
-			Format:   input.Source.Format,
-			Location: input.Source.Location,
-			Content:  input.Source.Content,
-		},
-		Ref:       input.Ref,
-		Input:     input.Input,
-		Context:   bindCtx,
-		Interface: input.Interface,
-	})
-	if err != nil {
-		return InvokeOperationOutput{
-			Error: &Error{
-				Code:    "execution_failed",
-				Message: err.Error(),
+	invoker := DefaultInvoker()
+	invoke := func(ctx context.Context, ctxData map[string]any) openbindings.Invocation[any, any] {
+		return invoker.InvokeBinding(ctx, &openbindings.BindingInvocationArgs{
+			Source: openbindings.InvocationSource{
+				Format:   input.Source.Format,
+				Location: input.Source.Location,
+				Content:  input.Source.Content,
 			},
-		}
+			Ref:       input.Ref,
+			Context:   ctxData,
+			Interface: input.Interface,
+		})
 	}
 
-	var last *openbindings.InvocationOutput
-	for ev := range ch {
+	var last *InvocationOutput
+	for ev := range driveBinding(ctx, invoke, bindCtx, input.Input, invoker.ContextResolver) {
 		ev := ev
 		last = &ev
 	}

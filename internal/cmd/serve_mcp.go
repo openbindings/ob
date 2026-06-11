@@ -392,4 +392,3 @@ func errorResult(msg string) *mcp.CallToolResult {
 		Content: []mcp.Content{&mcp.TextContent{Text: msg}},
 	}
 }
-

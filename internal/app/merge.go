@@ -401,7 +401,7 @@ func applyMerge(target, source *openbindings.Interface, entries []MergeEntry) {
 				targetOp.Input = sourceOp.Input
 				targetOp.Output = sourceOp.Output
 
-				// Preserve: Description, Aliases, Satisfies, Deprecated, etc.
+				// Preserve: Description, Aliases, Deprecated, etc.
 				// These are user-authored fields.
 
 				target.Operations[e.Operation] = targetOp

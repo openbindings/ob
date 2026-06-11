@@ -1,0 +1,140 @@
+{
+  "version": "ob-comparison-fixture/v1",
+  "description": "Input schema adds a required property; implementation rejects inputs the contract accepted.",
+  "left": {
+    "openbindings": "0.2.0",
+    "operations": {
+      "check": {
+        "input": {
+          "type": "object",
+          "properties": {
+            "id": {
+              "type": "string"
+            }
+          }
+        }
+      }
+    }
+  },
+  "right": {
+    "openbindings": "0.2.0",
+    "operations": {
+      "check": {
+        "input": {
+          "type": "object",
+          "properties": {
+            "id": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "id"
+          ]
+        }
+      }
+    }
+  },
+  "mode": "subsume",
+  "options": {
+    "profile": "OB-2020-12"
+  },
+  "expected": {
+    "format_version": "ob-comparison-report/v1",
+    "profile": "OB-2020-12@<corpus-sha>",
+    "mode": "subsume",
+    "tool": {
+      "name": "ob",
+      "version": "<tool.version>"
+    },
+    "generated_at": "<generated_at>",
+    "inputs": {
+      "left": {
+        "source": "file",
+        "uri": "<input.left.uri>",
+        "content_sha256": "3281dd2110836c67407dd2c494b44dd8182c33179a9e8957ef14dfe3984578f8",
+        "label": "left"
+      },
+      "right": {
+        "source": "file",
+        "uri": "<input.right.uri>",
+        "content_sha256": "c93906d092f677711e22d36e90fe62af9300986c6c5e31156fcd8b9e8bfa18f3",
+        "label": "right"
+      }
+    },
+    "summary": {
+      "verdict": "incompatible",
+      "coverage": {
+        "total_operations": 1,
+        "paired": 1,
+        "only_left": 0,
+        "only_right": 0,
+        "paired_via": {
+          "direct": 1,
+          "alias": 0
+        }
+      },
+      "counts": {
+        "required.added": 1
+      },
+      "categories": {
+        "breaking": 1,
+        "non_breaking": 0,
+        "compliance": 0,
+        "structural": 0
+      }
+    },
+    "operations": [
+      {
+        "status": "paired",
+        "left": {
+          "key": "check",
+          "pointer": "/operations/check"
+        },
+        "right": {
+          "key": "check",
+          "pointer": "/operations/check"
+        },
+        "match": {
+          "strategy": "direct",
+          "left": "check",
+          "right": "check"
+        },
+        "input": {
+          "verdict": "incompatible",
+          "direction": "input",
+          "reasons": [
+            {
+              "kind": "required.added",
+              "pointer": "/operations/check/input/required/0",
+              "side": "right"
+            }
+          ]
+        },
+        "findings": [
+          {
+            "kind": "required.added",
+            "category": [
+              "breaking"
+            ],
+            "severity": "error",
+            "location": {
+              "side": "right",
+              "pointer": "/operations/check/input/required/0"
+            },
+            "before": [],
+            "after": [
+              "id"
+            ]
+          }
+        ]
+      }
+    ],
+    "schemas": [],
+    "metadata": [],
+    "sources": [],
+    "bindings": [],
+    "transforms": [],
+    "security": [],
+    "suppressed": []
+  }
+}

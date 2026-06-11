@@ -1,0 +1,136 @@
+{
+  "version": "ob-comparison-fixture/v1",
+  "description": "Output schema disables additional properties; implementation returns a constrained subset.",
+  "left": {
+    "openbindings": "0.2.0",
+    "operations": {
+      "check": {
+        "output": {
+          "type": "object",
+          "properties": {
+            "id": {
+              "type": "string"
+            }
+          }
+        }
+      }
+    }
+  },
+  "right": {
+    "openbindings": "0.2.0",
+    "operations": {
+      "check": {
+        "output": {
+          "type": "object",
+          "properties": {
+            "id": {
+              "type": "string"
+            }
+          },
+          "additionalProperties": false
+        }
+      }
+    }
+  },
+  "mode": "subsume",
+  "options": {
+    "profile": "OB-2020-12"
+  },
+  "expected": {
+    "format_version": "ob-comparison-report/v1",
+    "profile": "OB-2020-12@<corpus-sha>",
+    "mode": "subsume",
+    "tool": {
+      "name": "ob",
+      "version": "<tool.version>"
+    },
+    "generated_at": "<generated_at>",
+    "inputs": {
+      "left": {
+        "source": "file",
+        "uri": "<input.left.uri>",
+        "content_sha256": "d8458edc0c752925013767203e7302f3e693a06ccd17d6c1618ec141360aeaad",
+        "label": "left"
+      },
+      "right": {
+        "source": "file",
+        "uri": "<input.right.uri>",
+        "content_sha256": "820ea50f7244eab5de88374f75a92c2194fb74373e17a3e9ac91a26ad5a66655",
+        "label": "right"
+      }
+    },
+    "summary": {
+      "verdict": "compatible",
+      "coverage": {
+        "total_operations": 1,
+        "paired": 1,
+        "only_left": 0,
+        "only_right": 0,
+        "paired_via": {
+          "direct": 1,
+          "alias": 0
+        }
+      },
+      "counts": {
+        "object.additional_properties.disabled": 1
+      },
+      "categories": {
+        "breaking": 0,
+        "non_breaking": 1,
+        "compliance": 0,
+        "structural": 0
+      }
+    },
+    "operations": [
+      {
+        "status": "paired",
+        "left": {
+          "key": "check",
+          "pointer": "/operations/check"
+        },
+        "right": {
+          "key": "check",
+          "pointer": "/operations/check"
+        },
+        "match": {
+          "strategy": "direct",
+          "left": "check",
+          "right": "check"
+        },
+        "output": {
+          "verdict": "compatible",
+          "direction": "output",
+          "reasons": [
+            {
+              "kind": "object.additional_properties.disabled",
+              "pointer": "/operations/check/output/additionalProperties",
+              "side": "right"
+            }
+          ]
+        },
+        "findings": [
+          {
+            "kind": "object.additional_properties.disabled",
+            "category": [
+              "non_breaking"
+            ],
+            "severity": "warn",
+            "location": {
+              "side": "right",
+              "pointer": "/operations/check/output/additionalProperties"
+            },
+            "before": true,
+            "after": false
+          }
+        ]
+      }
+    ],
+    "schemas": [],
+    "metadata": [],
+    "sources": [],
+    "bindings": [],
+    "transforms": [],
+    "security": [],
+    "suppressed": []
+  }
+}

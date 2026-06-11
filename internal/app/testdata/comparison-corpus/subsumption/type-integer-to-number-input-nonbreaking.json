@@ -1,0 +1,125 @@
+{
+  "version": "ob-comparison-fixture/v1",
+  "description": "Input schema widens integer to number; implementation accepts a superset of the contract values.",
+  "left": {
+    "openbindings": "0.2.0",
+    "operations": {
+      "check": {
+        "input": {
+          "type": "integer"
+        }
+      }
+    }
+  },
+  "right": {
+    "openbindings": "0.2.0",
+    "operations": {
+      "check": {
+        "input": {
+          "type": "number"
+        }
+      }
+    }
+  },
+  "mode": "subsume",
+  "options": {
+    "profile": "OB-2020-12"
+  },
+  "expected": {
+    "format_version": "ob-comparison-report/v1",
+    "profile": "OB-2020-12@<corpus-sha>",
+    "mode": "subsume",
+    "tool": {
+      "name": "ob",
+      "version": "<tool.version>"
+    },
+    "generated_at": "<generated_at>",
+    "inputs": {
+      "left": {
+        "source": "file",
+        "uri": "<input.left.uri>",
+        "content_sha256": "9b503f38cc191f9829ec9afbb38c3d71fa8e5a12835c95679636424fde741694",
+        "label": "left"
+      },
+      "right": {
+        "source": "file",
+        "uri": "<input.right.uri>",
+        "content_sha256": "b897bd0f2b9aee8f1cc1c88d320eafb81a873f9881ff00398edac34a072fce18",
+        "label": "right"
+      }
+    },
+    "summary": {
+      "verdict": "compatible",
+      "coverage": {
+        "total_operations": 1,
+        "paired": 1,
+        "only_left": 0,
+        "only_right": 0,
+        "paired_via": {
+          "direct": 1,
+          "alias": 0
+        }
+      },
+      "counts": {
+        "type.integer_to_number": 1
+      },
+      "categories": {
+        "breaking": 0,
+        "non_breaking": 1,
+        "compliance": 0,
+        "structural": 0
+      }
+    },
+    "operations": [
+      {
+        "status": "paired",
+        "left": {
+          "key": "check",
+          "pointer": "/operations/check"
+        },
+        "right": {
+          "key": "check",
+          "pointer": "/operations/check"
+        },
+        "match": {
+          "strategy": "direct",
+          "left": "check",
+          "right": "check"
+        },
+        "input": {
+          "verdict": "compatible",
+          "direction": "input",
+          "reasons": [
+            {
+              "kind": "type.integer_to_number",
+              "pointer": "/operations/check/input/type",
+              "side": "right"
+            }
+          ]
+        },
+        "findings": [
+          {
+            "kind": "type.integer_to_number",
+            "category": [
+              "non_breaking"
+            ],
+            "severity": "warn",
+            "location": {
+              "side": "right",
+              "pointer": "/operations/check/input/type"
+            },
+            "before": "integer",
+            "after": "number"
+          }
+        ]
+      }
+    ],
+    "schemas": [],
+    "metadata": [],
+    "sources": [],
+    "bindings": [],
+    "transforms": [],
+    "security": [],
+    "suppressed": []
+  }
+}

@@ -1,0 +1,106 @@
+{
+  "version": "ob-comparison-fixture/v1",
+  "description": "Operations pair by alias when keys differ.",
+  "left": {
+    "openbindings": "0.2.0",
+    "operations": {
+      "createTask": {
+        "aliases": [
+          "create_task"
+        ],
+        "output": {
+          "type": "string"
+        }
+      }
+    }
+  },
+  "right": {
+    "openbindings": "0.2.0",
+    "operations": {
+      "create_task": {
+        "output": {
+          "type": "string"
+        }
+      }
+    }
+  },
+  "mode": "subsume",
+  "options": {
+    "profile": "OB-2020-12"
+  },
+  "expected": {
+    "format_version": "ob-comparison-report/v1",
+    "profile": "OB-2020-12@<corpus-sha>",
+    "mode": "subsume",
+    "tool": {
+      "name": "ob",
+      "version": "<tool.version>"
+    },
+    "generated_at": "<generated_at>",
+    "inputs": {
+      "left": {
+        "source": "file",
+        "uri": "<input.left.uri>",
+        "content_sha256": "b6cf4ee7aca9aa8a588f617967ed9ce61d2a4d2aaea0d9f3f64a40c834d4a3b8",
+        "label": "left"
+      },
+      "right": {
+        "source": "file",
+        "uri": "<input.right.uri>",
+        "content_sha256": "1fe86a900833b7ac7ad6674dc09e9480774091143a58b943f2ec06b34616fb19",
+        "label": "right"
+      }
+    },
+    "summary": {
+      "verdict": "compatible",
+      "coverage": {
+        "total_operations": 1,
+        "paired": 1,
+        "only_left": 0,
+        "only_right": 0,
+        "paired_via": {
+          "direct": 0,
+          "alias": 1
+        }
+      },
+      "counts": {},
+      "categories": {
+        "breaking": 0,
+        "non_breaking": 0,
+        "compliance": 0,
+        "structural": 0
+      }
+    },
+    "operations": [
+      {
+        "status": "paired",
+        "left": {
+          "key": "createTask",
+          "pointer": "/operations/createTask"
+        },
+        "right": {
+          "key": "create_task",
+          "pointer": "/operations/create_task"
+        },
+        "match": {
+          "strategy": "alias",
+          "left": "createTask",
+          "right": "create_task"
+        },
+        "output": {
+          "verdict": "identical",
+          "direction": "output",
+          "reasons": []
+        },
+        "findings": []
+      }
+    ],
+    "schemas": [],
+    "metadata": [],
+    "sources": [],
+    "bindings": [],
+    "transforms": [],
+    "security": [],
+    "suppressed": []
+  }
+}

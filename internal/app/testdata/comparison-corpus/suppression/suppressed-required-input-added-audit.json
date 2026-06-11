@@ -1,0 +1,147 @@
+{
+  "version": "ob-comparison-fixture/v1",
+  "description": "A suppressed breaking input finding is removed from active findings and preserved in the audit trail.",
+  "left": {
+    "openbindings": "0.2.0",
+    "operations": {
+      "check": {
+        "input": {
+          "type": "object"
+        }
+      }
+    }
+  },
+  "right": {
+    "openbindings": "0.2.0",
+    "operations": {
+      "check": {
+        "input": {
+          "type": "object",
+          "required": [
+            "id"
+          ],
+          "properties": {
+            "id": {
+              "type": "string"
+            }
+          }
+        }
+      }
+    }
+  },
+  "mode": "subsume",
+  "options": {
+    "profile": "OB-2020-12"
+  },
+  "suppressions": {
+    "version": "v1",
+    "suppressions": [
+      {
+        "kind": "required.added",
+        "pointer": "/operations/check/input/required/0",
+        "side": "right",
+        "reason": "Accepted during migration."
+      }
+    ]
+  },
+  "expected": {
+    "format_version": "ob-comparison-report/v1",
+    "profile": "OB-2020-12@<corpus-sha>",
+    "mode": "subsume",
+    "tool": {
+      "name": "ob",
+      "version": "<tool.version>"
+    },
+    "generated_at": "<generated_at>",
+    "inputs": {
+      "left": {
+        "source": "file",
+        "uri": "<input.left.uri>",
+        "content_sha256": "2e68d22948dee49ea20c06e5fe6f852f5fbcf8c69ba90f5ca6f077608d20dee4",
+        "label": "left"
+      },
+      "right": {
+        "source": "file",
+        "uri": "<input.right.uri>",
+        "content_sha256": "c93906d092f677711e22d36e90fe62af9300986c6c5e31156fcd8b9e8bfa18f3",
+        "label": "right"
+      }
+    },
+    "summary": {
+      "verdict": "compatible",
+      "coverage": {
+        "total_operations": 1,
+        "paired": 1,
+        "only_left": 0,
+        "only_right": 0,
+        "paired_via": {
+          "direct": 1,
+          "alias": 0
+        }
+      },
+      "counts": {},
+      "categories": {
+        "breaking": 0,
+        "non_breaking": 0,
+        "compliance": 0,
+        "structural": 0
+      }
+    },
+    "operations": [
+      {
+        "status": "paired",
+        "left": {
+          "key": "check",
+          "pointer": "/operations/check"
+        },
+        "right": {
+          "key": "check",
+          "pointer": "/operations/check"
+        },
+        "match": {
+          "strategy": "direct",
+          "left": "check",
+          "right": "check"
+        },
+        "input": {
+          "verdict": "compatible",
+          "direction": "input",
+          "reasons": []
+        },
+        "findings": []
+      }
+    ],
+    "schemas": [],
+    "metadata": [],
+    "sources": [],
+    "bindings": [],
+    "transforms": [],
+    "security": [],
+    "suppressed": [
+      {
+        "finding": {
+          "kind": "required.added",
+          "category": [
+            "breaking"
+          ],
+          "severity": "error",
+          "location": {
+            "side": "right",
+            "pointer": "/operations/check/input/required/0"
+          },
+          "before": [],
+          "after": [
+            "id"
+          ]
+        },
+        "suppressed_by": {
+          "kind": "required.added",
+          "pointer": "/operations/check/input/required/0",
+          "side": "right",
+          "reason": "Accepted during migration."
+        },
+        "actual_severity": "error"
+      }
+    ]
+  }
+}

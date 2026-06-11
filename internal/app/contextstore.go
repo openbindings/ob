@@ -437,14 +437,31 @@ type cliContextStore struct{}
 func NewCLIContextStore() openbindings.ContextStore { return &cliContextStore{} }
 
 func (s *cliContextStore) Get(_ context.Context, key string) (map[string]any, error) {
-	return LoadContext(key)
+	ctx, err := LoadContext(key)
+	if err != nil || len(ctx) > 0 {
+		return ctx, err
+	}
+	// Bridge key conventions: the binding-invoker role's challenge keys are
+	// normalized origins (host[:port], no scheme) while ob's store keys are
+	// URLs. Retry with an https scheme so challenge-driven lookups find
+	// contexts saved by `ob context set <url>`.
+	if !strings.Contains(key, "://") {
+		return LoadContext("https://" + key)
+	}
+	return ctx, nil
 }
 
 func (s *cliContextStore) Set(_ context.Context, key string, value map[string]any) error {
+	if !strings.Contains(key, "://") {
+		key = "https://" + key
+	}
 	return SaveUnifiedContext(key, value)
 }
 
 func (s *cliContextStore) Delete(_ context.Context, key string) error {
+	if !strings.Contains(key, "://") {
+		key = "https://" + key
+	}
 	return DeleteContext(key)
 }
 

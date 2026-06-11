@@ -54,8 +54,7 @@ func newDefaultInvoker() *openbindings.OperationInvoker {
 	// operation nodes invoke sub-operations). Register after construction.
 	invoker.AddBindingInvoker(operationgraph.NewInvoker(invoker))
 	invoker.TransformEvaluator = &jsonataEvaluator{}
-	invoker.ContextStore = NewCLIContextStore()
-	invoker.PlatformCallbacks = CLIPlatformCallbacks()
+	invoker.ContextResolver = CLIContextResolver()
 	return invoker
 }
 

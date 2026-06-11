@@ -9,13 +9,12 @@ import (
 	openbindings "github.com/openbindings/openbindings-go"
 )
 
-// ConformInput specifies the role interface to conform to and the target OBI to update.
+// ConformInput specifies the contract interface to conform to and the target
+// OBI to update.
 type ConformInput struct {
-	// RoleLocator is the file path or URL of the role interface.
+	// RoleLocator is the file path or URL of the contract interface whose
+	// operations the target should fulfill.
 	RoleLocator string
-	// RoleKey is the key to use in the target's roles map.
-	// If empty, derived from the role interface's name.
-	RoleKey string
 	// TargetPath is the file path of the target OBI to update.
 	TargetPath string
 	// Yes auto-accepts all scaffolding and replacements.
@@ -33,7 +32,7 @@ type ConformAction struct {
 
 // ConformOutput is the result of a conform operation.
 type ConformOutput struct {
-	RoleKey     string          `json:"roleKey"`
+	Role        string          `json:"role"`
 	RoleLocator string          `json:"roleLocator"`
 	TargetPath  string          `json:"targetPath"`
 	Actions     []ConformAction `json:"actions"`
@@ -49,7 +48,7 @@ func (o ConformOutput) Render() string {
 	sb.WriteString(s.Header.Render("Conform Report"))
 	sb.WriteString("\n")
 	sb.WriteString(s.Dim.Render("  role:   "))
-	sb.WriteString(o.RoleKey)
+	sb.WriteString(o.Role)
 	sb.WriteString("\n")
 	sb.WriteString(s.Dim.Render("  target: "))
 	sb.WriteString(o.TargetPath)
@@ -122,35 +121,22 @@ func ConformToRole(input ConformInput, confirm func(op string, action string) bo
 		return output
 	}
 
-	// Derive role key.
-	roleKey := input.RoleKey
-	if roleKey == "" {
-		if roleIface.Name != "" {
-			// Use lowercase, dot-separated name.
-			roleKey = strings.ToLower(strings.ReplaceAll(roleIface.Name, " ", "."))
-		} else {
-			roleKey = "role"
-		}
+	// Display label for the contract being conformed to.
+	if roleIface.Name != "" {
+		output.Role = roleIface.Name
+	} else {
+		output.Role = input.RoleLocator
 	}
-	output.RoleKey = roleKey
-
-	// Ensure roles map exists.
-	if targetIface.Roles == nil {
-		targetIface.Roles = make(map[string]string)
-	}
-
-	// Add or update the role reference.
-	targetIface.Roles[roleKey] = input.RoleLocator
 
 	// Ensure operations map exists.
 	if targetIface.Operations == nil {
 		targetIface.Operations = make(map[string]openbindings.Operation)
 	}
 
-	// Compare role operations against target.
-	// The role is the "target" in compat terms (what we need to satisfy),
-	// and our OBI is the "candidate".
-	reports := compareOps(input.RoleLocator, roleIface, targetIface)
+	// Compare contract operations against the target. Correspondence is by the
+	// spec's key+alias resolution (OBI-T-12): the contract is the "target" in
+	// compat terms (what we need to fulfill), our OBI is the "candidate".
+	reports := compareOps(roleIface, targetIface)
 
 	modified := false
 
@@ -186,7 +172,7 @@ func ConformToRole(input ConformInput, confirm func(op string, action string) bo
 			}
 
 			if !input.DryRun {
-				scaffoldOperation(targetIface, opName, roleOp, roleKey, roleIface)
+				scaffoldOperation(targetIface, opName, roleOp, roleIface)
 				modified = true
 			}
 			output.Actions = append(output.Actions, ConformAction{
@@ -218,10 +204,10 @@ func ConformToRole(input ConformInput, confirm func(op string, action string) bo
 		}
 
 		if !input.DryRun {
-			// Find the actual operation key in the target (might differ via satisfies/alias matching).
-			targetOpKey := findTargetOpKey(opName, roleOp, input.RoleLocator, targetIface)
+			// Find the actual operation key in the target (might differ via alias matching).
+			targetOpKey := findTargetOpKey(opName, roleOp, targetIface)
 			if targetOpKey != "" {
-				replaceOperationSchemas(targetIface, targetOpKey, opName, roleOp, roleKey, roleIface)
+				replaceOperationSchemas(targetIface, targetOpKey, opName, roleOp, roleIface)
 				modified = true
 			}
 		}
@@ -244,18 +230,16 @@ func ConformToRole(input ConformInput, confirm func(op string, action string) bo
 	return output
 }
 
-// scaffoldOperation adds a new operation to the target OBI, copying schemas
-// from the role interface and adding a satisfies declaration.
-func scaffoldOperation(target *openbindings.Interface, opName string, roleOp openbindings.Operation, roleKey string, roleIface *openbindings.Interface) {
+// scaffoldOperation adds a new operation to the target OBI, keyed by the
+// contract's operation name (so it resolves to the contract by key) and
+// copying the contract's schemas.
+func scaffoldOperation(target *openbindings.Interface, opName string, roleOp openbindings.Operation, roleIface *openbindings.Interface) {
 	newOp := openbindings.Operation{
 		Description: roleOp.Description,
 		Idempotent:  roleOp.Idempotent,
-		Satisfies: []openbindings.Satisfies{
-			{Role: roleKey, Operation: opName},
-		},
 	}
 
-	// Copy input schema, resolving $refs from the role into the target.
+	// Copy input schema, resolving $refs from the contract into the target.
 	if roleOp.Input != nil {
 		newOp.Input = copySchema(roleOp.Input, roleIface, target)
 	}
@@ -269,8 +253,10 @@ func scaffoldOperation(target *openbindings.Interface, opName string, roleOp ope
 }
 
 // replaceOperationSchemas updates an existing operation's input/output schemas
-// to match the role interface, and ensures a satisfies declaration exists.
-func replaceOperationSchemas(target *openbindings.Interface, opKey string, roleOpName string, roleOp openbindings.Operation, roleKey string, roleIface *openbindings.Interface) {
+// to match the contract. When the target operation's key differs from the
+// contract operation name, it carries that name as an alias so the
+// correspondence is declared per the spec (key+alias namespace, OBI-T-12).
+func replaceOperationSchemas(target *openbindings.Interface, opKey string, roleOpName string, roleOp openbindings.Operation, roleIface *openbindings.Interface) {
 	op := target.Operations[opKey]
 
 	// Replace schemas.
@@ -285,56 +271,40 @@ func replaceOperationSchemas(target *openbindings.Interface, opKey string, roleO
 		op.Output = nil
 	}
 
-	// Ensure satisfies declaration exists for this role.
-	hasSatisfies := false
-	for _, sat := range op.Satisfies {
-		if sat.Role == roleKey {
-			hasSatisfies = true
-			break
+	// Declare correspondence via an alias when the key doesn't already match.
+	if opKey != roleOpName {
+		hasAlias := false
+		for _, a := range op.Aliases {
+			if a == roleOpName {
+				hasAlias = true
+				break
+			}
 		}
-	}
-	if !hasSatisfies {
-		op.Satisfies = append(op.Satisfies, openbindings.Satisfies{
-			Role: roleKey, Operation: roleOpName,
-		})
+		if !hasAlias {
+			op.Aliases = append(op.Aliases, roleOpName)
+		}
 	}
 
 	target.Operations[opKey] = op
 }
 
-// findTargetOpKey finds the key in the target's operations map that matches
-// the given role operation (via satisfies, key, or alias matching).
-func findTargetOpKey(roleOpName string, roleOp openbindings.Operation, roleLocator string, target *openbindings.Interface) string {
+// findTargetOpKey finds the key in the target's operations map that
+// corresponds to the given contract operation, by the spec's key+alias
+// resolution (OBI-T-12).
+func findTargetOpKey(roleOpName string, roleOp openbindings.Operation, target *openbindings.Interface) string {
 	// Direct key match.
 	if _, ok := target.Operations[roleOpName]; ok {
 		return roleOpName
 	}
 
-	// Check satisfies declarations.
-	if target.Roles != nil {
-		targetRoleKeys := make(map[string]bool)
-		for key, loc := range target.Roles {
-			if loc == roleLocator {
-				targetRoleKeys[key] = true
-			}
-		}
-		if len(targetRoleKeys) > 0 {
-			for k, op := range target.Operations {
-				for _, sat := range op.Satisfies {
-					if targetRoleKeys[sat.Role] && sat.Operation == roleOpName {
-						return k
-					}
-				}
-			}
-		}
-	}
-
-	// Check aliases.
+	// The contract operation's aliases against target keys.
 	for _, alias := range roleOp.Aliases {
 		if _, ok := target.Operations[alias]; ok {
 			return alias
 		}
 	}
+
+	// Target operations carrying the contract name as an alias.
 	for k, op := range target.Operations {
 		for _, alias := range op.Aliases {
 			if alias == roleOpName {

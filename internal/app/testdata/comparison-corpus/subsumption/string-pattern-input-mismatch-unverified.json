@@ -1,0 +1,127 @@
+{
+  "version": "ob-comparison-fixture/v1",
+  "description": "Input schemas use non-byte-equal patterns; regex containment is intentionally unverified.",
+  "left": {
+    "openbindings": "0.2.0",
+    "operations": {
+      "check": {
+        "input": {
+          "type": "string",
+          "pattern": "^[a-z]+$"
+        }
+      }
+    }
+  },
+  "right": {
+    "openbindings": "0.2.0",
+    "operations": {
+      "check": {
+        "input": {
+          "type": "string",
+          "pattern": "^[0-9]+$"
+        }
+      }
+    }
+  },
+  "mode": "subsume",
+  "options": {
+    "profile": "OB-2020-12"
+  },
+  "expected": {
+    "format_version": "ob-comparison-report/v1",
+    "profile": "OB-2020-12@<corpus-sha>",
+    "mode": "subsume",
+    "tool": {
+      "name": "ob",
+      "version": "<tool.version>"
+    },
+    "generated_at": "<generated_at>",
+    "inputs": {
+      "left": {
+        "source": "file",
+        "uri": "<input.left.uri>",
+        "content_sha256": "67a97b3642db002bb03a09467925b5cce3eefa30d15384c7212ad6f5dd8b98df",
+        "label": "left"
+      },
+      "right": {
+        "source": "file",
+        "uri": "<input.right.uri>",
+        "content_sha256": "395c1d3988db1d744093c540065242725aa39add5aeb3d0c0ace8a6954ffd162",
+        "label": "right"
+      }
+    },
+    "summary": {
+      "verdict": "unverified",
+      "coverage": {
+        "total_operations": 1,
+        "paired": 1,
+        "only_left": 0,
+        "only_right": 0,
+        "paired_via": {
+          "direct": 1,
+          "alias": 0
+        }
+      },
+      "counts": {
+        "unverified.regex_containment": 1
+      },
+      "categories": {
+        "breaking": 0,
+        "non_breaking": 1,
+        "compliance": 0,
+        "structural": 0
+      }
+    },
+    "operations": [
+      {
+        "status": "paired",
+        "left": {
+          "key": "check",
+          "pointer": "/operations/check"
+        },
+        "right": {
+          "key": "check",
+          "pointer": "/operations/check"
+        },
+        "match": {
+          "strategy": "direct",
+          "left": "check",
+          "right": "check"
+        },
+        "input": {
+          "verdict": "unverified",
+          "direction": "input",
+          "reasons": [
+            {
+              "kind": "unverified.regex_containment",
+              "pointer": "/operations/check/input/pattern",
+              "side": "right"
+            }
+          ]
+        },
+        "findings": [
+          {
+            "kind": "unverified.regex_containment",
+            "category": [
+              "non_breaking"
+            ],
+            "severity": "warn",
+            "location": {
+              "side": "right",
+              "pointer": "/operations/check/input/pattern"
+            },
+            "before": "^[a-z]+$",
+            "after": "^[0-9]+$"
+          }
+        ]
+      }
+    ],
+    "schemas": [],
+    "metadata": [],
+    "sources": [],
+    "bindings": [],
+    "transforms": [],
+    "security": [],
+    "suppressed": []
+  }
+}

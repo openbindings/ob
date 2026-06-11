@@ -1,0 +1,286 @@
+{
+  "conventionVersion": "v1",
+  "profile": "OB-2020-12",
+  "status": "pilot",
+  "totals": {
+    "files": 30,
+    "modes": {
+      "subsume": 29,
+      "identical": 1
+    },
+    "verdicts": {
+      "compatible": 14,
+      "indeterminate": 2,
+      "incompatible": 13,
+      "unverified": 1
+    }
+  },
+  "files": [
+    {
+      "path": "matching/alias-match-paired-compatible.json",
+      "mode": "subsume",
+      "direction": "output",
+      "verdict": "compatible",
+      "findings": []
+    },
+    {
+      "path": "modes/identical-ignores-annotation-and-key-order.json",
+      "mode": "identical",
+      "direction": "input",
+      "verdict": "compatible",
+      "findings": []
+    },
+    {
+      "path": "profile/profile-schema-not-2020-12-indeterminate.json",
+      "mode": "subsume",
+      "direction": "input",
+      "verdict": "indeterminate",
+      "findings": [
+        "profile.schema.not_2020_12"
+      ]
+    },
+    {
+      "path": "structural/operation-added-nonbreaking.json",
+      "mode": "subsume",
+      "direction": "output",
+      "verdict": "compatible",
+      "findings": [
+        "operation.added"
+      ]
+    },
+    {
+      "path": "structural/operation-removed-breaking.json",
+      "mode": "subsume",
+      "direction": "output",
+      "verdict": "incompatible",
+      "findings": [
+        "operation.removed"
+      ]
+    },
+    {
+      "path": "structural/verdict-collapse-incompatible-dominates.json",
+      "mode": "subsume",
+      "direction": "output",
+      "verdict": "incompatible",
+      "findings": [
+        "enum.value.added"
+      ]
+    },
+    {
+      "path": "structural/verdict-collapse-indeterminate-dominates.json",
+      "mode": "subsume",
+      "direction": "input",
+      "verdict": "indeterminate",
+      "findings": [
+        "profile.schema.not_2020_12",
+        "enum.value.added"
+      ]
+    },
+    {
+      "path": "subsumption/additional-properties-disabled-output-nonbreaking.json",
+      "mode": "subsume",
+      "direction": "output",
+      "verdict": "compatible",
+      "findings": [
+        "object.additional_properties.disabled"
+      ]
+    },
+    {
+      "path": "subsumption/additional-properties-input-disabled-breaking.json",
+      "mode": "subsume",
+      "direction": "input",
+      "verdict": "incompatible",
+      "findings": [
+        "object.additional_properties.disabled"
+      ]
+    },
+    {
+      "path": "subsumption/enum-output-value-added-breaking.json",
+      "mode": "subsume",
+      "direction": "output",
+      "verdict": "incompatible",
+      "findings": [
+        "enum.value.added"
+      ]
+    },
+    {
+      "path": "subsumption/enum-value-added-input-nonbreaking.json",
+      "mode": "subsume",
+      "direction": "input",
+      "verdict": "compatible",
+      "findings": [
+        "enum.value.added"
+      ]
+    },
+    {
+      "path": "subsumption/enum-value-removed-input-breaking.json",
+      "mode": "subsume",
+      "direction": "input",
+      "verdict": "incompatible",
+      "findings": [
+        "enum.value.removed"
+      ]
+    },
+    {
+      "path": "subsumption/enum-value-removed-output-nonbreaking.json",
+      "mode": "subsume",
+      "direction": "output",
+      "verdict": "compatible",
+      "findings": [
+        "enum.value.removed"
+      ]
+    },
+    {
+      "path": "subsumption/multiple-findings-single-operation.json",
+      "mode": "subsume",
+      "direction": "input",
+      "verdict": "incompatible",
+      "findings": [
+        "required.added",
+        "type.number_to_integer"
+      ]
+    },
+    {
+      "path": "subsumption/numeric-maximum-loosened-input-nonbreaking.json",
+      "mode": "subsume",
+      "direction": "input",
+      "verdict": "compatible",
+      "findings": [
+        "numeric.maximum.loosened"
+      ]
+    },
+    {
+      "path": "subsumption/numeric-maximum-tightened-output-nonbreaking.json",
+      "mode": "subsume",
+      "direction": "output",
+      "verdict": "compatible",
+      "findings": [
+        "numeric.maximum.tightened"
+      ]
+    },
+    {
+      "path": "subsumption/numeric-minimum-tightened-input-breaking.json",
+      "mode": "subsume",
+      "direction": "input",
+      "verdict": "incompatible",
+      "findings": [
+        "numeric.minimum.tightened"
+      ]
+    },
+    {
+      "path": "subsumption/numeric-minimum-tightened-output-nonbreaking.json",
+      "mode": "subsume",
+      "direction": "output",
+      "verdict": "compatible",
+      "findings": [
+        "numeric.minimum.tightened"
+      ]
+    },
+    {
+      "path": "subsumption/required-input-added-breaking.json",
+      "mode": "subsume",
+      "direction": "input",
+      "verdict": "incompatible",
+      "findings": [
+        "required.added"
+      ]
+    },
+    {
+      "path": "subsumption/required-output-added-nonbreaking.json",
+      "mode": "subsume",
+      "direction": "output",
+      "verdict": "compatible",
+      "findings": [
+        "required.added"
+      ]
+    },
+    {
+      "path": "subsumption/required-removed-input-nonbreaking.json",
+      "mode": "subsume",
+      "direction": "input",
+      "verdict": "compatible",
+      "findings": [
+        "required.removed"
+      ]
+    },
+    {
+      "path": "subsumption/required-removed-output-breaking.json",
+      "mode": "subsume",
+      "direction": "output",
+      "verdict": "incompatible",
+      "findings": [
+        "required.removed"
+      ]
+    },
+    {
+      "path": "subsumption/string-pattern-input-mismatch-unverified.json",
+      "mode": "subsume",
+      "direction": "input",
+      "verdict": "unverified",
+      "findings": [
+        "unverified.regex_containment"
+      ]
+    },
+    {
+      "path": "subsumption/type-integer-to-number-input-nonbreaking.json",
+      "mode": "subsume",
+      "direction": "input",
+      "verdict": "compatible",
+      "findings": [
+        "type.integer_to_number"
+      ]
+    },
+    {
+      "path": "subsumption/type-integer-to-number-output-breaking.json",
+      "mode": "subsume",
+      "direction": "output",
+      "verdict": "incompatible",
+      "findings": [
+        "type.integer_to_number"
+      ]
+    },
+    {
+      "path": "subsumption/type-number-to-integer-input-breaking.json",
+      "mode": "subsume",
+      "direction": "input",
+      "verdict": "incompatible",
+      "findings": [
+        "type.number_to_integer"
+      ]
+    },
+    {
+      "path": "subsumption/type-number-to-integer-output-nonbreaking.json",
+      "mode": "subsume",
+      "direction": "output",
+      "verdict": "compatible",
+      "findings": [
+        "type.number_to_integer"
+      ]
+    },
+    {
+      "path": "subsumption/type-set-narrowed-input-breaking.json",
+      "mode": "subsume",
+      "direction": "input",
+      "verdict": "incompatible",
+      "findings": [
+        "type.set.narrowed"
+      ]
+    },
+    {
+      "path": "subsumption/type-set-widened-output-breaking.json",
+      "mode": "subsume",
+      "direction": "output",
+      "verdict": "incompatible",
+      "findings": [
+        "type.set.widened"
+      ]
+    },
+    {
+      "path": "suppression/suppressed-required-input-added-audit.json",
+      "mode": "subsume",
+      "direction": "input",
+      "verdict": "compatible",
+      "findings": []
+    }
+  ]
+}

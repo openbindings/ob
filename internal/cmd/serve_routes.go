@@ -155,27 +155,23 @@ func handleBindingInvokeWS(srv *server.Server, logger *slog.Logger, w http.Respo
 		return
 	}
 
+	// Outputs are outputs; errors are errors. Each event carries either an
+	// output value (an "event" frame) or a terminal error (an "error" frame),
+	// never both — a terminal error ends the stream. (OBI-T-08 output
+	// validation failures are terminal under the invocation handle model.)
 	for ev := range events {
-		// A InvocationOutput may carry both Output and Error when OBI-T-08
-		// output validation fails: the response was produced but didn't
-		// match the declared schema. Emit a single frame carrying both
-		// so clients can render the response alongside the diagnostic.
-		// The `type` discriminator stays "event" whenever output is
-		// present (since the response is the headline) and "error" only
-		// when the frame is purely a diagnostic.
-		frame := wsInvocationOutput{Type: "event"}
-		if ev.Output != nil {
-			frame.Output = ev.Output
-		}
+		var frame wsInvocationOutput
 		if ev.Error != nil {
-			frame.Error = &wsErrorDetail{
-				Message: ev.Error.Message,
-				Code:    ev.Error.Code,
-				Details: ev.Error.Details,
+			frame = wsInvocationOutput{
+				Type: "error",
+				Error: &wsErrorDetail{
+					Message: ev.Error.Message,
+					Code:    ev.Error.Code,
+					Details: ev.Error.Details,
+				},
 			}
-			if ev.Output == nil {
-				frame.Type = "error"
-			}
+		} else {
+			frame = wsInvocationOutput{Type: "event", Output: ev.Output}
 		}
 		if err := wsjson.Write(ctx, conn, frame); err != nil {
 			logger.Error("websocket write failed", "error", err)

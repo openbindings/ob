@@ -1,0 +1,139 @@
+{
+  "version": "ob-comparison-fixture/v1",
+  "description": "Output schema adds an enum value; implementation may return a value the contract did not promise.",
+  "left": {
+    "openbindings": "0.2.0",
+    "operations": {
+      "check": {
+        "output": {
+          "enum": [
+            "created",
+            "done"
+          ]
+        }
+      }
+    }
+  },
+  "right": {
+    "openbindings": "0.2.0",
+    "operations": {
+      "check": {
+        "output": {
+          "enum": [
+            "created",
+            "done",
+            "archived"
+          ]
+        }
+      }
+    }
+  },
+  "mode": "subsume",
+  "options": {
+    "profile": "OB-2020-12"
+  },
+  "expected": {
+    "format_version": "ob-comparison-report/v1",
+    "profile": "OB-2020-12@<corpus-sha>",
+    "mode": "subsume",
+    "tool": {
+      "name": "ob",
+      "version": "<tool.version>"
+    },
+    "generated_at": "<generated_at>",
+    "inputs": {
+      "left": {
+        "source": "file",
+        "uri": "<input.left.uri>",
+        "content_sha256": "6fb7de12071c255bdf8cab53a6c4247b2df15511c41b01a83d321f819595d187",
+        "label": "left"
+      },
+      "right": {
+        "source": "file",
+        "uri": "<input.right.uri>",
+        "content_sha256": "e0b6670839dd5ce4084ef75a6df4319e4a932bf684d3c31093a9fd4c4dbe58f3",
+        "label": "right"
+      }
+    },
+    "summary": {
+      "verdict": "incompatible",
+      "coverage": {
+        "total_operations": 1,
+        "paired": 1,
+        "only_left": 0,
+        "only_right": 0,
+        "paired_via": {
+          "direct": 1,
+          "alias": 0
+        }
+      },
+      "counts": {
+        "enum.value.added": 1
+      },
+      "categories": {
+        "breaking": 1,
+        "non_breaking": 0,
+        "compliance": 0,
+        "structural": 0
+      }
+    },
+    "operations": [
+      {
+        "status": "paired",
+        "left": {
+          "key": "check",
+          "pointer": "/operations/check"
+        },
+        "right": {
+          "key": "check",
+          "pointer": "/operations/check"
+        },
+        "match": {
+          "strategy": "direct",
+          "left": "check",
+          "right": "check"
+        },
+        "output": {
+          "verdict": "incompatible",
+          "direction": "output",
+          "reasons": [
+            {
+              "kind": "enum.value.added",
+              "pointer": "/operations/check/output/enum/2",
+              "side": "right"
+            }
+          ]
+        },
+        "findings": [
+          {
+            "kind": "enum.value.added",
+            "category": [
+              "breaking"
+            ],
+            "severity": "error",
+            "location": {
+              "side": "right",
+              "pointer": "/operations/check/output/enum/2"
+            },
+            "before": [
+              "created",
+              "done"
+            ],
+            "after": [
+              "created",
+              "done",
+              "archived"
+            ]
+          }
+        ]
+      }
+    ],
+    "schemas": [],
+    "metadata": [],
+    "sources": [],
+    "bindings": [],
+    "transforms": [],
+    "security": [],
+    "suppressed": []
+  }
+}

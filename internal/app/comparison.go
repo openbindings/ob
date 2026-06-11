@@ -79,9 +79,8 @@ type ComparisonCoverage struct {
 }
 
 type ComparisonPairedVia struct {
-	Direct    int `json:"direct"`
-	Alias     int `json:"alias"`
-	Satisfies int `json:"satisfies"`
+	Direct int `json:"direct"`
+	Alias  int `json:"alias"`
 }
 
 type CategoryCounts struct {
@@ -288,7 +287,7 @@ func compareOperationDeltas(left, right resolvedComparisonInput, mode string) []
 
 	for _, key := range leftKeys {
 		leftOp := left.iface.Operations[key]
-		matchKey, strategy, matched := matchOperationKey(key, leftOp, left.locator, right.iface, usedRight)
+		matchKey, strategy, matched := matchOperationKey(key, leftOp, right.iface, usedRight)
 		if !matched {
 			finding := operationFinding("operation.removed", "left", operationPointer(key), leftOp, nil)
 			deltas = append(deltas, OperationDelta{
@@ -618,8 +617,6 @@ func summarizeComparison(ops []OperationDelta) ComparisonSummary {
 					summary.Coverage.PairedVia.Direct++
 				case "alias":
 					summary.Coverage.PairedVia.Alias++
-				case "satisfies":
-					summary.Coverage.PairedVia.Satisfies++
 				}
 			}
 		case "only_left":
@@ -703,30 +700,11 @@ func matchingSuppression(f Finding, rules []SuppressionRule) (SuppressionRule, b
 	return SuppressionRule{}, false
 }
 
-func matchOperationKey(name string, leftOp openbindings.Operation, leftLocator string, right *openbindings.Interface, used map[string]bool) (string, string, bool) {
-	if right.Roles != nil && leftLocator != "" {
-		roleKeys := map[string]bool{}
-		for key, loc := range right.Roles {
-			if loc == leftLocator {
-				roleKeys[key] = true
-			}
-		}
-		names := map[string]bool{name: true}
-		for _, alias := range leftOp.Aliases {
-			names[alias] = true
-		}
-		for _, key := range sortedOperationKeys(right) {
-			if used[key] {
-				continue
-			}
-			for _, sat := range right.Operations[key].Satisfies {
-				if roleKeys[sat.Role] && names[sat.Operation] {
-					return key, "satisfies", true
-				}
-			}
-		}
-	}
-
+// matchOperationKey pairs a left operation to a right operation by the spec's
+// key+alias resolution (OBI-T-12): direct key match first, then the left
+// operation's aliases against right keys, then right operations carrying the
+// left name as an alias.
+func matchOperationKey(name string, leftOp openbindings.Operation, right *openbindings.Interface, used map[string]bool) (string, string, bool) {
 	if _, ok := right.Operations[name]; ok && !used[name] {
 		return name, "direct", true
 	}

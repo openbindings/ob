@@ -249,12 +249,9 @@ func TestThreeWayMerge_NilBase(t *testing.T) {
 func TestMergeOperation_NilBase_PreservesLocalOnlyFields(t *testing.T) {
 	local := openbindings.Operation{
 		Description: "From source",
-		Satisfies: []openbindings.Satisfies{
-			{Role: "software-descriptor", Operation: "getInfo"},
-		},
-		Aliases:    []string{"info", "about"},
-		Deprecated: true,
-		Tags:       []string{"system"},
+		Aliases:     []string{"info", "about"},
+		Deprecated:  true,
+		Tags:        []string{"system"},
 	}
 	source := openbindings.Operation{
 		Description: "Return identity and metadata about this software",
@@ -266,12 +263,6 @@ func TestMergeOperation_NilBase_PreservesLocalOnlyFields(t *testing.T) {
 	}
 
 	// Local-only fields preserved.
-	if len(merged.Satisfies) != 1 {
-		t.Fatalf("expected satisfies to be preserved, got %d entries", len(merged.Satisfies))
-	}
-	if merged.Satisfies[0].Role != "software-descriptor" || merged.Satisfies[0].Operation != "getInfo" {
-		t.Errorf("expected satisfies preserved verbatim, got %+v", merged.Satisfies[0])
-	}
 	if len(merged.Aliases) != 2 || merged.Aliases[0] != "info" || merged.Aliases[1] != "about" {
 		t.Errorf("expected aliases preserved, got %v", merged.Aliases)
 	}
@@ -366,14 +357,14 @@ cmd "greet" help="Say hello" {}
 }
 
 // TestMergeBinding_NilBase_PreservesLocalOnlyFields is the binding-side
-// equivalent. Local-only fields like a hand-authored security override
-// used to be wiped on the first sync after bootstrap.
+// equivalent. Local-only fields like a hand-authored description used to be
+// wiped on the first sync after bootstrap.
 func TestMergeBinding_NilBase_PreservesLocalOnlyFields(t *testing.T) {
 	local := openbindings.BindingEntry{
-		Operation: "getMe",
-		Source:    "openapi",
-		Ref:       "#/paths/~1v0~1account~1me/get",
-		Security:  "bearer",
+		Operation:   "getMe",
+		Source:      "openapi",
+		Ref:         "#/paths/~1v0~1account~1me/get",
+		Description: "hand-authored note",
 	}
 	source := openbindings.BindingEntry{
 		Operation: "getMe",
@@ -386,9 +377,9 @@ func TestMergeBinding_NilBase_PreservesLocalOnlyFields(t *testing.T) {
 		t.Fatalf("MergeBinding returned error: %v", err)
 	}
 
-	// security is local-only (source has no security) → preserved.
-	if merged.Security != "bearer" {
-		t.Errorf("expected local security preserved, got %q", merged.Security)
+	// description is local-only (source has none) → preserved.
+	if merged.Description != "hand-authored note" {
+		t.Errorf("expected local description preserved, got %q", merged.Description)
 	}
 	// ref is in both → source wins (but matches anyway).
 	if merged.Ref != "#/paths/~1v0~1account~1me/get" {

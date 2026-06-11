@@ -1,0 +1,139 @@
+{
+  "version": "ob-comparison-fixture/v1",
+  "description": "Input schema adds an enum value; implementation accepts a superset of the contract values.",
+  "left": {
+    "openbindings": "0.2.0",
+    "operations": {
+      "check": {
+        "input": {
+          "enum": [
+            "a",
+            "b"
+          ]
+        }
+      }
+    }
+  },
+  "right": {
+    "openbindings": "0.2.0",
+    "operations": {
+      "check": {
+        "input": {
+          "enum": [
+            "a",
+            "b",
+            "c"
+          ]
+        }
+      }
+    }
+  },
+  "mode": "subsume",
+  "options": {
+    "profile": "OB-2020-12"
+  },
+  "expected": {
+    "format_version": "ob-comparison-report/v1",
+    "profile": "OB-2020-12@<corpus-sha>",
+    "mode": "subsume",
+    "tool": {
+      "name": "ob",
+      "version": "<tool.version>"
+    },
+    "generated_at": "<generated_at>",
+    "inputs": {
+      "left": {
+        "source": "file",
+        "uri": "<input.left.uri>",
+        "content_sha256": "f35ba5b3b0ca5e0aac29ab2b368a3ad43e568ca1e7856bf9c879a54c5d6d7b41",
+        "label": "left"
+      },
+      "right": {
+        "source": "file",
+        "uri": "<input.right.uri>",
+        "content_sha256": "06471a889a689fb4c18cb8c7080c39ff02d683ba118b7833ac1700af5cb2a577",
+        "label": "right"
+      }
+    },
+    "summary": {
+      "verdict": "compatible",
+      "coverage": {
+        "total_operations": 1,
+        "paired": 1,
+        "only_left": 0,
+        "only_right": 0,
+        "paired_via": {
+          "direct": 1,
+          "alias": 0
+        }
+      },
+      "counts": {
+        "enum.value.added": 1
+      },
+      "categories": {
+        "breaking": 0,
+        "non_breaking": 1,
+        "compliance": 0,
+        "structural": 0
+      }
+    },
+    "operations": [
+      {
+        "status": "paired",
+        "left": {
+          "key": "check",
+          "pointer": "/operations/check"
+        },
+        "right": {
+          "key": "check",
+          "pointer": "/operations/check"
+        },
+        "match": {
+          "strategy": "direct",
+          "left": "check",
+          "right": "check"
+        },
+        "input": {
+          "verdict": "compatible",
+          "direction": "input",
+          "reasons": [
+            {
+              "kind": "enum.value.added",
+              "pointer": "/operations/check/input/enum/2",
+              "side": "right"
+            }
+          ]
+        },
+        "findings": [
+          {
+            "kind": "enum.value.added",
+            "category": [
+              "non_breaking"
+            ],
+            "severity": "warn",
+            "location": {
+              "side": "right",
+              "pointer": "/operations/check/input/enum/2"
+            },
+            "before": [
+              "a",
+              "b"
+            ],
+            "after": [
+              "a",
+              "b",
+              "c"
+            ]
+          }
+        ]
+      }
+    ],
+    "schemas": [],
+    "metadata": [],
+    "sources": [],
+    "bindings": [],
+    "transforms": [],
+    "security": [],
+    "suppressed": []
+  }
+}

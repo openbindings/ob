@@ -1,0 +1,139 @@
+{
+  "version": "ob-comparison-fixture/v1",
+  "description": "Output schema removes an enum value; implementation returns a subset of the contract values.",
+  "left": {
+    "openbindings": "0.2.0",
+    "operations": {
+      "check": {
+        "output": {
+          "enum": [
+            "a",
+            "b",
+            "c"
+          ]
+        }
+      }
+    }
+  },
+  "right": {
+    "openbindings": "0.2.0",
+    "operations": {
+      "check": {
+        "output": {
+          "enum": [
+            "a",
+            "b"
+          ]
+        }
+      }
+    }
+  },
+  "mode": "subsume",
+  "options": {
+    "profile": "OB-2020-12"
+  },
+  "expected": {
+    "format_version": "ob-comparison-report/v1",
+    "profile": "OB-2020-12@<corpus-sha>",
+    "mode": "subsume",
+    "tool": {
+      "name": "ob",
+      "version": "<tool.version>"
+    },
+    "generated_at": "<generated_at>",
+    "inputs": {
+      "left": {
+        "source": "file",
+        "uri": "<input.left.uri>",
+        "content_sha256": "7bb692b2a52d253ece36a49000d0b966a0c2fa18099179213a599fa63f84805c",
+        "label": "left"
+      },
+      "right": {
+        "source": "file",
+        "uri": "<input.right.uri>",
+        "content_sha256": "8da35181f47068a6ecd907c99642286248efa2f5383dce656c84f8d99c4b968c",
+        "label": "right"
+      }
+    },
+    "summary": {
+      "verdict": "compatible",
+      "coverage": {
+        "total_operations": 1,
+        "paired": 1,
+        "only_left": 0,
+        "only_right": 0,
+        "paired_via": {
+          "direct": 1,
+          "alias": 0
+        }
+      },
+      "counts": {
+        "enum.value.removed": 1
+      },
+      "categories": {
+        "breaking": 0,
+        "non_breaking": 1,
+        "compliance": 0,
+        "structural": 0
+      }
+    },
+    "operations": [
+      {
+        "status": "paired",
+        "left": {
+          "key": "check",
+          "pointer": "/operations/check"
+        },
+        "right": {
+          "key": "check",
+          "pointer": "/operations/check"
+        },
+        "match": {
+          "strategy": "direct",
+          "left": "check",
+          "right": "check"
+        },
+        "output": {
+          "verdict": "compatible",
+          "direction": "output",
+          "reasons": [
+            {
+              "kind": "enum.value.removed",
+              "pointer": "/operations/check/output/enum/2",
+              "side": "left"
+            }
+          ]
+        },
+        "findings": [
+          {
+            "kind": "enum.value.removed",
+            "category": [
+              "non_breaking"
+            ],
+            "severity": "warn",
+            "location": {
+              "side": "left",
+              "pointer": "/operations/check/output/enum/2"
+            },
+            "before": [
+              "a",
+              "b",
+              "c"
+            ],
+            "after": [
+              "a",
+              "b"
+            ]
+          }
+        ]
+      }
+    ],
+    "schemas": [],
+    "metadata": [],
+    "sources": [],
+    "bindings": [],
+    "transforms": [],
+    "security": [],
+    "suppressed": []
+  }
+}

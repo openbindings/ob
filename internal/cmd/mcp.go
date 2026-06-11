@@ -49,10 +49,13 @@ Examples:
 			logger := slog.New(slog.NewTextHandler(os.Stderr, nil)).With("component", "ob-mcp")
 			invoker := app.DefaultInvoker()
 
-			// Resolve token from flag, file, or environment.
+			// Resolve token from flag, file, or environment. When present it is
+			// supplied as a bearer credential in every bridged operation's
+			// invocation context (bindings read credentials from context).
 			token := resolveToken(tokenFlag, tokenFile)
+			var baseContext map[string]any
 			if token != "" {
-				invoker = withBearerToken(invoker, token, args)
+				baseContext = map[string]any{"bearerToken": token}
 			}
 
 			if serverName == "" {
@@ -88,7 +91,7 @@ Examples:
 
 				label := labelFromURL(normalized)
 				namespace := mcpbridge.DeriveNamespace(iface, label, fmt.Sprintf("arg-%d", i))
-				count := mcpbridge.RegisterInterface(mcpServer, iface, namespace, invoker)
+				count := mcpbridge.RegisterInterface(mcpServer, iface, namespace, invoker, baseContext)
 				logger.Info("resolved interface", "url", normalized, "namespace", namespace, "primitives", count)
 			}
 
@@ -140,69 +143,6 @@ func resolveToken(flag, file string) string {
 		}
 	}
 	return os.Getenv("OB_TOKEN")
-}
-
-// withBearerToken wraps the operation invoker's context store to overlay
-// Bearer credentials for the given URLs. This avoids writing to the persistent
-// keychain while making auth available for resolution and invocation.
-func withBearerToken(invoker *openbindings.OperationInvoker, token string, rawURLs []string) *openbindings.OperationInvoker {
-	overlay := &tokenOverlayStore{
-		inner: invoker.ContextStore,
-		creds: make(map[string]map[string]any),
-	}
-	for _, rawURL := range rawURLs {
-		normalized := app.NormalizeURL(rawURL)
-		if normalized == "" {
-			continue
-		}
-		// The MCP format invoker normalizes store keys to host[:port]
-		// (scheme and path stripped) via NormalizeContextKey. Match that.
-		if parsed, err := url.Parse(normalized); err == nil && parsed.Host != "" {
-			overlay.creds[parsed.Host] = map[string]any{"bearerToken": token}
-		}
-		// Also key by the full and origin URLs for other invokers.
-		overlay.creds[normalized] = map[string]any{"bearerToken": token}
-	}
-	return invoker.WithRuntime(overlay, invoker.PlatformCallbacks)
-}
-
-// tokenOverlayStore wraps a ContextStore, overlaying in-memory credentials
-// on top of the inner store. Overlay entries take precedence on Get.
-// Set and Delete pass through to the inner store.
-type tokenOverlayStore struct {
-	inner openbindings.ContextStore
-	creds map[string]map[string]any
-}
-
-func (s *tokenOverlayStore) Get(ctx context.Context, key string) (map[string]any, error) {
-	if cred, ok := s.creds[key]; ok {
-		return cred, nil
-	}
-	// Try host-only matching: the MCP invoker normalizes keys to
-	// host[:port] (scheme stripped). Try extracting just the host.
-	if parsed, err := url.Parse(key); err == nil && parsed.Host != "" {
-		if cred, ok := s.creds[parsed.Host]; ok {
-			return cred, nil
-		}
-	}
-	if s.inner != nil {
-		return s.inner.Get(ctx, key)
-	}
-	return nil, nil
-}
-
-func (s *tokenOverlayStore) Set(ctx context.Context, key string, value map[string]any) error {
-	if s.inner != nil {
-		return s.inner.Set(ctx, key, value)
-	}
-	return nil
-}
-
-func (s *tokenOverlayStore) Delete(ctx context.Context, key string) error {
-	if s.inner != nil {
-		return s.inner.Delete(ctx, key)
-	}
-	return nil
 }
 
 func labelFromURL(u string) string {

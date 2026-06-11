@@ -411,9 +411,10 @@ func TestCompatibilityCheck_NormalizationErrorSurfaced(t *testing.T) {
 	}
 }
 
-// TestCompatibilityCheck_SatisfiesMatch verifies that satisfies/roles
-// declarations are used as the preferred matching mechanism.
-func TestCompatibilityCheck_SatisfiesMatch(t *testing.T) {
+// TestCompatibilityCheck_AliasMatch verifies that a candidate operation under
+// a different key corresponds to a target operation by carrying the target's
+// name as an alias (the spec's correspondence mechanism, OBI-T-12).
+func TestCompatibilityCheck_AliasMatch(t *testing.T) {
 	dir := t.TempDir()
 
 	// Target interface has operation "listPets".
@@ -428,22 +429,13 @@ func TestCompatibilityCheck_SatisfiesMatch(t *testing.T) {
 		},
 	}))
 
-	// Candidate uses a DIFFERENT key but declares satisfies.
-	targetPath := filepath.Join(dir, "target.json")
+	// Candidate uses a DIFFERENT key but aliases the target's operation name.
 	candidateMap := map[string]any{
 		"openbindings": "0.1.0",
-		"id":           "candidate",
-		"roles": map[string]any{
-			"pet-api": targetPath,
-		},
+		"name":         "candidate",
 		"operations": map[string]any{
 			"fetchAnimals": map[string]any{
-				"satisfies": []any{
-					map[string]any{
-						"role":      "pet-api",
-						"operation": "listPets",
-					},
-				},
+				"aliases": []any{"listPets"},
 				"input": map[string]any{
 					"type": "object",
 					"properties": map[string]any{
@@ -466,75 +458,16 @@ func TestCompatibilityCheck_SatisfiesMatch(t *testing.T) {
 
 	op := report.Operations[0]
 	if !op.Matched {
-		t.Error("expected listPets to match via satisfies declaration, but it was not matched")
+		t.Error("expected listPets to match via the candidate's alias, but it was not matched")
 	}
 	if !op.Compatible {
 		t.Errorf("expected compatible, got incompatible: %v", op.Details)
 	}
 }
 
-// TestCompatibilityCheck_SatisfiesMatchByAlias verifies that satisfies can
-// reference a target operation by alias.
-func TestCompatibilityCheck_SatisfiesMatchByAlias(t *testing.T) {
-	dir := t.TempDir()
-
-	targetMap := map[string]any{
-		"openbindings": "0.1.0",
-		"id":           "target",
-		"operations": map[string]any{
-			"listPets": map[string]any{
-				"aliases": []any{"getPets"},
-				"input": map[string]any{
-					"type": "object",
-					"properties": map[string]any{
-						"limit": map[string]any{"type": "integer"},
-					},
-				},
-			},
-		},
-	}
-	target := writeInterface(t, dir, "target.json", targetMap)
-
-	candidateMap := map[string]any{
-		"openbindings": "0.1.0",
-		"id":           "candidate",
-		"roles": map[string]any{
-			"pet-api": filepath.Join(dir, "target.json"),
-		},
-		"operations": map[string]any{
-			"fetchAnimals": map[string]any{
-				"satisfies": []any{
-					map[string]any{
-						"role":      "pet-api",
-						"operation": "getPets", // alias, not primary key
-					},
-				},
-				"input": map[string]any{
-					"type": "object",
-					"properties": map[string]any{
-						"limit": map[string]any{"type": "integer"},
-					},
-				},
-			},
-		},
-	}
-	candidate := writeInterface(t, dir, "candidate.json", candidateMap)
-
-	report := CompatibilityCheck(CompatInput{Target: target, Candidate: candidate})
-
-	if report.Error != nil {
-		t.Fatalf("unexpected error: %v", report.Error.Message)
-	}
-	op := report.Operations[0]
-	if !op.Matched {
-		t.Error("expected listPets to match via satisfies referencing alias 'getPets'")
-	}
-}
-
-// TestCompatibilityCheck_SatisfiesNoRoleFallsBack verifies that when
-// satisfies references a role key that doesn't match the target,
-// the algorithm falls back to key/alias matching.
-func TestCompatibilityCheck_SatisfiesNoRoleFallsBack(t *testing.T) {
+// TestCompatibilityCheck_DirectKeyMatch verifies that a candidate sharing the
+// target's operation key matches directly.
+func TestCompatibilityCheck_DirectKeyMatch(t *testing.T) {
 	dir := t.TempDir()
 
 	target := writeInterface(t, dir, "target.json", minimalInterface(map[string]any{
@@ -543,20 +476,9 @@ func TestCompatibilityCheck_SatisfiesNoRoleFallsBack(t *testing.T) {
 
 	candidateMap := map[string]any{
 		"openbindings": "0.1.0",
-		"id":           "candidate",
-		"roles": map[string]any{
-			"other-api": "/some/other/path.json", // does NOT match target
-		},
+		"name":         "candidate",
 		"operations": map[string]any{
-			// Same key — should match by fallback
-			"listPets": map[string]any{
-				"satisfies": []any{
-					map[string]any{
-						"role":      "other-api",
-						"operation": "listPets",
-					},
-				},
-			},
+			"listPets": map[string]any{},
 		},
 	}
 	candidate := writeInterface(t, dir, "candidate.json", candidateMap)
@@ -568,7 +490,7 @@ func TestCompatibilityCheck_SatisfiesNoRoleFallsBack(t *testing.T) {
 	}
 	op := report.Operations[0]
 	if !op.Matched {
-		t.Error("expected listPets to match via key fallback even though satisfies points elsewhere")
+		t.Error("expected listPets to match by direct key")
 	}
 }
 
