@@ -18,8 +18,8 @@ func newCodegenCmd() *cobra.Command {
 
 	cmd := &cobra.Command{
 		Use:   "codegen <source>",
-		Short: "Generate a typed client from an OpenBindings interface",
-		Long: `Generate typed, transport-agnostic client code from an OBI.
+		Short: "Generate a typed invoker from an OpenBindings interface",
+		Long: `Generate typed, transport-agnostic invoker code from an OBI.
 
 The source may be a local file path or HTTP(S) URL. If the source is not
 a native OBI, synthesis from supported formats (OpenAPI, AsyncAPI, etc.)
@@ -28,8 +28,8 @@ is attempted automatically.
 Supported languages: typescript, go
 
 Examples:
-  ob codegen interface.json --lang typescript -o ./src/generated/client.ts
-  ob codegen interface.json --lang go -o ./generated/client.go --package myapi
+  ob codegen interface.json --lang typescript -o ./src/generated/invoker.ts
+  ob codegen interface.json --lang go -o ./generated/invoker.go --package myapi
   ob codegen https://api.example.com --lang typescript`,
 		Args: cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {

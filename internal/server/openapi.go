@@ -33,10 +33,10 @@ func AsyncAPISpec() []byte {
 var serveOBI []byte
 
 // ServeOBI returns the embedded OBI document that `ob serve` publishes.
-// It declares which role interfaces this binary's serve subcommand
+// It declares which published interfaces this binary's serve subcommand
 // satisfies (software-descriptor, binding-invoker, interface-creator,
 // source-inspector, context-store, http-client). The historical name
-// "host.obi.json" predates the move to modular role-based interfaces.
+// "host.obi.json" predates the split into modular published interfaces.
 func ServeOBI() []byte {
 	return serveOBI
 }

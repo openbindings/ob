@@ -9,12 +9,12 @@ import (
 	openbindings "github.com/openbindings/openbindings-go"
 )
 
-// ConformInput specifies the contract interface to conform to and the target
-// OBI to update.
+// ConformInput specifies the interface to satisfy and the target OBI to
+// update.
 type ConformInput struct {
-	// RoleLocator is the file path or URL of the contract interface whose
-	// operations the target should fulfill.
-	RoleLocator string
+	// InterfaceLocator is the file path or URL of the interface whose
+	// operations the target should satisfy.
+	InterfaceLocator string
 	// TargetPath is the file path of the target OBI to update.
 	TargetPath string
 	// Yes auto-accepts all scaffolding and replacements.
@@ -32,12 +32,12 @@ type ConformAction struct {
 
 // ConformOutput is the result of a conform operation.
 type ConformOutput struct {
-	Role        string          `json:"role"`
-	RoleLocator string          `json:"roleLocator"`
-	TargetPath  string          `json:"targetPath"`
-	Actions     []ConformAction `json:"actions"`
-	Modified    bool            `json:"modified"`
-	Error       *Error          `json:"error,omitempty"`
+	Interface        string          `json:"interface"`
+	InterfaceLocator string          `json:"interfaceLocator"`
+	TargetPath       string          `json:"targetPath"`
+	Actions          []ConformAction `json:"actions"`
+	Modified         bool            `json:"modified"`
+	Error            *Error          `json:"error,omitempty"`
 }
 
 // Render returns a human-friendly representation.
@@ -47,10 +47,10 @@ func (o ConformOutput) Render() string {
 
 	sb.WriteString(s.Header.Render("Conform Report"))
 	sb.WriteString("\n")
-	sb.WriteString(s.Dim.Render("  role:   "))
-	sb.WriteString(o.Role)
+	sb.WriteString(s.Dim.Render("  interface: "))
+	sb.WriteString(o.Interface)
 	sb.WriteString("\n")
-	sb.WriteString(s.Dim.Render("  target: "))
+	sb.WriteString(s.Dim.Render("  target:    "))
 	sb.WriteString(o.TargetPath)
 	sb.WriteString("\n\n")
 
@@ -99,18 +99,18 @@ func (o ConformOutput) Render() string {
 	return sb.String()
 }
 
-// ConformToRole loads a role interface, compares it against a target OBI,
+// Conform loads the interface to satisfy, compares it against a target OBI,
 // scaffolds missing operations, and optionally replaces drifted ones.
-func ConformToRole(input ConformInput, confirm func(op string, action string) bool) ConformOutput {
+func Conform(input ConformInput, confirm func(op string, action string) bool) ConformOutput {
 	output := ConformOutput{
-		RoleLocator: input.RoleLocator,
-		TargetPath:  input.TargetPath,
+		InterfaceLocator: input.InterfaceLocator,
+		TargetPath:       input.TargetPath,
 	}
 
-	// Load the role interface.
-	roleIface, err := resolveInterface(input.RoleLocator)
+	// Load the interface to satisfy.
+	contractIface, err := resolveInterface(input.InterfaceLocator)
 	if err != nil {
-		output.Error = &Error{Code: "resolve_error", Message: fmt.Sprintf("role: %v", err)}
+		output.Error = &Error{Code: "resolve_error", Message: fmt.Sprintf("interface: %v", err)}
 		return output
 	}
 
@@ -122,10 +122,10 @@ func ConformToRole(input ConformInput, confirm func(op string, action string) bo
 	}
 
 	// Display label for the contract being conformed to.
-	if roleIface.Name != "" {
-		output.Role = roleIface.Name
+	if contractIface.Name != "" {
+		output.Interface = contractIface.Name
 	} else {
-		output.Role = input.RoleLocator
+		output.Interface = input.InterfaceLocator
 	}
 
 	// Ensure operations map exists.
@@ -136,19 +136,19 @@ func ConformToRole(input ConformInput, confirm func(op string, action string) bo
 	// Compare contract operations against the target. Correspondence is by the
 	// spec's key+alias resolution (OBI-T-12): the contract is the "target" in
 	// compat terms (what we need to fulfill), our OBI is the "candidate".
-	reports := compareOps(roleIface, targetIface)
+	reports := compareOps(contractIface, targetIface)
 
 	modified := false
 
-	// Sort role operation keys for deterministic output.
-	roleOpKeys := make([]string, 0, len(roleIface.Operations))
-	for k := range roleIface.Operations {
-		roleOpKeys = append(roleOpKeys, k)
+	// Sort contract operation keys for deterministic output.
+	contractOpKeys := make([]string, 0, len(contractIface.Operations))
+	for k := range contractIface.Operations {
+		contractOpKeys = append(contractOpKeys, k)
 	}
-	sort.Strings(roleOpKeys)
+	sort.Strings(contractOpKeys)
 
-	for _, opName := range roleOpKeys {
-		roleOp := roleIface.Operations[opName]
+	for _, opName := range contractOpKeys {
+		contractOp := contractIface.Operations[opName]
 
 		// Find the matching report.
 		var report *OperationReport
@@ -172,7 +172,7 @@ func ConformToRole(input ConformInput, confirm func(op string, action string) bo
 			}
 
 			if !input.DryRun {
-				scaffoldOperation(targetIface, opName, roleOp, roleIface)
+				scaffoldOperation(targetIface, opName, contractOp, contractIface)
 				modified = true
 			}
 			output.Actions = append(output.Actions, ConformAction{
@@ -205,9 +205,9 @@ func ConformToRole(input ConformInput, confirm func(op string, action string) bo
 
 		if !input.DryRun {
 			// Find the actual operation key in the target (might differ via alias matching).
-			targetOpKey := findTargetOpKey(opName, roleOp, targetIface)
+			targetOpKey := findTargetOpKey(opName, contractOp, targetIface)
 			if targetOpKey != "" {
-				replaceOperationSchemas(targetIface, targetOpKey, opName, roleOp, roleIface)
+				replaceOperationSchemas(targetIface, targetOpKey, opName, contractOp, contractIface)
 				modified = true
 			}
 		}
@@ -233,20 +233,20 @@ func ConformToRole(input ConformInput, confirm func(op string, action string) bo
 // scaffoldOperation adds a new operation to the target OBI, keyed by the
 // contract's operation name (so it resolves to the contract by key) and
 // copying the contract's schemas.
-func scaffoldOperation(target *openbindings.Interface, opName string, roleOp openbindings.Operation, roleIface *openbindings.Interface) {
+func scaffoldOperation(target *openbindings.Interface, opName string, contractOp openbindings.Operation, contractIface *openbindings.Interface) {
 	newOp := openbindings.Operation{
-		Description: roleOp.Description,
-		Idempotent:  roleOp.Idempotent,
+		Description: contractOp.Description,
+		Idempotent:  contractOp.Idempotent,
 	}
 
 	// Copy input schema, resolving $refs from the contract into the target.
-	if roleOp.Input != nil {
-		newOp.Input = copySchema(roleOp.Input, roleIface, target)
+	if contractOp.Input != nil {
+		newOp.Input = copySchema(contractOp.Input, contractIface, target)
 	}
 
 	// Copy output schema.
-	if roleOp.Output != nil {
-		newOp.Output = copySchema(roleOp.Output, roleIface, target)
+	if contractOp.Output != nil {
+		newOp.Output = copySchema(contractOp.Output, contractIface, target)
 	}
 
 	target.Operations[opName] = newOp
@@ -256,32 +256,32 @@ func scaffoldOperation(target *openbindings.Interface, opName string, roleOp ope
 // to match the contract. When the target operation's key differs from the
 // contract operation name, it carries that name as an alias so the
 // correspondence is declared per the spec (key+alias namespace, OBI-T-12).
-func replaceOperationSchemas(target *openbindings.Interface, opKey string, roleOpName string, roleOp openbindings.Operation, roleIface *openbindings.Interface) {
+func replaceOperationSchemas(target *openbindings.Interface, opKey string, contractOpName string, contractOp openbindings.Operation, contractIface *openbindings.Interface) {
 	op := target.Operations[opKey]
 
 	// Replace schemas.
-	if roleOp.Input != nil {
-		op.Input = copySchema(roleOp.Input, roleIface, target)
+	if contractOp.Input != nil {
+		op.Input = copySchema(contractOp.Input, contractIface, target)
 	} else {
 		op.Input = nil
 	}
-	if roleOp.Output != nil {
-		op.Output = copySchema(roleOp.Output, roleIface, target)
+	if contractOp.Output != nil {
+		op.Output = copySchema(contractOp.Output, contractIface, target)
 	} else {
 		op.Output = nil
 	}
 
 	// Declare correspondence via an alias when the key doesn't already match.
-	if opKey != roleOpName {
+	if opKey != contractOpName {
 		hasAlias := false
 		for _, a := range op.Aliases {
-			if a == roleOpName {
+			if a == contractOpName {
 				hasAlias = true
 				break
 			}
 		}
 		if !hasAlias {
-			op.Aliases = append(op.Aliases, roleOpName)
+			op.Aliases = append(op.Aliases, contractOpName)
 		}
 	}
 
@@ -291,14 +291,14 @@ func replaceOperationSchemas(target *openbindings.Interface, opKey string, roleO
 // findTargetOpKey finds the key in the target's operations map that
 // corresponds to the given contract operation, by the spec's key+alias
 // resolution (OBI-T-12).
-func findTargetOpKey(roleOpName string, roleOp openbindings.Operation, target *openbindings.Interface) string {
+func findTargetOpKey(contractOpName string, contractOp openbindings.Operation, target *openbindings.Interface) string {
 	// Direct key match.
-	if _, ok := target.Operations[roleOpName]; ok {
-		return roleOpName
+	if _, ok := target.Operations[contractOpName]; ok {
+		return contractOpName
 	}
 
 	// The contract operation's aliases against target keys.
-	for _, alias := range roleOp.Aliases {
+	for _, alias := range contractOp.Aliases {
 		if _, ok := target.Operations[alias]; ok {
 			return alias
 		}
@@ -307,36 +307,36 @@ func findTargetOpKey(roleOpName string, roleOp openbindings.Operation, target *o
 	// Target operations carrying the contract name as an alias.
 	for k, op := range target.Operations {
 		for _, alias := range op.Aliases {
-			if alias == roleOpName {
+			if alias == contractOpName {
 				return k
 			}
 		}
 	}
 
-	return roleOpName // fallback
+	return contractOpName // fallback
 }
 
-// copySchema copies a JSON Schema from the role interface to the target,
-// including any $ref'd schemas from the role's schemas pool.
-func copySchema(schema openbindings.JSONSchema, roleIface, target *openbindings.Interface) openbindings.JSONSchema {
+// copySchema copies a JSON Schema from the contract interface to the target,
+// including any $ref'd schemas from the contract's schemas pool.
+func copySchema(schema openbindings.JSONSchema, contractIface, target *openbindings.Interface) openbindings.JSONSchema {
 	if schema == nil {
 		return nil
 	}
 
-	// If the schema is a $ref to a role schema, copy the referenced schema
+	// If the schema is a $ref to a contract schema, copy the referenced schema
 	// into the target's schemas pool and return the same $ref.
 	if ref, ok := schema["$ref"].(string); ok {
 		if strings.HasPrefix(ref, "#/schemas/") {
 			schemaName := strings.TrimPrefix(ref, "#/schemas/")
-			if roleSchema, ok := roleIface.Schemas[schemaName]; ok {
+			if contractSchema, ok := contractIface.Schemas[schemaName]; ok {
 				if target.Schemas == nil {
 					target.Schemas = make(map[string]openbindings.JSONSchema)
 				}
 				if _, exists := target.Schemas[schemaName]; !exists {
 					// Deep copy the schema.
-					target.Schemas[schemaName] = deepCopySchema(roleSchema)
+					target.Schemas[schemaName] = deepCopySchema(contractSchema)
 					// Recursively copy any nested $refs.
-					copyNestedRefs(target.Schemas[schemaName], roleIface, target)
+					copyNestedRefs(target.Schemas[schemaName], contractIface, target)
 				}
 			}
 		}
@@ -345,7 +345,7 @@ func copySchema(schema openbindings.JSONSchema, roleIface, target *openbindings.
 
 	// For inline schemas, deep copy and handle nested $refs.
 	copied := deepCopySchema(schema)
-	copyNestedRefs(copied, roleIface, target)
+	copyNestedRefs(copied, contractIface, target)
 	return copied
 }
 
@@ -362,28 +362,28 @@ func deepCopySchema(schema openbindings.JSONSchema) openbindings.JSONSchema {
 	return copy
 }
 
-// copyNestedRefs walks a schema and copies any $ref'd schemas from the role.
-func copyNestedRefs(schema openbindings.JSONSchema, roleIface, target *openbindings.Interface) {
+// copyNestedRefs walks a schema and copies any $ref'd schemas from the contract.
+func copyNestedRefs(schema openbindings.JSONSchema, contractIface, target *openbindings.Interface) {
 	for _, v := range schema {
 		switch val := v.(type) {
 		case map[string]any:
 			if ref, ok := val["$ref"].(string); ok && strings.HasPrefix(ref, "#/schemas/") {
 				schemaName := strings.TrimPrefix(ref, "#/schemas/")
-				if roleSchema, ok := roleIface.Schemas[schemaName]; ok {
+				if contractSchema, ok := contractIface.Schemas[schemaName]; ok {
 					if target.Schemas == nil {
 						target.Schemas = make(map[string]openbindings.JSONSchema)
 					}
 					if _, exists := target.Schemas[schemaName]; !exists {
-						target.Schemas[schemaName] = deepCopySchema(roleSchema)
-						copyNestedRefs(target.Schemas[schemaName], roleIface, target)
+						target.Schemas[schemaName] = deepCopySchema(contractSchema)
+						copyNestedRefs(target.Schemas[schemaName], contractIface, target)
 					}
 				}
 			}
-			copyNestedRefs(val, roleIface, target)
+			copyNestedRefs(val, contractIface, target)
 		case []any:
 			for _, item := range val {
 				if m, ok := item.(map[string]any); ok {
-					copyNestedRefs(m, roleIface, target)
+					copyNestedRefs(m, contractIface, target)
 				}
 			}
 		}

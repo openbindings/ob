@@ -17,11 +17,11 @@ func newConformCmd() *cobra.Command {
 	)
 
 	cmd := &cobra.Command{
-		Use:   "conform <contract-interface> <target-obi>",
-		Short: "Scaffold or update operations to fulfill a contract interface",
-		Long: `Scaffold or update operations in a target OBI to fulfill a contract interface.
+		Use:   "conform <interface> <target-obi>",
+		Short: "Scaffold or update operations so the target satisfies another interface",
+		Long: `Scaffold or update operations in a target OBI so it satisfies another interface.
 
-For each operation in the contract interface:
+For each operation in the interface being satisfied:
   - If missing from the target: scaffolds it (keyed by the contract operation
     name, copying its schemas)
   - If present but incompatible: offers to replace the schema, declaring the
@@ -29,7 +29,8 @@ For each operation in the contract interface:
   - If present and compatible: reports "in sync"
 
 Correspondence is expressed purely through the operation key+alias namespace
-(spec OBI-T-12); there is no separate roles/satisfies layer.
+(spec OBI-T-12): an operation satisfies a contract operation by carrying its
+name as the key or an alias.
 
 Use --yes to auto-accept all changes (for CI/scripting).
 Use --dry-run to preview changes without modifying the file.
@@ -51,11 +52,11 @@ Examples:
 				return line == "" || line == "y" || line == "yes"
 			}
 
-			output := app.ConformToRole(app.ConformInput{
-				RoleLocator: args[0],
-				TargetPath:  args[1],
-				Yes:         yes,
-				DryRun:      dryRun,
+			output := app.Conform(app.ConformInput{
+				InterfaceLocator: args[0],
+				TargetPath:       args[1],
+				Yes:              yes,
+				DryRun:           dryRun,
 			}, confirm)
 
 			format, outputPath := getOutputFlags(cmd)

@@ -8,10 +8,10 @@ import (
 )
 
 // SoftwareInfo contains identity and metadata for a piece of software.
-// It mirrors the openbindings.software-descriptor role's schema, which is
-// a generic identity contract — any software implementing the role can
+// It mirrors the openbindings.software-descriptor interface's schema, which is
+// a generic identity contract — any software satisfying it can
 // return one. Do not add OB-specific fields (like supported spec range)
-// here; they belong on OB-specific roles or are derivable from the OBI
+// here; they belong on OB-specific interfaces or are derivable from the OBI
 // document itself.
 type SoftwareInfo struct {
 	Name        string `json:"name"`

@@ -196,7 +196,7 @@ func deleteKeychainCredentials(key string) error {
 }
 
 // LoadContext returns the unified context payload for a target URL, matching
-// the openbindings.context-store role's Context schema. Credential fields
+// the openbindings.context-store interface's Context schema. Credential fields
 // (bearerToken, apiKey, basic, ...) sit alongside transport fields (headers,
 // cookies, environment, metadata) in a single opaque map. Internally the
 // implementation splits storage — secrets to the OS keychain, transport
@@ -424,12 +424,12 @@ func GetContextSummary(rawURL string) (ContextSummary, error) {
 // file+keychain persistence. The SDK and drivers call this through the
 // ContextStore interface — they never import this package directly.
 //
-// Following the openbindings.context-store role, values are unified Context
+// Following the openbindings.context-store interface, values are unified Context
 // payloads: credential fields (bearerToken, apiKey, basic, ...) alongside
 // transport fields (headers, cookies, environment, metadata) in a single
 // opaque map. The implementation splits storage internally — secrets to the
 // OS keychain, transport fields to the on-disk config file — but that split
-// is not part of the role contract.
+// is not part of the contract.
 type cliContextStore struct{}
 
 // NewCLIContextStore returns a ContextStore backed by the CLI's file-system
@@ -441,7 +441,7 @@ func (s *cliContextStore) Get(_ context.Context, key string) (map[string]any, er
 	if err != nil || len(ctx) > 0 {
 		return ctx, err
 	}
-	// Bridge key conventions: the binding-invoker role's challenge keys are
+	// Bridge key conventions: the binding-invoker interface's challenge keys are
 	// normalized origins (host[:port], no scheme, no path — the same identity
 	// openbindings.NormalizeEndpoint derives), while `ob context set <url>`
 	// persists under the URL the user supplied (commonly with a path). The

@@ -105,7 +105,7 @@ func CompatibilityCheck(input CompatInput) CompatibilityReport {
 	}
 
 	// Build the report. Operations are paired by the spec's key+alias
-	// resolution (OBI-T-12); there is no separate roles/satisfies layer.
+	// resolution (OBI-T-12).
 	ops := compareOps(target, candidate)
 
 	compat, missing, incompat := countResults(ops)
@@ -178,8 +178,7 @@ func compareOps(target, candidate *openbindings.Interface) []OperationReport {
 // operation by the spec's key+alias resolution (OBI-T-12): the key and aliases
 // form one flat namespace, and a name matches if it equals the candidate's key
 // or appears in its aliases (in either direction). Correspondence to a shared
-// contract is declared purely by aliases; there is no separate roles/satisfies
-// layer.
+// contract is declared purely by aliases (spec OBI-T-12).
 func matchOperation(name string, tgtOp openbindings.Operation, candidate *openbindings.Interface) (openbindings.Operation, bool) {
 	// Direct key match.
 	if op, ok := candidate.Operations[name]; ok {
