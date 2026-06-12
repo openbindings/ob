@@ -1004,7 +1004,7 @@ func TestIsAllowedRedirectURI(t *testing.T) {
 		"http://[::1]:8080/callback",
 		"https://[::1]/callback",
 		"https://app.example.com/callback",
-		"https://staging.panjir.com/auth/host-callback",
+		"https://staging.example.net/auth/host-callback",
 		"https://my-tool.internal:3000/oauth/done",
 	}
 	for _, uri := range allowed {

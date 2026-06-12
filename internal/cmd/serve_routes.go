@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"log/slog"
 	"net/http"
-	"strings"
 
 	"nhooyr.io/websocket"
 	"nhooyr.io/websocket/wsjson"
@@ -45,7 +44,7 @@ type wsInvocationOutput struct {
 
 func handleBindingInvoke(srv *server.Server, logger *slog.Logger) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		if isWebSocketUpgrade(r) {
+		if server.IsWebSocketUpgrade(r) {
 			handleBindingInvokeWS(srv, logger, w, r)
 			return
 		}
@@ -197,19 +196,6 @@ func handleBindingInvokeWS(srv *server.Server, logger *slog.Logger, w http.Respo
 	}
 
 	conn.Close(websocket.StatusNormalClosure, "stream complete")
-}
-
-func isWebSocketUpgrade(r *http.Request) bool {
-	for _, v := range r.Header.Values("Connection") {
-		for _, token := range strings.Split(v, ",") {
-			if strings.EqualFold(strings.TrimSpace(token), "upgrade") {
-				if strings.EqualFold(r.Header.Get("Upgrade"), "websocket") {
-					return true
-				}
-			}
-		}
-	}
-	return false
 }
 
 func handleInterfaceCreate(w http.ResponseWriter, r *http.Request) {

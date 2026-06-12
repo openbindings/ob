@@ -590,6 +590,17 @@ paths:
 
 components:
   securitySchemes:
+    oauth2Auth:
+      type: oauth2
+      description: >
+        Browser OAuth2 (Authorization Code + PKCE, S256) against this server's
+        own /oauth/authorize and /oauth/token endpoints. The resulting access
+        token is presented as a bearer token on subsequent requests.
+      flows:
+        authorizationCode:
+          authorizationUrl: ${OB_SERVER_URL}/oauth/authorize
+          tokenUrl: ${OB_SERVER_URL}/oauth/token
+          scopes: {}
     bearerAuth:
       type: http
       scheme: bearer
@@ -834,5 +845,10 @@ components:
           type: string
           description: Machine-readable error code
 
+# Two disjunctive alternatives: authorize in the browser via OAuth2 (the
+# preferred interactive flow) OR present a session/access token as a bearer.
+# A client's invoker surfaces this as a CONTEXT_REQUIRED challenge with both
+# alternatives; the oauth2 one carries the authorize/token endpoints.
 security:
+  - oauth2Auth: []
   - bearerAuth: []

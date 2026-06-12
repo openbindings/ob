@@ -1,5 +1,5 @@
 {
-  "openbindings": "0.1.0",
+  "openbindings": "0.2.0",
   "name": "OpenBlendings",
   "version": "1.0.0",
   "description": "A coffee shop demonstrating OpenBindings with five binding specifications. One interface, five protocols, zero duplication.",
@@ -18,9 +18,15 @@
     "MenuItem": {
       "type": "object",
       "properties": {
-        "name": {"type": "string"},
-        "description": {"type": "string"},
-        "category": {"type": "string"},
+        "name": {
+          "type": "string"
+        },
+        "description": {
+          "type": "string"
+        },
+        "category": {
+          "type": "string"
+        },
         "sizes": {
           "type": "array",
           "items": {
@@ -32,57 +38,117 @@
     "SizePrice": {
       "type": "object",
       "properties": {
-        "id": {"type": "string"},
-        "label": {"type": "string"},
-        "price": {"type": "number"}
+        "id": {
+          "type": "string"
+        },
+        "label": {
+          "type": "string"
+        },
+        "price": {
+          "type": "number"
+        }
       }
     },
     "PlaceOrderInput": {
       "type": "object",
       "properties": {
-        "drink": {"type": "string", "description": "Name of the drink to order"},
-        "size": {"type": "string", "description": "Size: v1 (small), v2 (medium), or v3 (large)"},
-        "customer": {"type": "string", "description": "Customer name for the order"}
+        "drink": {
+          "type": "string",
+          "description": "Name of the drink to order"
+        },
+        "size": {
+          "type": "string",
+          "description": "Size: v1 (small), v2 (medium), or v3 (large)"
+        },
+        "customer": {
+          "type": "string",
+          "description": "Customer name for the order"
+        }
       },
-      "required": ["drink", "size", "customer"]
+      "required": [
+        "drink",
+        "size",
+        "customer"
+      ]
     },
     "PlaceOrderOutput": {
       "type": "object",
       "properties": {
-        "orderId": {"type": "string"},
-        "status": {"type": "string"},
-        "drink": {"type": "string"},
-        "size": {"type": "string"},
-        "customer": {"type": "string"}
+        "orderId": {
+          "type": "string"
+        },
+        "status": {
+          "type": "string"
+        },
+        "drink": {
+          "type": "string"
+        },
+        "size": {
+          "type": "string"
+        },
+        "customer": {
+          "type": "string"
+        }
       }
     },
     "GetOrderStatusOutput": {
       "type": "object",
       "properties": {
-        "orderId": {"type": "string"},
-        "status": {"type": "string"},
-        "drink": {"type": "string"},
-        "size": {"type": "string"},
-        "customer": {"type": "string"},
-        "createdAt": {"type": "string", "format": "date-time"},
-        "updatedAt": {"type": "string", "format": "date-time"}
+        "orderId": {
+          "type": "string"
+        },
+        "status": {
+          "type": "string"
+        },
+        "drink": {
+          "type": "string"
+        },
+        "size": {
+          "type": "string"
+        },
+        "customer": {
+          "type": "string"
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time"
+        }
       }
     },
     "CancelOrderOutput": {
       "type": "object",
       "properties": {
-        "orderId": {"type": "string"},
-        "status": {"type": "string"}
+        "orderId": {
+          "type": "string"
+        },
+        "status": {
+          "type": "string"
+        }
       }
     },
     "OrderUpdate": {
       "type": "object",
       "properties": {
-        "orderId": {"type": "string"},
-        "status": {"type": "string"},
-        "drink": {"type": "string"},
-        "customer": {"type": "string"},
-        "timestamp": {"type": "string", "format": "date-time"}
+        "orderId": {
+          "type": "string"
+        },
+        "status": {
+          "type": "string"
+        },
+        "drink": {
+          "type": "string"
+        },
+        "customer": {
+          "type": "string"
+        },
+        "timestamp": {
+          "type": "string",
+          "format": "date-time"
+        }
       }
     }
   },
@@ -109,9 +175,14 @@
       "input": {
         "type": "object",
         "properties": {
-          "orderId": {"type": "string", "description": "The order ID to check"}
+          "orderId": {
+            "type": "string",
+            "description": "The order ID to check"
+          }
         },
-        "required": ["orderId"]
+        "required": [
+          "orderId"
+        ]
       },
       "output": {
         "$ref": "#/schemas/GetOrderStatusOutput"
@@ -122,9 +193,14 @@
       "input": {
         "type": "object",
         "properties": {
-          "orderId": {"type": "string", "description": "The order ID to cancel"}
+          "orderId": {
+            "type": "string",
+            "description": "The order ID to cancel"
+          }
         },
-        "required": ["orderId"]
+        "required": [
+          "orderId"
+        ]
       },
       "output": {
         "$ref": "#/schemas/CancelOrderOutput"
@@ -150,66 +226,104 @@
     "restApi": {
       "format": "openapi@3.1",
       "location": "./openapi.json",
-      "description": "REST API — the mobile ordering app calls this"
+      "description": "REST API \u2014 the mobile ordering app calls this"
     },
     "eventStream": {
       "format": "asyncapi@3.0",
       "location": "./asyncapi.json",
-      "description": "SSE event stream — the barista dashboard watches this"
+      "description": "SSE event stream \u2014 the barista dashboard watches this"
     },
     "mcpServer": {
       "format": "mcp@2025-11-25",
       "location": "./mcp",
-      "description": "MCP tools via Streamable HTTP — AI assistants use this"
+      "description": "MCP tools via Streamable HTTP \u2014 AI assistants use this"
     },
     "grpcServer": {
       "format": "grpc",
       "location": "localhost:9090",
-      "description": "gRPC service — backend microservices talk over this"
+      "description": "gRPC service \u2014 backend microservices talk over this"
     },
     "connectServer": {
       "format": "connect",
       "location": "./",
-      "description": "Connect (Buf) — same protobuf service over HTTP/1.1 + JSON"
+      "description": "Connect (Buf) \u2014 same protobuf service over HTTP/1.1 + JSON"
     },
     "graphqlServer": {
       "format": "graphql",
       "location": "./graphql",
-      "description": "GraphQL API — flexible queries with field selection"
+      "description": "GraphQL API \u2014 flexible queries with field selection"
     },
     "placeAndTrackGraph": {
       "format": "openbindings.operation-graph@0.2.0",
-      "description": "Operation graph — places an order and tracks it via the SSE event stream until ready",
+      "description": "Operation graph \u2014 places an order and tracks it via the SSE event stream until ready",
       "content": {
-        "openbindings.operation-graph": "0.2.0",
         "graphs": {
           "placeAndTrack": {
+            "openbindings.operation-graph": "0.2.0",
             "description": "Place a coffee order, subscribe to live updates, and return when the order is ready.",
             "nodes": {
-              "in":        { "type": "input" },
-              "place":     { "type": "operation", "operation": "placeOrder", "onError": "out" },
-              "subscribe": { "type": "operation", "operation": "orderUpdates", "onError": "out" },
-              "combined":  { "type": "combine" },
-              "match":     {
+              "in": {
+                "type": "input"
+              },
+              "place": {
+                "type": "operation",
+                "operation": "placeOrder"
+              },
+              "subscribe": {
+                "type": "operation",
+                "operation": "orderUpdates"
+              },
+              "combined": {
+                "type": "combine"
+              },
+              "match": {
                 "type": "filter",
                 "transform": "place != null and subscribe != null and subscribe.orderId = place.orderId and subscribe.status in ['ready', 'picked_up']"
               },
-              "shape":     {
+              "shape": {
                 "type": "transform",
                 "transform": "subscribe"
               },
-              "done":      { "type": "exit", "onError": "out" },
-              "out":       { "type": "output" }
+              "done": {
+                "type": "exit"
+              },
+              "out": {
+                "type": "output"
+              }
             },
             "edges": [
-              { "from": "in", "to": "place" },
-              { "from": "in", "to": "subscribe" },
-              { "from": "place", "to": "out" },
-              { "from": "place", "to": "combined" },
-              { "from": "subscribe", "to": "combined" },
-              { "from": "combined", "to": "match" },
-              { "from": "match", "to": "shape" },
-              { "from": "shape", "to": "done" }
+              {
+                "from": "in",
+                "to": "place"
+              },
+              {
+                "from": "in",
+                "to": "subscribe"
+              },
+              {
+                "from": "place",
+                "to": "out"
+              },
+              {
+                "from": "place",
+                "to": "combined"
+              },
+              {
+                "from": "subscribe",
+                "to": "combined"
+              },
+              {
+                "from": "combined",
+                "to": "match"
+              },
+              {
+                "from": "match",
+                "to": "shape"
+              },
+              {
+                "from": "shape",
+                "to": "done"
+              }
             ]
           }
         }
@@ -358,7 +472,7 @@
     "placeAndTrack.graph": {
       "operation": "placeAndTrack",
       "source": "placeAndTrackGraph",
-      "ref": "placeAndTrack",
+      "ref": "#/graphs/placeAndTrack",
       "description": "Composed operation: places an order and tracks it via live event stream"
     }
   }

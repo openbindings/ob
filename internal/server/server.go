@@ -30,6 +30,13 @@ type contextKey string
 
 const requestIDKey contextKey = "request_id"
 
+// wsInvokePath is the single route whose handler performs its own in-message
+// authentication and therefore must accept WebSocket upgrades before the bearer
+// token is presented. The auth-middleware exemption is scoped to exactly this
+// path. It must match the route registered on the mux (see
+// internal/cmd/serve_routes.go).
+const wsInvokePath = "/bindings/invoke"
+
 // RequestIDFromContext extracts the request ID set by the request ID middleware.
 func RequestIDFromContext(ctx context.Context) string {
 	if id, ok := ctx.Value(requestIDKey).(string); ok {
@@ -320,6 +327,25 @@ func IsLoopbackHost(host string) bool {
 	return host == "localhost" || host == "127.0.0.1" || host == "[::1]" || host == "::1"
 }
 
+// IsWebSocketUpgrade reports whether r is a genuine WebSocket upgrade request:
+// it must carry "upgrade" as a token in the (possibly comma-separated, possibly
+// repeated) Connection header AND an Upgrade header of "websocket", both matched
+// case-insensitively per RFC 6455 / RFC 7230. A lone spoofed Upgrade header is
+// not sufficient, so this cannot be used to slip past auth on its own.
+func IsWebSocketUpgrade(r *http.Request) bool {
+	if !strings.EqualFold(r.Header.Get("Upgrade"), "websocket") {
+		return false
+	}
+	for _, v := range r.Header.Values("Connection") {
+		for _, token := range strings.Split(v, ",") {
+			if strings.EqualFold(strings.TrimSpace(token), "upgrade") {
+				return true
+			}
+		}
+	}
+	return false
+}
+
 // isLocalhostOrigin returns true for origins like http(s)://localhost:PORT or
 // http(s)://127.0.0.1:PORT. Used for the default CORS policy.
 func isLocalhostOrigin(origin string) bool {
@@ -354,9 +380,14 @@ func (s *Server) authMiddleware(next http.Handler) http.Handler {
 			return
 		}
 
-		// WebSocket upgrades handle auth in the first message (browsers can't
-		// set headers on upgrade requests). Let them through to the handler.
-		if strings.EqualFold(r.Header.Get("Upgrade"), "websocket") {
+		// The WebSocket invocation endpoint handles auth in the first message
+		// (browsers can't set Authorization headers on upgrade requests). Let
+		// genuine upgrade requests to that one route through to the handler,
+		// which re-authenticates. This exemption is scoped to the exact route
+		// AND requires a real WebSocket upgrade (Connection: upgrade +
+		// Upgrade: websocket), so a spoofed Upgrade header on any other route —
+		// or on a non-upgrade request to this route — still hits token auth.
+		if path == wsInvokePath && IsWebSocketUpgrade(r) {
 			next.ServeHTTP(w, r)
 			return
 		}

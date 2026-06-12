@@ -138,6 +138,103 @@ func TestAuthMiddleware_HealthzExempt(t *testing.T) {
 	}
 }
 
+func TestAuthMiddleware_SpoofedUpgradeOnNonWSRouteRejected(t *testing.T) {
+	// A spoofed `Upgrade: websocket` header must NOT exempt a non-WebSocket
+	// route from bearer-token auth. Only the /bindings/invoke handler does
+	// in-message auth; every other route would otherwise run unauthenticated.
+	s := mustNewServer(t, "test-token-123")
+	rec := &callRecorder{}
+	handler := s.authMiddleware(rec.handler())
+
+	req := httptest.NewRequest("GET", "/info", nil)
+	req.Header.Set("Connection", "Upgrade")
+	req.Header.Set("Upgrade", "websocket")
+	// Deliberately no Authorization header.
+	w := httptest.NewRecorder()
+	handler.ServeHTTP(w, req)
+
+	if w.Code != http.StatusUnauthorized {
+		t.Errorf("status = %d, want %d", w.Code, http.StatusUnauthorized)
+	}
+	if rec.called {
+		t.Error("inner handler should not have been called for spoofed-upgrade non-WS route")
+	}
+}
+
+func TestAuthMiddleware_SpoofedUpgradeHeaderOnWSRouteWithoutConnectionRejected(t *testing.T) {
+	// Even on the WS route, a lone Upgrade header without a genuine
+	// `Connection: upgrade` token is not a real upgrade and must still be
+	// authenticated, so a forged header alone can't bypass auth there either.
+	s := mustNewServer(t, "test-token-123")
+	rec := &callRecorder{}
+	handler := s.authMiddleware(rec.handler())
+
+	req := httptest.NewRequest("GET", "/bindings/invoke", nil)
+	req.Header.Set("Upgrade", "websocket") // no Connection: upgrade
+	w := httptest.NewRecorder()
+	handler.ServeHTTP(w, req)
+
+	if w.Code != http.StatusUnauthorized {
+		t.Errorf("status = %d, want %d", w.Code, http.StatusUnauthorized)
+	}
+	if rec.called {
+		t.Error("inner handler should not have been called for non-upgrade request")
+	}
+}
+
+func TestAuthMiddleware_GenuineUpgradeOnWSRouteExempt(t *testing.T) {
+	// A genuine WebSocket upgrade to the invocation route is exempt from
+	// header auth (the handler re-authenticates from the first message).
+	s := mustNewServer(t, "test-token-123")
+	rec := &callRecorder{}
+	handler := s.authMiddleware(rec.handler())
+
+	req := httptest.NewRequest("GET", "/bindings/invoke", nil)
+	req.Header.Set("Connection", "keep-alive, Upgrade")
+	req.Header.Set("Upgrade", "websocket")
+	// No Authorization header: auth is in the first WS message.
+	w := httptest.NewRecorder()
+	handler.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Errorf("status = %d, want %d", w.Code, http.StatusOK)
+	}
+	if !rec.called {
+		t.Error("inner handler was not called for genuine WS upgrade on the WS route")
+	}
+}
+
+func TestIsWebSocketUpgrade(t *testing.T) {
+	cases := []struct {
+		name       string
+		connection string
+		upgrade    string
+		want       bool
+	}{
+		{"genuine simple", "Upgrade", "websocket", true},
+		{"genuine multi-token", "keep-alive, Upgrade", "websocket", true},
+		{"case-insensitive", "upgrade", "WebSocket", true},
+		{"missing connection", "", "websocket", false},
+		{"connection without upgrade token", "keep-alive", "websocket", false},
+		{"upgrade not websocket", "Upgrade", "h2c", false},
+		{"no headers", "", "", false},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			req := httptest.NewRequest("GET", "/bindings/invoke", nil)
+			if tc.connection != "" {
+				req.Header.Set("Connection", tc.connection)
+			}
+			if tc.upgrade != "" {
+				req.Header.Set("Upgrade", tc.upgrade)
+			}
+			if got := IsWebSocketUpgrade(req); got != tc.want {
+				t.Errorf("IsWebSocketUpgrade() = %v, want %v", got, tc.want)
+			}
+		})
+	}
+}
+
 // --- CORS middleware tests ---
 
 func TestCORSMiddleware_AllowedOrigin(t *testing.T) {
@@ -270,7 +367,7 @@ func TestCORSMiddleware_AnyHTTPSOriginAllowed(t *testing.T) {
 	rec := &callRecorder{}
 	handler := s.corsMiddleware(rec.handler())
 
-	for _, origin := range []string{"https://example.com", "https://panjir.com", "https://anything.dev"} {
+	for _, origin := range []string{"https://example.com", "https://app.example.net", "https://anything.dev"} {
 		t.Run(origin, func(t *testing.T) {
 			req := httptest.NewRequest("GET", "/info", nil)
 			req.Header.Set("Origin", origin)

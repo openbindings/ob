@@ -1,9 +1,11 @@
 package app
 
 import (
+	"errors"
 	"fmt"
 
 	"github.com/blues/jsonata-go"
+	openbindings "github.com/openbindings/openbindings-go"
 )
 
 // jsonataEvaluator implements openbindings.TransformEvaluatorWithBindings
@@ -39,6 +41,12 @@ func (j *jsonataEvaluator) EvaluateWithBindings(expression string, data any, bin
 
 	result, err := expr.Eval(normalized)
 	if err != nil {
+		// An undefined result is a distinct signal, not an evaluation
+		// failure: the operation-graph engine fails the node with
+		// TRANSFORM_UNDEFINED while null flows downstream normally.
+		if errors.Is(err, jsonata.ErrUndefined) {
+			return nil, openbindings.ErrTransformUndefined
+		}
 		return nil, fmt.Errorf("evaluate jsonata: %w", err)
 	}
 	return result, nil
