@@ -443,6 +443,78 @@ func TestServeWellKnown(t *testing.T) {
 	}
 }
 
+// The served /openapi.yaml is how a consumer discovers this server's own
+// transport auth: the SDK's openapi invoker reads these securitySchemes and
+// surfaces a CONTEXT_REQUIRED challenge (bearer or oauth2). The /oauth URLs
+// MUST be absolutized against the request origin (placeholders fully
+// substituted) or a consumer's PKCE flow has nowhere to go. This is the
+// mechanism Panjir web's connect flow relies on; guard it against regression.
+func TestServeOpenAPISpec_CarriesAbsoluteOAuthEndpoints(t *testing.T) {
+	ts := testEnv(t)
+	defer ts.Close()
+
+	resp, err := http.Get(ts.URL + "/openapi.yaml")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != 200 {
+		t.Fatalf("status = %d, want 200", resp.StatusCode)
+	}
+	raw, err := io.ReadAll(resp.Body)
+	if err != nil {
+		t.Fatal(err)
+	}
+	spec := string(raw)
+
+	for _, scheme := range []string{"oauth2Auth", "bearerAuth"} {
+		if !strings.Contains(spec, scheme) {
+			t.Errorf("served openapi.yaml missing security scheme %q", scheme)
+		}
+	}
+	if strings.Contains(spec, "${OB_SERVER_URL}") {
+		t.Error("served openapi.yaml still contains an unsubstituted ${OB_SERVER_URL} placeholder")
+	}
+	for _, want := range []string{ts.URL + "/oauth/authorize", ts.URL + "/oauth/token"} {
+		if !strings.Contains(spec, want) {
+			t.Errorf("served openapi.yaml missing absolute oauth endpoint %q", want)
+		}
+	}
+}
+
+// OBI 0.2.0 carries no `security` field; auth is a runtime CONTEXT_REQUIRED
+// concern discovered via the openapi source (see the test above). This locks
+// both invariants: the served OBI stays security-field-free, and its openapi
+// source location is absolutized so a consumer can fetch the spec that carries
+// the auth metadata.
+func TestServeWellKnown_NoSecurityField_OpenAPISourceAbsolutized(t *testing.T) {
+	ts := testEnv(t)
+	defer ts.Close()
+
+	resp, err := http.Get(ts.URL + "/.well-known/openbindings")
+	if err != nil {
+		t.Fatal(err)
+	}
+	body := mustJSON(t, resp)
+
+	if _, ok := body["security"]; ok {
+		t.Error("served OBI must not carry a top-level 'security' field (OBI 0.2.0 has none)")
+	}
+
+	sources, ok := body["sources"].(map[string]any)
+	if !ok {
+		t.Fatal("served OBI missing 'sources' map")
+	}
+	openapi, ok := sources["openapi"].(map[string]any)
+	if !ok {
+		t.Fatal("served OBI missing 'openapi' source")
+	}
+	loc, _ := openapi["location"].(string)
+	if want := ts.URL + "/openapi.yaml"; loc != want {
+		t.Errorf("openapi source location = %q, want absolutized %q", loc, want)
+	}
+}
+
 // --- /delegates ---
 
 func TestServeDelegates(t *testing.T) {

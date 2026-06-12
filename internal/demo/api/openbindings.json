@@ -267,11 +267,13 @@
               },
               "place": {
                 "type": "operation",
-                "operation": "placeOrder"
+                "operation": "placeOrder",
+                "onError": "out"
               },
               "subscribe": {
                 "type": "operation",
-                "operation": "orderUpdates"
+                "operation": "orderUpdates",
+                "onError": "out"
               },
               "combined": {
                 "type": "combine"
@@ -285,7 +287,8 @@
                 "transform": "subscribe"
               },
               "done": {
-                "type": "exit"
+                "type": "exit",
+                "onError": "out"
               },
               "out": {
                 "type": "output"

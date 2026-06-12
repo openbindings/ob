@@ -217,26 +217,13 @@ func handleOBI(port int) http.HandlerFunc {
 			}
 		}
 
-		// Resolve relative URLs in security methods against the server's base URL.
-		if security, ok := iface["security"].(map[string]any); ok {
-			for _, entry := range security {
-				methods, ok := entry.([]any)
-				if !ok {
-					continue
-				}
-				for _, m := range methods {
-					method, ok := m.(map[string]any)
-					if !ok {
-						continue
-					}
-					for _, field := range []string{"authorizeUrl", "tokenUrl"} {
-						if v, ok := method[field].(string); ok && len(v) > 0 && v[0] == '/' {
-							method[field] = baseURL + v
-						}
-					}
-				}
-			}
-		}
+		// Auth requirements are NOT carried in the OBI document (OBI 0.2.0 has no
+		// `security` field). A consumer discovers this server's own bearer/oauth2
+		// requirement at invocation time via the openapi source: the served
+		// /openapi.yaml carries the securitySchemes (with /oauth endpoints already
+		// absolutized by rewriteSpecPlaceholders), which the SDK's openapi invoker
+		// surfaces as a CONTEXT_REQUIRED challenge. There is nothing OBI-level to
+		// rewrite here.
 
 		writeOBI(w, http.StatusOK, iface)
 	}

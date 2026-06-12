@@ -364,7 +364,9 @@ func isLocalhostOrigin(origin string) bool {
 }
 
 // authMiddleware requires a valid Bearer token on all requests except
-// public endpoints (healthz, well-known, OAuth, MCP transport).
+// public endpoints (root, well-known, healthz, the served openapi/asyncapi
+// specs, and the OAuth authorize/token endpoints). The /mcp transport is NOT
+// public: it is gated by the same token as the rest of the surface.
 func (s *Server) authMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		path := r.URL.Path
