@@ -49,20 +49,8 @@
     },
     "invokeBinding.asyncapi": {
       "operation": "invokeBinding",
-      "priority": 0,
       "ref": "#/operations/invokeBinding",
       "source": "asyncapi"
-    },
-    "invokeBinding.mcp": {
-      "operation": "invokeBinding",
-      "ref": "tools/invokeBinding",
-      "source": "mcp"
-    },
-    "invokeBinding.openapi": {
-      "operation": "invokeBinding",
-      "priority": 0,
-      "ref": "#/paths/~1bindings~1invoke/post",
-      "source": "openapi"
     },
     "listContexts.mcp": {
       "operation": "listContexts",
@@ -84,6 +72,11 @@
       "ref": "#/paths/~1formats/get",
       "source": "openapi"
     },
+    "prepareBinding.openapi": {
+      "operation": "prepareBinding",
+      "ref": "#/paths/~1bindings~1prepare/post",
+      "source": "openapi"
+    },
     "readQuickReference.mcp": {
       "operation": "readQuickReference",
       "ref": "resources/openbindings://spec/quick-reference.md",
@@ -93,16 +86,6 @@
       "inputTransform": "{ \"name\": 'quick-reference.md' }",
       "operation": "readQuickReference",
       "ref": "#/paths/~1spec~1{name}/get",
-      "source": "openapi"
-    },
-    "request.mcp": {
-      "operation": "request",
-      "ref": "tools/request",
-      "source": "mcp"
-    },
-    "request.openapi": {
-      "operation": "request",
-      "ref": "#/paths/~1http~1request/post",
       "source": "openapi"
     },
     "resolveInterface.mcp": {
@@ -121,18 +104,21 @@
       "source": "mcp"
     },
     "setContext.openapi": {
-      "inputTransform": "$merge([{ \"url\": key }, context])",
+      "inputTransform": "$merge([{ \"url\": key }, value])",
       "operation": "setContext",
       "ref": "#/paths/~1contexts~1{url}/put",
       "source": "openapi"
     }
   },
-  "description": "Local OpenBindings service for binding invocation, interface resolution, context management, format discovery, source inspection, and HTTP client capabilities.",
+  "description": "Local OpenBindings service for binding invocation, interface resolution, context management, format discovery, and source inspection.",
   "name": "OpenBindings Local Service",
   "openbindings": "0.2.0",
   "operations": {
     "createInterface": {
       "description": "Create an OpenBindings interface from binding source artifacts.",
+      "aliases": [
+        "openbindings.interface-creator.createInterface"
+      ],
       "input": {
         "$ref": "#/schemas/CreateInterfaceInput"
       },
@@ -142,6 +128,9 @@
     },
     "deleteContext": {
       "description": "Delete the stored context for a key. Deleting an absent key succeeds.",
+      "aliases": [
+        "openbindings.kv-store.delete"
+      ],
       "idempotent": true,
       "input": {
         "additionalProperties": false,
@@ -158,6 +147,9 @@
     },
     "getContext": {
       "description": "Get the stored context for a key. Returns the unified context payload (credentials, headers, cookies, environment, metadata in a single opaque map), or null when no context exists for the key.",
+      "aliases": [
+        "openbindings.kv-store.get"
+      ],
       "idempotent": true,
       "input": {
         "additionalProperties": false,
@@ -184,6 +176,9 @@
     },
     "getInfo": {
       "description": "Return identity and metadata about this host.",
+      "aliases": [
+        "openbindings.software-descriptor.getInfo"
+      ],
       "idempotent": true,
       "output": {
         "$ref": "#/schemas/SoftwareInfo"
@@ -191,6 +186,9 @@
     },
     "inspectSource": {
       "description": "Inspect a binding source artifact and return bindable targets.",
+      "aliases": [
+        "openbindings.source-inspector.inspectSource"
+      ],
       "input": {
         "$ref": "#/schemas/InspectSourceInput"
       },
@@ -199,16 +197,19 @@
       }
     },
     "invokeBinding": {
-      "description": "Invoke a resolved binding.",
+      "description": "Invoke a resolved binding via a typed I/O frame stream (the binding-invoker frame protocol). The caller streams BindingInvokerInputFrame messages (one `open` carrying the BindingInvocationInput, zero or more `input`, one `close`); the service streams BindingInvokerOutputFrame messages back (zero or more `output`/`input_closed`, then exactly one terminal `complete` or `error`). One shape covers unary, server-streaming, client-streaming, and bidirectional bindings; cardinality is observed by how the caller drives the frames. Missing runtime context fails with a terminal CONTEXT_REQUIRED error carrying ContextRequiredDetails, before any output and any side effect.",
+      "aliases": [
+        "openbindings.binding-invoker.invokeBinding"
+      ],
       "input": {
-        "$ref": "#/schemas/InvokeBindingInput"
+        "$ref": "#/schemas/BindingInvokerInputFrame"
       },
       "output": {
-        "$ref": "#/schemas/InvokeBindingOutput"
+        "$ref": "#/schemas/BindingInvokerOutputFrame"
       }
     },
     "listContexts": {
-      "description": "List metadata summaries for all stored contexts (no secret values). Not part of the openbindings.context-store role contract \u2014 this is ob's management surface.",
+      "description": "List metadata summaries for all stored contexts (no secret values). Not part of the kv-store interface \u2014 this is ob's management surface.",
       "idempotent": true,
       "output": {
         "items": {
@@ -219,6 +220,11 @@
     },
     "listFormats": {
       "description": "List binding formats supported by this host.",
+      "aliases": [
+        "openbindings.binding-invoker.listFormats",
+        "openbindings.interface-creator.listFormats",
+        "openbindings.source-inspector.listFormats"
+      ],
       "idempotent": true,
       "output": {
         "items": {
@@ -227,20 +233,31 @@
         "type": "array"
       }
     },
+    "prepareBinding": {
+      "description": "Preflight: report the context a binding would require before invocation, without invoking it or causing side effects. Returns ContextRequiredDetails the runtime can resolve proactively, or null when requirements cannot be determined statically. Advisory: invokeBinding's reactive CONTEXT_REQUIRED error is the authoritative source of requirements. When `context` is supplied, the result reports only the requirements still unsatisfied by it.",
+      "aliases": [
+        "openbindings.binding-invoker.prepareBinding"
+      ],
+      "idempotent": true,
+      "input": {
+        "$ref": "#/schemas/BindingInvocationInput"
+      },
+      "output": {
+        "oneOf": [
+          {
+            "$ref": "#/schemas/ContextRequiredDetails"
+          },
+          {
+            "type": "null"
+          }
+        ]
+      }
+    },
     "readQuickReference": {
       "description": "OpenBindings spec quick reference: operations, bindings, sources, common ref formats, transform syntax.",
       "idempotent": true,
       "output": {
         "type": "string"
-      }
-    },
-    "request": {
-      "description": "Make an HTTP request and return the complete response.",
-      "input": {
-        "$ref": "#/schemas/HttpRequestInput"
-      },
-      "output": {
-        "$ref": "#/schemas/HttpResponse"
       }
     },
     "resolveInterface": {
@@ -253,21 +270,24 @@
       }
     },
     "setContext": {
-      "description": "Create or replace the context for a key. The supplied context fully replaces any existing context.",
+      "description": "Create or replace the context for a key. The supplied value fully replaces any existing context.",
+      "aliases": [
+        "openbindings.kv-store.set"
+      ],
       "idempotent": true,
       "input": {
         "additionalProperties": false,
         "properties": {
-          "context": {
-            "$ref": "#/schemas/Context"
-          },
           "key": {
             "type": "string"
+          },
+          "value": {
+            "$ref": "#/schemas/Context"
           }
         },
         "required": [
           "key",
-          "context"
+          "value"
         ],
         "type": "object"
       }
@@ -294,11 +314,220 @@
     },
     "BindingContext": {
       "additionalProperties": true,
+      "description": "Opaque runtime context for binding invocation, typically sourced from a context store. Well-known credential fields: 'bearerToken' (string), 'apiKey' (string), 'basic' (object with 'username' and 'password'), 'accessToken' / 'refreshToken' / 'expiresAt' for OAuth. Well-known transport fields: 'headers' / 'cookies' / 'environment' (objects with string values) and 'metadata' (object with arbitrary values). Implementations and callers MAY add additional fields for session state, consent flags, or any other invoker-managed runtime data; drivers SHOULD ignore fields they don't recognize.",
       "type": "object"
+    },
+    "BindingInvocationInput": {
+      "additionalProperties": false,
+      "description": "Initial payload carried by the `open` input frame: identifies the binding to invoke and provides context.",
+      "properties": {
+        "context": {
+          "$ref": "#/schemas/BindingContext"
+        },
+        "ref": {
+          "description": "Reference within the binding source.",
+          "type": "string"
+        },
+        "source": {
+          "$ref": "#/schemas/InvokeSource"
+        }
+      },
+      "required": [
+        "source",
+        "ref"
+      ],
+      "type": "object"
+    },
+    "BindingInvokerInputFrame": {
+      "description": "One frame from the caller into invokeBinding. The caller streams a sequence: exactly one `open` frame first (carrying the BindingInvocationInput), then zero or more `input` frames carrying values to deliver to the underlying binding, then exactly one `close` frame signaling no more input.",
+      "discriminator": {
+        "propertyName": "kind"
+      },
+      "oneOf": [
+        {
+          "additionalProperties": false,
+          "description": "Open the invocation. MUST be the first frame on the input stream.",
+          "properties": {
+            "input": {
+              "$ref": "#/schemas/BindingInvocationInput"
+            },
+            "kind": {
+              "const": "open"
+            }
+          },
+          "required": [
+            "kind",
+            "input"
+          ],
+          "title": "open",
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "description": "Write one input value to the underlying binding. The value's schema is determined by the underlying binding's operation, not by this contract.",
+          "properties": {
+            "kind": {
+              "const": "input"
+            },
+            "value": {
+              "description": "One input value, opaque at this layer."
+            }
+          },
+          "required": [
+            "kind",
+            "value"
+          ],
+          "title": "input",
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "description": "Caller signals that no more input frames will be sent. Idempotent.",
+          "properties": {
+            "kind": {
+              "const": "close"
+            }
+          },
+          "required": [
+            "kind"
+          ],
+          "title": "close",
+          "type": "object"
+        }
+      ]
+    },
+    "BindingInvokerOutputFrame": {
+      "description": "One frame from the service back to the caller. The service streams a sequence: zero or more non-terminal frames (`output`, `input_closed`) followed by exactly one terminal frame (`complete` or `error`).",
+      "discriminator": {
+        "propertyName": "kind"
+      },
+      "oneOf": [
+        {
+          "additionalProperties": false,
+          "description": "One output value from the underlying binding. The value's schema is determined by the underlying binding's operation, not by this contract.",
+          "properties": {
+            "kind": {
+              "const": "output"
+            },
+            "value": {
+              "description": "One output value, opaque at this layer."
+            }
+          },
+          "required": [
+            "kind",
+            "value"
+          ],
+          "title": "output",
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "description": "Binding has closed the input side from its end (e.g., a unary binding closes input after the first read). Subsequent caller `input` frames are ignored (never written; see rule 3). The invocation continues; outputs may still flow.",
+          "properties": {
+            "kind": {
+              "const": "input_closed"
+            }
+          },
+          "required": [
+            "kind"
+          ],
+          "title": "input_closed",
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "description": "Terminal: the underlying binding completed normally. MUST be the last frame.",
+          "properties": {
+            "kind": {
+              "const": "complete"
+            }
+          },
+          "required": [
+            "kind"
+          ],
+          "title": "complete",
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "description": "Terminal: the underlying binding failed. MUST be the last frame. Carries a structured InvocationError.",
+          "properties": {
+            "error": {
+              "$ref": "#/schemas/InvocationError"
+            },
+            "kind": {
+              "const": "error"
+            }
+          },
+          "required": [
+            "kind",
+            "error"
+          ],
+          "title": "error",
+          "type": "object"
+        }
+      ]
     },
     "Context": {
       "additionalProperties": true,
       "description": "Opaque per-target context payload \u2014 credentials, session state, headers, cookies, environment, metadata, or any other invoker-managed state. Well-known fields include 'bearerToken', 'apiKey', 'basic', 'headers', 'cookies', 'environment', 'metadata'.",
+      "type": "object"
+    },
+    "ContextRequiredDetails": {
+      "description": "The `details` payload of an InvocationError whose `code` is CONTEXT_REQUIRED, and the return shape of prepareBinding. Enumerates the runtime context the invoker needs before it can proceed. `alternatives` are disjunctive: satisfying ANY one suffices. The `requirements` within a single alternative are conjunctive: ALL must be satisfied. This OR-of-AND shape captures real authentication semantics such as 'OAuth2 OR (apiKey AND clientCert)', which a flat list cannot.",
+      "properties": {
+        "alternatives": {
+          "description": "Disjunctive set of ways to satisfy the requirement. The runtime selects one alternative whose every requirement it can resolve.",
+          "items": {
+            "properties": {
+              "requirements": {
+                "description": "Conjunctive set: every requirement in this alternative must be resolved for the alternative to be satisfied.",
+                "items": {
+                  "$ref": "#/schemas/ContextRequirement"
+                },
+                "minItems": 1,
+                "type": "array"
+              }
+            },
+            "required": [
+              "requirements"
+            ],
+            "type": "object"
+          },
+          "minItems": 1,
+          "type": "array"
+        },
+        "target": {
+          "description": "The target the binding addresses; the runtime derives a storage key from it.",
+          "type": "string"
+        }
+      },
+      "required": [
+        "target",
+        "alternatives"
+      ],
+      "type": "object"
+    },
+    "ContextRequirement": {
+      "additionalProperties": true,
+      "description": "One prerequisite that must be satisfied before a binding can be invoked, resolved into context. `type` names the requirement family; the remaining fields are type-specific. The well-known `auth.*` family resolves into BindingContext credential fields: `auth.bearer` produces 'bearerToken', `auth.apiKey` produces 'apiKey', `auth.basic` produces 'basic', and `auth.oauth2` produces 'accessToken' (carrying flow fields such as 'authorizeUrl', 'tokenUrl', and 'scopes'). Other families (e.g. 'approval.user', 'config.value', 'account.link') resolve into their own context fields. A runtime dispatches each requirement to a resolver registered for its `type`.",
+      "properties": {
+        "description": {
+          "description": "Human-readable description shown to a user or operator during resolution (e.g. an approval prompt message).",
+          "type": "string"
+        },
+        "durable": {
+          "description": "Whether resolved context for this requirement MAY be cached under the challenge `key` and reused for later invocations (true; e.g. credentials), or MUST be satisfied freshly for every invocation and MUST NOT be cached (false; e.g. a one-shot user approval). Defaults to true. A requirement family typically fixes this value.",
+          "type": "boolean"
+        },
+        "type": {
+          "description": "Requirement type identifier, e.g. 'auth.bearer', 'auth.oauth2', 'auth.basic', 'auth.apiKey', 'approval.user', 'config.value'. Resolvers register against these; an unrecognized type is unsatisfiable by a runtime that has no resolver for it.",
+          "type": "string"
+        }
+      },
+      "required": [
+        "type"
+      ],
       "type": "object"
     },
     "ContextSummary": {
@@ -358,18 +587,6 @@
     },
     "CreateInterfaceSource": {
       "additionalProperties": false,
-      "oneOf": [
-        {
-          "required": [
-            "location"
-          ]
-        },
-        {
-          "required": [
-            "content"
-          ]
-        }
-      ],
       "properties": {
         "content": {},
         "description": {
@@ -394,94 +611,34 @@
       "required": [
         "format"
       ],
-      "type": "object"
-    },
-    "Error": {
-      "additionalProperties": false,
-      "properties": {
-        "code": {
-          "type": "string"
+      "type": "object",
+      "anyOf": [
+        {
+          "required": [
+            "location"
+          ]
         },
-        "details": {},
-        "message": {
-          "type": "string"
+        {
+          "required": [
+            "content"
+          ]
         }
-      },
-      "required": [
-        "code",
-        "message"
-      ],
-      "type": "object"
+      ]
     },
     "FormatInfo": {
+      "description": "Information about a supported binding format.",
       "properties": {
         "description": {
+          "description": "Human-readable description of this format.",
           "type": "string"
         },
         "token": {
+          "description": "Format token (e.g., openapi@3.1, asyncapi@3.0, grpc).",
           "type": "string"
         }
       },
       "required": [
         "token"
-      ],
-      "type": "object"
-    },
-    "HttpRequestInput": {
-      "additionalProperties": false,
-      "properties": {
-        "body": {
-          "type": "string"
-        },
-        "followRedirects": {
-          "type": "boolean"
-        },
-        "headers": {
-          "additionalProperties": {
-            "type": "string"
-          },
-          "type": "object"
-        },
-        "maxResponseBytes": {
-          "type": "integer"
-        },
-        "method": {
-          "type": "string"
-        },
-        "timeoutMs": {
-          "type": "integer"
-        },
-        "url": {
-          "type": "string"
-        }
-      },
-      "required": [
-        "url"
-      ],
-      "type": "object"
-    },
-    "HttpResponse": {
-      "additionalProperties": false,
-      "properties": {
-        "body": {
-          "type": "string"
-        },
-        "headers": {
-          "additionalProperties": {
-            "type": "string"
-          },
-          "type": "object"
-        },
-        "status": {
-          "type": "integer"
-        },
-        "url": {
-          "type": "string"
-        }
-      },
-      "required": [
-        "status",
-        "body"
       ],
       "type": "object"
     },
@@ -497,45 +654,30 @@
       ],
       "type": "object"
     },
-    "InvokeBindingInput": {
-      "additionalProperties": false,
+    "InvocationError": {
+      "description": "Structured error carried by an `error` output frame. Indicates terminal failure of the invocation.",
       "properties": {
-        "context": {
-          "$ref": "#/schemas/BindingContext"
-        },
-        "input": {},
-        "ref": {
+        "code": {
+          "description": "Machine-readable error code (e.g., ERR_CANCELLED, ERR_VALIDATION_FAILED, ERR_PROTOCOL, CONTEXT_REQUIRED).",
           "type": "string"
         },
-        "source": {
-          "$ref": "#/schemas/InvokeSource"
+        "details": {
+          "description": "Optional structured details specific to the error code. For code CONTEXT_REQUIRED, `details` is a ContextRequiredDetails object."
+        },
+        "message": {
+          "description": "Human-readable description.",
+          "type": "string"
         }
       },
       "required": [
-        "source",
-        "ref"
+        "code",
+        "message"
       ],
-      "type": "object"
-    },
-    "InvokeBindingOutput": {
-      "additionalProperties": true,
-      "properties": {
-        "durationMs": {
-          "type": "number"
-        },
-        "error": {
-          "$ref": "#/schemas/Error"
-        },
-        "output": {},
-        "status": {
-          "type": "integer"
-        }
-      },
       "type": "object"
     },
     "InvokeSource": {
       "additionalProperties": false,
-      "oneOf": [
+      "anyOf": [
         {
           "required": [
             "location"
@@ -547,12 +689,17 @@
           ]
         }
       ],
+      "description": "Binding source for invocation.",
       "properties": {
-        "content": {},
+        "content": {
+          "description": "Binding source content directly."
+        },
         "format": {
+          "description": "Format token.",
           "type": "string"
         },
         "location": {
+          "description": "Location of the binding source (path or URL).",
           "type": "string"
         }
       },
@@ -580,12 +727,6 @@
         },
         "operations": {
           "additionalProperties": true,
-          "type": "object"
-        },
-        "roles": {
-          "additionalProperties": {
-            "type": "string"
-          },
           "type": "object"
         },
         "schemas": {
@@ -691,18 +832,6 @@
     },
     "Source": {
       "additionalProperties": false,
-      "oneOf": [
-        {
-          "required": [
-            "location"
-          ]
-        },
-        {
-          "required": [
-            "content"
-          ]
-        }
-      ],
       "properties": {
         "content": {},
         "description": {
@@ -718,7 +847,19 @@
       "required": [
         "format"
       ],
-      "type": "object"
+      "type": "object",
+      "anyOf": [
+        {
+          "required": [
+            "location"
+          ]
+        },
+        {
+          "required": [
+            "content"
+          ]
+        }
+      ]
     },
     "SourceInspection": {
       "additionalProperties": true,

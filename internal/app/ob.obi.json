@@ -94,18 +94,6 @@
       "source": "usage",
       "x-ob": {}
     },
-    "invokeBinding.asyncapi": {
-      "operation": "invokeBinding",
-      "ref": "#/operations/invokeBinding",
-      "source": "asyncapi",
-      "x-ob": {}
-    },
-    "invokeBinding.openapi": {
-      "operation": "invokeBinding",
-      "ref": "#/paths/~1bindings~1invoke/post",
-      "source": "openapi",
-      "x-ob": {}
-    },
     "invokeBinding.usage": {
       "operation": "invokeBinding",
       "ref": "binding invoke",
@@ -264,14 +252,14 @@
       "ref": "#/paths/~1contexts~1{url}/put",
       "source": "openapi",
       "x-ob": {},
-      "inputTransform": "$merge([{ \"url\": key }, context])"
+      "inputTransform": "$merge([{ \"url\": key }, value])"
     },
     "setContext.usage": {
       "operation": "setContext",
       "ref": "context set",
       "source": "usage",
       "x-ob": {},
-      "inputTransform": "{ \"url\": key, \"bearer-token\": context.bearerToken, \"api-key\": context.apiKey }"
+      "inputTransform": "{ \"url\": key, \"bearer-token\": value.bearerToken, \"api-key\": value.apiKey }"
     },
     "startServer.usage": {
       "operation": "startServer",
@@ -422,15 +410,18 @@
     },
     "createInterface": {
       "description": "Create an OpenBindings interface, optionally from binding source artifacts.",
+      "tags": [
+        "authoring"
+      ],
+      "aliases": [
+        "openbindings.interface-creator.createInterface"
+      ],
       "input": {
         "$ref": "#/schemas/CreateInterfaceInput"
       },
       "output": {
         "$ref": "#/schemas/OpenBindingsInterface"
-      },
-      "tags": [
-        "authoring"
-      ]
+      }
     },
     "createMCPServer": {
       "description": "Create an MCP server from interfaces and/or URLs",
@@ -525,6 +516,12 @@
     },
     "deleteContext": {
       "description": "Delete the stored context for a key. Deleting an absent key succeeds.",
+      "tags": [
+        "context"
+      ],
+      "aliases": [
+        "openbindings.kv-store.delete"
+      ],
       "idempotent": true,
       "input": {
         "type": "object",
@@ -538,10 +535,7 @@
           "key"
         ],
         "additionalProperties": false
-      },
-      "tags": [
-        "context"
-      ]
+      }
     },
     "deleteDelegate": {
       "description": "Remove a delegate",
@@ -722,6 +716,12 @@
     },
     "getContext": {
       "description": "Get the stored context for a key. Returns the unified context payload (credentials, headers, cookies, environment, metadata in a single opaque map), or null when no context exists for the key.",
+      "tags": [
+        "context"
+      ],
+      "aliases": [
+        "openbindings.kv-store.get"
+      ],
       "idempotent": true,
       "input": {
         "type": "object",
@@ -745,10 +745,7 @@
             "type": "null"
           }
         ]
-      },
-      "tags": [
-        "context"
-      ]
+      }
     },
     "getEnvironmentStatus": {
       "description": "Show environment status or OBI sync report",
@@ -776,13 +773,16 @@
     },
     "getInfo": {
       "description": "Return identity and metadata about this software.",
+      "tags": [
+        "info"
+      ],
+      "aliases": [
+        "openbindings.software-descriptor.getInfo"
+      ],
       "idempotent": true,
       "output": {
         "$ref": "#/schemas/SoftwareInfo"
-      },
-      "tags": [
-        "info"
-      ]
+      }
     },
     "getSource": {
       "description": "Show details of a source reference",
@@ -864,7 +864,7 @@
       "x-ob": {}
     },
     "listContexts": {
-      "description": "List metadata summaries for all stored contexts (no secret values). Not part of the openbindings.context-store role contract \u2014 this is ob's management surface.",
+      "description": "List metadata summaries for all stored contexts (no secret values). Not part of the kv-store interface \u2014 this is ob's management surface.",
       "idempotent": true,
       "output": {
         "type": "array",
@@ -902,16 +902,19 @@
     },
     "listFormats": {
       "description": "List binding formats supported by this invoker.",
+      "tags": [
+        "format"
+      ],
+      "aliases": [
+        "openbindings.interface-creator.listFormats"
+      ],
       "idempotent": true,
       "output": {
         "type": "array",
         "items": {
           "$ref": "#/schemas/FormatInfo"
         }
-      },
-      "tags": [
-        "format"
-      ]
+      }
     },
     "listMCPServers": {
       "description": "List active MCP server instances",
@@ -1126,7 +1129,13 @@
       "x-ob": {}
     },
     "setContext": {
-      "description": "Create or replace the context for a key. The supplied context fully replaces any existing context (full replacement, not partial update).",
+      "description": "Create or replace the context for a key. The supplied value fully replaces any existing context (full replacement, not partial update).",
+      "tags": [
+        "context"
+      ],
+      "aliases": [
+        "openbindings.kv-store.set"
+      ],
       "idempotent": true,
       "input": {
         "type": "object",
@@ -1135,19 +1144,16 @@
             "type": "string",
             "description": "Context store key."
           },
-          "context": {
+          "value": {
             "$ref": "#/schemas/Context"
           }
         },
         "required": [
           "key",
-          "context"
+          "value"
         ],
         "additionalProperties": false
-      },
-      "tags": [
-        "context"
-      ]
+      }
     },
     "startServer": {
       "description": "Start a local HTTP server exposing ob operations",
@@ -1447,7 +1453,8 @@
       "required": [
         "format"
       ],
-      "oneOf": [
+      "additionalProperties": false,
+      "anyOf": [
         {
           "required": [
             "location"
@@ -1458,8 +1465,7 @@
             "content"
           ]
         }
-      ],
-      "additionalProperties": false
+      ]
     },
     "CreateInterfaceInput": {
       "type": "object",
@@ -1514,7 +1520,8 @@
       "required": [
         "format"
       ],
-      "oneOf": [
+      "additionalProperties": false,
+      "anyOf": [
         {
           "required": [
             "location"
@@ -1525,8 +1532,7 @@
             "content"
           ]
         }
-      ],
-      "additionalProperties": false
+      ]
     },
     "BindingContext": {
       "type": "object",

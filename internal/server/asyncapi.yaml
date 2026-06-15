@@ -3,9 +3,15 @@ info:
   title: ob serve streaming API
   version: 0.1.0
   description: >
-    WebSocket streaming API for the OpenBindings CLI (ob serve).
-    Clients upgrade the /bindings/invoke endpoint to a WebSocket
-    for streaming operation invocation. One connection = one invocation lifecycle.
+    WebSocket API for the OpenBindings CLI (ob serve): the invokeBinding
+    operation of the binding-invoker interface as a typed I/O
+    frame stream. Clients upgrade /bindings/invoke to a WebSocket; one
+    connection carries exactly one invocation. The caller streams
+    BindingInvokerInputFrame messages (exactly one `open` first, zero or more
+    `input`, one `close`); the server streams BindingInvokerOutputFrame
+    messages back (zero or more `output` / `input_closed`, then exactly one
+    terminal `complete` or `error`). One shape covers unary, server-streaming,
+    client-streaming, and bidirectional bindings.
 
 servers:
   local:
@@ -22,113 +28,258 @@ channels:
       ws:
         method: GET
     messages:
-      invokeRequest:
-        $ref: "#/components/messages/InvokeRequest"
-      streamEvent:
-        $ref: "#/components/messages/StreamEventMessage"
-      streamError:
-        $ref: "#/components/messages/StreamErrorMessage"
+      inputFrame:
+        $ref: "#/components/messages/BindingInvokerInputFrame"
+      outputFrame:
+        $ref: "#/components/messages/BindingInvokerOutputFrame"
 
 operations:
   invokeBinding:
     action: send
     channel:
       $ref: "#/channels/bindingsInvoke"
-    summary: Invoke a binding via WebSocket streaming
+    summary: Invoke a binding via the binding-invoker frame protocol
     description: >
-      Open a WebSocket to /bindings/invoke. Send an InvokeRequest as the
-      first message. The server streams back StreamEvent and StreamError
-      messages until the connection is closed (status 1000).
+      Open a WebSocket to /bindings/invoke (token on the upgrade request; see
+      the bearer security scheme). Stream BindingInvokerInputFrame messages:
+      exactly one `open` frame first (anything else is a terminal
+      ERR_PROTOCOL), then zero or more `input` frames, then one `close`. The
+      server streams BindingInvokerOutputFrame messages: `output` frames as
+      the binding produces values, an `input_closed` frame if the binding
+      closes the input side from its end (later `input` frames are ignored,
+      never written; the invocation continues), and exactly one terminal
+      frame — `complete` or `error`. Input frames with unknown properties are
+      rejected with ERR_PROTOCOL. If the transport closes without a terminal
+      frame, the consumer synthesizes ERR_TRANSPORT_CLOSED. Missing runtime
+      context fails with a terminal CONTEXT_REQUIRED error whose details
+      enumerate the requirements, before any output and any side effect.
     messages:
-      - $ref: "#/channels/bindingsInvoke/messages/invokeRequest"
+      - $ref: "#/channels/bindingsInvoke/messages/inputFrame"
     reply:
       channel:
         $ref: "#/channels/bindingsInvoke"
       messages:
-        - $ref: "#/channels/bindingsInvoke/messages/streamEvent"
-        - $ref: "#/channels/bindingsInvoke/messages/streamError"
+        - $ref: "#/channels/bindingsInvoke/messages/outputFrame"
 
 components:
   messages:
-    InvokeRequest:
-      name: invokeRequest
-      summary: Invocation request (first message from client)
+    BindingInvokerInputFrame:
+      name: bindingInvokerInputFrame
+      summary: One frame from the caller into invokeBinding
       payload:
-        type: object
-        required: [source, ref]
-        properties:
-          source:
-            $ref: "#/components/schemas/InvokeSource"
-          ref:
-            type: string
-            description: Reference to the binding within the source
-          input:
-            type: object
-            description: Operation input data
-          context:
-            type: object
-            description: Binding context
-            additionalProperties: true
-          bearerToken:
-            type: string
-            description: Bearer token for authentication (WebSocket cannot use HTTP headers)
+        $ref: "#/components/schemas/BindingInvokerInputFrame"
 
-    StreamEventMessage:
-      name: streamEvent
-      summary: A single event from the invocation stream
+    BindingInvokerOutputFrame:
+      name: bindingInvokerOutputFrame
+      summary: One frame from the server back to the caller
       payload:
-        type: object
-        required: [type]
-        properties:
-          type:
-            type: string
-            const: event
-          output: {}
-
-    StreamErrorMessage:
-      name: streamError
-      summary: An error during stream invocation
-      payload:
-        type: object
-        required: [type, error]
-        properties:
-          type:
-            type: string
-            const: error
-          error:
-            type: object
-            required: [message]
-            properties:
-              message:
-                type: string
-              code:
-                type: string
-              details:
-                type: object
-                description: >-
-                  Structured terminal-error details, when present. For a
-                  CONTEXT_REQUIRED challenge this carries {key, alternatives};
-                  for an OBI-T-07/T-08 validation failure it carries the
-                  failing field paths.
+        $ref: "#/components/schemas/BindingInvokerOutputFrame"
 
   securitySchemes:
     bearer:
       type: httpBearer
       description: >
-        Bearer token authentication. For WebSocket connections, the token
-        is sent in the first message payload as a "bearerToken" field
-        alongside the invocation request.
+        Session token authentication on the WebSocket upgrade request:
+        Authorization: Bearer <token> for clients that can set headers, or
+        the `token` query parameter for browsers (which cannot set headers
+        on WebSocket upgrades). The frame stream itself carries no transport
+        credentials; the open frame's context belongs to the downstream
+        binding, never to this server.
 
   schemas:
     InvokeSource:
       type: object
-      required: [format]
+      description: Binding source for invocation.
       properties:
         format:
           type: string
-          description: Format token (e.g., openapi@3.1, asyncapi@3.0)
+          description: Format token.
         location:
           type: string
-          description: Location of the binding source (path or URL)
+          description: Location of the binding source (path or URL).
         content:
-          description: Binding source content directly
+          description: Binding source content directly.
+      required: [format]
+      anyOf:
+        - required: [location]
+        - required: [content]
+      additionalProperties: false
+
+    BindingContext:
+      type: object
+      description: >-
+        Opaque runtime context for binding invocation, typically sourced from
+        a context store. Well-known credential fields: bearerToken, apiKey,
+        basic, accessToken/refreshToken/expiresAt. Well-known transport
+        fields: headers, cookies, environment, metadata.
+      additionalProperties: true
+
+    BindingInvocationInput:
+      type: object
+      description: >-
+        Initial payload carried by the `open` input frame: identifies the
+        binding to invoke and provides context.
+      properties:
+        source:
+          $ref: "#/components/schemas/InvokeSource"
+        ref:
+          type: string
+          description: Reference within the binding source.
+        context:
+          $ref: "#/components/schemas/BindingContext"
+      required: [source, ref]
+      additionalProperties: false
+
+    ContextRequirement:
+      type: object
+      description: >-
+        One prerequisite that must be satisfied before a binding can be
+        invoked, resolved into context. `type` names the requirement family
+        (e.g. auth.bearer, auth.oauth2, auth.basic, auth.apiKey); the
+        remaining fields are type-specific.
+      properties:
+        type:
+          type: string
+        description:
+          type: string
+        durable:
+          type: boolean
+          description: >-
+            Whether resolved context MAY be cached under the challenge key
+            and reused (true, the default) or MUST be satisfied freshly per
+            invocation (false).
+      required: [type]
+      additionalProperties: true
+
+    ContextRequiredDetails:
+      type: object
+      description: >-
+        The `details` payload of a CONTEXT_REQUIRED error and the return
+        shape of prepareBinding. `alternatives` are disjunctive (any one
+        suffices); the `requirements` within one alternative are conjunctive
+        (all must be satisfied).
+      properties:
+        target:
+          type: string
+          description: >-
+            The target the binding addresses; the runtime derives a storage key
+            from it.
+        alternatives:
+          type: array
+          minItems: 1
+          items:
+            type: object
+            properties:
+              requirements:
+                type: array
+                minItems: 1
+                items:
+                  $ref: "#/components/schemas/ContextRequirement"
+            required: [requirements]
+      required: [target, alternatives]
+
+    InvocationError:
+      type: object
+      description: >-
+        Structured error carried by an `error` output frame. Indicates
+        terminal failure of the invocation.
+      properties:
+        code:
+          type: string
+          description: >-
+            Machine-readable error code (e.g., ERR_CANCELLED,
+            ERR_VALIDATION_FAILED, ERR_PROTOCOL, CONTEXT_REQUIRED).
+        message:
+          type: string
+          description: Human-readable description.
+        details:
+          description: >-
+            Optional structured details specific to the error code. For code
+            CONTEXT_REQUIRED, `details` is a ContextRequiredDetails object.
+      required: [code, message]
+
+    BindingInvokerInputFrame:
+      description: >-
+        One frame from the caller into invokeBinding: exactly one `open`
+        frame first, then zero or more `input` frames, then exactly one
+        `close` frame.
+      discriminator: kind
+      oneOf:
+        - title: open
+          type: object
+          description: Open the invocation. MUST be the first frame.
+          properties:
+            kind:
+              const: open
+            input:
+              $ref: "#/components/schemas/BindingInvocationInput"
+          required: [kind, input]
+          additionalProperties: false
+        - title: input
+          type: object
+          description: >-
+            Write one input value to the underlying binding. The value's
+            schema is determined by the underlying binding's operation.
+          properties:
+            kind:
+              const: input
+            value:
+              description: One input value, opaque at this layer.
+          required: [kind, value]
+          additionalProperties: false
+        - title: close
+          type: object
+          description: >-
+            Caller signals that no more input frames will be sent.
+            Idempotent.
+          properties:
+            kind:
+              const: close
+          required: [kind]
+          additionalProperties: false
+
+    BindingInvokerOutputFrame:
+      description: >-
+        One frame from the server back to the caller: zero or more
+        non-terminal frames (`output`, `input_closed`) followed by exactly
+        one terminal frame (`complete` or `error`).
+      discriminator: kind
+      oneOf:
+        - title: output
+          type: object
+          description: One output value from the underlying binding.
+          properties:
+            kind:
+              const: output
+            value:
+              description: One output value, opaque at this layer.
+          required: [kind, value]
+          additionalProperties: false
+        - title: input_closed
+          type: object
+          description: >-
+            Binding has closed the input side from its end. Subsequent
+            caller `input` frames are ignored; the invocation continues.
+          properties:
+            kind:
+              const: input_closed
+          required: [kind]
+          additionalProperties: false
+        - title: complete
+          type: object
+          description: "Terminal: the binding completed normally. MUST be the last frame."
+          properties:
+            kind:
+              const: complete
+          required: [kind]
+          additionalProperties: false
+        - title: error
+          type: object
+          description: "Terminal: the binding failed. MUST be the last frame."
+          properties:
+            kind:
+              const: error
+            error:
+              $ref: "#/components/schemas/InvocationError"
+          required: [kind, error]
+          additionalProperties: false

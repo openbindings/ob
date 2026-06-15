@@ -22,7 +22,7 @@ binding using ob's native format support and available delegates (excluding
 itself to prevent recursion), and writes the invocation result as JSON to stdout.
 
 This command satisfies the invokeBinding operation from the
-openbindings.binding-invoker interface.`,
+binding-invoker interface.`,
 		Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if inputJSON == "" {

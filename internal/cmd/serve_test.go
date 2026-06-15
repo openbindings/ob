@@ -6,6 +6,7 @@ import (
 	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"log/slog"
@@ -23,6 +24,7 @@ import (
 	openbindings "github.com/openbindings/openbindings-go"
 
 	"github.com/openbindings/ob/internal/app"
+	"github.com/openbindings/ob/internal/frames"
 	"github.com/openbindings/ob/internal/server"
 )
 
@@ -92,6 +94,78 @@ func (m *errorStreamInvoker) InvokeBinding(ctx context.Context, _ *openbindings.
 		}
 		inv.FireError(m.err)
 	}()
+	return inv
+}
+
+// mockEchoInvoker models a unary binding through the handle: it reads one
+// input, closes the input side from below, emits one derived output, and
+// completes.
+type mockEchoInvoker struct {
+	formats []openbindings.FormatInfo
+}
+
+func (m *mockEchoInvoker) Formats() []openbindings.FormatInfo { return m.formats }
+func (m *mockEchoInvoker) InvokeBinding(ctx context.Context, _ *openbindings.BindingInvocationArgs) openbindings.Invocation[any, any] {
+	inv := openbindings.NewInvocationImpl[any, any](ctx)
+	go func() {
+		v, err := inv.ReadInput(ctx)
+		if err != nil {
+			inv.FireError(openbindings.AsInvocationError(err))
+			return
+		}
+		_ = inv.CloseInput()
+		if inv.EmitOutput(map[string]any{"echo": v}) != nil {
+			return
+		}
+		inv.CloseOutput()
+	}()
+	return inv
+}
+
+// gatedUnaryInvoker reads one input, closes the input side, emits one output,
+// then parks until release closes before emitting a second output and
+// completing — letting a test interleave a late input frame deterministically.
+type gatedUnaryInvoker struct {
+	formats []openbindings.FormatInfo
+	release chan struct{}
+}
+
+func (m *gatedUnaryInvoker) Formats() []openbindings.FormatInfo { return m.formats }
+func (m *gatedUnaryInvoker) InvokeBinding(ctx context.Context, _ *openbindings.BindingInvocationArgs) openbindings.Invocation[any, any] {
+	inv := openbindings.NewInvocationImpl[any, any](ctx)
+	go func() {
+		if _, err := inv.ReadInput(ctx); err != nil {
+			inv.FireError(openbindings.AsInvocationError(err))
+			return
+		}
+		_ = inv.CloseInput()
+		if inv.EmitOutput("first") != nil {
+			return
+		}
+		select {
+		case <-m.release:
+		case <-ctx.Done():
+			return
+		}
+		if inv.EmitOutput("second") != nil {
+			return
+		}
+		inv.CloseOutput()
+	}()
+	return inv
+}
+
+// contextRequiredInvoker terminates immediately with a CONTEXT_REQUIRED
+// challenge, before any output (binding-invoker rule 8).
+type contextRequiredInvoker struct {
+	formats []openbindings.FormatInfo
+	details *openbindings.ContextRequiredDetails
+}
+
+func (m *contextRequiredInvoker) Formats() []openbindings.FormatInfo { return m.formats }
+func (m *contextRequiredInvoker) InvokeBinding(ctx context.Context, _ *openbindings.BindingInvocationArgs) openbindings.Invocation[any, any] {
+	inv := openbindings.NewInvocationImpl[any, any](ctx)
+	inv.FireError(openbindings.NewContextRequiredError("credentials required", m.details))
 	return inv
 }
 
@@ -244,51 +318,51 @@ func TestServeAuthWrongToken(t *testing.T) {
 
 // --- SSRF validation (unit) ---
 
-func TestValidateResolveURL_PublicHTTPS(t *testing.T) {
-	if err := validateResolveURL("https://api.example.com/v1"); err != nil {
+func TestValidateOutboundURL_PublicHTTPS(t *testing.T) {
+	if err := validateOutboundURL("https://api.example.com/v1"); err != nil {
 		t.Errorf("public HTTPS should pass: %v", err)
 	}
 }
 
-func TestValidateResolveURL_Localhost(t *testing.T) {
-	if err := validateResolveURL("http://localhost:8080/api"); err != nil {
+func TestValidateOutboundURL_Localhost(t *testing.T) {
+	if err := validateOutboundURL("http://localhost:8080/api"); err != nil {
 		t.Errorf("localhost should be allowed: %v", err)
 	}
 }
 
-func TestValidateResolveURL_Loopback(t *testing.T) {
+func TestValidateOutboundURL_Loopback(t *testing.T) {
 	cases := []string{
 		"http://127.0.0.1:9090/api",
 		"http://[::1]:8080/api",
 	}
 	for _, u := range cases {
-		if err := validateResolveURL(u); err != nil {
+		if err := validateOutboundURL(u); err != nil {
 			t.Errorf("loopback %q should be allowed: %v", u, err)
 		}
 	}
 }
 
-func TestValidateResolveURL_PrivateIP(t *testing.T) {
+func TestValidateOutboundURL_PrivateIP(t *testing.T) {
 	cases := []string{
 		"http://10.0.0.1/api",
 		"http://192.168.1.1/api",
 		"http://172.16.0.1/api",
 	}
 	for _, u := range cases {
-		if err := validateResolveURL(u); err == nil {
+		if err := validateOutboundURL(u); err == nil {
 			t.Errorf("private IP %q should be rejected", u)
 		}
 	}
 }
 
-func TestValidateResolveURL_NonHTTPScheme(t *testing.T) {
+func TestValidateOutboundURL_NonHTTPScheme(t *testing.T) {
 	cases := []string{
 		"ftp://example.com/file",
 		"file:///etc/passwd",
 		"gopher://evil.com",
 	}
 	for _, u := range cases {
-		if err := validateResolveURL(u); err == nil {
+		if err := validateOutboundURL(u); err == nil {
 			t.Errorf("non-HTTP scheme %q should be rejected", u)
 		}
 	}
@@ -567,88 +641,333 @@ func TestServeContextList(t *testing.T) {
 	}
 }
 
-// --- /bindings/invoke ---
+// --- /bindings/invoke (binding-invoker frame protocol) ---
 
-func TestServeBindingInvoke_InvalidBody(t *testing.T) {
-	ts := testEnv(t)
-	defer ts.Close()
-
-	resp, err := authedPost(ts.URL+"/bindings/invoke", "test-token", `not json`)
-	if err != nil {
-		t.Fatal(err)
+// dialFrameWS opens the frame-protocol WebSocket, authenticating via the
+// `token` query parameter (the browser path; the Authorization-header path is
+// covered by TestServeBindingInvoke_FrameRoundTripViaClient).
+func dialFrameWS(t *testing.T, ctx context.Context, ts *httptest.Server, token string) *websocket.Conn {
+	t.Helper()
+	wsURL := strings.Replace(ts.URL, "http://", "ws://", 1) + "/bindings/invoke"
+	if token != "" {
+		wsURL += "?token=" + token
 	}
-	if resp.StatusCode != 400 {
-		t.Errorf("status = %d, want 400", resp.StatusCode)
+	conn, _, err := websocket.Dial(ctx, wsURL, nil)
+	if err != nil {
+		t.Fatalf("websocket dial failed: %v", err)
+	}
+	t.Cleanup(func() { _ = conn.CloseNow() })
+	return conn
+}
+
+func sendFrame(t *testing.T, ctx context.Context, conn *websocket.Conn, frame map[string]any) {
+	t.Helper()
+	if err := wsjson.Write(ctx, conn, frame); err != nil {
+		t.Fatalf("write frame: %v", err)
 	}
 }
 
-func TestServeBindingInvoke_POST_StillWorks(t *testing.T) {
-	ts := testEnv(t)
-	defer ts.Close()
-
-	resp, err := authedPost(ts.URL+"/bindings/invoke", "test-token", `{"source":{"format":"openapi@3.1","location":"http://example.com/spec.yaml"},"ref":"#/paths/~1health/get"}`)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer resp.Body.Close()
-	if resp.StatusCode == 404 || resp.StatusCode == 405 {
-		t.Errorf("POST should still be accepted, got status %d", resp.StatusCode)
+func openFrame(format, location, ref string) map[string]any {
+	return map[string]any{
+		"kind": "open",
+		"input": map[string]any{
+			"source": map[string]any{"format": format, "location": location},
+			"ref":    ref,
+		},
 	}
 }
 
-func TestServeBindingInvoke_MethodNotAllowed(t *testing.T) {
+// wireOutputFrame is the test-side view of a BindingInvokerOutputFrame.
+type wireOutputFrame struct {
+	Kind  string         `json:"kind"`
+	Value any            `json:"value"`
+	Error map[string]any `json:"error"`
+}
+
+func readFrame(t *testing.T, ctx context.Context, conn *websocket.Conn) wireOutputFrame {
+	t.Helper()
+	var frame wireOutputFrame
+	if err := wsjson.Read(ctx, conn, &frame); err != nil {
+		t.Fatalf("read frame: %v", err)
+	}
+	return frame
+}
+
+// collectUntilTerminal reads frames until the terminal one, returning the
+// output values and the terminal frame. Non-terminal input_closed frames are
+// tolerated anywhere before the terminal (their timing is inherently racy
+// relative to outputs).
+func collectUntilTerminal(t *testing.T, ctx context.Context, conn *websocket.Conn) (outputs []any, terminal wireOutputFrame) {
+	t.Helper()
+	for {
+		frame := readFrame(t, ctx, conn)
+		switch frame.Kind {
+		case "output":
+			outputs = append(outputs, frame.Value)
+		case "input_closed":
+		case "complete", "error":
+			return outputs, frame
+		default:
+			t.Fatalf("unexpected frame kind %q", frame.Kind)
+		}
+	}
+}
+
+func TestServeBindingInvoke_POSTRemoved(t *testing.T) {
+	// The legacy unary POST route is gone: the frame endpoint is GET-only.
 	ts := testEnv(t)
 	defer ts.Close()
 
-	req, _ := http.NewRequest("DELETE", ts.URL+"/bindings/invoke", nil)
-	req.Header.Set("Authorization", "Bearer test-token")
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := authedPost(ts.URL+"/bindings/invoke", "test-token", `{"source":{"format":"openapi@3.1","location":"x"},"ref":"#/paths/~1health/get"}`)
 	if err != nil {
 		t.Fatal(err)
 	}
 	resp.Body.Close()
 	if resp.StatusCode != 405 {
-		t.Errorf("DELETE should be rejected, got status %d", resp.StatusCode)
+		t.Errorf("POST /bindings/invoke: status = %d, want 405", resp.StatusCode)
 	}
 }
 
-func TestServeBindingInvoke_WS_Upgrade(t *testing.T) {
+func TestServeBindingInvoke_NonUpgradeGETRejected(t *testing.T) {
+	ts := testEnv(t)
+	defer ts.Close()
+
+	resp, err := authedGet(ts.URL+"/bindings/invoke", "test-token")
+	if err != nil {
+		t.Fatal(err)
+	}
+	resp.Body.Close()
+	if resp.StatusCode != http.StatusUpgradeRequired {
+		t.Errorf("plain GET /bindings/invoke: status = %d, want %d", resp.StatusCode, http.StatusUpgradeRequired)
+	}
+}
+
+func TestServeBindingInvoke_WS_FirstFrameNotOpen(t *testing.T) {
+	// Rule 1: any first frame other than `open` is a terminal ERR_PROTOCOL.
 	ts := testEnv(t)
 	defer ts.Close()
 
 	ctx := t.Context()
-	wsURL := strings.Replace(ts.URL, "http://", "ws://", 1) + "/bindings/invoke"
-	conn, _, err := websocket.Dial(ctx, wsURL, nil)
-	if err != nil {
-		t.Fatalf("websocket dial failed: %v", err)
-	}
-	defer conn.CloseNow()
+	conn := dialFrameWS(t, ctx, ts, "test-token")
 
-	// Auth is in the first message (browsers can't set WS headers).
-	err = wsjson.Write(ctx, conn, map[string]any{
-		"source":      map[string]any{"format": "nonexistent-format"},
-		"ref":         "#/some/ref",
-		"bearerToken": "test-token",
+	sendFrame(t, ctx, conn, map[string]any{"kind": "input", "value": 1})
+
+	frame := readFrame(t, ctx, conn)
+	if frame.Kind != "error" {
+		t.Fatalf("expected terminal error frame, got kind=%q", frame.Kind)
+	}
+	if frame.Error["code"] != "ERR_PROTOCOL" {
+		t.Errorf("error code = %v, want ERR_PROTOCOL", frame.Error["code"])
+	}
+}
+
+func TestServeBindingInvoke_WS_SecondOpenRejected(t *testing.T) {
+	// Rule 2: exactly one open frame per invocation.
+	release := make(chan struct{})
+	defer close(release)
+	mock := &gatedUnaryInvoker{
+		formats: []openbindings.FormatInfo{{Token: "mock-gated@1.0"}},
+		release: release,
+	}
+	cleanup := app.OverrideInvokerForTest(openbindings.NewOperationInvoker(mock))
+	defer cleanup()
+
+	ts := testEnv(t)
+	defer ts.Close()
+
+	ctx := t.Context()
+	conn := dialFrameWS(t, ctx, ts, "test-token")
+
+	sendFrame(t, ctx, conn, openFrame("mock-gated@1.0", "mock://test", "#/test"))
+	sendFrame(t, ctx, conn, openFrame("mock-gated@1.0", "mock://test", "#/test"))
+
+	_, terminal := collectUntilTerminal(t, ctx, conn)
+	if terminal.Kind != "error" {
+		t.Fatalf("expected terminal error frame, got %q", terminal.Kind)
+	}
+	if terminal.Error["code"] != "ERR_PROTOCOL" {
+		t.Errorf("error code = %v, want ERR_PROTOCOL", terminal.Error["code"])
+	}
+}
+
+func TestServeBindingInvoke_WS_UnaryRoundTrip(t *testing.T) {
+	// open, input, close -> output, complete: the unary cardinality under
+	// the frame protocol.
+	mock := &mockEchoInvoker{formats: []openbindings.FormatInfo{{Token: "mock-echo@1.0"}}}
+	cleanup := app.OverrideInvokerForTest(openbindings.NewOperationInvoker(mock))
+	defer cleanup()
+
+	ts := testEnv(t)
+	defer ts.Close()
+
+	ctx := t.Context()
+	conn := dialFrameWS(t, ctx, ts, "test-token")
+
+	sendFrame(t, ctx, conn, openFrame("mock-echo@1.0", "mock://test", "#/test"))
+	sendFrame(t, ctx, conn, map[string]any{"kind": "input", "value": "ping"})
+	sendFrame(t, ctx, conn, map[string]any{"kind": "close"})
+
+	outputs, terminal := collectUntilTerminal(t, ctx, conn)
+	if terminal.Kind != "complete" {
+		t.Fatalf("expected terminal complete, got %q (error=%v)", terminal.Kind, terminal.Error)
+	}
+	if len(outputs) != 1 {
+		t.Fatalf("expected 1 output, got %d: %#v", len(outputs), outputs)
+	}
+	if echo, ok := outputs[0].(map[string]any); !ok || echo["echo"] != "ping" {
+		t.Errorf("output = %#v, want {echo: ping}", outputs[0])
+	}
+}
+
+func TestServeBindingInvoke_WS_LateInputAfterInputClosedIgnored(t *testing.T) {
+	// Rule 3: an input frame after the service emitted input_closed is
+	// ignored — never written, never a protocol violation — and the
+	// invocation continues to completion.
+	release := make(chan struct{})
+	mock := &gatedUnaryInvoker{
+		formats: []openbindings.FormatInfo{{Token: "mock-gated@1.0"}},
+		release: release,
+	}
+	cleanup := app.OverrideInvokerForTest(openbindings.NewOperationInvoker(mock))
+	defer cleanup()
+
+	ts := testEnv(t)
+	defer ts.Close()
+
+	ctx := t.Context()
+	conn := dialFrameWS(t, ctx, ts, "test-token")
+
+	sendFrame(t, ctx, conn, openFrame("mock-gated@1.0", "mock://test", "#/test"))
+	sendFrame(t, ctx, conn, map[string]any{"kind": "input", "value": "wanted"})
+
+	// The binding closes input after its first read: wait for input_closed
+	// (the first output may arrive first; both orders are legal).
+	var outputs []any
+	sawInputClosed := false
+	for !sawInputClosed {
+		frame := readFrame(t, ctx, conn)
+		switch frame.Kind {
+		case "input_closed":
+			sawInputClosed = true
+		case "output":
+			outputs = append(outputs, frame.Value)
+		default:
+			t.Fatalf("unexpected frame kind %q before input_closed", frame.Kind)
+		}
+	}
+
+	// Late input after input closure: must be ignored, invocation continues.
+	sendFrame(t, ctx, conn, map[string]any{"kind": "input", "value": "late"})
+	close(release)
+
+	rest, terminal := collectUntilTerminal(t, ctx, conn)
+	outputs = append(outputs, rest...)
+	if terminal.Kind != "complete" {
+		t.Fatalf("expected terminal complete after late input, got %q (error=%v)", terminal.Kind, terminal.Error)
+	}
+	if len(outputs) != 2 || outputs[0] != "first" || outputs[1] != "second" {
+		t.Errorf("outputs = %#v, want [first second]", outputs)
+	}
+}
+
+func TestServeBindingInvoke_WS_UnknownFramePropertyRejected(t *testing.T) {
+	// Rule 7: frame variants declare additionalProperties: false; unknown
+	// properties are a terminal ERR_PROTOCOL.
+	release := make(chan struct{})
+	defer close(release)
+	mock := &gatedUnaryInvoker{
+		formats: []openbindings.FormatInfo{{Token: "mock-gated@1.0"}},
+		release: release,
+	}
+	cleanup := app.OverrideInvokerForTest(openbindings.NewOperationInvoker(mock))
+	defer cleanup()
+
+	ts := testEnv(t)
+	defer ts.Close()
+
+	ctx := t.Context()
+	conn := dialFrameWS(t, ctx, ts, "test-token")
+
+	sendFrame(t, ctx, conn, openFrame("mock-gated@1.0", "mock://test", "#/test"))
+	sendFrame(t, ctx, conn, map[string]any{"kind": "input", "value": 1, "extra": true})
+
+	_, terminal := collectUntilTerminal(t, ctx, conn)
+	if terminal.Kind != "error" {
+		t.Fatalf("expected terminal error frame, got %q", terminal.Kind)
+	}
+	if terminal.Error["code"] != "ERR_PROTOCOL" {
+		t.Errorf("error code = %v, want ERR_PROTOCOL", terminal.Error["code"])
+	}
+}
+
+func TestServeBindingInvoke_WS_UnknownOpenPropertyRejected(t *testing.T) {
+	// The open frame's payload is equally strict: the legacy envelope's
+	// `input` sibling (operation input on the open message) is gone.
+	ts := testEnv(t)
+	defer ts.Close()
+
+	ctx := t.Context()
+	conn := dialFrameWS(t, ctx, ts, "test-token")
+
+	sendFrame(t, ctx, conn, map[string]any{
+		"kind": "open",
+		"input": map[string]any{
+			"source": map[string]any{"format": "openapi@3.1", "location": "x"},
+			"ref":    "#/paths/~1test/get",
+			"input":  map[string]any{"limit": 10},
+		},
 	})
-	if err != nil {
-		t.Fatalf("write initial message: %v", err)
-	}
 
-	var msg struct {
-		Type  string `json:"type"`
-		Error *struct {
-			Message string `json:"message"`
-			Code    string `json:"code"`
-		} `json:"error"`
+	frame := readFrame(t, ctx, conn)
+	if frame.Kind != "error" || frame.Error["code"] != "ERR_PROTOCOL" {
+		t.Fatalf("expected terminal ERR_PROTOCOL, got kind=%q error=%v", frame.Kind, frame.Error)
 	}
-	if err := wsjson.Read(ctx, conn, &msg); err != nil {
-		t.Fatalf("read response: %v", err)
+}
+
+func TestServeBindingInvoke_WS_ContextRequiredPassthrough(t *testing.T) {
+	// Rule 8: a CONTEXT_REQUIRED terminal passes through as the error frame
+	// with its ContextRequiredDetails intact, before any output.
+	mock := &contextRequiredInvoker{
+		formats: []openbindings.FormatInfo{{Token: "mock-ctx@1.0"}},
+		details: &openbindings.ContextRequiredDetails{
+			Target: "api.example.com",
+			Alternatives: []openbindings.ContextAlternative{
+				{Requirements: []openbindings.ContextRequirement{{Type: "auth.bearer"}}},
+			},
+		},
 	}
-	if msg.Type != "error" {
-		t.Errorf("expected error message, got type=%q", msg.Type)
+	cleanup := app.OverrideInvokerForTest(openbindings.NewOperationInvoker(mock))
+	defer cleanup()
+
+	ts := testEnv(t)
+	defer ts.Close()
+
+	ctx := t.Context()
+	conn := dialFrameWS(t, ctx, ts, "test-token")
+
+	sendFrame(t, ctx, conn, openFrame("mock-ctx@1.0", "mock://test", "#/test"))
+
+	outputs, terminal := collectUntilTerminal(t, ctx, conn)
+	if len(outputs) != 0 {
+		t.Errorf("expected no outputs before CONTEXT_REQUIRED, got %#v", outputs)
 	}
-	if msg.Error == nil {
-		t.Fatal("expected error field to be present")
+	if terminal.Kind != "error" || terminal.Error["code"] != "CONTEXT_REQUIRED" {
+		t.Fatalf("expected terminal CONTEXT_REQUIRED, got kind=%q error=%v", terminal.Kind, terminal.Error)
+	}
+	details, ok := terminal.Error["details"].(map[string]any)
+	if !ok {
+		t.Fatalf("expected details object, got %#v", terminal.Error["details"])
+	}
+	if details["target"] != "api.example.com" {
+		t.Errorf("details.target = %v, want api.example.com", details["target"])
+	}
+	alts, ok := details["alternatives"].([]any)
+	if !ok || len(alts) != 1 {
+		t.Fatalf("expected one alternative, got %#v", details["alternatives"])
+	}
+	reqs := alts[0].(map[string]any)["requirements"].([]any)
+	if len(reqs) != 1 || reqs[0].(map[string]any)["type"] != "auth.bearer" {
+		t.Errorf("requirements = %#v, want one auth.bearer", reqs)
 	}
 }
 
@@ -666,55 +985,28 @@ func TestServeBindingInvoke_WS_StreamE2E(t *testing.T) {
 	defer ts.Close()
 
 	ctx := t.Context()
-	wsURL := strings.Replace(ts.URL, "http://", "ws://", 1) + "/bindings/invoke"
-	conn, _, err := websocket.Dial(ctx, wsURL, nil)
-	if err != nil {
-		t.Fatalf("websocket dial failed: %v", err)
-	}
-	defer conn.CloseNow()
+	conn := dialFrameWS(t, ctx, ts, "test-token")
 
-	err = wsjson.Write(ctx, conn, map[string]any{
-		"source":      map[string]any{"format": "mock-stream@1.0", "location": "mock://test"},
-		"ref":         "#/test",
-		"bearerToken": "test-token",
-	})
-	if err != nil {
-		t.Fatalf("write initial message: %v", err)
-	}
+	sendFrame(t, ctx, conn, openFrame("mock-stream@1.0", "mock://test", "#/test"))
 
-	var received []any
-	for {
-		var msg struct {
-			Type   string `json:"type"`
-			Output any    `json:"output,omitempty"`
-		}
-		if err := wsjson.Read(ctx, conn, &msg); err != nil {
-			// Normal close frame signals end of stream.
-			if websocket.CloseStatus(err) == websocket.StatusNormalClosure {
-				break
-			}
-			t.Fatalf("read stream message: %v", err)
-		}
-		if msg.Type != "event" {
-			t.Fatalf("unexpected message type %q", msg.Type)
-		}
-		received = append(received, msg.Output)
+	outputs, terminal := collectUntilTerminal(t, ctx, conn)
+	if terminal.Kind != "complete" {
+		t.Fatalf("expected terminal complete, got %q (error=%v)", terminal.Kind, terminal.Error)
 	}
-
-	if len(received) != 3 {
-		t.Fatalf("expected 3 events, got %d", len(received))
+	if len(outputs) != 3 {
+		t.Fatalf("expected 3 outputs, got %d", len(outputs))
 	}
 	for i, want := range []string{"event-1", "event-2", "event-3"} {
-		if received[i] != want {
-			t.Errorf("event[%d] = %v, want %q", i, received[i], want)
+		if outputs[i] != want {
+			t.Errorf("output[%d] = %v, want %q", i, outputs[i], want)
 		}
 	}
 }
 
 func TestServeBindingInvoke_WS_StreamThenError(t *testing.T) {
 	// Outputs are outputs, errors are errors: a stream that emits values and
-	// then hits a terminal error surfaces the values as "event" frames
-	// followed by a single "error" frame carrying structured details.
+	// then hits a terminal error surfaces the values as `output` frames
+	// followed by a single terminal `error` frame carrying structured details.
 	mockInvoker := &errorStreamInvoker{
 		formats: []openbindings.FormatInfo{{Token: "mock-stream@1.0"}},
 		outputs: []any{map[string]any{"count": 2}},
@@ -737,53 +1029,26 @@ func TestServeBindingInvoke_WS_StreamThenError(t *testing.T) {
 	defer ts.Close()
 
 	ctx := t.Context()
-	wsURL := strings.Replace(ts.URL, "http://", "ws://", 1) + "/bindings/invoke"
-	conn, _, err := websocket.Dial(ctx, wsURL, nil)
-	if err != nil {
-		t.Fatalf("websocket dial failed: %v", err)
-	}
-	defer conn.CloseNow()
+	conn := dialFrameWS(t, ctx, ts, "test-token")
 
-	if err := wsjson.Write(ctx, conn, map[string]any{
-		"source":      map[string]any{"format": "mock-stream@1.0", "location": "mock://test"},
-		"ref":         "#/test",
-		"bearerToken": "test-token",
-	}); err != nil {
-		t.Fatalf("write initial message: %v", err)
-	}
+	sendFrame(t, ctx, conn, openFrame("mock-stream@1.0", "mock://test", "#/test"))
 
-	// First frame: the data event.
-	var dataFrame struct {
-		Type   string `json:"type"`
-		Output any    `json:"output,omitempty"`
+	outputs, terminal := collectUntilTerminal(t, ctx, conn)
+	if len(outputs) != 1 {
+		t.Fatalf("expected 1 output before the error, got %#v", outputs)
 	}
-	if err := wsjson.Read(ctx, conn, &dataFrame); err != nil {
-		t.Fatalf("read data frame: %v", err)
+	if data, ok := outputs[0].(map[string]any); !ok || data["count"].(float64) != 2 {
+		t.Errorf("output = %#v, want {count:2}", outputs[0])
 	}
-	if dataFrame.Type != "event" {
-		t.Errorf("expected first frame type=event, got %q", dataFrame.Type)
+	if terminal.Kind != "error" {
+		t.Fatalf("expected terminal error frame, got %q", terminal.Kind)
 	}
-	if data, ok := dataFrame.Output.(map[string]any); !ok || data["count"].(float64) != 2 {
-		t.Errorf("data frame = %#v, want {count:2}", dataFrame.Output)
+	if terminal.Error["code"] != "ERR_VALIDATION_FAILED" {
+		t.Fatalf("error frame missing or wrong code: %#v", terminal.Error)
 	}
-
-	// Second frame: the terminal error, with structured details.
-	var errFrame struct {
-		Type  string         `json:"type"`
-		Error map[string]any `json:"error,omitempty"`
-	}
-	if err := wsjson.Read(ctx, conn, &errFrame); err != nil {
-		t.Fatalf("read error frame: %v", err)
-	}
-	if errFrame.Type != "error" {
-		t.Errorf("expected error frame type=error, got %q", errFrame.Type)
-	}
-	if errFrame.Error == nil || errFrame.Error["code"] != "ERR_VALIDATION_FAILED" {
-		t.Fatalf("error frame missing or wrong code: %#v", errFrame.Error)
-	}
-	details, ok := errFrame.Error["details"].(map[string]any)
+	details, ok := terminal.Error["details"].(map[string]any)
 	if !ok {
-		t.Fatalf("expected error.details object, got %#v", errFrame.Error["details"])
+		t.Fatalf("expected error.details object, got %#v", terminal.Error["details"])
 	}
 	failures, ok := details["failures"].([]any)
 	if !ok || len(failures) == 0 {
@@ -794,86 +1059,126 @@ func TestServeBindingInvoke_WS_StreamThenError(t *testing.T) {
 	}
 }
 
-func TestServeBindingInvoke_WS_PureErrorFrameStillUsesErrorType(t *testing.T) {
-	// A terminal error with no preceding output produces a frame with
-	// type="error" so clients that branch on the discriminator still work.
-	mockInvoker := &errorStreamInvoker{
-		formats: []openbindings.FormatInfo{{Token: "mock-stream@1.0"}},
-		err: &openbindings.InvocationError{
-			Code:    "ERR_AUTH_REQUIRED",
-			Message: "unauthorized",
-		},
+func TestServeBindingInvoke_WS_NoAuth(t *testing.T) {
+	// Without a token on the upgrade request (header or query parameter),
+	// the upgrade is rejected before the WebSocket is accepted.
+	ts := testEnv(t)
+	defer ts.Close()
+
+	ctx := t.Context()
+	wsURL := strings.Replace(ts.URL, "http://", "ws://", 1) + "/bindings/invoke"
+	conn, _, err := websocket.Dial(ctx, wsURL, nil)
+	if err == nil {
+		conn.CloseNow()
+		t.Fatal("expected unauthenticated WebSocket dial to fail")
 	}
-	cleanup := app.OverrideInvokerForTest(
-		openbindings.NewOperationInvoker(mockInvoker),
-	)
+}
+
+func TestServeBindingInvoke_FrameRoundTripViaClient(t *testing.T) {
+	// The delegate-side frame client against the serve-side frame server:
+	// the full protocol round trip ob uses when delegating to a remote host.
+	// Auth rides the upgrade request's Authorization header.
+	mock := &mockEchoInvoker{formats: []openbindings.FormatInfo{{Token: "mock-echo@1.0"}}}
+	cleanup := app.OverrideInvokerForTest(openbindings.NewOperationInvoker(mock))
 	defer cleanup()
 
 	ts := testEnv(t)
 	defer ts.Close()
 
 	ctx := t.Context()
-	wsURL := strings.Replace(ts.URL, "http://", "ws://", 1) + "/bindings/invoke"
-	conn, _, err := websocket.Dial(ctx, wsURL, nil)
+	dial := func(ctx context.Context) (*websocket.Conn, *openbindings.InvocationError) {
+		wsURL := strings.Replace(ts.URL, "http://", "ws://", 1) + "/bindings/invoke"
+		header := http.Header{}
+		header.Set("Authorization", "Bearer test-token")
+		conn, _, err := websocket.Dial(ctx, wsURL, &websocket.DialOptions{HTTPHeader: header})
+		if err != nil {
+			return nil, &openbindings.InvocationError{Code: openbindings.ErrCodeConnectFailed, Message: err.Error()}
+		}
+		return conn, nil
+	}
+
+	inv := frames.Invoke(ctx, dial, &frames.BindingInvocationInput{
+		Source: frames.InvokeSource{Format: "mock-echo@1.0", Location: "mock://test"},
+		Ref:    "#/test",
+	})
+	if err := inv.Write(ctx, "ping"); err != nil {
+		t.Fatalf("write: %v", err)
+	}
+	if err := inv.Close(); err != nil {
+		t.Fatalf("close: %v", err)
+	}
+
+	out := inv.Outputs()
+	v, err := out.Read(ctx)
 	if err != nil {
-		t.Fatalf("websocket dial failed: %v", err)
+		t.Fatalf("read output: %v", err)
 	}
-	defer conn.CloseNow()
-
-	if err := wsjson.Write(ctx, conn, map[string]any{
-		"source":      map[string]any{"format": "mock-stream@1.0", "location": "mock://test"},
-		"ref":         "#/test",
-		"bearerToken": "test-token",
-	}); err != nil {
-		t.Fatalf("write initial message: %v", err)
+	if echo, ok := v.(map[string]any); !ok || echo["echo"] != "ping" {
+		t.Errorf("output = %#v, want {echo: ping}", v)
 	}
-
-	var frame struct {
-		Type   string         `json:"type"`
-		Output any            `json:"output,omitempty"`
-		Error  map[string]any `json:"error,omitempty"`
-	}
-	if err := wsjson.Read(ctx, conn, &frame); err != nil {
-		t.Fatalf("read frame: %v", err)
-	}
-	if frame.Type != "error" {
-		t.Errorf("expected type=error for pure error frame, got %q", frame.Type)
-	}
-	if frame.Output != nil {
-		t.Errorf("expected no data, got %#v", frame.Output)
-	}
-	if frame.Error == nil || frame.Error["code"] != "ERR_AUTH_REQUIRED" {
-		t.Errorf("error frame missing or wrong code: %#v", frame.Error)
+	if _, err := out.Read(ctx); !errors.Is(err, io.EOF) {
+		t.Fatalf("expected clean EOF, got %v", err)
 	}
 }
 
-func TestServeBindingInvoke_WS_NoAuth(t *testing.T) {
+// --- /bindings/prepare ---
+
+func TestServeBindingPrepare_InvalidBody(t *testing.T) {
 	ts := testEnv(t)
 	defer ts.Close()
 
-	ctx := t.Context()
-	wsURL := strings.Replace(ts.URL, "http://", "ws://", 1) + "/bindings/invoke"
-	conn, _, err := websocket.Dial(ctx, wsURL, nil)
+	resp, err := authedPost(ts.URL+"/bindings/prepare", "test-token", `not json`)
 	if err != nil {
-		// Connection refused is also acceptable (middleware may reject).
-		return
+		t.Fatal(err)
 	}
-	defer conn.CloseNow()
+	resp.Body.Close()
+	if resp.StatusCode != 400 {
+		t.Errorf("status = %d, want 400", resp.StatusCode)
+	}
+}
 
-	// Send a message without a bearer token — server should close the connection.
-	err = wsjson.Write(ctx, conn, map[string]any{
-		"source": map[string]any{"format": "openapi@3.1", "location": "x"},
-		"ref":    "#/paths/~1test/get",
-	})
+func TestServeBindingPrepare_UnknownPropertyRejected(t *testing.T) {
+	// BindingInvocationInput declares additionalProperties: false; the legacy
+	// unary body's `input` field is rejected.
+	ts := testEnv(t)
+	defer ts.Close()
+
+	resp, err := authedPost(ts.URL+"/bindings/prepare", "test-token",
+		`{"source":{"format":"openapi@3.1","location":"x"},"ref":"#/paths/~1t/get","input":{}}`)
 	if err != nil {
-		return // write failed, connection already closed
+		t.Fatal(err)
 	}
+	resp.Body.Close()
+	if resp.StatusCode != 400 {
+		t.Errorf("status = %d, want 400", resp.StatusCode)
+	}
+}
 
-	// Try to read — should fail because server closed with policy violation.
-	var msg json.RawMessage
-	err = wsjson.Read(ctx, conn, &msg)
-	if err == nil {
-		t.Fatal("expected read to fail after unauthenticated WebSocket message")
+func TestServeBindingPrepare_NullForFormatWithoutPreparer(t *testing.T) {
+	// A format whose invoker has no BindingPreparer reports null — the
+	// conformant "cannot determine statically" answer.
+	mock := &mockEchoInvoker{formats: []openbindings.FormatInfo{{Token: "mock-echo@1.0"}}}
+	cleanup := app.OverrideInvokerForTest(openbindings.NewOperationInvoker(mock))
+	defer cleanup()
+
+	ts := testEnv(t)
+	defer ts.Close()
+
+	resp, err := authedPost(ts.URL+"/bindings/prepare", "test-token",
+		`{"source":{"format":"mock-echo@1.0","location":"mock://test"},"ref":"#/test"}`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != 200 {
+		t.Fatalf("status = %d, want 200", resp.StatusCode)
+	}
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := strings.TrimSpace(string(body)); got != "null" {
+		t.Errorf("body = %q, want null", got)
 	}
 }
 
@@ -916,7 +1221,7 @@ func TestServeAuthRequired_AllProtectedEndpoints(t *testing.T) {
 
 	postPaths := []string{
 		"/resolve", "/validate", "/diff", "/compatibility",
-		"/bindings/invoke", "/interfaces/create",
+		"/bindings/prepare", "/interfaces/create",
 	}
 	for _, path := range postPaths {
 		t.Run("POST "+path, func(t *testing.T) {
@@ -1185,7 +1490,8 @@ func TestSpecHandlerConformance(t *testing.T) {
 		{"GET", "/contexts/https://example.com"},
 		{"PUT", "/contexts/https://example.com"},
 		{"DELETE", "/contexts/https://example.com"},
-		{"POST", "/bindings/invoke"},
+		{"GET", "/bindings/invoke"},
+		{"POST", "/bindings/prepare"},
 		{"POST", "/interfaces/create"},
 		{"POST", "/resolve"},
 		{"POST", "/validate"},
@@ -1240,28 +1546,12 @@ func TestServeBindingInvoke_WS_ClientDisconnectTearsDown(t *testing.T) {
 	defer ts.Close()
 
 	ctx := context.Background()
-	wsURL := strings.Replace(ts.URL, "http://", "ws://", 1) + "/bindings/invoke"
-	conn, _, err := websocket.Dial(ctx, wsURL, nil)
-	if err != nil {
-		t.Fatalf("websocket dial failed: %v", err)
-	}
+	conn := dialFrameWS(t, ctx, ts, "test-token")
 
-	if err := wsjson.Write(ctx, conn, map[string]any{
-		"source":      map[string]any{"format": "mock-block@1.0", "location": "mock://test"},
-		"ref":         "#/test",
-		"bearerToken": "test-token",
-	}); err != nil {
-		t.Fatalf("write initial message: %v", err)
-	}
+	sendFrame(t, ctx, conn, openFrame("mock-block@1.0", "mock://test", "#/test"))
 
 	// Read one frame to confirm the stream is live, then abruptly disconnect.
-	var msg struct {
-		Type   string `json:"type"`
-		Output any    `json:"output,omitempty"`
-	}
-	if err := wsjson.Read(ctx, conn, &msg); err != nil {
-		t.Fatalf("read first frame: %v", err)
-	}
+	readFrame(t, ctx, conn)
 	_ = conn.CloseNow()
 
 	select {

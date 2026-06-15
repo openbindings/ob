@@ -30,11 +30,12 @@ type contextKey string
 
 const requestIDKey contextKey = "request_id"
 
-// wsInvokePath is the single route whose handler performs its own in-message
-// authentication and therefore must accept WebSocket upgrades before the bearer
-// token is presented. The auth-middleware exemption is scoped to exactly this
-// path. It must match the route registered on the mux (see
-// internal/cmd/serve_routes.go).
+// wsInvokePath is the single route whose handler performs its own
+// upgrade-request authentication (Authorization header or `token` query
+// parameter — browsers can't set headers on WebSocket upgrades) and therefore
+// must receive upgrade requests that carry no Authorization header. The
+// auth-middleware exemption is scoped to exactly this path. It must match the
+// route registered on the mux (see internal/cmd/serve_routes.go).
 const wsInvokePath = "/bindings/invoke"
 
 // RequestIDFromContext extracts the request ID set by the request ID middleware.
@@ -382,13 +383,15 @@ func (s *Server) authMiddleware(next http.Handler) http.Handler {
 			return
 		}
 
-		// The WebSocket invocation endpoint handles auth in the first message
-		// (browsers can't set Authorization headers on upgrade requests). Let
-		// genuine upgrade requests to that one route through to the handler,
-		// which re-authenticates. This exemption is scoped to the exact route
-		// AND requires a real WebSocket upgrade (Connection: upgrade +
-		// Upgrade: websocket), so a spoofed Upgrade header on any other route —
-		// or on a non-upgrade request to this route — still hits token auth.
+		// The WebSocket invocation endpoint authenticates the upgrade request
+		// itself, accepting the token from either the Authorization header or
+		// the `token` query parameter (browsers can't set headers on upgrade
+		// requests). Let genuine upgrade requests to that one route through to
+		// the handler, which authenticates before accepting the upgrade. This
+		// exemption is scoped to the exact route AND requires a real WebSocket
+		// upgrade (Connection: upgrade + Upgrade: websocket), so a spoofed
+		// Upgrade header on any other route — or on a non-upgrade request to
+		// this route — still hits token auth.
 		if path == wsInvokePath && IsWebSocketUpgrade(r) {
 			next.ServeHTTP(w, r)
 			return

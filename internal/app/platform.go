@@ -22,18 +22,24 @@ func CLIPlatformCallbacks() *openbindings.PlatformCallbacks {
 }
 
 // CLIContextResolver returns the context resolver for interactive CLI usage:
-// the composition of the binding-invoker and context-store interfaces. When a
-// binding raises CONTEXT_REQUIRED, the resolver first consults the CLI context
-// store under the challenge's key; if the stored context can't satisfy the
-// challenge, it prompts for the missing credentials (the first satisfiable
-// alternative), persists them under the key, and returns the resolved context.
+// the composition of the binding-invoker and kv-store interfaces. When a
+// binding raises CONTEXT_REQUIRED, the resolver derives a store key from the
+// challenge's target and first consults the CLI context store under it; if the
+// stored context can't satisfy the challenge, it prompts for the missing
+// credentials (the first satisfiable alternative), persists them under the
+// key, and returns the resolved context.
 // It declines (returns nil) when no prompt is possible (e.g. not a TTY), so the
 // challenge surfaces to the caller unchanged.
 func CLIContextResolver() openbindings.ContextResolver {
 	store := NewCLIContextStore()
 	return func(ctx context.Context, details *openbindings.ContextRequiredDetails) (map[string]any, error) {
+		// The challenge reports the target the binding addresses; derive the
+		// store key from it the same way the SDK's StoreContextResolver does,
+		// so keys match across the CLI and the in-process resolver.
+		key := openbindings.NormalizeEndpoint(details.Target)
+
 		// 1. Try the stored context first.
-		stored, _ := store.Get(ctx, details.Key)
+		stored, _ := store.Get(ctx, key)
 		if stored != nil && openbindings.ContextSatisfies(stored, details) {
 			return stored, nil
 		}
@@ -54,7 +60,7 @@ func CLIContextResolver() openbindings.ContextResolver {
 				// written to disk/keychain; it is re-acquired each call. The
 				// resolved candidate is still returned in full for this call.
 				if persistable := durableSubset(alt, candidate); len(persistable) > 0 {
-					_ = store.Set(ctx, details.Key, persistable)
+					_ = store.Set(ctx, key, persistable)
 				}
 				return candidate, nil
 			}

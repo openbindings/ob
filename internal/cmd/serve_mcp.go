@@ -4,10 +4,8 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"io"
 	"log/slog"
 	"net/http"
-	"strings"
 	"time"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
@@ -25,7 +23,7 @@ func registerMCPEndpoint(srv *server.Server, logger *slog.Logger) {
 		Version: app.Info().Version,
 	}, nil)
 
-	registerMCPTools(mcpSrv, logger)
+	registerMCPTools(mcpSrv)
 	registerMCPResources(mcpSrv)
 
 	handler := mcp.NewStreamableHTTPHandler(
@@ -38,7 +36,7 @@ func registerMCPEndpoint(srv *server.Server, logger *slog.Logger) {
 	logger.Info("MCP endpoint registered", "path", "/mcp")
 }
 
-func registerMCPTools(srv *mcp.Server, logger *slog.Logger) {
+func registerMCPTools(srv *mcp.Server) {
 	srv.AddTool(&mcp.Tool{
 		Name:        "getInfo",
 		Description: "Return identity and metadata about this host.",
@@ -148,19 +146,19 @@ func registerMCPTools(srv *mcp.Server, logger *slog.Logger) {
 
 	srv.AddTool(&mcp.Tool{
 		Name:        "setContext",
-		Description: "Create or replace the context for a key. The supplied context fully replaces any existing context (full replacement, not partial update).",
+		Description: "Create or replace the context for a key. The supplied value fully replaces any existing context (full replacement, not partial update).",
 		InputSchema: map[string]any{
 			"type": "object",
 			"properties": map[string]any{
-				"key":     map[string]any{"type": "string"},
-				"context": map[string]any{"type": "object", "additionalProperties": true},
+				"key":   map[string]any{"type": "string"},
+				"value": map[string]any{"type": "object", "additionalProperties": true},
 			},
-			"required": []string{"key", "context"},
+			"required": []string{"key", "value"},
 		},
 	}, func(ctx context.Context, req *mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 		var input struct {
-			Key     string         `json:"key"`
-			Context map[string]any `json:"context"`
+			Key   string         `json:"key"`
+			Value map[string]any `json:"value"`
 		}
 		if err := json.Unmarshal(req.Params.Arguments, &input); err != nil {
 			return errorResult("invalid arguments: " + err.Error()), nil
@@ -168,7 +166,7 @@ func registerMCPTools(srv *mcp.Server, logger *slog.Logger) {
 		if input.Key == "" {
 			return errorResult("key is required"), nil
 		}
-		if err := app.SaveUnifiedContext(input.Key, input.Context); err != nil {
+		if err := app.SaveUnifiedContext(input.Key, input.Value); err != nil {
 			return errorResult(err.Error()), nil
 		}
 		return jsonResult(map[string]string{"key": input.Key, "status": "updated"})
@@ -227,105 +225,6 @@ func registerMCPTools(srv *mcp.Server, logger *slog.Logger) {
 			"finalUrl":     result.FinalURL,
 			"synthesized":  result.Synthesized,
 			"sourceFormat": result.SourceFormat,
-		})
-	})
-
-	srv.AddTool(&mcp.Tool{
-		Name:        "request",
-		Description: "Make an HTTP request and return the complete response.",
-		InputSchema: map[string]any{
-			"type": "object",
-			"properties": map[string]any{
-				"url":              map[string]any{"type": "string"},
-				"method":           map[string]any{"type": "string"},
-				"headers":          map[string]any{"type": "object", "additionalProperties": map[string]any{"type": "string"}},
-				"body":             map[string]any{"type": "string"},
-				"timeoutMs":        map[string]any{"type": "integer"},
-				"maxResponseBytes": map[string]any{"type": "integer"},
-				"followRedirects":  map[string]any{"type": "boolean"},
-			},
-			"required": []string{"url"},
-		},
-	}, func(ctx context.Context, req *mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-		var input httpRequestInput
-		if err := json.Unmarshal(req.Params.Arguments, &input); err != nil {
-			return errorResult("invalid arguments: " + err.Error()), nil
-		}
-		if input.URL == "" {
-			return errorResult("url is required"), nil
-		}
-		if !strings.HasPrefix(input.URL, "http://") && !strings.HasPrefix(input.URL, "https://") {
-			return errorResult("url must use http or https scheme"), nil
-		}
-
-		method := input.Method
-		if method == "" {
-			method = http.MethodGet
-		}
-		timeout := defaultHTTPClientTimeout
-		if input.TimeoutMs > 0 {
-			timeout = time.Duration(input.TimeoutMs) * time.Millisecond
-			if timeout > maxHTTPClientTimeout {
-				timeout = maxHTTPClientTimeout
-			}
-		}
-		maxBytes := defaultMaxHTTPResponseBytes
-		if input.MaxResponseBytes > 0 && input.MaxResponseBytes < defaultMaxHTTPResponseBytes {
-			maxBytes = input.MaxResponseBytes
-		}
-		followRedirects := true
-		if input.FollowRedirects != nil {
-			followRedirects = *input.FollowRedirects
-		}
-
-		var bodyReader io.Reader
-		if input.Body != "" {
-			bodyReader = strings.NewReader(input.Body)
-		}
-		httpReq, err := http.NewRequestWithContext(ctx, method, input.URL, bodyReader)
-		if err != nil {
-			return errorResult(fmt.Sprintf("invalid request: %v", err)), nil
-		}
-		for k, v := range input.Headers {
-			httpReq.Header.Set(k, v)
-		}
-
-		client := &http.Client{Timeout: timeout}
-		if !followRedirects {
-			client.CheckRedirect = func(*http.Request, []*http.Request) error {
-				return http.ErrUseLastResponse
-			}
-		}
-
-		logger.Info("mcp http/request", "method", method, "url", input.URL)
-		resp, err := client.Do(httpReq)
-		if err != nil {
-			return errorResult("request failed: " + err.Error()), nil
-		}
-		defer resp.Body.Close()
-
-		respBody, err := io.ReadAll(io.LimitReader(resp.Body, int64(maxBytes)+1))
-		if err != nil {
-			return errorResult("failed to read response: " + err.Error()), nil
-		}
-		if len(respBody) > maxBytes {
-			return errorResult(fmt.Sprintf("response exceeds %d byte limit", maxBytes)), nil
-		}
-
-		respHeaders := make(map[string]string)
-		for k := range resp.Header {
-			respHeaders[strings.ToLower(k)] = resp.Header.Get(k)
-		}
-		finalURL := ""
-		if resp.Request != nil && resp.Request.URL.String() != input.URL {
-			finalURL = resp.Request.URL.String()
-		}
-
-		return jsonResult(httpResponse{
-			Status:  resp.StatusCode,
-			Headers: respHeaders,
-			Body:    string(respBody),
-			URL:     finalURL,
 		})
 	})
 }

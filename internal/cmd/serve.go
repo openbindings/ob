@@ -405,7 +405,7 @@ func handleResolve(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := validateResolveURL(body.URL); err != nil {
+	if err := validateOutboundURL(body.URL); err != nil {
 		writeJSON(w, http.StatusForbidden, ErrorResponse{Error: err.Error()})
 		return
 	}
@@ -430,20 +430,24 @@ func handleResolve(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// validateResolveURL enforces SSRF protection on arbitrary URL resolution.
-func validateResolveURL(rawURL string) error {
+// validateOutboundURL enforces SSRF protection on any outbound fetch ob makes
+// on a caller's behalf (OBI resolution via /resolve). It allows
+// loopback/localhost — ob serve is a local dev tool and reaching
+// locally-running services is a primary use case — but blocks other private,
+// link-local, and metadata ranges to prevent LAN scanning and metadata theft.
+func validateOutboundURL(rawURL string) error {
 	parsed, err := url.Parse(rawURL)
 	if err != nil {
 		return err
 	}
 
 	if parsed.Scheme != "http" && parsed.Scheme != "https" {
-		return &url.Error{Op: "resolve", URL: rawURL, Err: errNonHTTPScheme}
+		return &url.Error{Op: "fetch", URL: rawURL, Err: errNonHTTPScheme}
 	}
 
 	hostname := parsed.Hostname()
 	if hostname == "" {
-		return &url.Error{Op: "resolve", URL: rawURL, Err: errEmptyHost}
+		return &url.Error{Op: "fetch", URL: rawURL, Err: errEmptyHost}
 	}
 
 	// Allow localhost and loopback — ob serve is a local dev tool and
@@ -452,14 +456,14 @@ func validateResolveURL(rawURL string) error {
 	ip := net.ParseIP(hostname)
 	if ip != nil {
 		if !ip.IsLoopback() && isPrivateIP(ip) {
-			return &url.Error{Op: "resolve", URL: rawURL, Err: errPrivateIP}
+			return &url.Error{Op: "fetch", URL: rawURL, Err: errPrivateIP}
 		}
 	} else if !strings.EqualFold(hostname, "localhost") {
 		addrs, err := net.LookupHost(hostname)
 		if err == nil {
 			for _, a := range addrs {
 				if resolved := net.ParseIP(a); resolved != nil && !resolved.IsLoopback() && isPrivateIP(resolved) {
-					return &url.Error{Op: "resolve", URL: rawURL, Err: errPrivateIP}
+					return &url.Error{Op: "fetch", URL: rawURL, Err: errPrivateIP}
 				}
 			}
 		}

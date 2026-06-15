@@ -69,7 +69,7 @@ func TestMCPEndpoint_ListTools(t *testing.T) {
 	wantTools := []string{
 		"getInfo", "listFormats", "createInterface", "invokeBinding",
 		"listContexts", "getContext", "setContext", "deleteContext",
-		"resolveInterface", "request",
+		"resolveInterface",
 	}
 
 	toolNames := map[string]bool{}
@@ -248,22 +248,6 @@ func TestMCPEndpoint_ResolveInterface_BadURL(t *testing.T) {
 	}
 	if !result.IsError {
 		t.Error("resolveInterface with empty URL should return error")
-	}
-}
-
-func TestMCPEndpoint_Request_BadURL(t *testing.T) {
-	_, session := mcpTestEnv(t)
-	ctx := context.Background()
-
-	result, err := session.CallTool(ctx, &gomcp.CallToolParams{
-		Name:      "request",
-		Arguments: map[string]any{"url": "not-a-url"},
-	})
-	if err != nil {
-		t.Fatalf("CallTool request: %v", err)
-	}
-	if !result.IsError {
-		t.Error("request with invalid URL should return error")
 	}
 }
 

@@ -283,6 +283,8 @@ func comparisonErrorReport(input ComparisonInput, message string) ComparisonRepo
 func compareOperationDeltas(left, right resolvedComparisonInput, mode string) []OperationDelta {
 	leftKeys := sortedOperationKeys(left.iface)
 	usedRight := map[string]bool{}
+	leftRoot := schemaRoot(left.iface)
+	rightRoot := schemaRoot(right.iface)
 	var deltas []OperationDelta
 
 	for _, key := range leftKeys {
@@ -308,13 +310,13 @@ func compareOperationDeltas(left, right resolvedComparisonInput, mode string) []
 			Findings: []Finding{},
 		}
 		if leftOp.Input != nil || rightOp.Input != nil {
-			delta.Input = compareSchemaSlot(key, "input", leftOp.Input, rightOp.Input, mode)
-			delta.Findings = append(delta.Findings, schemaFindings(key, "input", leftOp.Input, rightOp.Input, mode)...)
+			delta.Input = compareSchemaSlot("input", leftOp.Input, rightOp.Input, leftRoot, rightRoot)
+			delta.Findings = append(delta.Findings, schemaFindings(key, "input", leftOp.Input, rightOp.Input, leftRoot, rightRoot)...)
 			delta.Input = compatibilityForFindings("input", delta.Input.Verdict, delta.Findings)
 		}
 		if leftOp.Output != nil || rightOp.Output != nil {
-			delta.Output = compareSchemaSlot(key, "output", leftOp.Output, rightOp.Output, mode)
-			delta.Findings = append(delta.Findings, schemaFindings(key, "output", leftOp.Output, rightOp.Output, mode)...)
+			delta.Output = compareSchemaSlot("output", leftOp.Output, rightOp.Output, leftRoot, rightRoot)
+			delta.Findings = append(delta.Findings, schemaFindings(key, "output", leftOp.Output, rightOp.Output, leftRoot, rightRoot)...)
 			delta.Output = compatibilityForFindings("output", delta.Output.Verdict, delta.Findings)
 		}
 		deltas = append(deltas, delta)
@@ -342,11 +344,15 @@ func compareOperationDeltas(left, right resolvedComparisonInput, mode string) []
 	return deltas
 }
 
-func compareSchemaSlot(opKey, direction string, left, right map[string]any, mode string) *SchemaCompatibility {
+func compareSchemaSlot(direction string, left, right, leftRoot, rightRoot map[string]any) *SchemaCompatibility {
 	verdict := "unspecified"
 	if left != nil && right != nil {
 		verdict = "compatible"
-		if strippedCanonicalEqual(left, right) {
+		// Resolve top-level $refs before the identity check so a slot bound by
+		// reference is recognised as identical to its inline equivalent.
+		lr, ls, _ := derefSchema(leftRoot, left, map[string]bool{})
+		rr, rs, _ := derefSchema(rightRoot, right, map[string]bool{})
+		if ls == "" && rs == "" && strippedCanonicalEqual(lr, rr) {
 			verdict = "identical"
 		}
 	}
@@ -361,30 +367,96 @@ func compatibilityForFindings(direction, defaultVerdict string, findings []Findi
 			continue
 		}
 		reasons = append(reasons, FindingRef{Kind: f.Kind, Pointer: f.Location.Pointer, Side: f.Location.Side})
-		switch {
-		case strings.HasPrefix(f.Kind, "profile.schema."):
-			verdict = "indeterminate"
-		case f.Kind == "unverified.regex_containment" && verdict != "indeterminate":
-			verdict = "unverified"
-		case hasCategory(f, "breaking") && verdict != "indeterminate":
-			verdict = "incompatible"
-		case verdict != "incompatible" && verdict != "unverified" && verdict != "indeterminate" && defaultVerdict != "identical":
-			verdict = "compatible"
+		// Take the strongest verdict any finding implies. Ranking by severity
+		// (rather than last-write-wins) keeps a benign or unverifiable finding
+		// from masking a real incompatibility reported earlier in the slot.
+		if cand := findingVerdict(f); verdictRank(cand) > verdictRank(verdict) {
+			verdict = cand
 		}
 	}
 	return &SchemaCompatibility{Verdict: verdict, Direction: direction, Reasons: reasons}
 }
 
-func schemaFindings(opKey, direction string, left, right map[string]any, mode string) []Finding {
+// verdictRank orders schema verdicts by how strongly they constrain the
+// result, weakest to strongest, so the comparison can keep the strongest
+// verdict any finding implies regardless of finding order.
+func verdictRank(v string) int {
+	switch v {
+	case "identical":
+		return 0
+	case "compatible", "unspecified", "":
+		return 1
+	case "unverified":
+		return 2
+	case "incompatible":
+		return 3
+	case "indeterminate":
+		return 4
+	}
+	return 1
+}
+
+// findingVerdict maps a finding to the verdict it implies, or "" if it does not
+// affect the verdict. A failed ref resolution or off-profile schema is
+// indeterminate (the comparison could not be performed); anything unverifiable
+// (an external ref, a regex containment) is unverified; a breaking finding is
+// incompatible.
+func findingVerdict(f Finding) string {
+	switch {
+	case f.Kind == "profile.ref.resolution_failed" || strings.HasPrefix(f.Kind, "profile.schema."):
+		return "indeterminate"
+	case strings.HasPrefix(f.Kind, "unverified."):
+		return "unverified"
+	case hasCategory(f, "breaking"):
+		return "incompatible"
+	}
+	return ""
+}
+
+func schemaFindings(opKey, direction string, left, right, leftRoot, rightRoot map[string]any) []Finding {
 	if left == nil || right == nil {
 		return nil
 	}
 	var findings []Finding
-	compareSchemaAt(&findings, opKey, direction, left, right, "/operations/"+escapePointer(opKey)+"/"+direction)
+	compareSchemaAt(&findings, opKey, direction, left, right,
+		"/operations/"+escapePointer(opKey)+"/"+direction,
+		leftRoot, rightRoot, map[string]bool{}, map[string]bool{})
 	return findings
 }
 
-func compareSchemaAt(findings *[]Finding, opKey, direction string, left, right map[string]any, ptr string) {
+func compareSchemaAt(findings *[]Finding, opKey, direction string, left, right map[string]any, ptr string, leftRoot, rightRoot map[string]any, leftSeen, rightSeen map[string]bool) {
+	// Resolve $ref schema bindings against each side's document before
+	// comparing. Without this, a "{\"$ref\": ...}" wrapper compares as an empty
+	// schema, fabricating differences against an inline counterpart and hiding
+	// real ones when both sides are bound by reference.
+	leftRef, _ := left["$ref"].(string)
+	rightRef, _ := right["$ref"].(string)
+	left, ls, leftSeen := derefSchema(leftRoot, left, leftSeen)
+	right, rs, rightSeen := derefSchema(rightRoot, right, rightSeen)
+	if ls == "cycle" || rs == "cycle" {
+		// Recursive type: a $ref back to an ancestor schema. The ancestor's
+		// comparison already covers this shape; stop to avoid looping.
+		return
+	}
+	if ls == "external" || rs == "external" {
+		if ls == "external" {
+			*findings = append(*findings, finding("unverified.external_ref", "left", ptr+"/$ref", leftRef, nil, direction))
+		}
+		if rs == "external" {
+			*findings = append(*findings, finding("unverified.external_ref", "right", ptr+"/$ref", nil, rightRef, direction))
+		}
+		return
+	}
+	if ls == "unresolved" || rs == "unresolved" {
+		if ls == "unresolved" {
+			*findings = append(*findings, finding("profile.ref.resolution_failed", "left", ptr+"/$ref", leftRef, nil, direction))
+		}
+		if rs == "unresolved" {
+			*findings = append(*findings, finding("profile.ref.resolution_failed", "right", ptr+"/$ref", nil, rightRef, direction))
+		}
+		return
+	}
+
 	if v, ok := left["exclusiveMinimum"].(bool); ok {
 		*findings = append(*findings, finding("profile.schema.not_2020_12", "left", ptr+"/exclusiveMinimum", v, nil, direction))
 	}
@@ -426,9 +498,85 @@ func compareSchemaAt(findings *[]Finding, opKey, direction string, left, right m
 		lm, lok := leftProps[prop].(map[string]any)
 		rm, rok := rightProps[prop].(map[string]any)
 		if lok && rok {
-			compareSchemaAt(findings, opKey, direction, lm, rm, ptr+"/properties/"+escapePointer(prop))
+			compareSchemaAt(findings, opKey, direction, lm, rm, ptr+"/properties/"+escapePointer(prop), leftRoot, rightRoot, leftSeen, rightSeen)
 		}
 	}
+}
+
+// schemaRoot builds the JSON-Pointer resolution root for one side: a document
+// map whose "schemas" member is the interface's named-schema map, so a local
+// "#/schemas/Foo" $ref resolves the same way it does in the OBI document.
+func schemaRoot(iface *openbindings.Interface) map[string]any {
+	schemas := make(map[string]any, len(iface.Schemas))
+	for name, s := range iface.Schemas {
+		schemas[name] = map[string]any(s)
+	}
+	return map[string]any{"schemas": schemas}
+}
+
+// derefSchema follows local "#/..." $refs in node against root until it reaches
+// a non-ref schema, a cycle, or a failure. seen holds the ref pointers already
+// followed to reach node on this side; derefSchema returns the path extended
+// with any refs it follows (a copy, so a sibling reusing a schema is not
+// mistaken for a cycle while a $ref back to an ancestor is). The status is ""
+// on success, "external" for a non-local $ref, "unresolved" for a local $ref
+// that does not resolve, or "cycle" for a $ref back to an ancestor.
+func derefSchema(root, node map[string]any, seen map[string]bool) (map[string]any, string, map[string]bool) {
+	cur := node
+	out := seen
+	for {
+		ref, ok := cur["$ref"].(string)
+		if !ok {
+			return cur, "", out
+		}
+		if !strings.HasPrefix(ref, "#") {
+			return nil, "external", out
+		}
+		if out[ref] {
+			return nil, "cycle", out
+		}
+		target, ok := resolveJSONPointer(root, ref)
+		if !ok {
+			return nil, "unresolved", out
+		}
+		tm, ok := target.(map[string]any)
+		if !ok {
+			return nil, "unresolved", out
+		}
+		next := make(map[string]bool, len(out)+1)
+		for k := range out {
+			next[k] = true
+		}
+		next[ref] = true
+		out = next
+		cur = tm
+	}
+}
+
+// resolveJSONPointer resolves a "#/a/b" fragment against root per RFC 6901,
+// decoding "~1" to "/" and "~0" to "~".
+func resolveJSONPointer(root map[string]any, ref string) (any, bool) {
+	frag := strings.TrimPrefix(ref, "#")
+	if frag == "" {
+		return root, true
+	}
+	if !strings.HasPrefix(frag, "/") {
+		return nil, false
+	}
+	var cur any = root
+	for _, raw := range strings.Split(frag[1:], "/") {
+		token := strings.ReplaceAll(raw, "~1", "/")
+		token = strings.ReplaceAll(token, "~0", "~")
+		m, ok := cur.(map[string]any)
+		if !ok {
+			return nil, false
+		}
+		cur, ok = m[token]
+		if !ok {
+			return nil, false
+		}
+	}
+	return cur, true
 }
 
 func typeFindingKind(left, right any) string {
@@ -564,7 +712,9 @@ func projectedCategory(kind, direction string) ([]string, string) {
 		return []string{"breaking"}, "error"
 	case "profile.schema.not_2020_12":
 		return []string{"structural"}, "error"
-	case "unverified.regex_containment":
+	case "profile.ref.resolution_failed":
+		return []string{"structural"}, "error"
+	case "unverified.regex_containment", "unverified.external_ref":
 		return []string{"non_breaking"}, "warn"
 	case "required.added", "object.additional_properties.disabled", "numeric.minimum.tightened", "type.number_to_integer", "type.set.narrowed":
 		if direction == "input" {
@@ -638,13 +788,8 @@ func summarizeComparison(ops []OperationDelta) ComparisonSummary {
 					summary.Categories.Structural++
 				}
 			}
-			switch {
-			case strings.HasPrefix(f.Kind, "profile.schema."):
-				summary.Verdict = "indeterminate"
-			case f.Kind == "unverified.regex_containment" && summary.Verdict != "indeterminate":
-				summary.Verdict = "unverified"
-			case hasCategory(f, "breaking") && summary.Verdict != "indeterminate":
-				summary.Verdict = "incompatible"
+			if cand := findingVerdict(f); verdictRank(cand) > verdictRank(summary.Verdict) {
+				summary.Verdict = cand
 			}
 		}
 	}

@@ -28,9 +28,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
     composes the context store (under the challenge key) with interactive
     per-requirement prompts, persisting acquired credentials; `ob mcp`'s
     bearer token flows as invocation context.
-  - `ob serve`'s WebSocket `/bindings/invoke` emits disjoint `event`/`error`
-    frames; a terminal error ends the stream (the combined data+error frame
-    left with the old envelope's OBI-T-08 surfacing).
+  - `ob serve`'s `/bindings/invoke` speaks the `openbindings.binding-invoker`
+    frame protocol over WebSocket: the caller streams `open`/`input`/`close`
+    frames, the server streams `output`/`input_closed` frames and exactly one
+    terminal `complete`/`error` frame. One connection per invocation; every
+    cardinality crosses the wire. The session token rides the upgrade request
+    (`Authorization` header, or `token` query parameter for browsers). The
+    legacy WS event envelope and the unary `POST /bindings/invoke` route are
+    gone. `POST /bindings/prepare` implements the now-required
+    `prepareBinding` preflight.
+  - Delegate-backed binding invocation speaks the same frame protocol over
+    WebSocket when a delegate advertises an asyncapi-bound `invokeBinding`
+    with an http(s) location, exposing a normal `Invocation` handle (with
+    `ERR_TRANSPORT_CLOSED` synthesized when the transport closes without a
+    terminal frame); delegates advertising only a usage (CLI) binding keep
+    the unary CLI realization. The `execute --as-delegate` fallback is
+    removed.
   - Error codes follow the SDKs' new SCREAMING wire values (`ERR_CANCELLED`,
     `CONTEXT_REQUIRED`, ...).
 

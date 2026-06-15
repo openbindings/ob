@@ -184,14 +184,18 @@ paths:
                   status:
                     type: string
 
-  /bindings/invoke:
+  /bindings/prepare:
     post:
-      operationId: invokeBinding
-      summary: Invoke a resolved binding directly
+      operationId: prepareBinding
+      summary: Preflight a binding's context requirements
       description: >
-        Low-level binding invocation endpoint. Accepts a binding source, ref, input,
-        and optional context, then delegates to the appropriate binding invoker.
-        This is the binding-invoker host capability.
+        Side-effect-free preflight (the binding-invoker prepareBinding
+        operation): reports the context a binding would require before
+        invocation, or null when requirements cannot be determined statically.
+        Advisory — invokeBinding's reactive CONTEXT_REQUIRED error (over the
+        WebSocket frame stream described by asyncapi.yaml) is the
+        authoritative source of requirements. When context is supplied, the
+        result reports only the requirements still unsatisfied by it.
       requestBody:
         required: true
         content:
@@ -204,23 +208,21 @@ paths:
                   $ref: "#/components/schemas/InvokeSource"
                 ref:
                   type: string
-                  description: Reference to the binding within the source (e.g., JSON Pointer for OpenAPI)
-                input:
-                  type: object
-                  description: Operation input data
+                  description: Reference within the binding source (e.g., JSON Pointer for OpenAPI)
                 context:
-                  type: object
-                  description: Binding context (credentials, tokens)
-                  additionalProperties: true
+                  $ref: "#/components/schemas/BindingContext"
+              additionalProperties: false
       responses:
         "200":
-          description: Invocation result
+          description: Context requirements, or null when none are known statically
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/InvocationResult"
+                oneOf:
+                  - $ref: "#/components/schemas/ContextRequiredDetails"
+                  - type: "null"
         "400":
-          description: Invalid input or invocation error
+          description: Invalid input
           content:
             application/json:
               schema:
@@ -560,34 +562,6 @@ paths:
                   expires_in:
                     type: integer
 
-  /http/request:
-    post:
-      operationId: request
-      summary: Make an HTTP request and return the response
-      description: >
-        Makes an HTTP request on behalf of the caller and returns the complete
-        response. Useful for clients that cannot make direct HTTP requests due
-        to platform constraints (browser CSP/CORS, network restrictions, etc.).
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/HttpRequestInput"
-      responses:
-        "200":
-          description: HTTP response
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/HttpResponse"
-        "400":
-          description: Invalid request
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorResponse"
-
 components:
   securitySchemes:
     oauth2Auth:
@@ -696,14 +670,61 @@ components:
           items:
             type: object
 
-    InvocationResult:
+    BindingContext:
       type: object
+      description: >-
+        Opaque runtime context for binding invocation. Well-known credential
+        fields: bearerToken, apiKey, basic, accessToken/refreshToken/expiresAt.
+        Well-known transport fields: headers, cookies, environment, metadata.
+      additionalProperties: true
+
+    ContextRequirement:
+      type: object
+      description: >-
+        One prerequisite that must be satisfied before a binding can be
+        invoked, resolved into context. `type` names the requirement family
+        (e.g. auth.bearer, auth.oauth2, auth.basic, auth.apiKey); the
+        remaining fields are type-specific.
       properties:
-        output:
-          type: object
-        error:
-          type: object
-          nullable: true
+        type:
+          type: string
+        description:
+          type: string
+        durable:
+          type: boolean
+          description: >-
+            Whether resolved context MAY be cached under the challenge key and
+            reused (true, the default) or MUST be satisfied freshly per
+            invocation (false).
+      required: [type]
+      additionalProperties: true
+
+    ContextRequiredDetails:
+      type: object
+      description: >-
+        The details payload of a CONTEXT_REQUIRED invocation error and the
+        return shape of prepareBinding. Alternatives are disjunctive (any one
+        suffices); the requirements within one alternative are conjunctive
+        (all must be satisfied).
+      properties:
+        target:
+          type: string
+          description: >-
+            The target the binding addresses; the runtime derives a storage key
+            from it.
+        alternatives:
+          type: array
+          minItems: 1
+          items:
+            type: object
+            properties:
+              requirements:
+                type: array
+                minItems: 1
+                items:
+                  $ref: "#/components/schemas/ContextRequirement"
+            required: [requirements]
+      required: [target, alternatives]
 
     InvokeSource:
       type: object
@@ -783,53 +804,6 @@ components:
           type: object
           description: Potential OpenBindings operation framing for this target
           additionalProperties: true
-
-    HttpRequestInput:
-      type: object
-      required: [url]
-      properties:
-        url:
-          type: string
-          description: The URL to request
-        method:
-          type: string
-          description: HTTP method (defaults to GET)
-        headers:
-          type: object
-          additionalProperties:
-            type: string
-          description: Request headers
-        body:
-          type: string
-          description: Request body as text
-        timeoutMs:
-          type: integer
-          description: Request timeout in milliseconds
-        maxResponseBytes:
-          type: integer
-          description: Maximum response body size in bytes
-        followRedirects:
-          type: boolean
-          description: Whether to follow HTTP redirects (defaults to true)
-
-    HttpResponse:
-      type: object
-      required: [status, body]
-      properties:
-        status:
-          type: integer
-          description: HTTP status code
-        headers:
-          type: object
-          additionalProperties:
-            type: string
-          description: Response headers
-        body:
-          type: string
-          description: Response body as text
-        url:
-          type: string
-          description: Final URL after any redirects
 
     ErrorResponse:
       type: object

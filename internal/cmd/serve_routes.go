@@ -3,8 +3,13 @@ package cmd
 import (
 	"context"
 	"encoding/json"
+	"errors"
+	"io"
 	"log/slog"
 	"net/http"
+	"strings"
+	"sync"
+	"sync/atomic"
 
 	"nhooyr.io/websocket"
 	"nhooyr.io/websocket/wsjson"
@@ -12,190 +17,313 @@ import (
 	openbindings "github.com/openbindings/openbindings-go"
 
 	"github.com/openbindings/ob/internal/app"
+	"github.com/openbindings/ob/internal/frames"
 	"github.com/openbindings/ob/internal/server"
 )
 
-// registerBindingRoutes adds direct binding invocation and interface creation endpoints,
-// making ob serve a binding invoker host.
+// registerBindingRoutes adds binding invocation (the binding-invoker frame
+// protocol), preflight, and interface creation endpoints, making ob serve a
+// binding invoker host.
 func registerBindingRoutes(srv *server.Server, logger *slog.Logger) {
 	mux := srv.Mux()
-	mux.HandleFunc("/bindings/invoke", handleBindingInvoke(srv, logger))
+	mux.HandleFunc("GET /bindings/invoke", handleBindingInvoke(srv, logger))
+	mux.HandleFunc("POST /bindings/prepare", handleBindingPrepare(logger))
 	mux.HandleFunc("POST /interfaces/create", handleInterfaceCreate)
 	mux.HandleFunc("POST /sources/inspect", handleSourceInspect)
-	mux.HandleFunc("POST /http/request", handleHttpRequest(logger))
 }
 
-type wsErrorDetail struct {
-	Message string `json:"message"`
-	Code    string `json:"code,omitempty"`
-	// Details carries structured info from the SDK's InvocationError.Details.
-	// For OBI-T-07 / OBI-T-08 validation failures, this is a
-	// ValidationFailureDetails value with a Failures slice.
-	Details any `json:"details,omitempty"`
-}
-
-// wsInvocationOutput is the JSON envelope sent over WebSocket for each output
-// of a streaming invocation.
-type wsInvocationOutput struct {
-	Type   string         `json:"type"`
-	Output any            `json:"output,omitempty"`
-	Error  *wsErrorDetail `json:"error,omitempty"`
-}
-
+// handleBindingInvoke serves invokeBinding as the binding-invoker frame
+// protocol over WebSocket: the caller streams BindingInvokerInputFrame
+// messages (open, input..., close) and receives BindingInvokerOutputFrame
+// messages (output/input_closed..., then one terminal complete or error).
+// One connection carries exactly one invocation.
 func handleBindingInvoke(srv *server.Server, logger *slog.Logger) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		if server.IsWebSocketUpgrade(r) {
-			handleBindingInvokeWS(srv, logger, w, r)
+		if !server.IsWebSocketUpgrade(r) {
+			http.Error(w, "websocket upgrade required (binding-invoker frame protocol)", http.StatusUpgradeRequired)
 			return
 		}
 
-		if r.Method != http.MethodPost {
-			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		// Authenticate the upgrade request itself: Authorization header for
+		// clients that can set one, `token` query parameter for browsers
+		// (which can't set headers on WebSocket upgrades). The frame protocol
+		// carries no transport credentials — the open frame's context is the
+		// DOWNSTREAM binding's context, never this server's session token.
+		if !srv.IsValidToken(wsAuthToken(r)) {
+			logger.Warn("websocket auth failure", "remote_addr", r.RemoteAddr)
+			http.Error(w, "unauthorized", http.StatusUnauthorized)
 			return
 		}
 
-		r.Body = http.MaxBytesReader(w, r.Body, maxRequestBodyBytes)
-		var body struct {
-			Source    app.InvokeSource        `json:"source"`
-			Ref       string                  `json:"ref"`
-			Input     any                     `json:"input,omitempty"`
-			Context   map[string]any          `json:"context,omitempty"`
-			Interface *openbindings.Interface `json:"interface,omitempty"`
-		}
-		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
-			writeJSON(w, http.StatusBadRequest, ErrorResponse{Error: "invalid request body"})
-			return
-		}
-
-		logger.Info("bindings/invoke", "format", body.Source.Format, "ref", body.Ref)
-
-		output := app.InvokeOperationWithContext(r.Context(), app.InvokeOperationInput{
-			Source:    body.Source,
-			Ref:       body.Ref,
-			Input:     body.Input,
-			Context:   body.Context,
-			Interface: body.Interface,
+		// Origin checking is skipped to match the CORS policy (any HTTPS
+		// origin + any localhost origin). The session token on the upgrade
+		// request is the security boundary, not the origin header.
+		conn, err := websocket.Accept(w, r, &websocket.AcceptOptions{
+			InsecureSkipVerify: true,
 		})
-
-		status := http.StatusOK
-		if output.Error != nil {
-			status = http.StatusBadRequest
+		if err != nil {
+			logger.Error("websocket accept failed", "error", err)
+			return
 		}
-		writeJSON(w, status, output)
+		defer conn.Close(websocket.StatusInternalError, "unexpected close")
+
+		conn.SetReadLimit(maxRequestBodyBytes)
+
+		// The lifetime ctx must be cancelled when the client disconnects.
+		// websocket.Accept hijacks the connection, so r.Context() is no
+		// longer cancelled on client close; the frame reader cancels this
+		// ctx when its read fails, tearing down the invocation and its
+		// upstream transport.
+		ctx, cancel := context.WithCancel(r.Context())
+		defer cancel()
+
+		serveFrameStream(ctx, cancel, conn, logger)
 	}
 }
 
-func handleBindingInvokeWS(srv *server.Server, logger *slog.Logger, w http.ResponseWriter, r *http.Request) {
-	// Origin checking is skipped to match the CORS policy (any HTTPS
-	// origin + any localhost origin). Bearer-token auth in the first
-	// WebSocket message is the security boundary, not the origin header.
-	conn, err := websocket.Accept(w, r, &websocket.AcceptOptions{
-		InsecureSkipVerify: true,
-	})
+// wsAuthToken extracts the session token from a WebSocket upgrade request:
+// the Authorization header when present, else the `token` query parameter.
+func wsAuthToken(r *http.Request) string {
+	if auth := r.Header.Get("Authorization"); strings.HasPrefix(auth, "Bearer ") {
+		return strings.TrimPrefix(auth, "Bearer ")
+	}
+	return r.URL.Query().Get("token")
+}
+
+// frameWriter serializes output-frame writes and latches the terminal frame:
+// exactly one terminal frame is ever written and nothing follows it (rule 4).
+type frameWriter struct {
+	conn     *websocket.Conn
+	mu       sync.Mutex
+	terminal bool
+}
+
+func (fw *frameWriter) write(ctx context.Context, frame frames.OutputFrame) error {
+	fw.mu.Lock()
+	defer fw.mu.Unlock()
+	if fw.terminal {
+		return nil
+	}
+	if frame.Terminal() {
+		fw.terminal = true
+	}
+	return wsjson.Write(ctx, fw.conn, frame)
+}
+
+// serveFrameStream drives one frame-protocol invocation over an accepted
+// connection. Frame-protocol rules enforced here: the first frame must be
+// `open` (rule 1), a second `open` is a violation (rule 2), input after input
+// closure from either side is ignored with a diagnostic (rule 3), exactly one
+// terminal frame ends the stream (rule 4), and strict decoding rejects
+// unknown frame properties (rule 7). CONTEXT_REQUIRED and every other
+// terminal from the invocation handle pass through as the error frame.
+func serveFrameStream(ctx context.Context, cancel context.CancelFunc, conn *websocket.Conn, logger *slog.Logger) {
+	writer := &frameWriter{conn: conn}
+
+	// Rule 1: the first frame must be `open`; anything else (including a
+	// frame that fails strict decoding) is a terminal ERR_PROTOCOL and no
+	// further input is processed.
+	first, err := readInputFrame(ctx, conn)
 	if err != nil {
-		logger.Error("websocket accept failed", "error", err)
+		return // transport closed before any frame
+	}
+	var open frames.InputFrame
+	if uerr := json.Unmarshal(first, &open); uerr != nil {
+		_ = writer.write(ctx, frames.Error(&openbindings.InvocationError{
+			Code: openbindings.ErrCodeProtocol, Message: uerr.Error(),
+		}))
+		conn.Close(websocket.StatusNormalClosure, "")
 		return
 	}
-	defer conn.Close(websocket.StatusInternalError, "unexpected close")
-
-	conn.SetReadLimit(maxRequestBodyBytes)
-
-	// The lifetime ctx must be cancelled when the client disconnects.
-	// websocket.Accept hijacks the connection, so r.Context() is no longer
-	// cancelled on client close; without an explicit cancel the invocation
-	// goroutine and its upstream transport would leak on every abandoned
-	// stream. cancel() also fires on every early return below.
-	ctx, cancel := context.WithCancel(r.Context())
-	defer cancel()
-
-	var body struct {
-		Source      app.InvokeSource        `json:"source"`
-		Ref         string                  `json:"ref"`
-		Input       any                     `json:"input,omitempty"`
-		Context     map[string]any          `json:"context,omitempty"`
-		Interface   *openbindings.Interface `json:"interface,omitempty"`
-		BearerToken string                  `json:"bearerToken,omitempty"`
-	}
-	if err := wsjson.Read(ctx, conn, &body); err != nil {
-		logger.Error("websocket read initial message failed", "error", err)
-		conn.Close(websocket.StatusProtocolError, "expected JSON invocation request")
-		return
-	}
-
-	// Validate bearer token from the first message.
-	// WebSocket connections bypass HTTP auth middleware (browsers can't set
-	// headers on upgrade). Auth is in the message body per the AsyncAPI spec.
-	if body.BearerToken == "" || !srv.IsValidToken(body.BearerToken) {
-		// Also check query param fallback for backward compat.
-		qToken := r.URL.Query().Get("token")
-		if qToken == "" || !srv.IsValidToken(qToken) {
-			logger.Warn("websocket auth failure", "remote_addr", r.RemoteAddr)
-			conn.Close(websocket.StatusPolicyViolation, "unauthorized")
-			return
-		}
-	}
-
-	// After the single request frame, this is a server→client stream. Hand the
-	// read side to CloseRead, whose returned context is cancelled when the
-	// client sends anything (including a close frame) or the connection drops —
-	// that cancellation tears down the invocation and unblocks driveBinding.
-	ctx = conn.CloseRead(ctx)
-
-	logger.Info("bindings/invoke (ws)", "format", body.Source.Format, "ref", body.Ref)
-
-	execInput := app.InvokeOperationInput{
-		Source:    body.Source,
-		Ref:       body.Ref,
-		Input:     body.Input,
-		Context:   body.Context,
-		Interface: body.Interface,
-	}
-
-	events, err := app.SubscribeOperationWithContext(ctx, execInput)
-	if err != nil {
-		// Streaming not available for this operation — fall back to unary.
-		out := app.InvokeOperationWithContext(ctx, execInput)
-		if out.Error != nil {
-			_ = wsjson.Write(ctx, conn, wsInvocationOutput{
-				Type: "error",
-				Error: &wsErrorDetail{
-					Message: out.Error.Message,
-					Code:    out.Error.Code,
-					Details: out.Error.Details,
-				},
-			})
-		} else {
-			_ = wsjson.Write(ctx, conn, wsInvocationOutput{Type: "event", Output: out.Output})
-		}
+	if open.Kind != frames.KindOpen {
+		_ = writer.write(ctx, frames.Error(&openbindings.InvocationError{
+			Code:    openbindings.ErrCodeProtocol,
+			Message: "first frame must be open, got " + open.Kind,
+		}))
 		conn.Close(websocket.StatusNormalClosure, "")
 		return
 	}
 
-	// Outputs are outputs; errors are errors. Each event carries either an
-	// output value (an "event" frame) or a terminal error (an "error" frame),
-	// never both — a terminal error ends the stream. (OBI-T-08 output
-	// validation failures are terminal under the invocation handle model.)
-	for ev := range events {
-		var frame wsInvocationOutput
-		if ev.Error != nil {
-			frame = wsInvocationOutput{
-				Type: "error",
-				Error: &wsErrorDetail{
-					Message: ev.Error.Message,
-					Code:    ev.Error.Code,
-					Details: ev.Error.Details,
-				},
+	logger.Info("bindings/invoke (frames)", "format", open.Input.Source.Format, "ref", open.Input.Ref)
+
+	inv := app.InvokeBindingHandle(ctx, app.InvokeOperationInput{
+		Source: app.InvokeSource{
+			Format:   open.Input.Source.Format,
+			Location: open.Input.Source.Location,
+			Content:  open.Input.Source.Content,
+		},
+		Ref:     open.Input.Ref,
+		Context: open.Input.Context,
+	})
+
+	// A protocol violation after open (second open, undecodable frame)
+	// terminates the invocation; the violation's error replaces the handle's
+	// ERR_CANCELLED on the terminal frame.
+	protoErr := make(chan *openbindings.InvocationError, 1)
+	var callerClosed atomic.Bool
+
+	// Input side: frames -> handle.
+	go readInputFrames(ctx, cancel, conn, inv, &callerClosed, protoErr, logger)
+
+	// `input_closed`: emitted once when the binding closes the input side
+	// from below (a unary binding after its first read). The caller's own
+	// close needs no echo; the terminal path is owned by the output pump
+	// (writer latching keeps any race legal under rule 4).
+	go func() {
+		select {
+		case <-inv.InputClosed():
+			if !callerClosed.Load() {
+				_ = writer.write(ctx, frames.InputClosed())
 			}
-		} else {
-			frame = wsInvocationOutput{Type: "event", Output: ev.Output}
+		case <-ctx.Done():
 		}
-		if err := wsjson.Write(ctx, conn, frame); err != nil {
-			logger.Error("websocket write failed", "error", err)
+	}()
+
+	// Output side: handle -> frames, ending in exactly one terminal frame.
+	out := inv.Outputs()
+	for {
+		v, rerr := out.Read(ctx)
+		if errors.Is(rerr, io.EOF) {
+			_ = writer.write(ctx, frames.Complete())
+			break
+		}
+		if rerr != nil {
+			ie := openbindings.AsInvocationError(rerr)
+			select {
+			case pe := <-protoErr:
+				ie = pe
+			default:
+			}
+			_ = writer.write(ctx, frames.Error(ie))
+			break
+		}
+		if werr := writer.write(ctx, frames.Output(v)); werr != nil {
+			// Client unreachable: tear the invocation down and stop.
+			logger.Error("websocket write failed", "error", werr)
+			out.Stop()
 			return
 		}
 	}
+	conn.Close(websocket.StatusNormalClosure, "")
+}
 
-	conn.Close(websocket.StatusNormalClosure, "stream complete")
+// readInputFrames consumes the caller's frame stream after open, driving the
+// invocation handle. It exits when the transport closes (cancelling the
+// invocation's lifetime ctx) or on a protocol violation.
+func readInputFrames(
+	ctx context.Context,
+	cancel context.CancelFunc,
+	conn *websocket.Conn,
+	inv openbindings.Invocation[any, any],
+	callerClosed *atomic.Bool,
+	protoErr chan<- *openbindings.InvocationError,
+	logger *slog.Logger,
+) {
+	violation := func(reason string) {
+		select {
+		case protoErr <- &openbindings.InvocationError{Code: openbindings.ErrCodeProtocol, Message: reason}:
+		default:
+		}
+		inv.Cancel()
+	}
+
+	for {
+		raw, err := readInputFrame(ctx, conn)
+		if err != nil {
+			// Disconnect, client close frame, or our own teardown: cancel the
+			// invocation lifetime so nothing leaks on abandoned streams.
+			cancel()
+			return
+		}
+		var frame frames.InputFrame
+		if uerr := json.Unmarshal(raw, &frame); uerr != nil {
+			violation(uerr.Error()) // rules 1/7: malformed or unknown-property frame
+			return
+		}
+		switch frame.Kind {
+		case frames.KindOpen:
+			violation("second open frame") // rule 2
+			return
+		case frames.KindInput:
+			if callerClosed.Load() || inputSideClosed(inv) {
+				// Rule 3: input after input closure from either side is
+				// ignored — never written, never terminal. Surface a
+				// diagnostic and keep the invocation flowing.
+				logger.Debug("ignoring input frame after input closure")
+				continue
+			}
+			if werr := inv.Write(ctx, frame.Value); werr != nil {
+				var ie *openbindings.InvocationError
+				if errors.As(werr, &ie) && ie.Code == openbindings.ErrCodeInputClosed {
+					// Rule 3's inherent race: closure landed while the write
+					// was in flight. Same treatment as the pre-checked case.
+					logger.Debug("ignoring input frame after input closure")
+					continue
+				}
+				// Invocation already terminal; the output pump owns the
+				// terminal frame. Keep draining until the socket closes.
+				continue
+			}
+		case frames.KindClose:
+			callerClosed.Store(true)
+			_ = inv.Close()
+			// Keep reading: late frames are ignored per rule 3, and a second
+			// open after close is still a rule 2 violation.
+		}
+	}
+}
+
+// inputSideClosed reports (without blocking) whether the invocation's input
+// side has closed from either side.
+func inputSideClosed(inv openbindings.Invocation[any, any]) bool {
+	select {
+	case <-inv.InputClosed():
+		return true
+	default:
+		return false
+	}
+}
+
+// readInputFrame reads one raw text frame from the socket.
+func readInputFrame(ctx context.Context, conn *websocket.Conn) ([]byte, error) {
+	_, data, err := conn.Read(ctx)
+	return data, err
+}
+
+// handleBindingPrepare serves prepareBinding: the side-effect-free preflight
+// reporting the context a binding would require (ContextRequiredDetails), or
+// null when requirements cannot be determined statically.
+func handleBindingPrepare(logger *slog.Logger) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		r.Body = http.MaxBytesReader(w, r.Body, maxRequestBodyBytes)
+		raw, err := io.ReadAll(r.Body)
+		if err != nil {
+			writeJSON(w, http.StatusBadRequest, ErrorResponse{Error: "invalid request body"})
+			return
+		}
+		input, derr := frames.DecodeInvocationInput(raw)
+		if derr != nil {
+			writeJSON(w, http.StatusBadRequest, ErrorResponse{Error: derr.Error()})
+			return
+		}
+
+		logger.Info("bindings/prepare", "format", input.Source.Format, "ref", input.Ref)
+
+		details, perr := app.PrepareBinding(r.Context(), app.InvokeOperationInput{
+			Source: app.InvokeSource{
+				Format:   input.Source.Format,
+				Location: input.Source.Location,
+				Content:  input.Source.Content,
+			},
+			Ref:     input.Ref,
+			Context: input.Context,
+		})
+		if perr != nil {
+			writeJSON(w, http.StatusBadRequest, ErrorResponse{Error: perr.Error()})
+			return
+		}
+		writeJSON(w, http.StatusOK, details)
+	}
 }
 
 func handleInterfaceCreate(w http.ResponseWriter, r *http.Request) {

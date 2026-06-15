@@ -26,7 +26,7 @@ See OpenBindings in action:
 ob demo
 ```
 
-Starts OpenBlendings, a coffee shop demo service exposing five operations across six protocols simultaneously (REST, Connect, gRPC, MCP, GraphQL, SSE). One interface, six protocols, same operations. The server prints endpoints and example commands. `Ctrl+C` to stop.
+Starts OpenBlendings, a coffee shop demo service exposing six operations across six protocols simultaneously (REST, Connect, gRPC, MCP, GraphQL, SSE), including one composed operation defined purely as an operation graph. One interface, six protocols, same operations. The server prints endpoints and example commands. `Ctrl+C` to stop.
 
 ## Getting Started
 
@@ -156,7 +156,7 @@ contract operation by carrying its name as the key or an alias (spec
 OBI-T-12).
 
 ```bash
-ob conform openbindings.context-store.json my-service.obi.json
+ob conform kv-store.json my-service.obi.json
 ```
 
 For each operation in the contract interface:
@@ -174,7 +174,7 @@ ob conform host.json my-service.obi.json --dry-run
 
 ## Delegates
 
-Delegates extend `ob` with binding format support. A delegate is any program that satisfies the `openbindings.binding-invoker` and/or `openbindings.interface-creator` interfaces. When `ob` encounters a binding format, it asks its registered delegates which one handles it and routes `createInterface` / `invokeBinding` calls there. Credentials and context flow through the same `ContextStore` pipeline as in-process execution.
+Delegates extend `ob` with binding format support. A delegate is any program that satisfies the `binding-invoker` and/or `interface-creator` interfaces. When `ob` encounters a binding format, it asks its registered delegates which one handles it and routes `createInterface` / `invokeBinding` calls there. Credentials and context flow through the same `ContextStore` pipeline as in-process execution.
 
 `ob` itself is a delegate. A fresh `ob init` registers two default delegates: `exec:ob` (this binary, which provides OpenAPI, AsyncAPI, gRPC, Connect, MCP, GraphQL, and usage-spec) and `http://localhost:8787` (a conventional local host). Removing a default with `ob delegate remove` records it under `removedDefaultDelegates` so a later `ob init` doesn't bring it back; re-adding clears that record.
 
@@ -204,7 +204,7 @@ For `exec:` and local-path delegates, `ob` invokes `<delegate> --openbindings` a
 The simplest path: scaffold the binding-invoker interface into a new OBI and implement the operations.
 
 ```bash
-ob conform openbindings.binding-invoker.json my-delegate.obi.json --yes
+ob conform binding-invoker.json my-delegate.obi.json --yes
 ```
 
 A minimal `exec:` delegate is a CLI that:
@@ -329,18 +329,17 @@ ob sync interface.json -o dist/interface.json --pure  # publish clean
 ob serve                 # http://localhost:20290 + https://localhost:20291
 ob serve --port 18000    # custom port
 ob serve --no-tls        # HTTP only
-ob serve --token-file ~/.ob/serve.token  # supply bearer token instead of random
+ob serve --token-file ~/.ob/serve.token  # write the session token to a file (for scripts)
 ```
 
 On startup `ob serve` prints the address it bound and a random bearer token. The HTTPS listener uses a local CA installed into the system keychain (first run prompts for `sudo`; subsequent runs are silent).
 
 **Authentication.** Every endpoint except `/`, `/healthz`, `/.well-known/openbindings`, `/openapi.yaml`, `/asyncapi.yaml`, `/oauth/authorize`, and `/oauth/token` requires `Authorization: Bearer <token>`. The token comes from one of:
-- `--token` or the `OB_SERVE_TOKEN` env var (static)
-- `--token-file` (loaded once at startup)
-- Auto-generated at startup if neither is provided (printed once, lost on restart)
+- `--token` or the `OB_SERVE_TOKEN` env var (static, caller-supplied)
+- Auto-generated at startup otherwise (printed once, lost on restart). `--token-file` writes that session token to a file instead of stderr, so scripts can read it; it does not supply a token.
 - An OAuth2 access token obtained via `/oauth/authorize` + `/oauth/token` (PKCE flow)
 
-**CORS.** `ob serve` accepts requests from any origin allowed by `--allowed-origin` (repeatable). Private Network Access preflights (`Access-Control-Request-Private-Network: true`) are honored when the origin is allowlisted, so browser apps served from `https://app.example.com` can reach `https://localhost:20291`.
+**CORS.** `ob serve` accepts requests from any origin allowed by `--allow-origin` (repeatable). Private Network Access preflights (`Access-Control-Request-Private-Network: true`) are honored when the origin is allowlisted, so browser apps served from `https://app.example.com` can reach `https://localhost:20291`.
 
 #### HTTP endpoints
 
@@ -354,15 +353,17 @@ The complete API is described by [`internal/server/openapi.yaml`](https://github
 | `/formats` | GET | Format tokens this `ob` can handle |
 | `/delegates` | GET | Registered delegates |
 | `/status` | GET | Environment status |
-| `/contexts` | GET / DELETE | Inspect or clear per-host context entries |
-| `/bindings/invoke` | POST | Invoke a binding (unary; see WS variant for streaming) |
+| `/contexts` | GET | List per-host context entries |
+| `/contexts/{url}` | GET / PUT / DELETE | Inspect, set, or clear one host's context |
+| `/mcp` | — | MCP endpoint exposing the served operations as tools |
+| `/bindings/invoke` | GET (WebSocket) | Invoke a binding via the binding-invoker frame protocol |
+| `/bindings/prepare` | POST | Preflight a binding's context requirements (`prepareBinding`) |
 | `/interfaces/create` | POST | Create an OBI from a binding source |
 | `/sources/inspect` | POST | Enumerate refs in a source |
 | `/resolve` | POST | Fetch an OBI from a URL (synthesizes if served raw) |
 | `/validate` | POST | Validate an OBI |
 | `/diff` | POST | Structural diff between two OBIs |
 | `/compatibility` | POST | Compatibility check |
-| `/http/request` | POST | Generic HTTP proxy (for clients with CSP/CORS limits) |
 | `/oauth/authorize` + `/oauth/token` | GET / POST | OAuth2 Authorization Code + PKCE |
 | `/spec/{name}` | GET | Embedded spec resources |
 | `/openapi.yaml`, `/asyncapi.yaml` | GET | Self-description specs (no auth) |
@@ -371,39 +372,24 @@ Each POST endpoint accepts and returns JSON. Example:
 
 ```bash
 TOKEN=$(cat ~/.ob/serve.token)
-curl -X POST https://localhost:20291/bindings/invoke \
+curl -X POST https://localhost:20291/bindings/prepare \
   -H "Authorization: Bearer $TOKEN" \
   -H "Content-Type: application/json" \
   -d '{
     "source": { "format": "openapi@3.1", "location": "https://api.example.com/openapi.json" },
-    "ref":    "#/paths/~1users/get",
-    "input":  { "limit": 10 },
-    "context": { "bearerToken": "user-token" }
+    "ref":    "#/paths/~1users/get"
   }'
 ```
 
-#### WebSocket streaming
+#### Binding invocation (WebSocket frame protocol)
 
-`POST /bindings/invoke` is the unary variant. For streaming operations (SSE, gRPC server-stream, WebSocket subscriptions), upgrade `GET /bindings/invoke` to a WebSocket. The complete WS protocol is described by [`internal/server/asyncapi.yaml`](https://github.com/openbindings/ob/blob/main/internal/server/asyncapi.yaml).
+`GET /bindings/invoke` upgrades to a WebSocket speaking the `binding-invoker` frame protocol — one connection per invocation, one shape for unary, server-streaming, client-streaming, and bidirectional bindings. The complete protocol is described by [`internal/server/asyncapi.yaml`](https://github.com/openbindings/ob/blob/main/internal/server/asyncapi.yaml).
 
-WS protocol:
-1. Client opens a WebSocket to `wss://host/bindings/invoke`.
-2. Client sends one JSON message with the invocation envelope (including a `bearerToken` field — browsers can't set headers on the upgrade request).
-3. Server streams back `{type: "event", output: …}` frames as outputs are produced.
-4. On error: server sends `{type: "error", error: {message, code}}` and closes with status 1000.
-5. On normal completion: server closes the connection.
+1. Client opens a WebSocket to `wss://host/bindings/invoke`, presenting the session token on the upgrade request: `Authorization: Bearer <token>`, or the `token` query parameter for browsers (which can't set headers on upgrades).
+2. Client streams input frames: exactly one `{"kind": "open", "input": {source, ref, context?}}` first, then zero or more `{"kind": "input", "value": …}`, then one `{"kind": "close"}`.
+3. Server streams output frames: zero or more `{"kind": "output", "value": …}`, an `{"kind": "input_closed"}` once the binding stops accepting input (later `input` frames are ignored; the invocation continues), and exactly one terminal frame — `{"kind": "complete"}` or `{"kind": "error", "error": {code, message, details?}}` — after which the connection closes.
 
-First-message envelope:
-
-```json
-{
-  "source": { "format": "asyncapi@3.0", "location": "wss://target.example.com" },
-  "ref": "#/operations/subscribeOrders",
-  "input": { "customerId": "abc" },
-  "context": { "bearerToken": "user-token" },
-  "bearerToken": "<ob-serve-token>"
-}
-```
+Missing runtime context surfaces as a terminal `error` with code `CONTEXT_REQUIRED` whose `details` enumerate the requirements, before any output and any side effect; resolve them (typically via `/contexts`) and retry. `POST /bindings/prepare` reports the same requirements proactively when they are statically knowable.
 
 ### `ob mcp` — Model Context Protocol bridge
 
@@ -411,7 +397,7 @@ First-message envelope:
 
 ```bash
 ob mcp https://api.example.com           # stdio transport (for Claude Desktop, Cursor)
-ob mcp --http --port 9100 https://api.example.com    # HTTP transport
+ob mcp --transport http --port 9100 https://api.example.com    # HTTP transport
 ob mcp --token "$API_TOKEN" https://api.example.com  # bearer credential for the target API
 ```
 

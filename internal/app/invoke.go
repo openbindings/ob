@@ -1,9 +1,7 @@
 package app
 
 import (
-	"bytes"
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -546,8 +544,14 @@ func invokeViaBuiltin(ctx context.Context, input InvokeOperationInput) InvokeOpe
 		})
 	}
 
+	return reduceUnaryInvocation(driveBinding(ctx, invoke, bindCtx, input.Input, invoker.ContextResolver))
+}
+
+// reduceUnaryInvocation collapses an invocation event stream to the unary
+// output shape: the last output wins; a terminal error takes precedence.
+func reduceUnaryInvocation(events <-chan InvocationOutput) InvokeOperationOutput {
 	var last *InvocationOutput
-	for ev := range driveBinding(ctx, invoke, bindCtx, input.Input, invoker.ContextResolver) {
+	for ev := range events {
 		ev := ev
 		last = &ev
 	}
@@ -572,126 +576,30 @@ func invokeViaBuiltin(ctx context.Context, input InvokeOperationInput) InvokeOpe
 	}
 }
 
-// invokeViaExternalDelegate invokes an operation via an external delegate.
-// Uses the delegate's OBI to find its invokeBinding binding and invokes it
-// through the normal binding invocation system.
+// invokeViaExternalDelegate invokes an operation via an external delegate's
+// invokeBinding capability (the binding-invoker frame protocol over WebSocket,
+// or the delegate's CLI realization; see DelegateBindingInvoker), driving the
+// unary shape through the invocation handle. CONTEXT_REQUIRED challenges from
+// the delegate (or the downstream binding behind it) resolve through the
+// configured resolver, exactly as for in-process invokers.
 func invokeViaExternalDelegate(ctx context.Context, resolved delegates.Resolved, input InvokeOperationInput) InvokeOperationOutput {
-	loc := resolved.Location
-	if loc == "" {
-		return InvokeOperationOutput{
-			Error: &Error{
-				Code:    "invalid_delegate",
-				Message: fmt.Sprintf("delegate %q has no location", resolved.Delegate),
-			},
-		}
-	}
-
-	if resolved.OBI == nil {
-		return invokeViaCLILegacy(ctx, loc, input)
-	}
-
-	iface := &resolved.OBI.Interface
-
-	bindingKey, binding := DefaultBindingForOp("invokeBinding", iface)
-	if binding == nil {
-		return invokeViaCLILegacy(ctx, loc, input)
-	}
-
-	sourceName := binding.Source
-	source, ok := iface.Sources[sourceName]
-	if !ok {
-		return InvokeOperationOutput{
-			Error: &Error{
-				Code:    "delegate_error",
-				Message: fmt.Sprintf("delegate %q: binding source %q not found", resolved.Delegate, sourceName),
-			},
-		}
-	}
-
-	var inputPayload any = input
-	if binding.InputTransform != nil {
-		transformed, tErr := ApplyTransform(iface.Transforms, binding.InputTransform, input)
-		if tErr != nil {
-			return InvokeOperationOutput{
-				Error: &Error{
-					Code:    "transform_error",
-					Message: fmt.Sprintf("delegate %q: input transform for %q failed: %v", resolved.Delegate, bindingKey, tErr),
-				},
-			}
-		}
-		inputPayload = transformed
-	}
-
-	execInput := InvokeOperationInput{
-		Source: InvokeSource{
-			Format:   source.Format,
-			Location: source.Location,
-		},
-		Ref:     binding.Ref,
-		Input:   inputPayload,
-		Context: input.Context,
-	}
-
-	es := resolveSourceLocation(source, "")
-	execInput.Source.Location = es.Location
-	if es.Content != nil {
-		execInput.Source.Content = es.Content
-	}
-
-	return invokeViaBuiltin(ctx, execInput)
-}
-
-// invokeViaCLILegacy is the fallback for delegates that don't have an OBI
-// with an invokeBinding binding. Uses the legacy execute --as-delegate protocol.
-func invokeViaCLILegacy(ctx context.Context, delegatePath string, input InvokeOperationInput) InvokeOperationOutput {
-	inputJSON, err := json.Marshal(input)
+	delegateInvoker, err := DelegateBindingInvoker(resolved)
 	if err != nil {
 		return InvokeOperationOutput{
-			Error: &Error{
-				Code:    "json_marshal_error",
-				Message: fmt.Sprintf("failed to marshal input: %v", err),
+			Error: &Error{Code: "delegate_error", Message: err.Error()},
+		}
+	}
+
+	invoke := func(ctx context.Context, ctxData map[string]any) openbindings.Invocation[any, any] {
+		return delegateInvoker.InvokeBinding(ctx, &openbindings.BindingInvocationArgs{
+			Source: openbindings.InvocationSource{
+				Format:   input.Source.Format,
+				Location: input.Source.Location,
+				Content:  input.Source.Content,
 			},
-		}
+			Ref:     input.Ref,
+			Context: ctxData,
+		})
 	}
-
-	cmd := exec.CommandContext(ctx, delegatePath, "execute", "--as-delegate")
-	cmd.Stdin = bytes.NewReader(inputJSON)
-
-	var stdout, stderr bytes.Buffer
-	cmd.Stdout = &stdout
-	cmd.Stderr = &stderr
-
-	err = cmd.Run()
-
-	if ctx.Err() != nil {
-		return InvokeOperationOutput{
-			Error: &Error{
-				Code:    "cancelled",
-				Message: "operation cancelled",
-			},
-		}
-	}
-
-	var output InvokeOperationOutput
-	if stdout.Len() > 0 {
-		if jsonErr := json.Unmarshal(stdout.Bytes(), &output); jsonErr != nil {
-			output.Output = stdout.String()
-		}
-	}
-
-	if err != nil {
-		if exitErr, ok := err.(*exec.ExitError); ok {
-			output.Status = exitErr.ExitCode()
-		} else {
-			output.Status = 1
-		}
-		if output.Error == nil && stderr.Len() > 0 {
-			output.Error = &Error{
-				Code:    "execution_failed",
-				Message: strings.TrimSpace(stderr.String()),
-			}
-		}
-	}
-
-	return output
+	return reduceUnaryInvocation(driveBinding(ctx, invoke, input.Context, input.Input, DefaultInvoker().ContextResolver))
 }
