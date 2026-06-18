@@ -55,7 +55,7 @@ Exit codes:
 			}
 
 			if quiet {
-				if result.Identical {
+				if result.Identical() {
 					return nil
 				}
 				return app.ExitResult{Code: 1, Message: "", ToStderr: false}
@@ -63,7 +63,7 @@ Exit codes:
 
 			// Exit code 1 if differences found.
 			exitCode := 0
-			if !result.Identical {
+			if !result.Identical() {
 				exitCode = 1
 			}
 

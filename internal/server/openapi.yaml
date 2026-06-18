@@ -653,8 +653,6 @@ components:
     DiffReport:
       type: object
       properties:
-        identical:
-          type: boolean
         operations:
           type: array
           items:

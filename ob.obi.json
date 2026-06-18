@@ -1126,10 +1126,8 @@
     },
     "DiffReport": {
       "type": "object",
+      "description": "The differences between two interfaces (or an interface and what its sources produce). Empty operations, metadata, and drift means they are identical.",
       "properties": {
-        "identical": {
-          "type": "boolean"
-        },
         "operations": {
           "type": "array",
           "items": {
@@ -1155,9 +1153,6 @@
           }
         }
       },
-      "required": [
-        "identical"
-      ],
       "additionalProperties": false
     },
     "OperationDiff": {
@@ -2165,13 +2160,23 @@
     },
     "ConformAction": {
       "type": "object",
-      "description": "A single scaffolding change conform made or would make to the target.",
+      "description": "A single change conform made or would make to the target.",
       "properties": {
         "operation": {
           "type": "string",
           "description": "The operation key the change concerns."
         },
         "action": {
+          "type": "string",
+          "enum": [
+            "scaffold",
+            "replace",
+            "skip",
+            "compatible"
+          ],
+          "description": "scaffold (add a missing operation), replace (update a drifted one), skip, or compatible (already conforms)."
+        },
+        "details": {
           "type": "string",
           "description": "Human-readable description of the change."
         }

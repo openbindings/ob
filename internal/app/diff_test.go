@@ -29,14 +29,11 @@ func TestDiff_IdenticalOBIs(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	if !report.Identical {
+	if !report.Identical() {
 		t.Error("expected identical, got differences")
 	}
-	if len(report.Operations) != 1 {
-		t.Errorf("expected 1 operation, got %d", len(report.Operations))
-	}
-	if report.Operations[0].Status != DiffInSync {
-		t.Errorf("expected in-sync, got %s", report.Operations[0].Status)
+	if len(report.Operations) != 0 {
+		t.Errorf("expected no operation diffs for identical OBIs, got %d", len(report.Operations))
 	}
 }
 
@@ -59,7 +56,7 @@ func TestDiff_AddedOperation(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	if report.Identical {
+	if report.Identical() {
 		t.Error("expected differences, got identical")
 	}
 
@@ -94,7 +91,7 @@ func TestDiff_RemovedOperation(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	if report.Identical {
+	if report.Identical() {
 		t.Error("expected differences, got identical")
 	}
 
@@ -141,7 +138,7 @@ func TestDiff_ChangedOperation(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	if report.Identical {
+	if report.Identical() {
 		t.Error("expected differences")
 	}
 
@@ -183,7 +180,7 @@ func TestDiff_MetadataDiff(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	if report.Identical {
+	if report.Identical() {
 		t.Error("expected metadata differences")
 	}
 
@@ -194,9 +191,7 @@ func TestDiff_MetadataDiff(t *testing.T) {
 
 func TestDiff_RenderOutput(t *testing.T) {
 	report := DiffReport{
-		Identical: false,
 		Operations: []OperationDiff{
-			{Operation: "greet", Status: DiffInSync},
 			{Operation: "goodbye", Status: DiffAdded},
 			{Operation: "hello", Status: DiffRemoved},
 			{Operation: "update", Status: DiffChanged, Details: []string{"input schema differs"}},
@@ -210,7 +205,7 @@ func TestDiff_RenderOutput(t *testing.T) {
 }
 
 func TestDiff_IdenticalRender(t *testing.T) {
-	report := DiffReport{Identical: true}
+	report := DiffReport{}
 	rendered := report.Render()
 	if rendered == "" {
 		t.Error("expected non-empty render output for identical")

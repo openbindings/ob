@@ -15,7 +15,6 @@ import (
 type DiffStatus string
 
 const (
-	DiffInSync  DiffStatus = "in-sync"
 	DiffChanged DiffStatus = "changed"
 	DiffAdded   DiffStatus = "added"
 	DiffRemoved DiffStatus = "removed"
@@ -49,19 +48,27 @@ type DriftSource struct {
 	Format string `json:"format"`
 }
 
-// DiffReport is the full diff result between two OBIs.
+// DiffReport is the full diff result between two OBIs. It reports only
+// differences: an empty report (no operation, metadata, or drift entries)
+// means the two interfaces are structurally identical.
 type DiffReport struct {
-	Identical  bool            `json:"identical"`
 	Operations []OperationDiff `json:"operations,omitempty"`
 	Metadata   []MetadataDiff  `json:"metadata,omitempty"`
 	Drift      []DriftEntry    `json:"drift,omitempty"`
 	Warnings   []string        `json:"warnings,omitempty"`
 }
 
+// Identical reports whether the two interfaces are structurally identical,
+// i.e. the report carries no operation, metadata, or cross-source drift
+// differences. Warnings are advisory and do not count as differences.
+func (r DiffReport) Identical() bool {
+	return len(r.Operations) == 0 && len(r.Metadata) == 0 && len(r.Drift) == 0
+}
+
 // Render returns a human-friendly representation.
 func (r DiffReport) Render() string {
 	s := Styles
-	if r.Identical {
+	if r.Identical() {
 		return s.Success.Render("Identical — no differences found")
 	}
 
@@ -84,7 +91,7 @@ func (r DiffReport) Render() string {
 	}
 
 	// Show operations grouped by status.
-	added, removed, changed, inSync := groupByStatus(r.Operations)
+	added, removed, changed := groupByStatus(r.Operations)
 
 	if len(added) > 0 {
 		sb.WriteString("\n")
@@ -114,12 +121,6 @@ func (r DiffReport) Render() string {
 				sb.WriteString(fmt.Sprintf("      %s\n", s.Dim.Render(d)))
 			}
 		}
-	}
-
-	if len(inSync) > 0 {
-		sb.WriteString("\n")
-		sb.WriteString(s.Success.Render(fmt.Sprintf("  = %d in sync", len(inSync))))
-		sb.WriteString("\n")
 	}
 
 	// Show cross-source drift (D10).
@@ -215,9 +216,6 @@ func diffFromSources(input DiffInput) (DiffReport, error) {
 
 	// Attach drift to the report.
 	report.Drift = drift
-	if len(drift) > 0 {
-		report.Identical = false
-	}
 
 	return report, nil
 }
@@ -297,15 +295,11 @@ func detectCrossSourceDrift(perSource []perSourceDerivation) []DriftEntry {
 // computeDiff performs the actual structural comparison between two Interfaces.
 func computeDiff(baseline, comparison *openbindings.Interface, warnings []string) (DiffReport, error) {
 	report := DiffReport{
-		Identical: true,
-		Warnings:  warnings,
+		Warnings: warnings,
 	}
 
 	// Diff metadata.
 	report.Metadata = diffMetadata(baseline, comparison)
-	if len(report.Metadata) > 0 {
-		report.Identical = false
-	}
 
 	// Collect all operation keys from both sides.
 	allOps := make(map[string]bool)
@@ -339,25 +333,17 @@ func computeDiff(baseline, comparison *openbindings.Interface, warnings []string
 					Status:    DiffChanged,
 					Details:   details,
 				})
-				report.Identical = false
-			} else {
-				report.Operations = append(report.Operations, OperationDiff{
-					Operation: key,
-					Status:    DiffInSync,
-				})
 			}
 		case inBaseline && !inComparison:
 			report.Operations = append(report.Operations, OperationDiff{
 				Operation: key,
 				Status:    DiffRemoved,
 			})
-			report.Identical = false
 		case !inBaseline && inComparison:
 			report.Operations = append(report.Operations, OperationDiff{
 				Operation: key,
 				Status:    DiffAdded,
 			})
-			report.Identical = false
 		}
 	}
 
@@ -446,7 +432,7 @@ func canonicalEqual(a, b any) bool {
 }
 
 // groupByStatus groups operation diffs by their status.
-func groupByStatus(ops []OperationDiff) (added, removed, changed, inSync []OperationDiff) {
+func groupByStatus(ops []OperationDiff) (added, removed, changed []OperationDiff) {
 	for _, op := range ops {
 		switch op.Status {
 		case DiffAdded:
@@ -455,8 +441,6 @@ func groupByStatus(ops []OperationDiff) (added, removed, changed, inSync []Opera
 			removed = append(removed, op)
 		case DiffChanged:
 			changed = append(changed, op)
-		case DiffInSync:
-			inSync = append(inSync, op)
 		}
 	}
 	return
