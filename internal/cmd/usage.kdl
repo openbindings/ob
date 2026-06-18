@@ -42,7 +42,6 @@ cmd "context" help="Manage binding context (credentials, headers, environment)" 
     flag "--cookie <cookie>" help="Add cookie as \"Key=Value\" (repeatable)"
     flag "--env <env>" help="Add env var as \"VAR=value\" (repeatable)"
     flag "--meta <meta>" help="Add metadata as \"key=value\" (repeatable)"
-    flag "--source <source>" help="Scope context to a specific source within the target"
     flag "--from-curl <curl>" help="Import context from a curl command string"
     arg "<url>" help="Target URL"
   }

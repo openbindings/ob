@@ -236,7 +236,7 @@
         ]
       }
     },
-    "openbindings.kv-store.get": {
+    "ob.getContext": {
       "description": "Get the stored context for a key. Returns the unified context payload (credentials, headers, cookies, environment, metadata in a single opaque map), or null when no context exists for the key.",
       "idempotent": true,
       "input": {
@@ -251,24 +251,33 @@
             "type": "null"
           }
         ]
-      }
+      },
+      "aliases": [
+        "openbindings.kv-store.get"
+      ]
     },
-    "openbindings.kv-store.set": {
+    "ob.setContext": {
       "description": "Create or replace the context for a key. The supplied value fully replaces any existing context (full replacement, not partial update).",
       "idempotent": true,
       "input": {
         "$ref": "#/schemas/SetContextInput"
-      }
+      },
+      "aliases": [
+        "openbindings.kv-store.set"
+      ]
     },
-    "openbindings.kv-store.delete": {
+    "ob.deleteContext": {
       "description": "Delete the stored context for a key. Deleting an absent key succeeds.",
       "idempotent": true,
       "input": {
         "$ref": "#/schemas/ContextKeyInput"
-      }
+      },
+      "aliases": [
+        "openbindings.kv-store.delete"
+      ]
     },
     "ob.listContexts": {
-      "description": "List non-secret metadata summaries for all stored contexts. Never returns secret values. This is ob's management surface, deliberately outside the kv-store interface, which standardizes only opaque get/set/delete.",
+      "description": "List non-secret metadata summaries for all stored contexts; never returns secret values. Completes the context surface with listing and inspection: the generic kv-store substrate these contexts are stored under (satisfied by getContext/setContext/deleteContext) standardizes only opaque get/set/delete, so this management view is ob's own.",
       "idempotent": true,
       "output": {
         "type": "array",
