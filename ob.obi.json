@@ -910,7 +910,7 @@
         "conflicts": {
           "type": "array",
           "items": {
-            "$ref": "#/schemas/ObjectConflict"
+            "$ref": "#/schemas/SyncConflict"
           }
         },
         "warnings": {
@@ -918,6 +918,10 @@
           "items": {
             "type": "string"
           }
+        },
+        "pure": {
+          "type": "boolean",
+          "description": "True when x-ob metadata was stripped from the result."
         }
       },
       "required": [
@@ -964,27 +968,28 @@
     },
     "MergeResult": {
       "type": "object",
-      "description": "The merged interface plus a report of what was applied and skipped.",
       "properties": {
         "interface": {
           "$ref": "#/schemas/OpenBindingsInterface"
         },
-        "applied": {
+        "entries": {
           "type": "array",
           "items": {
-            "type": "string"
+            "$ref": "#/schemas/MergeEntry"
           }
+        },
+        "applied": {
+          "type": "integer",
+          "description": "Number of changes applied."
         },
         "skipped": {
+          "type": "integer",
+          "description": "Number of changes skipped."
+        },
+        "warnings": {
           "type": "array",
           "items": {
             "type": "string"
-          }
-        },
-        "conflicts": {
-          "type": "array",
-          "items": {
-            "$ref": "#/schemas/ObjectConflict"
           }
         }
       },
@@ -1038,10 +1043,13 @@
     },
     "FieldConflict": {
       "type": "object",
-      "description": "A single field that differs between the local edit and the source.",
+      "description": "One field that differs across the three-way merge of an object.",
       "properties": {
         "field": {
           "type": "string"
+        },
+        "base": {
+          "description": "The value in the common ancestor."
         },
         "local": {
           "description": "The locally edited value."
@@ -1053,7 +1061,7 @@
       "required": [
         "field"
       ],
-      "additionalProperties": true
+      "additionalProperties": false
     },
     "ValidateInterfaceInput": {
       "type": "object",
@@ -2228,6 +2236,63 @@
       "required": [
         "key",
         "operation"
+      ],
+      "additionalProperties": false
+    },
+    "SyncConflict": {
+      "type": "object",
+      "description": "A single conflicting field on an object during sync.",
+      "properties": {
+        "object": {
+          "type": "string",
+          "description": "The conflicted object, e.g. 'operation:hello' or 'binding:hello.openapi'."
+        },
+        "field": {
+          "type": "string"
+        },
+        "base": {
+          "description": "The value in the common ancestor."
+        },
+        "local": {
+          "description": "The locally edited value."
+        },
+        "source": {
+          "description": "The value the source now produces."
+        }
+      },
+      "required": [
+        "object",
+        "field"
+      ],
+      "additionalProperties": false
+    },
+    "MergeEntry": {
+      "type": "object",
+      "description": "One operation-level change in a merge, and whether it was applied.",
+      "properties": {
+        "operation": {
+          "type": "string",
+          "description": "The operation key the change concerns."
+        },
+        "action": {
+          "type": "string",
+          "description": "The merge action for this entry (e.g. add, update, conflict)."
+        },
+        "details": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "applied": {
+          "type": "boolean",
+          "description": "Whether this change was applied."
+        }
+      },
+      "required": [
+        "operation",
+        "action",
+        "applied"
       ],
       "additionalProperties": false
     }
