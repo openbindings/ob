@@ -183,7 +183,7 @@ bindings — add bindings separately via merge or source.
 
 Examples:
   ob op add interface.json createUser --description "Create a new user"
-  ob op add interface.json createUser --input '{"type":"object","properties":{"name":{"type":"string"}}}'
+  ob op add interface.json createUser --input-schema '{"type":"object","properties":{"name":{"type":"string"}}}'
   ob op add interface.json listUsers --tag admin --tag readonly --idempotent true`,
 		Args: cobra.ExactArgs(2),
 		RunE: func(cmd *cobra.Command, args []string) error {
@@ -197,14 +197,14 @@ Examples:
 			if inputJSON != "" {
 				var schema map[string]any
 				if err := json.Unmarshal([]byte(inputJSON), &schema); err != nil {
-					return app.ExitResult{Code: 2, Message: fmt.Sprintf("invalid --input JSON: %v", err), ToStderr: true}
+					return app.ExitResult{Code: 2, Message: fmt.Sprintf("invalid --input-schema JSON: %v", err), ToStderr: true}
 				}
 				addInput.Input = schema
 			}
 			if outputJSON != "" {
 				var schema map[string]any
 				if err := json.Unmarshal([]byte(outputJSON), &schema); err != nil {
-					return app.ExitResult{Code: 2, Message: fmt.Sprintf("invalid --output JSON: %v", err), ToStderr: true}
+					return app.ExitResult{Code: 2, Message: fmt.Sprintf("invalid --output-schema JSON: %v", err), ToStderr: true}
 				}
 				addInput.Output = schema
 			}
@@ -224,8 +224,8 @@ Examples:
 
 	cmd.Flags().StringVar(&description, "description", "", "operation description")
 	cmd.Flags().StringArrayVar(&tags, "tag", nil, "operation tag (repeatable)")
-	cmd.Flags().StringVar(&inputJSON, "input", "", "input schema as JSON")
-	cmd.Flags().StringVar(&outputJSON, "output", "", "output schema as JSON")
+	cmd.Flags().StringVar(&inputJSON, "input-schema", "", "input schema as JSON")
+	cmd.Flags().StringVar(&outputJSON, "output-schema", "", "output schema as JSON")
 	cmd.Flags().StringVar(&idempotent, "idempotent", "", "whether the operation is idempotent (true/false)")
 
 	return cmd

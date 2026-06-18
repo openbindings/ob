@@ -707,24 +707,7 @@
           "$ref": "#/schemas/OpenBindingsInterface"
         },
         "source": {
-          "type": "string",
-          "description": "Source path or format:path (e.g. openapi.json or usage@2.0.0:./cli.kdl)."
-        },
-        "key": {
-          "type": "string",
-          "description": "Explicit source key; default derived from format and path."
-        },
-        "resolve": {
-          "type": "string",
-          "enum": [
-            "location",
-            "content"
-          ],
-          "description": "Resolution mode; default location."
-        },
-        "uri": {
-          "type": "string",
-          "description": "Explicit published URI for location mode."
+          "$ref": "#/schemas/CreateInterfaceSource"
         }
       },
       "required": [
@@ -817,6 +800,16 @@
           "items": {
             "type": "string"
           }
+        },
+        "input": {
+          "description": "JSON Schema for the new operation's input."
+        },
+        "output": {
+          "description": "JSON Schema for the new operation's output."
+        },
+        "idempotent": {
+          "type": "boolean",
+          "description": "Whether the new operation is idempotent."
         }
       },
       "required": [
