@@ -65,12 +65,11 @@ type SourceListOutput struct {
 	Sources []SourceEntry `json:"sources"`
 }
 
-// SourceEntry is a single source in the list.
+// SourceEntry is a single source in the list: the source as stored in the
+// interface, tagged with its key.
 type SourceEntry struct {
-	Key        string `json:"key"`
-	Format     string `json:"format"`
-	Location   string `json:"location,omitempty"`
-	HasContent bool   `json:"hasContent,omitempty"`
+	Key    string              `json:"key"`
+	Source openbindings.Source `json:"source"`
 }
 
 // Render returns a human-friendly representation.
@@ -86,11 +85,11 @@ func (o SourceListOutput) Render() string {
 		sb.WriteString("\n  ")
 		sb.WriteString(s.Key.Render(src.Key))
 		sb.WriteString(s.Dim.Render("  "))
-		sb.WriteString(src.Format)
-		if src.Location != "" {
+		sb.WriteString(src.Source.Format)
+		if src.Source.Location != "" {
 			sb.WriteString(s.Dim.Render("  → "))
-			sb.WriteString(src.Location)
-		} else if src.HasContent {
+			sb.WriteString(src.Source.Location)
+		} else if src.Source.Content != nil {
 			sb.WriteString(s.Dim.Render("  (content)"))
 		}
 	}
@@ -242,12 +241,7 @@ func SourceList(obiPath string) (SourceListOutput, error) {
 
 	var entries []SourceEntry
 	for key, src := range iface.Sources {
-		entries = append(entries, SourceEntry{
-			Key:        key,
-			Format:     src.Format,
-			Location:   src.Location,
-			HasContent: src.Content != nil,
-		})
+		entries = append(entries, SourceEntry{Key: key, Source: src})
 	}
 
 	// Sort by key for deterministic output.

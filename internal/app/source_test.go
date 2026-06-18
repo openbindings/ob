@@ -5,6 +5,8 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+
+	"github.com/openbindings/openbindings-go"
 )
 
 func TestSourceAdd_Basic(t *testing.T) {
@@ -325,8 +327,8 @@ func TestSourceAdd_RelativePath(t *testing.T) {
 func TestSourceList_RenderOutput(t *testing.T) {
 	output := SourceListOutput{
 		Sources: []SourceEntry{
-			{Key: "cliSpec", Format: "usage@2.0.0", Location: "cli.kdl"},
-			{Key: "restApi", Format: "openapi@3.1", Location: "api.yaml"},
+			{Key: "cliSpec", Source: openbindings.Source{Format: "usage@2.0.0", Location: "cli.kdl"}},
+			{Key: "restApi", Source: openbindings.Source{Format: "openapi@3.1", Location: "api.yaml"}},
 		},
 	}
 

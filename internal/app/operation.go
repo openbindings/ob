@@ -15,13 +15,12 @@ type OperationListOutput struct {
 	Operations []OperationEntry `json:"operations"`
 }
 
-// OperationEntry is a single operation in the list.
+// OperationEntry is a single operation in the list: the operation as stored in
+// the interface, tagged with its key and the bindings that realize it.
 type OperationEntry struct {
-	Key          string   `json:"key"`
-	Description  string   `json:"description,omitempty"`
-	Tags         []string `json:"tags,omitempty"`
-	Managed      bool     `json:"managed"`
-	BindingCount int      `json:"bindingCount"`
+	Key       string                 `json:"key"`
+	Operation openbindings.Operation `json:"operation"`
+	Bindings  []string               `json:"bindings,omitempty"`
 }
 
 // Render returns a human-friendly representation.
@@ -36,20 +35,20 @@ func (o OperationListOutput) Render() string {
 	for _, op := range o.Operations {
 		sb.WriteString("\n  ")
 		sb.WriteString(s.Key.Render(op.Key))
-		if len(op.Tags) > 0 {
+		if len(op.Operation.Tags) > 0 {
 			sb.WriteString(s.Dim.Render("  ["))
-			sb.WriteString(strings.Join(op.Tags, ", "))
+			sb.WriteString(strings.Join(op.Operation.Tags, ", "))
 			sb.WriteString(s.Dim.Render("]"))
 		}
-		if op.Managed {
+		if HasXOB(op.Operation.LosslessFields) {
 			sb.WriteString(s.Dim.Render("  managed"))
 		}
-		if op.BindingCount > 0 {
-			sb.WriteString(s.Dim.Render(fmt.Sprintf("  %d binding(s)", op.BindingCount)))
+		if len(op.Bindings) > 0 {
+			sb.WriteString(s.Dim.Render(fmt.Sprintf("  %d binding(s)", len(op.Bindings))))
 		}
-		if op.Description != "" {
+		if op.Operation.Description != "" {
 			sb.WriteString("\n    ")
-			sb.WriteString(s.Dim.Render(op.Description))
+			sb.WriteString(s.Dim.Render(op.Operation.Description))
 		}
 	}
 	return sb.String()
@@ -62,10 +61,13 @@ func OperationList(obiPath string, tagFilter string) (OperationListOutput, error
 		return OperationListOutput{}, fmt.Errorf("load OBI: %w", err)
 	}
 
-	// Count bindings per operation.
-	bindingCounts := map[string]int{}
-	for _, b := range iface.Bindings {
-		bindingCounts[b.Operation]++
+	// Collect the binding keys that realize each operation.
+	bindingsByOp := map[string][]string{}
+	for bkey, b := range iface.Bindings {
+		bindingsByOp[b.Operation] = append(bindingsByOp[b.Operation], bkey)
+	}
+	for _, keys := range bindingsByOp {
+		sort.Strings(keys)
 	}
 
 	var entries []OperationEntry
@@ -75,11 +77,9 @@ func OperationList(obiPath string, tagFilter string) (OperationListOutput, error
 			continue
 		}
 		entries = append(entries, OperationEntry{
-			Key:          key,
-			Description:  op.Description,
-			Tags:         op.Tags,
-			Managed:      HasXOB(op.LosslessFields),
-			BindingCount: bindingCounts[key],
+			Key:       key,
+			Operation: op,
+			Bindings:  bindingsByOp[key],
 		})
 	}
 

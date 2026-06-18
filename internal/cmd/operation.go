@@ -314,7 +314,7 @@ func checkManagedOps(obiPath string, keys []string) string {
 
 	managed := map[string]bool{}
 	for _, op := range result.Operations {
-		if op.Managed {
+		if app.HasXOB(op.Operation.LosslessFields) {
 			managed[op.Key] = true
 		}
 	}

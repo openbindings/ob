@@ -336,7 +336,7 @@ cmd "two" help="Second" {}
 
 	var removeKey string
 	for _, e := range listOut.Sources {
-		if e.Format == usageFormat {
+		if e.Source.Format == usageFormat {
 			removeKey = e.Key
 			break
 		}

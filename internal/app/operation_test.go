@@ -4,6 +4,8 @@ import (
 	"encoding/json"
 	"os"
 	"testing"
+
+	"github.com/openbindings/openbindings-go"
 )
 
 // --- List tests ---
@@ -80,15 +82,15 @@ func TestOperationList_BindingCount(t *testing.T) {
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	if result.Operations[0].BindingCount != 2 {
-		t.Errorf("expected 2 bindings, got %d", result.Operations[0].BindingCount)
+	if len(result.Operations[0].Bindings) != 2 {
+		t.Errorf("expected 2 bindings, got %d", len(result.Operations[0].Bindings))
 	}
 }
 
 func TestOperationList_Render(t *testing.T) {
 	output := OperationListOutput{
 		Operations: []OperationEntry{
-			{Key: "hello", Description: "Say hello", Tags: []string{"greet"}, BindingCount: 1},
+			{Key: "hello", Operation: openbindings.Operation{Description: "Say hello", Tags: []string{"greet"}}, Bindings: []string{"hello.openapi"}},
 		},
 	}
 	rendered := output.Render()
