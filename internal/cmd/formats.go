@@ -7,8 +7,8 @@ import (
 
 func newFormatsCmd() *cobra.Command {
 	cmd := &cobra.Command{
-		Use:     "format",
-		Aliases: []string{"formats"},
+		Use:     "formats",
+		Aliases: []string{"format"},
 		Short:   "List format tokens this ob instance can handle",
 		Args:    cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {

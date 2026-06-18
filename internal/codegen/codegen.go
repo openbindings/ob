@@ -128,7 +128,7 @@ func Generate(iface *openbindings.Interface) (*CodegenResult, error) {
 // For HTTP-fetchable OBIs (openapi/asyncapi/graphql with http(s) source
 // locations), the embedded contract contains only operations + schemas.
 // At runtime, the caller fetches a live OBI from the target URL (via
-// `fetchInterface`) and passes it to the typed invoker's methods. Binding
+// `resolveInterface`) and passes it to the typed invoker's methods. Binding
 // dispatch uses that live OBI, so stripping bindings from the embedded
 // contract keeps the codegen output compact.
 //

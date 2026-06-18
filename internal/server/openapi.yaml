@@ -306,7 +306,7 @@ paths:
 
   /resolve:
     post:
-      operationId: fetchInterface
+      operationId: resolveInterface
       summary: Resolve an interface from a URL
       requestBody:
         required: true

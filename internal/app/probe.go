@@ -231,17 +231,20 @@ func probeHTTP(u string, timeout time.Duration) ProbeResult {
 	return result
 }
 
-// FetchOBI downloads an OpenBindings interface from a URL or host.
+// ResolveOBI resolves an OpenBindings interface from a URL or host.
 // The URL is normalized (e.g. localhost:8080 becomes http://localhost:8080);
-// if the direct GET does not return an OBI, /.well-known/openbindings is tried.
-// Returns the OBI document bytes (validated JSON) or an error.
-func FetchOBI(urlOrHost string) ([]byte, error) {
+// if the direct GET does not return an OBI, /.well-known/openbindings is tried,
+// and failing that, an interface is synthesized from the raw spec found there.
+// Returns the OBI document bytes (validated JSON) and, when the interface was
+// synthesized from a raw spec, the format token it was synthesized from
+// (e.g. "openapi@3.1"); synthesizedFrom is empty for native OBIs.
+func ResolveOBI(urlOrHost string) (doc []byte, synthesizedFrom string, err error) {
 	u := NormalizeURL(urlOrHost)
 	if u == "" {
-		return nil, fmt.Errorf("empty URL or host")
+		return nil, "", fmt.Errorf("empty URL or host")
 	}
 	if !strings.HasPrefix(u, "http://") && !strings.HasPrefix(u, "https://") {
-		return nil, fmt.Errorf("fetch requires an HTTP(S) URL or host (got %q)", urlOrHost)
+		return nil, "", fmt.Errorf("resolve requires an HTTP(S) URL or host (got %q)", urlOrHost)
 	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), delegates.DefaultProbeTimeout)
@@ -249,12 +252,16 @@ func FetchOBI(urlOrHost string) ([]byte, error) {
 
 	fetched, err := openbindings.FetchInterface(ctx, u, openbindings.WithCreators(DefaultCreator()))
 	if err != nil {
-		return nil, err
+		return nil, "", err
 	}
 	if fetched == nil || fetched.Interface == nil {
-		return nil, fmt.Errorf("no OpenBindings interface at %s (try %s%s)", u, strings.TrimSuffix(u, "/"), openbindings.WellKnownPath)
+		return nil, "", fmt.Errorf("no OpenBindings interface at %s (try %s%s)", u, strings.TrimSuffix(u, "/"), openbindings.WellKnownPath)
 	}
-	return json.MarshalIndent(fetched.Interface, "", "  ")
+	if fetched.Synthesized {
+		synthesizedFrom = firstSourceFormat(fetched.Interface)
+	}
+	doc, err = json.MarshalIndent(fetched.Interface, "", "  ")
+	return doc, synthesizedFrom, err
 }
 
 func normalizeOBIJSON(body []byte) (string, bool) {

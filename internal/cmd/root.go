@@ -89,11 +89,14 @@ func NewRoot() *cobra.Command {
 	contextCmd := newContextCmd()
 	contextCmd.GroupID = "start"
 
-	fetchCmd := newFetchCmd()
-	fetchCmd.GroupID = "explore"
+	resolveCmd := newResolveCmd()
+	resolveCmd.GroupID = "explore"
 
 	createCmd := newCreateCmd()
 	createCmd.GroupID = "authoring"
+
+	inspectCmd := newInspectCmd()
+	inspectCmd.GroupID = "authoring"
 
 	sourceCmd := newSourceCmd()
 	sourceCmd.GroupID = "authoring"
@@ -150,8 +153,9 @@ func NewRoot() *cobra.Command {
 		initCmd,
 		statusCmd,
 		contextCmd,
-		fetchCmd,
+		resolveCmd,
 		createCmd,
+		inspectCmd,
 		sourceCmd,
 		operationCmd,
 		bindingCmd,

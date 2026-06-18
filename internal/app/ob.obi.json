@@ -107,15 +107,15 @@
       "source": "usage",
       "x-ob": {}
     },
-    "fetchInterface.openapi": {
-      "operation": "fetchInterface",
+    "resolveInterface.openapi": {
+      "operation": "resolveInterface",
       "ref": "#/paths/~1resolve/post",
       "source": "openapi",
       "x-ob": {}
     },
-    "fetchInterface.usage": {
-      "operation": "fetchInterface",
-      "ref": "fetch",
+    "resolveInterface.usage": {
+      "operation": "resolveInterface",
+      "ref": "resolve",
       "source": "usage",
       "x-ob": {}
     },
@@ -691,8 +691,8 @@
       ],
       "x-ob": {}
     },
-    "fetchInterface": {
-      "description": "Download an OpenBindings interface from a URL or host",
+    "resolveInterface": {
+      "description": "Resolve an OpenBindings interface from a URL or host",
       "input": {
         "properties": {
           "output": {
@@ -710,7 +710,7 @@
         "type": "object"
       },
       "tags": [
-        "fetch"
+        "resolve"
       ],
       "x-ob": {}
     },

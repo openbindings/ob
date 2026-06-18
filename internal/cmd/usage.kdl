@@ -14,7 +14,7 @@ cmd "status" help="Show environment status or OBI sync report" opKey="getEnviron
   arg "[obi-path]" help="OBI file path (shows sync report instead of env status)"
 }
 
-cmd "fetch" help="Download an OpenBindings interface from a URL or host" opKey="fetchInterface" {
+cmd "resolve" help="Resolve an OpenBindings interface from a URL or host" opKey="resolveInterface" {
   flag "-o --output <path>" help="Write output to file (default: derived from host)"
   arg "<url-or-host>" help="Base URL or host (e.g. localhost:8080)"
 }
@@ -88,6 +88,12 @@ cmd "create" help="Create an OpenBindings interface from binding source artifact
   flag "-F --format <format>" help="Output format: json|yaml|text"
   flag "-y --yes" help="Accept defaults without prompting"
   arg "[sources]..." help="Binding sources as format:path[?options] (e.g., usage@2.13.1:./cli.kdl?name=cli&embed)"
+}
+
+cmd "inspect" help="Inspect a binding source and list its bindable targets" opKey="inspectSource" {
+  flag "-o --output <path>" help="Write output to file"
+  flag "-F --format <format>" help="Output format: json|yaml|text"
+  arg "<source>" help="Binding source as [format:]path[?options] (e.g., openapi.json)"
 }
 
 cmd "source" help="Manage source references on an OBI" subcommand_required=true {
