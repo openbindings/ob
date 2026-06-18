@@ -219,6 +219,23 @@
         "$ref": "#/schemas/OperationInvokerOutputFrame"
       }
     },
+    "openbindings.operation-invoker.prepareOperation": {
+      "description": "Operation-level preflight: report the context invoking an operation would require, without invoking it or causing side effects. The by-reference counterpart to prepareBinding. Resolves the named operation (or binding) on the supplied interface to a concrete binding and reports that binding's ContextRequiredDetails, or null when requirements cannot be determined without invoking. Returning null is always conformant. Advisory: invokeOperation's reactive CONTEXT_REQUIRED is authoritative. When context is supplied, the result reports only the requirements still unsatisfied by it.",
+      "idempotent": true,
+      "input": {
+        "$ref": "#/schemas/OperationInvocationInput"
+      },
+      "output": {
+        "oneOf": [
+          {
+            "$ref": "#/schemas/ContextRequiredDetails"
+          },
+          {
+            "type": "null"
+          }
+        ]
+      }
+    },
     "openbindings.kv-store.get": {
       "description": "Get the stored context for a key. Returns the unified context payload (credentials, headers, cookies, environment, metadata in a single opaque map), or null when no context exists for the key.",
       "idempotent": true,
@@ -378,45 +395,7 @@
   "schemas": {
     "OpenBindingsInterface": {
       "type": "object",
-      "description": "An OpenBindings interface document.",
-      "properties": {
-        "openbindings": {
-          "type": "string"
-        },
-        "name": {
-          "type": "string"
-        },
-        "version": {
-          "type": "string"
-        },
-        "description": {
-          "type": "string"
-        },
-        "operations": {
-          "type": "object",
-          "additionalProperties": true
-        },
-        "schemas": {
-          "type": "object",
-          "additionalProperties": true
-        },
-        "sources": {
-          "type": "object",
-          "additionalProperties": true
-        },
-        "bindings": {
-          "type": "object",
-          "additionalProperties": true
-        },
-        "transforms": {
-          "type": "object",
-          "additionalProperties": true
-        }
-      },
-      "required": [
-        "openbindings",
-        "operations"
-      ],
+      "description": "A valid OpenBindings interface document.",
       "additionalProperties": true
     },
     "InterfaceInput": {

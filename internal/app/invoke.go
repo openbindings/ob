@@ -352,6 +352,66 @@ func InvokeOBIOperation(ctx context.Context, obiPath string, opKey string, bindi
 	return ch, nil
 }
 
+// PrepareOperation is the operation-level preflight: it resolves an operation
+// (or a specific binding) on an interface to a concrete binding, then reports
+// the context that binding would require before invocation, without invoking it
+// or causing side effects. It is the by-reference counterpart to PrepareBinding.
+// Returns nil when requirements cannot be determined without invoking (the
+// always-satisfiable answer). Context resolution is not performed here; any
+// supplied callerContext narrows the reported requirements to what is still
+// unsatisfied, exactly as for PrepareBinding.
+func PrepareOperation(ctx context.Context, obiPath string, opKey string, bindingKey string, callerContext map[string]any) (*openbindings.ContextRequiredDetails, error) {
+	iface, err := resolveInterface(obiPath)
+	if err != nil {
+		return nil, fmt.Errorf("load OBI %q: %w", obiPath, err)
+	}
+
+	resolved, err := resolveBindingAndSource(iface, opKey, bindingKey, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	es := resolveSourceLocation(resolved.source, filepath.Dir(obiPath))
+
+	return PrepareBinding(ctx, InvokeOperationInput{
+		Source:    InvokeSource{Format: es.Format, Location: es.Location, Content: es.Content},
+		Ref:       resolved.binding.Ref,
+		Context:   callerContext,
+		Interface: iface,
+	})
+}
+
+// PrepareOperationOutput wraps a prepareOperation result for CLI rendering.
+// A nil Details means no requirements could be determined without invoking.
+type PrepareOperationOutput struct {
+	Details *openbindings.ContextRequiredDetails `json:"details"`
+}
+
+// Render returns a human-friendly representation.
+func (o PrepareOperationOutput) Render() string {
+	s := Styles
+	if o.Details == nil {
+		return s.Dim.Render("No context requirements (none determinable without invoking)")
+	}
+	var sb strings.Builder
+	sb.WriteString(s.Header.Render("Context required"))
+	sb.WriteString("\n  ")
+	sb.WriteString(s.Dim.Render("target: "))
+	sb.WriteString(s.Key.Render(o.Details.Target))
+	for i, alt := range o.Details.Alternatives {
+		sb.WriteString("\n\n  ")
+		sb.WriteString(s.Dim.Render(fmt.Sprintf("alternative %d (all required):", i+1)))
+		for _, req := range alt.Requirements {
+			sb.WriteString("\n    - ")
+			sb.WriteString(s.Key.Render(req.Type))
+			if req.Description != "" {
+				sb.WriteString(s.Dim.Render(" — " + req.Description))
+			}
+		}
+	}
+	return sb.String()
+}
+
 // transformEventStream applies the binding's outputTransform to each event.
 // Returns the source channel directly if no transform is configured.
 func transformEventStream(src <-chan InvocationOutput, iface *openbindings.Interface, resolved *resolvedBinding) <-chan InvocationOutput {

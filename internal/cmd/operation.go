@@ -27,6 +27,7 @@ exposes. Use subcommands to list, rename, remove, or invoke operations.`,
 	cmd.AddCommand(
 		newOperationListCmd(),
 		newOperationInvokeCmd(),
+		newOperationPrepareCmd(),
 		newOperationAddCmd(),
 		newOperationRenameCmd(),
 		newOperationRemoveCmd(),
@@ -128,6 +129,54 @@ Examples:
 	cmd.Flags().StringVar(&bindingKey, "binding", "", "binding key to invoke (operation is derived from the entry)")
 	cmd.Flags().StringVar(&inputJSON, "input", "", "operation input as JSON")
 	cmd.Flags().BoolVarP(&verbose, "verbose", "v", false, "show binding key and duration on stderr")
+
+	return cmd
+}
+
+func newOperationPrepareCmd() *cobra.Command {
+	var bindingKey string
+
+	cmd := &cobra.Command{
+		Use:   "prepare <obi-path> [operation]",
+		Short: "Preflight an operation's required context without invoking it",
+		Long: `Report the context invoking an operation would require, without invoking
+it or causing any side effect.
+
+Resolves the operation (or, with --binding, a specific binding) to a
+concrete binding and reports its context requirements, or reports none
+when they cannot be determined without invoking. This is advisory: the
+reactive CONTEXT_REQUIRED error from 'ob op invoke' is authoritative.
+
+Examples:
+  ob op prepare interface.json createOrder
+  ob op prepare interface.json --binding createOrder.openapi`,
+		Args: cobra.RangeArgs(1, 2),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			obiFile := args[0]
+
+			var operationKey string
+			if len(args) == 2 {
+				operationKey = args[1]
+			}
+
+			if operationKey == "" && bindingKey == "" {
+				return app.ExitResult{Code: 2, Message: "provide an operation key or use --binding", ToStderr: true}
+			}
+			if operationKey != "" && bindingKey != "" {
+				return app.ExitResult{Code: 2, Message: "operation key and --binding are mutually exclusive", ToStderr: true}
+			}
+
+			details, err := app.PrepareOperation(context.Background(), obiFile, operationKey, bindingKey, nil)
+			if err != nil {
+				return app.ExitResult{Code: 1, Message: fmt.Sprintf("prepare %s in %s: %v", operationKey, obiFile, err), ToStderr: true}
+			}
+
+			format, outputPath := getOutputFlags(cmd)
+			return app.OutputResult(app.PrepareOperationOutput{Details: details}, format, outputPath)
+		},
+	}
+
+	cmd.Flags().StringVar(&bindingKey, "binding", "", "binding key to preflight (operation is derived from the entry)")
 
 	return cmd
 }

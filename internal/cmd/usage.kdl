@@ -147,14 +147,19 @@ cmd "operation" help="Manage and invoke operations on an OBI" subcommand_require
     arg "<obi-path>" help="Path to the OBI file"
     arg "<key>" help="Key for the new operation"
   }
-  cmd "invoke" help="Invoke an operation via a binding" opKey="executeLocalOperation" {
+  cmd "invoke" help="Invoke an operation via a binding" opKey="invokeOperation" {
     flag "--binding <key>" help="Binding key to invoke (operation is derived from the entry)"
     flag "--input <json>" help="Operation input as JSON"
-    flag "--context <name>" help="Named context to apply (credentials, headers, etc.)"
+    flag "-v --verbose" help="Show binding key and duration on stderr"
+    arg "<obi-path>" help="Path to the OBI file"
+    arg "[operation]" help="Operation key to invoke"
+  }
+  cmd "prepare" help="Preflight an operation's required context without invoking it" opKey="prepareOperation" {
+    flag "--binding <key>" help="Binding key to preflight (operation is derived from the entry)"
     flag "-o --output <path>" help="Write output to file"
     flag "-F --format <format>" help="Output format: json|yaml|text"
     arg "<obi-path>" help="Path to the OBI file"
-    arg "[operation]" help="Operation key to invoke"
+    arg "[operation]" help="Operation key to preflight"
   }
   cmd "list" help="List operations on an OBI" opKey="listOperations" {
     flag "--tag <tag>" help="Filter operations by tag"
