@@ -4,16 +4,20 @@
   "version": "0.1.0",
   "description": "The complete interface implemented by ob, the OpenBindings reference tool. One unbound contract describing everything ob does: creating, inspecting, editing, validating, comparing, and invoking OpenBindings interfaces, plus context storage and environment management. This document carries no bindings or sources; it is the single source of truth from which the per-surface realizations (CLI via usage, server via OpenAPI/AsyncAPI/MCP) are derived, so they cannot drift. An operation that realizes a published OpenBindings interface is keyed by that interface's operation name (e.g. openbindings.kv-store.set), so satisfaction needs no alias; ob's own operations are keyed under the ob namespace (e.g. ob.syncInterface). Aliases appear only where one operation satisfies more than one published interface, as listFormats does.",
   "operations": {
-    "openbindings.software-descriptor.getInfo": {
+    "openbindings.ob.getInfo": {
       "description": "Return identity and metadata about ob: name, version, description, homepage, repository, maintainer.",
       "idempotent": true,
       "output": {
         "$ref": "#/schemas/SoftwareInfo"
-      }
+      },
+      "aliases": [
+        "openbindings.software-descriptor.getInfo"
+      ]
     },
-    "openbindings.binding-invoker.listFormats": {
+    "openbindings.ob.listFormats": {
       "description": "List the binding formats this instance can handle. One operation satisfies the listFormats slot of every interface that has one, since the answer is the same regardless of which capability is asking.",
       "aliases": [
+        "openbindings.binding-invoker.listFormats",
         "openbindings.interface-creator.listFormats",
         "openbindings.source-inspector.listFormats"
       ],
@@ -25,7 +29,7 @@
         }
       }
     },
-    "ob.resolveInterface": {
+    "openbindings.ob.resolveInterface": {
       "description": "Resolve an OpenBindings interface from a URL or host. Performs well-known discovery, follows redirects, and synthesizes an OBI from a raw binding spec (e.g. an OpenAPI document) when the target is not already an OBI. Returns the interface and metadata about how it was resolved.",
       "idempotent": true,
       "input": {
@@ -35,7 +39,7 @@
         "$ref": "#/schemas/ResolveInterfaceOutput"
       }
     },
-    "openbindings.interface-creator.createInterface": {
+    "openbindings.ob.createInterface": {
       "description": "Create an OpenBindings interface, optionally from binding source artifacts. Given one or more sources (e.g. an OpenAPI spec, a CLI usage spec), extracts operations, schemas, sources, and bindings into the new OBI; with no sources, produces an empty interface to author by hand.",
       "idempotent": true,
       "input": {
@@ -43,9 +47,12 @@
       },
       "output": {
         "$ref": "#/schemas/OpenBindingsInterface"
-      }
+      },
+      "aliases": [
+        "openbindings.interface-creator.createInterface"
+      ]
     },
-    "openbindings.source-inspector.inspectSource": {
+    "openbindings.ob.inspectSource": {
       "description": "Inspect a binding source artifact and report the bindable targets it contains, before any interface is created. Lets tooling show a user what an artifact offers.",
       "idempotent": true,
       "input": {
@@ -53,9 +60,12 @@
       },
       "output": {
         "$ref": "#/schemas/SourceInspection"
-      }
+      },
+      "aliases": [
+        "openbindings.source-inspector.inspectSource"
+      ]
     },
-    "ob.createSource": {
+    "openbindings.ob.createSource": {
       "description": "Register a binding source reference on an interface and return the modified interface.",
       "input": {
         "$ref": "#/schemas/CreateSourceInput"
@@ -64,7 +74,7 @@
         "$ref": "#/schemas/OpenBindingsInterface"
       }
     },
-    "ob.deleteSource": {
+    "openbindings.ob.deleteSource": {
       "description": "Remove a source reference from an interface and return the modified interface.",
       "input": {
         "$ref": "#/schemas/SourceKeyInput"
@@ -73,7 +83,7 @@
         "$ref": "#/schemas/OpenBindingsInterface"
       }
     },
-    "ob.listSources": {
+    "openbindings.ob.listSources": {
       "description": "List the source references on an interface.",
       "idempotent": true,
       "input": {
@@ -86,7 +96,7 @@
         }
       }
     },
-    "ob.createOperation": {
+    "openbindings.ob.createOperation": {
       "description": "Add an operation with the given key to an interface and return the modified interface.",
       "input": {
         "$ref": "#/schemas/CreateOperationInput"
@@ -95,7 +105,7 @@
         "$ref": "#/schemas/OpenBindingsInterface"
       }
     },
-    "ob.renameOperation": {
+    "openbindings.ob.renameOperation": {
       "description": "Rename an operation and update every reference to it (bindings, aliases) across the interface. Returns the modified interface.",
       "input": {
         "$ref": "#/schemas/RenameOperationInput"
@@ -104,7 +114,7 @@
         "$ref": "#/schemas/OpenBindingsInterface"
       }
     },
-    "ob.deleteOperation": {
+    "openbindings.ob.deleteOperation": {
       "description": "Remove one or more operations and their bindings from an interface and return the modified interface.",
       "input": {
         "$ref": "#/schemas/DeleteOperationInput"
@@ -113,7 +123,7 @@
         "$ref": "#/schemas/OpenBindingsInterface"
       }
     },
-    "ob.listOperations": {
+    "openbindings.ob.listOperations": {
       "description": "List the operations on an interface, optionally filtered by tag.",
       "idempotent": true,
       "input": {
@@ -126,7 +136,7 @@
         }
       }
     },
-    "ob.syncInterface": {
+    "openbindings.ob.syncInterface": {
       "description": "Re-derive an interface's operations and bindings from its sources' x-ob references and return the synced interface alongside a report of what changed. Local edits that conflict with source changes are surfaced unless overridden.",
       "input": {
         "$ref": "#/schemas/SyncInterfaceInput"
@@ -135,7 +145,7 @@
         "$ref": "#/schemas/SyncResult"
       }
     },
-    "ob.mergeInterfaces": {
+    "openbindings.ob.mergeInterfaces": {
       "description": "Selectively apply changes from one interface (or from the target's own sources) into another, and return the merged interface alongside a report of what was applied and skipped.",
       "input": {
         "$ref": "#/schemas/MergeInterfacesInput"
@@ -144,7 +154,7 @@
         "$ref": "#/schemas/MergeResult"
       }
     },
-    "ob.listConflicts": {
+    "openbindings.ob.listConflicts": {
       "description": "List the unresolved conflicts between an interface's local edits and the latest content of its sources.",
       "idempotent": true,
       "input": {
@@ -154,7 +164,7 @@
         "$ref": "#/schemas/ConflictsReport"
       }
     },
-    "ob.validateInterface": {
+    "openbindings.ob.validateInterface": {
       "description": "Validate an OpenBindings interface document against the specification. Reports whether it is valid, the declared spec version, and any problems. With strict mode, rejects unknown fields and requires a supported version.",
       "idempotent": true,
       "input": {
@@ -164,7 +174,7 @@
         "$ref": "#/schemas/ValidationReport"
       }
     },
-    "ob.compareInterfaces": {
+    "openbindings.ob.compareInterfaces": {
       "description": "Structurally compare two interfaces (or one interface against what its sources produce) and report the differences per operation and metadata field, including cross-source drift.",
       "idempotent": true,
       "input": {
@@ -174,7 +184,7 @@
         "$ref": "#/schemas/DiffReport"
       }
     },
-    "ob.assessCompatibility": {
+    "openbindings.ob.assessCompatibility": {
       "description": "Assess whether a candidate interface conforms to a target interface and produce a report: per-operation input/output slot status, overall conformance level, and coverage. A report, not a binary verdict.",
       "idempotent": true,
       "input": {
@@ -184,16 +194,19 @@
         "$ref": "#/schemas/CompatibilityReport"
       }
     },
-    "openbindings.binding-invoker.invokeBinding": {
+    "openbindings.ob.invokeBinding": {
       "description": "Invoke a resolved binding via a typed bidirectional I/O frame stream (the binding-invoker frame protocol). The caller streams BindingInvokerInputFrame messages (one `open` carrying the BindingInvocationInput, zero or more `input`, one `close`); the service streams BindingInvokerOutputFrame messages back (zero or more `output`/`input_closed`, then exactly one terminal `complete` or `error`). One shape covers unary, server-streaming, client-streaming, and bidirectional bindings; cardinality is observed by how the caller drives the frames. Missing runtime context fails with a terminal CONTEXT_REQUIRED error carrying ContextRequiredDetails, before any output and any side effect.",
       "input": {
         "$ref": "#/schemas/BindingInvokerInputFrame"
       },
       "output": {
         "$ref": "#/schemas/BindingInvokerOutputFrame"
-      }
+      },
+      "aliases": [
+        "openbindings.binding-invoker.invokeBinding"
+      ]
     },
-    "openbindings.binding-invoker.prepareBinding": {
+    "openbindings.ob.prepareBinding": {
       "description": "Preflight a binding: report the context it would require before invocation, without invoking it or causing side effects. Returns ContextRequiredDetails the runtime can resolve proactively, or null when requirements cannot be determined statically. Advisory; invokeBinding's reactive CONTEXT_REQUIRED error is authoritative. When context is supplied, reports only the requirements still unsatisfied by it.",
       "idempotent": true,
       "input": {
@@ -208,18 +221,24 @@
             "type": "null"
           }
         ]
-      }
+      },
+      "aliases": [
+        "openbindings.binding-invoker.prepareBinding"
+      ]
     },
-    "openbindings.operation-invoker.invokeOperation": {
+    "openbindings.ob.invokeOperation": {
       "description": "Invoke an operation on an interface via a typed bidirectional I/O frame stream (the operation-invoker frame protocol). Unlike invokeBinding, the caller names an operation (or a specific binding) on a supplied interface, and the invoker resolves the name, selects a binding, validates against the operation's schemas, applies its transforms, and drives the underlying binding invoker. The frame shape mirrors invokeBinding exactly: one `open` carrying the OperationInvocationInput, then input frames and a close; output frames plus a terminal complete or error. Cardinality is observed, not declared, so a request/response and a streaming binding can satisfy the same operation identically. Missing context fails with a terminal CONTEXT_REQUIRED error before any side effect.",
       "input": {
         "$ref": "#/schemas/OperationInvokerInputFrame"
       },
       "output": {
         "$ref": "#/schemas/OperationInvokerOutputFrame"
-      }
+      },
+      "aliases": [
+        "openbindings.operation-invoker.invokeOperation"
+      ]
     },
-    "openbindings.operation-invoker.prepareOperation": {
+    "openbindings.ob.prepareOperation": {
       "description": "Operation-level preflight: report the context invoking an operation would require, without invoking it or causing side effects. The by-reference counterpart to prepareBinding. Resolves the named operation (or binding) on the supplied interface to a concrete binding and reports that binding's ContextRequiredDetails, or null when requirements cannot be determined without invoking. Returning null is always conformant. Advisory: invokeOperation's reactive CONTEXT_REQUIRED is authoritative. When context is supplied, the result reports only the requirements still unsatisfied by it.",
       "idempotent": true,
       "input": {
@@ -234,9 +253,12 @@
             "type": "null"
           }
         ]
-      }
+      },
+      "aliases": [
+        "openbindings.operation-invoker.prepareOperation"
+      ]
     },
-    "ob.getContext": {
+    "openbindings.ob.getContext": {
       "description": "Get the stored context for a key. Returns the unified context payload (credentials, headers, cookies, environment, metadata in a single opaque map), or null when no context exists for the key.",
       "idempotent": true,
       "input": {
@@ -256,7 +278,7 @@
         "openbindings.kv-store.get"
       ]
     },
-    "ob.setContext": {
+    "openbindings.ob.setContext": {
       "description": "Create or replace the context for a key. The supplied value fully replaces any existing context (full replacement, not partial update).",
       "idempotent": true,
       "input": {
@@ -266,7 +288,7 @@
         "openbindings.kv-store.set"
       ]
     },
-    "ob.deleteContext": {
+    "openbindings.ob.deleteContext": {
       "description": "Delete the stored context for a key. Deleting an absent key succeeds.",
       "idempotent": true,
       "input": {
@@ -276,7 +298,7 @@
         "openbindings.kv-store.delete"
       ]
     },
-    "ob.listContexts": {
+    "openbindings.ob.listContexts": {
       "description": "List non-secret metadata summaries for all stored contexts; never returns secret values. Completes the context surface with listing and inspection: the generic kv-store substrate these contexts are stored under (satisfied by getContext/setContext/deleteContext) standardizes only opaque get/set/delete, so this management view is ob's own.",
       "idempotent": true,
       "output": {
@@ -286,7 +308,7 @@
         }
       }
     },
-    "ob.createDelegate": {
+    "openbindings.ob.createDelegate": {
       "description": "Register a delegate by the location of its OpenBindings interface (an exec: or http(s) URL). ob resolves the delegate's OBI and records which format-handling capabilities it offers \u2014 invoke (binding-invoker), create (interface-creator), inspect (source-inspector) \u2014 and the formats it handles, so ob can route work it can't handle natively to the delegate. A delegate satisfies whichever subset it implements; an invoke-only delegate is valid. Returns what was discovered; registration succeeds with a warning when the delegate is unreachable or offers no delegatable capability.",
       "input": {
         "$ref": "#/schemas/DelegateLocationInput"
@@ -295,7 +317,7 @@
         "$ref": "#/schemas/CreateDelegateResult"
       }
     },
-    "ob.deleteDelegate": {
+    "openbindings.ob.deleteDelegate": {
       "description": "Unregister a delegate by its location.",
       "input": {
         "$ref": "#/schemas/DelegateLocationInput"
@@ -304,7 +326,7 @@
         "$ref": "#/schemas/DeleteDelegateResult"
       }
     },
-    "ob.listDelegates": {
+    "openbindings.ob.listDelegates": {
       "description": "List the registered delegates with the capabilities and formats each provides. Capabilities (invoke/create/inspect) and formats are discovered from each delegate's OBI.",
       "idempotent": true,
       "output": {
@@ -314,7 +336,7 @@
         }
       }
     },
-    "ob.resolveDelegate": {
+    "openbindings.ob.resolveDelegate": {
       "description": "Report which registered delegate handles a given format, and the capabilities it offers for it.",
       "idempotent": true,
       "input": {
@@ -324,7 +346,7 @@
         "$ref": "#/schemas/ResolveDelegateResult"
       }
     },
-    "ob.getDelegateRequirements": {
+    "openbindings.ob.getDelegateRequirements": {
       "description": "Return the published interface a delegate must satisfy to provide a capability (invoke \u2192 binding-invoker, create \u2192 interface-creator, inspect \u2192 source-inspector), so a prospective delegate can be checked against the exact contract (e.g. via assessCompatibility). The interfaces are immutable documents bundled with this ob release.",
       "idempotent": true,
       "input": {
@@ -334,7 +356,7 @@
         "$ref": "#/schemas/OpenBindingsInterface"
       }
     },
-    "ob.setDelegatePreference": {
+    "openbindings.ob.setDelegatePreference": {
       "description": "Set a delegate's selection preference (higher = more preferred; 0 is the baseline, negatives rank below it). With no capability, sets the delegate-level default for all its offerings; with a capability (optionally scoped to a format), sets a per-offering override \u2014 how create can route to one delegate and invoke to another. Selection follows OBI-T-09: effective preference is the per-offering value, else the delegate-level value, else 0.",
       "input": {
         "$ref": "#/schemas/SetDelegatePreferenceInput"
@@ -343,20 +365,20 @@
         "$ref": "#/schemas/SetDelegatePreferenceResult"
       }
     },
-    "ob.initializeEnvironment": {
+    "openbindings.ob.initializeEnvironment": {
       "description": "Initialize an OpenBindings environment (the .openbindings/ directory) and return its status.",
       "output": {
         "$ref": "#/schemas/EnvironmentStatus"
       }
     },
-    "ob.getEnvironmentStatus": {
+    "openbindings.ob.getEnvironmentStatus": {
       "description": "Report a snapshot of the active OpenBindings environment (the .openbindings/ directory): whether it is local or global, its path, and counts of the delegates and contexts it holds.",
       "idempotent": true,
       "output": {
         "$ref": "#/schemas/EnvironmentStatus"
       }
     },
-    "ob.getInterfaceStatus": {
+    "openbindings.ob.getInterfaceStatus": {
       "description": "Report an interface's status against its sources: per-source sync state (in-sync, managed, what a sync would change) and the managed-vs-hand-authored breakdown of its operations and bindings. Read-only \u2014 distinct from syncInterface (which re-derives and writes) and from compareInterfaces with fromSources (which reports raw differences).",
       "idempotent": true,
       "input": {
@@ -366,7 +388,7 @@
         "$ref": "#/schemas/InterfaceStatus"
       }
     },
-    "ob.startServer": {
+    "openbindings.ob.startServer": {
       "description": "Start a local server that exposes ob's operations over HTTP (and the binding-invoker frame protocol). A foreground, environment-local operation; not meaningfully invoked over a remote transport.",
       "input": {
         "$ref": "#/schemas/StartServerInput"
@@ -375,7 +397,7 @@
         "$ref": "#/schemas/ServerInfo"
       }
     },
-    "ob.startMCPServer": {
+    "openbindings.ob.startMCPServer": {
       "description": "Serve one or more interface URLs as an MCP server, exposing their operations as MCP tools over stdio or HTTP. A foreground, environment-local operation, the MCP sibling of startServer; not meaningfully invoked over a remote transport.",
       "input": {
         "$ref": "#/schemas/StartMCPServerInput"
@@ -391,7 +413,7 @@
         ]
       }
     },
-    "ob.codegen": {
+    "openbindings.ob.codegen": {
       "description": "Generate a typed invoker for an interface in a target language (TypeScript or Go). The output is an invoker over the cardinality-agnostic handle, not a cardinality-specific client.",
       "idempotent": true,
       "input": {
@@ -401,7 +423,7 @@
         "$ref": "#/schemas/CodegenOutput"
       }
     },
-    "ob.conform": {
+    "openbindings.ob.conform": {
       "description": "Scaffold a target interface so it conforms to a reference interface: add the operations the reference requires and reconcile mismatches, returning the updated target and a report of each change. With dryRun, reports the changes without applying them.",
       "input": {
         "$ref": "#/schemas/ConformInput"
@@ -410,7 +432,7 @@
         "$ref": "#/schemas/ConformResult"
       }
     },
-    "ob.demo": {
+    "openbindings.ob.demo": {
       "description": "Start the bundled demonstration servers (HTTP and gRPC) that showcase one interface satisfied across multiple binding formats. A foreground, environment-local operation, like startServer; not meaningfully invoked over a remote transport.",
       "input": {
         "$ref": "#/schemas/DemoInput"
