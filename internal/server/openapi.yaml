@@ -39,7 +39,7 @@ paths:
 
   /info:
     get:
-      operationId: getInfo
+      operationId: describe
       summary: Show ob identity and metadata
       responses:
         "200":

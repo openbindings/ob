@@ -7,13 +7,13 @@ import (
 	openbindings "github.com/openbindings/openbindings-go"
 )
 
-// SoftwareInfo contains identity and metadata for a piece of software.
+// SoftwareIdentity contains identity and metadata for a piece of software.
 // It mirrors the software-descriptor interface's schema, which is
 // a generic identity contract — any software satisfying it can
 // return one. Do not add OB-specific fields (like supported spec range)
 // here; they belong on OB-specific interfaces or are derivable from the OBI
 // document itself.
-type SoftwareInfo struct {
+type SoftwareIdentity struct {
 	Name        string `json:"name"`
 	Version     string `json:"version,omitempty"`
 	Description string `json:"description,omitempty"`
@@ -22,10 +22,10 @@ type SoftwareInfo struct {
 	Maintainer  string `json:"maintainer,omitempty"`
 }
 
-// RenderSoftwareInfo returns a human-friendly styled representation of
-// SoftwareInfo. Pure renderer: no ob-specific extras. Use RenderObInfo
+// RenderSoftwareIdentity returns a human-friendly styled representation of
+// SoftwareIdentity. Pure renderer: no ob-specific extras. Use RenderObInfo
 // when rendering ob's own info.
-func RenderSoftwareInfo(sw SoftwareInfo) string {
+func RenderSoftwareIdentity(sw SoftwareIdentity) string {
 	s := Styles
 	var sb strings.Builder
 
@@ -70,14 +70,14 @@ func RenderSoftwareInfo(sw SoftwareInfo) string {
 	return sb.String()
 }
 
-// RenderObInfo renders ob's own SoftwareInfo with the supported spec
+// RenderObInfo renders ob's own SoftwareIdentity with the supported spec
 // version range appended. The range comes from the SDK's
 // MinSupportedVersion / MaxTestedVersion constants, not from any
-// wire-level field. Use RenderSoftwareInfo for rendering generic
-// SoftwareInfo values from other sources.
-func RenderObInfo(sw SoftwareInfo) string {
+// wire-level field. Use RenderSoftwareIdentity for rendering generic
+// SoftwareIdentity values from other sources.
+func RenderObInfo(sw SoftwareIdentity) string {
 	s := Styles
-	out := RenderSoftwareInfo(sw)
+	out := RenderSoftwareIdentity(sw)
 	var sb strings.Builder
 	sb.WriteString(out)
 	sb.WriteString("\n  ")
@@ -98,8 +98,8 @@ func formatSpecRange() string {
 }
 
 // Info returns ob's own software identity and metadata.
-func Info() SoftwareInfo {
-	return SoftwareInfo{
+func Info() SoftwareIdentity {
+	return SoftwareIdentity{
 		Name:        "OpenBindings CLI",
 		Version:     OBVersion,
 		Description: "Reference implementation for creating, browsing, and executing OpenBindings interfaces.",

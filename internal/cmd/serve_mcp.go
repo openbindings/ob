@@ -38,7 +38,7 @@ func registerMCPEndpoint(srv *server.Server, logger *slog.Logger) {
 
 func registerMCPTools(srv *mcp.Server) {
 	srv.AddTool(&mcp.Tool{
-		Name:        "getInfo",
+		Name:        "describe",
 		Description: "Return identity and metadata about this host.",
 		InputSchema: emptyObject(),
 	}, func(ctx context.Context, req *mcp.CallToolRequest) (*mcp.CallToolResult, error) {

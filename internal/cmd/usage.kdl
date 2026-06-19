@@ -19,7 +19,7 @@ cmd "resolve" help="Resolve an OpenBindings interface from a URL or host" opKey=
   arg "<url-or-host>" help="Base URL or host (e.g. localhost:8080)"
 }
 
-cmd "info" help="Show ob identity and metadata" opKey="getInfo" {
+cmd "info" help="Show ob identity and metadata" opKey="describe" {
   flag "-o --output <path>" help="Write output to file"
   flag "-F --format <format>" help="Output format: json|yaml|text"
 }

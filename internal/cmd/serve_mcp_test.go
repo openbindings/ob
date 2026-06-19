@@ -67,7 +67,7 @@ func TestMCPEndpoint_ListTools(t *testing.T) {
 	}
 
 	wantTools := []string{
-		"getInfo", "listFormats", "createInterface", "invokeBinding",
+		"describe", "listFormats", "createInterface", "invokeBinding",
 		"listContexts", "getContext", "setContext", "deleteContext",
 		"resolveInterface",
 	}
@@ -130,27 +130,27 @@ func TestMCPEndpoint_ReadResource(t *testing.T) {
 	}
 }
 
-func TestMCPEndpoint_GetInfo(t *testing.T) {
+func TestMCPEndpoint_Describe(t *testing.T) {
 	_, session := mcpTestEnv(t)
 	ctx := context.Background()
 
 	result, err := session.CallTool(ctx, &gomcp.CallToolParams{
-		Name:      "getInfo",
+		Name:      "describe",
 		Arguments: map[string]any{},
 	})
 	if err != nil {
-		t.Fatalf("CallTool getInfo: %v", err)
+		t.Fatalf("CallTool describe: %v", err)
 	}
 	if result.IsError {
-		t.Fatalf("getInfo returned error: %s", textContent(result))
+		t.Fatalf("describe returned error: %s", textContent(result))
 	}
 
 	var info map[string]any
 	if err := json.Unmarshal([]byte(textContent(result)), &info); err != nil {
-		t.Fatalf("getInfo output not valid JSON: %v", err)
+		t.Fatalf("describe output not valid JSON: %v", err)
 	}
 	if info["name"] == nil || info["name"] == "" {
-		t.Error("getInfo: name missing or empty")
+		t.Error("describe: name missing or empty")
 	}
 }
 

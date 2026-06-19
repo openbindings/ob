@@ -4,14 +4,14 @@
   "version": "0.1.0",
   "description": "The complete interface implemented by ob, the OpenBindings reference tool. One unbound contract describing everything ob does: creating, inspecting, editing, validating, comparing, and invoking OpenBindings interfaces, plus context storage and environment management. This document carries no bindings or sources; it is the single source of truth from which the per-surface realizations (CLI via usage, server via OpenAPI/AsyncAPI/MCP) are derived, so they cannot drift. An operation that realizes a published OpenBindings interface is keyed by that interface's operation name (e.g. openbindings.kv-store.set), so satisfaction needs no alias; ob's own operations are keyed under the ob namespace (e.g. ob.syncInterface). Aliases appear only where one operation satisfies more than one published interface, as listFormats does.",
   "operations": {
-    "openbindings.ob.getInfo": {
+    "openbindings.ob.describe": {
       "description": "Return identity and metadata about ob: name, version, description, homepage, repository, maintainer.",
       "idempotent": true,
       "output": {
-        "$ref": "#/schemas/SoftwareInfo"
+        "$ref": "#/schemas/SoftwareIdentity"
       },
       "aliases": [
-        "openbindings.software-descriptor.getInfo"
+        "openbindings.software-descriptor.describe"
       ]
     },
     "openbindings.ob.listFormats": {
@@ -458,7 +458,7 @@
       ],
       "additionalProperties": false
     },
-    "SoftwareInfo": {
+    "SoftwareIdentity": {
       "type": "object",
       "description": "Identity and metadata for a piece of software.",
       "properties": {
