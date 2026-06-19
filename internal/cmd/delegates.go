@@ -19,6 +19,7 @@ delegates are discovered by probing the interface contracts they satisfy.`,
 		newDelegateAddCmd(),
 		newDelegateRemoveCmd(),
 		newDelegateResolveCmd(),
+		newDelegateRequirementsCmd(),
 	)
 
 	return c

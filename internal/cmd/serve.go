@@ -176,6 +176,7 @@ func registerRoutes(srv *server.Server, logger *slog.Logger, port int, oauthSt *
 	mux.HandleFunc("POST /resolve", handleResolve)
 
 	mux.HandleFunc("GET /spec/{name...}", handleSpecResource)
+	mux.HandleFunc("GET /delegate-requirements/{cap}", handleDelegateRequirements)
 
 	registerOAuthRoutes(srv, oauthSt, logger)
 	registerBindingRoutes(srv, logger)
@@ -311,6 +312,21 @@ func handleSpecResource(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", mime)
 	w.WriteHeader(http.StatusOK)
 	w.Write(content)
+}
+
+// handleDelegateRequirements serves the interface a delegate must satisfy for a
+// capability (invoke/create/inspect), so a prospective delegate can be checked
+// against a running ob. The requirement interfaces are immutable bundled
+// documents, served like spec resources.
+func handleDelegateRequirements(w http.ResponseWriter, r *http.Request) {
+	data, err := app.RequirementInterfaceJSON(app.DelegateCapability(r.PathValue("cap")))
+	if err != nil {
+		writeJSON(w, http.StatusNotFound, ErrorResponse{Error: "unknown delegate capability (want invoke, create, or inspect)"})
+		return
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	w.Write(data)
 }
 
 // --- Status ---

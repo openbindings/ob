@@ -324,6 +324,16 @@
         "$ref": "#/schemas/ResolveDelegateResult"
       }
     },
+    "ob.getDelegateRequirements": {
+      "description": "Return the published interface a delegate must satisfy to provide a capability (invoke \u2192 binding-invoker, create \u2192 interface-creator, inspect \u2192 source-inspector), so a prospective delegate can be checked against the exact contract (e.g. via assessCompatibility). The interfaces are immutable documents bundled with this ob release.",
+      "idempotent": true,
+      "input": {
+        "$ref": "#/schemas/GetDelegateRequirementsInput"
+      },
+      "output": {
+        "$ref": "#/schemas/OpenBindingsInterface"
+      }
+    },
     "ob.initializeEnvironment": {
       "description": "Initialize an OpenBindings environment (the .openbindings/ directory) and return its status.",
       "output": {
@@ -2338,6 +2348,18 @@
       },
       "required": [
         "format"
+      ],
+      "additionalProperties": false
+    },
+    "GetDelegateRequirementsInput": {
+      "type": "object",
+      "properties": {
+        "capability": {
+          "$ref": "#/schemas/DelegateCapability"
+        }
+      },
+      "required": [
+        "capability"
       ],
       "additionalProperties": false
     }

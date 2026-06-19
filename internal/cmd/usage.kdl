@@ -70,6 +70,9 @@ cmd "delegate" help="Manage delegates" subcommand_required=true {
     flag "-F --format <format>" help="Output format: json|yaml|text"
     arg "<format-token>" help="Format token to resolve"
   }
+  cmd "requirements" help="Print the interface a delegate must satisfy for a capability" opKey="getDelegateRequirements" {
+    arg "<capability>" help="Capability: invoke, create, or inspect"
+  }
 }
 
 cmd "formats" help="List format tokens this ob instance can handle" opKey="listFormats" {
