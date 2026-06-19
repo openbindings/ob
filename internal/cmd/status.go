@@ -37,7 +37,8 @@ info.`,
 			return app.OutputResultText(status, format, outputPath, func() string {
 				var sb strings.Builder
 				fmt.Fprintf(&sb, "Environment: %s (%s)\n", status.EnvironmentType, status.EnvironmentPath)
-				fmt.Fprintf(&sb, "Delegates: %d", status.DelegateCount)
+				fmt.Fprintf(&sb, "Delegates: %d\n", status.DelegateCount)
+				fmt.Fprintf(&sb, "Contexts: %d", status.ContextCount)
 				return sb.String()
 			})
 		},

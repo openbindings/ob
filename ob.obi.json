@@ -350,20 +350,20 @@
       }
     },
     "ob.getEnvironmentStatus": {
-      "description": "Report the status of the current OpenBindings environment, or, when an interface is supplied, that interface's sync report against its sources.",
+      "description": "Report a snapshot of the active OpenBindings environment (the .openbindings/ directory): whether it is local or global, its path, and counts of the delegates and contexts it holds.",
+      "idempotent": true,
+      "output": {
+        "$ref": "#/schemas/EnvironmentStatus"
+      }
+    },
+    "ob.getInterfaceStatus": {
+      "description": "Report an interface's status against its sources: per-source sync state (in-sync, managed, what a sync would change) and the managed-vs-hand-authored breakdown of its operations and bindings. Read-only \u2014 distinct from syncInterface (which re-derives and writes) and from compareInterfaces with fromSources (which reports raw differences).",
       "idempotent": true,
       "input": {
-        "$ref": "#/schemas/GetEnvironmentStatusInput"
+        "$ref": "#/schemas/InterfaceStatusInput"
       },
       "output": {
-        "oneOf": [
-          {
-            "$ref": "#/schemas/EnvironmentStatus"
-          },
-          {
-            "$ref": "#/schemas/SyncResult"
-          }
-        ]
+        "$ref": "#/schemas/InterfaceStatus"
       }
     },
     "ob.startServer": {
@@ -2002,22 +2002,18 @@
           "description": "Path to the .openbindings/ directory."
         },
         "delegateCount": {
-          "type": "integer"
+          "type": "integer",
+          "description": "Number of registered delegates in this environment."
+        },
+        "contextCount": {
+          "type": "integer",
+          "description": "Number of stored contexts in this environment."
         }
       },
       "required": [
         "environmentType",
         "environmentPath"
       ],
-      "additionalProperties": false
-    },
-    "GetEnvironmentStatusInput": {
-      "type": "object",
-      "properties": {
-        "interface": {
-          "$ref": "#/schemas/OpenBindingsInterface"
-        }
-      },
       "additionalProperties": false
     },
     "StartServerInput": {
@@ -2085,7 +2081,7 @@
           "type": "integer"
         }
       },
-      "additionalProperties": true
+      "additionalProperties": false
     },
     "CodegenInput": {
       "type": "object",
@@ -2416,6 +2412,149 @@
       "required": [
         "location",
         "preference"
+      ],
+      "additionalProperties": false
+    },
+    "ManagedKeys": {
+      "type": "object",
+      "description": "Keys split by provenance: managed (derived from a source by sync) vs hand-authored.",
+      "properties": {
+        "managed": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "handAuthored": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    "SourceStatus": {
+      "type": "object",
+      "description": "Sync status of one source on an interface, including what a sync would change.",
+      "properties": {
+        "key": {
+          "type": "string"
+        },
+        "format": {
+          "type": "string"
+        },
+        "ref": {
+          "type": "string"
+        },
+        "resolve": {
+          "type": "string"
+        },
+        "inSync": {
+          "type": "boolean",
+          "description": "Whether the interface's managed content matches what this source currently produces."
+        },
+        "managed": {
+          "type": "boolean"
+        },
+        "lastSynced": {
+          "type": "string"
+        },
+        "obVersion": {
+          "type": "string"
+        },
+        "error": {
+          "type": "string"
+        },
+        "operationsAdded": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "operationsUpdated": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "operationsConflicted": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "bindingsAdded": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "bindingsUpdated": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "bindingsConflicted": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "required": [
+        "key",
+        "format",
+        "inSync",
+        "managed"
+      ],
+      "additionalProperties": false
+    },
+    "InterfaceStatus": {
+      "type": "object",
+      "description": "An interface's read-only status against its sources: per-source sync state plus the managed-vs-hand-authored breakdown of its operations and bindings.",
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "version": {
+          "type": "string"
+        },
+        "obiVersion": {
+          "type": "string",
+          "description": "The interface's declared OpenBindings version."
+        },
+        "sources": {
+          "type": "array",
+          "items": {
+            "$ref": "#/schemas/SourceStatus"
+          }
+        },
+        "operations": {
+          "$ref": "#/schemas/ManagedKeys"
+        },
+        "bindings": {
+          "$ref": "#/schemas/ManagedKeys"
+        }
+      },
+      "required": [
+        "obiVersion",
+        "sources",
+        "operations",
+        "bindings"
+      ],
+      "additionalProperties": false
+    },
+    "InterfaceStatusInput": {
+      "type": "object",
+      "properties": {
+        "interface": {
+          "$ref": "#/schemas/OpenBindingsInterface"
+        }
+      },
+      "required": [
+        "interface"
       ],
       "additionalProperties": false
     }

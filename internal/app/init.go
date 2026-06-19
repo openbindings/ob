@@ -123,9 +123,13 @@ type EnvironmentStatus struct {
 	EnvironmentType string `json:"environmentType"`
 	EnvironmentPath string `json:"environmentPath"`
 	DelegateCount   int    `json:"delegateCount"`
+	ContextCount    int    `json:"contextCount"`
 }
 
-// GetEnvironmentStatus returns the current environment status.
+// GetEnvironmentStatus returns the current environment status: a snapshot of
+// the active .openbindings/ environment and what it holds (delegates and
+// stored contexts). Counts only — see `delegate list` / `context list` for
+// details.
 func GetEnvironmentStatus() (*EnvironmentStatus, error) {
 	envPath, isLocal, err := FindEnvironment()
 	if err != nil {
@@ -138,6 +142,11 @@ func GetEnvironmentStatus() (*EnvironmentStatus, error) {
 		delegateCount = len(config.Delegates)
 	}
 
+	contextCount := 0
+	if summaries, err := ListContexts(); err == nil {
+		contextCount = len(summaries)
+	}
+
 	envType := "global"
 	if isLocal {
 		envType = "local"
@@ -146,6 +155,7 @@ func GetEnvironmentStatus() (*EnvironmentStatus, error) {
 		EnvironmentType: envType,
 		EnvironmentPath: envPath,
 		DelegateCount:   delegateCount,
+		ContextCount:    contextCount,
 	}, nil
 }
 
