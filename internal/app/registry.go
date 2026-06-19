@@ -93,14 +93,22 @@ func DefaultCreator() openbindings.InterfaceCreator {
 }
 
 // CreateInterfaceFromSource routes interface creation to the appropriate
-// creator by format.
+// creator by format, falling through to a create-capable delegate when the
+// format is not natively supported.
 func CreateInterfaceFromSource(ctx context.Context, input *openbindings.CreateInput) (*openbindings.Interface, error) {
+	if iface, routed, err := createViaDelegate(ctx, input); routed {
+		return iface, err
+	}
 	return DefaultCreator().CreateInterface(ctx, input)
 }
 
-// InspectSource returns bindable targets for a source by delegating to the
-// matching source inspector implementation.
+// InspectSource returns bindable targets for a source, delegating to the
+// matching native inspector, or to an inspect-capable delegate when the format
+// is not natively supported.
 func InspectSource(ctx context.Context, source *openbindings.Source) (*openbindings.SourceInspection, error) {
+	if ins, routed, err := inspectViaDelegate(ctx, source); routed {
+		return ins, err
+	}
 	creator := DefaultCreator()
 	inspector, ok := creator.(openbindings.SourceInspector)
 	if !ok {
