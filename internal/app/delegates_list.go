@@ -3,8 +3,6 @@ package app
 
 import (
 	"strings"
-
-	"github.com/openbindings/ob/internal/delegates"
 )
 
 // DelegateListParams configures the delegate list command.
@@ -19,11 +17,14 @@ type DelegateFormatInfo struct {
 	Description string `json:"description,omitempty"`
 }
 
-// DelegateListEntry represents a delegate with its formats.
+// DelegateListEntry represents a delegate and what it provides (DelegateSummary
+// in the contract).
 type DelegateListEntry struct {
-	Name     string               `json:"name"`
-	Location string               `json:"location,omitempty"`
-	Formats  []DelegateFormatInfo `json:"formats"`
+	Name         string               `json:"name,omitempty"`
+	Location     string               `json:"location,omitempty"`
+	Builtin      bool                 `json:"builtin,omitempty"`
+	Capabilities []DelegateCapability `json:"capabilities,omitempty"`
+	Formats      []DelegateFormatInfo `json:"formats,omitempty"`
 }
 
 // DelegateListOutput is the output of the delegate list operation.
@@ -52,8 +53,22 @@ func (o DelegateListOutput) Render() string {
 	for _, p := range o.Delegates {
 		sb.WriteString("\n\n  ")
 		sb.WriteString(s.Key.Render(p.Name))
-		if p.Location != "" {
+		if p.Builtin {
+			sb.WriteString(s.Dim.Render(" (builtin)"))
+		} else if p.Location != "" {
 			sb.WriteString(s.Dim.Render(" " + p.Location))
+		}
+		if len(p.Capabilities) > 0 {
+			caps := make([]string, len(p.Capabilities))
+			for i, c := range p.Capabilities {
+				caps[i] = string(c)
+			}
+			sb.WriteString("\n    ")
+			sb.WriteString(s.Dim.Render("capabilities: "))
+			sb.WriteString(strings.Join(caps, ", "))
+		} else if !p.Builtin {
+			sb.WriteString("\n    ")
+			sb.WriteString(s.Warning.Render("(unreachable or no delegatable capability)"))
 		}
 		renderDelegateFormats(&sb, p, s)
 	}
@@ -87,35 +102,42 @@ func DelegateList(params DelegateListParams) error {
 	return OutputResult(output, params.OutputFormat, params.OutputPath)
 }
 
-// BuildDelegateListOutput builds the delegate list output.
+// BuildDelegateListOutput builds the delegate list output. ob's own native
+// handling is the implicit self-delegate (delegate 0); registered locations
+// follow, introspected for their capabilities and formats. A registered
+// location that refers to this binary is folded into the self-delegate.
 func BuildDelegateListOutput(params DelegateListParams) DelegateListOutput {
+	entries := []DelegateListEntry{selfDelegateEntry()}
+
 	delCtx := GetDelegateContext()
-
-	discovered, err := delegates.Discover(delegates.DiscoverParams{
-		Delegates: delCtx.Delegates,
-	})
-	if err != nil {
-		return DelegateListOutput{
-			Error: &Error{Code: "discovery_failed", Message: err.Error()},
+	for _, loc := range delCtx.Delegates {
+		if isSelf(loc) {
+			continue // the in-process self-delegate already covers this
 		}
-	}
-
-	var entries []DelegateListEntry
-	for _, p := range discovered {
-		entry := DelegateListEntry{
-			Name:     p.Name,
-			Location: p.Location,
-		}
-
-		delegateFormats, err := delegates.ProbeFormats(p.Location, delegates.DefaultProbeTimeout)
-		if err == nil {
-			for _, f := range delegateFormats {
-				entry.Formats = append(entry.Formats, DelegateFormatInfo{Format: f})
-			}
-		}
-
-		entries = append(entries, entry)
+		intro := introspectDelegate(loc)
+		entries = append(entries, DelegateListEntry{
+			Name:         intro.Name,
+			Location:     intro.Location,
+			Capabilities: intro.Capabilities,
+			Formats:      intro.Formats,
+		})
 	}
 
 	return DelegateListOutput{Delegates: entries}
+}
+
+// selfDelegateEntry is ob's own native handling as a delegate: it provides all
+// three capabilities in-process and handles ob's native formats. It is never
+// resolved over a transport, so its capabilities are known, not introspected.
+func selfDelegateEntry() DelegateListEntry {
+	var formats []DelegateFormatInfo
+	for _, tok := range getNativeTokens() {
+		formats = append(formats, DelegateFormatInfo{Format: tok})
+	}
+	return DelegateListEntry{
+		Name:         "ob",
+		Builtin:      true,
+		Capabilities: []DelegateCapability{CapInvoke, CapCreate, CapInspect},
+		Formats:      formats,
+	}
 }

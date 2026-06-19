@@ -1,0 +1,330 @@
+{
+    "openbindings": "0.2.0",
+    "name": "OpenBindings Binding Invoker",
+    "version": "0.1.0",
+    "description": "Interface for invoking bindings in specific formats across a service boundary. A binding invoker interprets one or more binding formats (e.g., OpenAPI, AsyncAPI, gRPC, MCP) and knows how to invoke operations through them. This contract is the wire form of binding invocation: it governs remote invokers (delegates, hosted invokers, anything reached over a transport). In-process implementations (the SDKs' invocation handles) realize the same semantics natively and are not required to expose frames; the frame protocol is the handle, serialized. invokeBinding is a typed bidirectional I/O operation: the caller streams BindingInvokerInputFrame messages in (starting with an `open` frame that carries the BindingInvocationInput, followed by zero or more `input` frames and a terminating `close`), and the service streams BindingInvokerOutputFrame messages back (zero or more `output` frames plus a single terminal `complete` or `error` frame). The same shape covers unary, server-streaming, client-streaming, and bidirectional bindings; cardinality is observed by how the caller drives the frames, not declared in the contract. Authentication and other runtime prerequisites are not carried in the OBI document; instead, when a binding cannot proceed because required context is missing, invokeBinding fails with a CONTEXT_REQUIRED error enumerating what must be satisfied, and the runtime resolves it into context and retries. This keeps prerequisites out of the static interface and uniform across every binding format.",
+    "schemas": {
+        "FormatInfo": {
+            "type": "object",
+            "description": "Information about a supported binding format.",
+            "properties": {
+                "token": {
+                    "type": "string",
+                    "description": "Format token (e.g., openapi@3.1, asyncapi@3.0, grpc)."
+                },
+                "description": {
+                    "type": "string",
+                    "description": "Human-readable description of this format."
+                }
+            },
+            "required": [
+                "token"
+            ]
+        },
+        "InvokeSource": {
+            "type": "object",
+            "description": "Binding source for invocation.",
+            "properties": {
+                "format": {
+                    "type": "string",
+                    "description": "Format token."
+                },
+                "location": {
+                    "type": "string",
+                    "description": "Location of the binding source (path or URL)."
+                },
+                "content": {
+                    "description": "Binding source content directly."
+                }
+            },
+            "required": [
+                "format"
+            ],
+            "anyOf": [
+                {
+                    "required": [
+                        "location"
+                    ]
+                },
+                {
+                    "required": [
+                        "content"
+                    ]
+                }
+            ],
+            "additionalProperties": false
+        },
+        "BindingContext": {
+            "type": "object",
+            "description": "Opaque runtime context for binding invocation, typically supplied by the runtime from its store. Well-known credential fields: 'bearerToken' (string), 'apiKey' (string), 'basic' (object with 'username' and 'password'), 'accessToken' / 'refreshToken' / 'expiresAt' for OAuth. Well-known transport fields: 'headers' / 'cookies' / 'environment' (objects with string values) and 'metadata' (object with arbitrary values). Implementations and callers MAY add additional fields for session state, consent flags, or any other invoker-managed runtime data; drivers SHOULD ignore fields they don't recognize.",
+            "additionalProperties": true
+        },
+        "ContextRequirement": {
+            "type": "object",
+            "description": "One prerequisite that must be satisfied before a binding can be invoked, resolved into context. `type` names the requirement family; the remaining fields are type-specific. The well-known `auth.*` family resolves into BindingContext credential fields: `auth.bearer` produces 'bearerToken', `auth.apiKey` produces 'apiKey', `auth.basic` produces 'basic', and `auth.oauth2` produces 'accessToken' (carrying flow fields such as 'authorizeUrl', 'tokenUrl', and 'scopes'). Other families (e.g. 'approval.user', 'config.value', 'account.link') resolve into their own context fields. A runtime dispatches each requirement to a resolver registered for its `type`.",
+            "properties": {
+                "type": {
+                    "type": "string",
+                    "description": "Requirement type identifier, e.g. 'auth.bearer', 'auth.oauth2', 'auth.basic', 'auth.apiKey', 'approval.user', 'config.value'. Resolvers register against these; an unrecognized type is unsatisfiable by a runtime that has no resolver for it."
+                },
+                "description": {
+                    "type": "string",
+                    "description": "Human-readable description shown to a user or operator during resolution (e.g. an approval prompt message)."
+                },
+                "durable": {
+                    "type": "boolean",
+                    "description": "Whether resolved context for this requirement MAY be cached under the challenge `key` and reused for later invocations (true; e.g. credentials), or MUST be satisfied freshly for every invocation and MUST NOT be cached (false; e.g. a one-shot user approval). Defaults to true. A requirement family typically fixes this value."
+                }
+            },
+            "required": [
+                "type"
+            ],
+            "additionalProperties": true
+        },
+        "ContextRequiredDetails": {
+            "type": "object",
+            "description": "The `details` payload of an InvocationError whose `code` is CONTEXT_REQUIRED, and the return shape of prepareBinding. Enumerates the runtime context the invoker needs before it can proceed. `alternatives` are disjunctive: satisfying ANY one suffices. The `requirements` within a single alternative are conjunctive: ALL must be satisfied. This OR-of-AND shape captures real authentication semantics such as 'OAuth2 OR (apiKey AND clientCert)', which a flat list cannot.",
+            "properties": {
+                "target": {
+                    "type": "string",
+                    "description": "The target the binding addresses — typically its endpoint URL or host. The runtime uses this to locate and store any context it resolves; how it derives a storage key from the target (for example, normalizing to host[:port] so formats sharing a host share context) is the runtime's policy, not part of this contract. The invoker reports the target and neither keys nor stores."
+                },
+                "alternatives": {
+                    "type": "array",
+                    "minItems": 1,
+                    "description": "Disjunctive set of ways to satisfy the requirement. The runtime selects one alternative whose every requirement it can resolve.",
+                    "items": {
+                        "type": "object",
+                        "properties": {
+                            "requirements": {
+                                "type": "array",
+                                "minItems": 1,
+                                "description": "Conjunctive set: every requirement in this alternative must be resolved for the alternative to be satisfied.",
+                                "items": {
+                                    "$ref": "#/schemas/ContextRequirement"
+                                }
+                            }
+                        },
+                        "required": [
+                            "requirements"
+                        ]
+                    }
+                }
+            },
+            "required": [
+                "target",
+                "alternatives"
+            ]
+        },
+        "InvocationError": {
+            "type": "object",
+            "description": "Structured error carried by an `error` output frame. Indicates terminal failure of the invocation.",
+            "properties": {
+                "code": {
+                    "type": "string",
+                    "description": "Machine-readable error code (e.g., ERR_CANCELLED, ERR_VALIDATION_FAILED, ERR_PROTOCOL, CONTEXT_REQUIRED)."
+                },
+                "message": {
+                    "type": "string",
+                    "description": "Human-readable description."
+                },
+                "details": {
+                    "description": "Optional structured details specific to the error code. For code CONTEXT_REQUIRED, `details` is a ContextRequiredDetails object."
+                }
+            },
+            "required": [
+                "code",
+                "message"
+            ]
+        },
+        "BindingInvocationInput": {
+            "type": "object",
+            "description": "Initial payload carried by the `open` input frame: identifies the binding to invoke and provides context.",
+            "properties": {
+                "source": {
+                    "$ref": "#/schemas/InvokeSource"
+                },
+                "ref": {
+                    "type": "string",
+                    "description": "Reference within the binding source."
+                },
+                "context": {
+                    "$ref": "#/schemas/BindingContext"
+                }
+            },
+            "required": [
+                "source",
+                "ref"
+            ],
+            "additionalProperties": false
+        },
+        "BindingInvokerInputFrame": {
+            "description": "One frame from the caller into invokeBinding. The caller streams a sequence: exactly one `open` frame first (carrying the BindingInvocationInput), then zero or more `input` frames carrying values to deliver to the underlying binding, then exactly one `close` frame signaling no more input.",
+            "discriminator": {
+                "propertyName": "kind"
+            },
+            "oneOf": [
+                {
+                    "title": "open",
+                    "type": "object",
+                    "description": "Open the invocation. MUST be the first frame on the input stream.",
+                    "properties": {
+                        "kind": {
+                            "const": "open"
+                        },
+                        "input": {
+                            "$ref": "#/schemas/BindingInvocationInput"
+                        }
+                    },
+                    "required": [
+                        "kind",
+                        "input"
+                    ],
+                    "additionalProperties": false
+                },
+                {
+                    "title": "input",
+                    "type": "object",
+                    "description": "Write one input value to the underlying binding. The value's schema is determined by the underlying binding's operation, not by this contract.",
+                    "properties": {
+                        "kind": {
+                            "const": "input"
+                        },
+                        "value": {
+                            "description": "One input value, opaque at this layer."
+                        }
+                    },
+                    "required": [
+                        "kind",
+                        "value"
+                    ],
+                    "additionalProperties": false
+                },
+                {
+                    "title": "close",
+                    "type": "object",
+                    "description": "Caller signals that no more input frames will be sent. Idempotent.",
+                    "properties": {
+                        "kind": {
+                            "const": "close"
+                        }
+                    },
+                    "required": [
+                        "kind"
+                    ],
+                    "additionalProperties": false
+                }
+            ]
+        },
+        "BindingInvokerOutputFrame": {
+            "description": "One frame from the service back to the caller. The service streams a sequence: zero or more non-terminal frames (`output`, `input_closed`) followed by exactly one terminal frame (`complete` or `error`).",
+            "discriminator": {
+                "propertyName": "kind"
+            },
+            "oneOf": [
+                {
+                    "title": "output",
+                    "type": "object",
+                    "description": "One output value from the underlying binding. The value's schema is determined by the underlying binding's operation, not by this contract.",
+                    "properties": {
+                        "kind": {
+                            "const": "output"
+                        },
+                        "value": {
+                            "description": "One output value, opaque at this layer."
+                        }
+                    },
+                    "required": [
+                        "kind",
+                        "value"
+                    ],
+                    "additionalProperties": false
+                },
+                {
+                    "title": "input_closed",
+                    "type": "object",
+                    "description": "Binding has closed the input side from its end (e.g., a unary binding closes input after the first read). Subsequent caller `input` frames are ignored (never written; see rule 3). The invocation continues; outputs may still flow.",
+                    "properties": {
+                        "kind": {
+                            "const": "input_closed"
+                        }
+                    },
+                    "required": [
+                        "kind"
+                    ],
+                    "additionalProperties": false
+                },
+                {
+                    "title": "complete",
+                    "type": "object",
+                    "description": "Terminal: the underlying binding completed normally. MUST be the last frame.",
+                    "properties": {
+                        "kind": {
+                            "const": "complete"
+                        }
+                    },
+                    "required": [
+                        "kind"
+                    ],
+                    "additionalProperties": false
+                },
+                {
+                    "title": "error",
+                    "type": "object",
+                    "description": "Terminal: the underlying binding failed. MUST be the last frame. Carries a structured InvocationError.",
+                    "properties": {
+                        "kind": {
+                            "const": "error"
+                        },
+                        "error": {
+                            "$ref": "#/schemas/InvocationError"
+                        }
+                    },
+                    "required": [
+                        "kind",
+                        "error"
+                    ],
+                    "additionalProperties": false
+                }
+            ]
+        }
+    },
+    "operations": {
+        "openbindings.binding-invoker.listFormats": {
+            "description": "List binding formats this invoker supports.",
+            "idempotent": true,
+            "output": {
+                "type": "array",
+                "items": {
+                    "$ref": "#/schemas/FormatInfo"
+                }
+            }
+        },
+        "openbindings.binding-invoker.invokeBinding": {
+            "description": "Invoke a resolved binding via a typed I/O frame stream. The caller writes a sequence of BindingInvokerInputFrame messages (starting with an `open` frame); the service emits a sequence of BindingInvokerOutputFrame messages ending in either a `complete` or `error` frame. The same shape covers all cardinalities of the underlying binding (unary, server-streaming, client-streaming, bidirectional).\n\n## Normative conformance rules\n\nService implementations of this operation MUST conform to the following rules. They describe the wire contract, not any particular transport; in-process implementations realize the same semantics through their SDK's native invocation handle, whose behavior these rules mirror.\n\n1. **First frame.** The first input frame received MUST be an `open` frame. If the first frame is any other kind, the implementation MUST emit a terminal `error` output frame with code `ERR_PROTOCOL` and process no further input.\n\n2. **Single open.** Exactly one `open` frame is permitted per invocation. If a second `open` frame arrives after the first, the implementation MUST emit a terminal `error` output frame with code `ERR_PROTOCOL`.\n\n3. **Input after input closure (either side).** Once input is closed from either side — the caller has sent its `close` frame, or the implementation has emitted an `input_closed` output frame — any subsequent `input` frame MUST be ignored: it is not written to the underlying binding, the invocation continues, and outputs still flow. The implementation SHOULD surface a diagnostic for ignored frames. Late frames after `input_closed` are an inherent race (the frame may already be in flight when `input_closed` is emitted) and are never a protocol violation; this mirrors the SDK handles, where a write after input closure rejects non-terminally without affecting the invocation.\n\n4. **Exactly one terminal output frame.** The output stream MUST end with exactly one terminal frame (`complete` or `error`). The implementation MUST NOT emit further output frames after a terminal frame. If both completion and failure conditions arise during processing, the implementation chooses one terminal frame (typically `error`, since errors take precedence over completion) and emits only that one.\n\n5. **Transport closure without a terminal frame.** If the underlying transport closes without a terminal output frame having been emitted, the consumer side MUST synthesize a terminal `error` frame with code `ERR_TRANSPORT_CLOSED` before propagating closure to its caller.\n\n6. **Discriminator semantics.** The `discriminator` keyword in the frame schemas is informative under JSON Schema 2020-12; validators that don't recognize it MUST still validate frames correctly by evaluating `oneOf`. Implementations dispatch by matching the `kind` property's `const` value against the variant.\n\n7. **`additionalProperties: false`.** Frame variants declare `additionalProperties: false`. Implementations MUST reject input frames with unknown properties (using `ERR_PROTOCOL`). Output frames SHOULD likewise reject extra properties on the consumer side as a protocol violation.\n\n8. **Missing context (CONTEXT_REQUIRED).** If the binding cannot be invoked because required runtime context is missing (credentials, approvals, configuration, and the like), the implementation MUST emit a terminal `error` output frame with code `CONTEXT_REQUIRED` whose `details` is a ContextRequiredDetails object, and it MUST do so before emitting any `output` frame and before causing any observable side effect on the target. This pre-execution guarantee is what makes the runtime's resolve-and-retry safe for non-idempotent operations.\n\n9. **Resolve and retry.** On receiving CONTEXT_REQUIRED, a runtime selects one `alternative` whose every `requirement` it can resolve (alternatives are disjunctive; requirements within one alternative are conjunctive), resolves each requirement into context, MAY persist context for requirements whose `durable` is true (the default), under a storage key it derives from `details.target`, for reuse, and MAY retry the invocation with the augmented context. Context for a `durable: false` requirement MUST NOT be persisted or reused and MUST be re-satisfied on each invocation. A runtime SHOULD bound retries; an implementation SHOULD NOT re-challenge for context it was supplied on the current attempt, and SHOULD instead emit a non-CONTEXT_REQUIRED error when supplied context proves insufficient, so the loop terminates.\n\n10. **Requirement types.** `auth.bearer`, `auth.basic`, `auth.apiKey`, and `auth.oauth2` are the first standard requirement family and resolve into the corresponding BindingContext credential fields. Implementations MAY define further families (e.g. `approval.user`, `config.value`). An unrecognized requirement `type` is unsatisfiable by a runtime that lacks a resolver for it; such a requirement simply makes its enclosing alternative unselectable.",
+            "input": {
+                "$ref": "#/schemas/BindingInvokerInputFrame"
+            },
+            "output": {
+                "$ref": "#/schemas/BindingInvokerOutputFrame"
+            }
+        },
+        "openbindings.binding-invoker.prepareBinding": {
+            "description": "Preflight: report the context a binding would require before invocation, without invoking it or causing side effects. Returns a ContextRequiredDetails the runtime can resolve proactively (good for UX, e.g. prompting for auth before a user acts), or null when the invoker cannot determine requirements without invoking (some targets only reveal them via a live CONTEXT_REQUIRED challenge). Every service implementation provides this operation; returning null is the conformant answer whenever requirements cannot be determined statically, so the operation is always satisfiable. prepareBinding is advisory: the reactive CONTEXT_REQUIRED error from invokeBinding is the authoritative source of requirements. When `context` is supplied on the input, the result reports only the requirements still unsatisfied by that context.",
+            "idempotent": true,
+            "input": {
+                "$ref": "#/schemas/BindingInvocationInput"
+            },
+            "output": {
+                "oneOf": [
+                    {
+                        "$ref": "#/schemas/ContextRequiredDetails"
+                    },
+                    {
+                        "type": "null"
+                    }
+                ]
+            }
+        }
+    }
+}

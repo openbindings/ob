@@ -1,0 +1,157 @@
+{
+    "openbindings": "0.2.0",
+    "name": "OpenBindings Source Inspector",
+    "version": "0.1.0",
+    "description": "Interface for inspecting binding source artifacts before creating an OpenBindings interface. A source inspector reports supported source formats and discovers bindable targets that tooling can offer to users.",
+    "schemas": {
+        "FormatInfo": {
+            "type": "object",
+            "description": "Information about a supported binding format.",
+            "properties": {
+                "token": {
+                    "type": "string",
+                    "description": "Format token (e.g., openapi@3.1, asyncapi@3.0, grpc)."
+                },
+                "description": {
+                    "type": "string",
+                    "description": "Human-readable description of this format."
+                }
+            },
+            "required": [
+                "token"
+            ]
+        },
+        "Source": {
+            "type": "object",
+            "description": "Binding source artifact to inspect.",
+            "properties": {
+                "format": {
+                    "type": "string",
+                    "description": "Format token for this source."
+                },
+                "location": {
+                    "type": "string",
+                    "description": "Location to fetch content from (path or URL)."
+                },
+                "content": {
+                    "description": "Content provided directly."
+                },
+                "description": {
+                    "type": "string",
+                    "description": "Human-readable description for this source."
+                }
+            },
+            "required": [
+                "format"
+            ],
+            "anyOf": [
+                {
+                    "required": [
+                        "location"
+                    ]
+                },
+                {
+                    "required": [
+                        "content"
+                    ]
+                }
+            ],
+            "additionalProperties": false
+        },
+        "Operation": {
+            "type": "object",
+            "description": "Potential OpenBindings operation framing for a bindable target.",
+            "properties": {
+                "description": {
+                    "type": "string"
+                },
+                "deprecated": {
+                    "type": "boolean"
+                },
+                "tags": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "input": {},
+                "output": {}
+            },
+            "additionalProperties": true
+        },
+        "BindableTarget": {
+            "type": "object",
+            "description": "A target within a binding source that can be framed as an OpenBindings operation.",
+            "properties": {
+                "ref": {
+                    "type": "string",
+                    "description": "Reference string to use in a binding entry."
+                },
+                "operationKey": {
+                    "type": "string",
+                    "description": "Suggested operation key for this target."
+                },
+                "operation": {
+                    "$ref": "#/schemas/Operation"
+                }
+            },
+            "required": [
+                "ref"
+            ]
+        },
+        "InspectSourceInput": {
+            "type": "object",
+            "properties": {
+                "source": {
+                    "$ref": "#/schemas/Source"
+                }
+            },
+            "required": [
+                "source"
+            ],
+            "additionalProperties": false
+        },
+        "SourceInspection": {
+            "type": "object",
+            "description": "Inspection result for a binding source artifact.",
+            "properties": {
+                "targets": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/schemas/BindableTarget"
+                    }
+                },
+                "exhaustive": {
+                    "type": "boolean",
+                    "description": "True when targets is the complete list of bindable targets for the source."
+                }
+            },
+            "required": [
+                "targets",
+                "exhaustive"
+            ]
+        }
+    },
+    "operations": {
+        "openbindings.source-inspector.listFormats": {
+            "description": "List binding formats this inspector can inspect.",
+            "idempotent": true,
+            "output": {
+                "type": "array",
+                "items": {
+                    "$ref": "#/schemas/FormatInfo"
+                }
+            }
+        },
+        "openbindings.source-inspector.inspectSource": {
+            "description": "Inspect a binding source artifact and return bindable targets that can be framed as operations.",
+            "idempotent": true,
+            "input": {
+                "$ref": "#/schemas/InspectSourceInput"
+            },
+            "output": {
+                "$ref": "#/schemas/SourceInspection"
+            }
+        }
+    }
+}

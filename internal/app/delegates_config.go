@@ -1,6 +1,9 @@
 package app
 
-var defaultDelegates = []string{"exec:ob", "http://localhost:8787"}
+// defaultDelegates are external delegates registered by default. ob itself is
+// not listed: it is the implicit in-process self-delegate (delegate 0), folded
+// in by isSelf wherever delegates are enumerated.
+var defaultDelegates = []string{"http://localhost:8787"}
 
 // DelegateContext contains delegate-related data from the environment config.
 type DelegateContext struct {

@@ -52,7 +52,6 @@ cmd "context" help="Manage binding context (credentials, headers, environment)" 
 
 cmd "delegate" help="Manage delegates" subcommand_required=true {
   cmd "list" help="List delegates" opKey="listDelegates" {
-    flag "--builtin" help="Include the builtin delegate (default: true)"
     flag "-o --output <path>" help="Write output to file"
     flag "-F --format <format>" help="Output format: json|yaml|text"
   }

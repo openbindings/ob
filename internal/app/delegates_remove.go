@@ -7,15 +7,15 @@ import (
 	"github.com/openbindings/ob/internal/delegates"
 )
 
-// DelegateRemoveResult is returned by DelegateRemove.
+// DelegateRemoveResult is returned by DelegateRemove (DeleteDelegateResult in
+// the contract).
 type DelegateRemoveResult struct {
-	Removed  string `json:"removed"`
-	Delegate string `json:"delegate"`
+	Location string `json:"location"`
 }
 
 // Render returns a human-readable summary.
 func (r DelegateRemoveResult) Render() string {
-	return fmt.Sprintf("removed delegate %s", r.Delegate)
+	return fmt.Sprintf("removed delegate %s", r.Location)
 }
 
 // DelegateRemove removes a delegate from the environment.
@@ -73,7 +73,6 @@ func DelegateRemove(url string) (*DelegateRemoveResult, error) {
 	}
 
 	return &DelegateRemoveResult{
-		Removed:  "delegate",
-		Delegate: url,
+		Location: url,
 	}, nil
 }

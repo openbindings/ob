@@ -7,15 +7,54 @@ import (
 	"github.com/openbindings/ob/internal/delegates"
 )
 
-// DelegateAddResult is returned by DelegateAdd.
+// DelegateAddResult is returned by DelegateAdd: what ob discovered when
+// registering the delegate (CreateDelegateResult in the contract).
 type DelegateAddResult struct {
-	Added    string `json:"added"`
-	Delegate string `json:"delegate"`
+	Location     string               `json:"location"`
+	Name         string               `json:"name,omitempty"`
+	Reachable    bool                 `json:"reachable"`
+	Capabilities []DelegateCapability `json:"capabilities,omitempty"`
+	Formats      []DelegateFormatInfo `json:"formats,omitempty"`
 }
 
 // Render returns a human-readable summary.
 func (r DelegateAddResult) Render() string {
-	return fmt.Sprintf("added delegate %s", r.Delegate)
+	s := Styles
+	var sb strings.Builder
+	sb.WriteString(s.Header.Render("Registered delegate"))
+	sb.WriteString(" ")
+	sb.WriteString(s.Key.Render(r.Name))
+	sb.WriteString(s.Dim.Render(" " + r.Location))
+
+	if !r.Reachable {
+		sb.WriteString("\n  ")
+		sb.WriteString(s.Warning.Render("! unreachable — registered, but ob could not resolve its interface to learn its capabilities"))
+		return sb.String()
+	}
+	if len(r.Capabilities) == 0 {
+		sb.WriteString("\n  ")
+		sb.WriteString(s.Warning.Render("! no delegatable capability — its interface satisfies none of invoke/create/inspect"))
+		return sb.String()
+	}
+
+	caps := make([]string, len(r.Capabilities))
+	for i, c := range r.Capabilities {
+		caps[i] = string(c)
+	}
+	sb.WriteString("\n  ")
+	sb.WriteString(s.Dim.Render("capabilities: "))
+	sb.WriteString(strings.Join(caps, ", "))
+
+	if len(r.Formats) > 0 {
+		toks := make([]string, len(r.Formats))
+		for i, f := range r.Formats {
+			toks[i] = f.Format
+		}
+		sb.WriteString("\n  ")
+		sb.WriteString(s.Dim.Render("formats: "))
+		sb.WriteString(strings.Join(toks, ", "))
+	}
+	return sb.String()
 }
 
 // DelegateAdd adds a binding format delegate to the environment.
@@ -63,8 +102,14 @@ func DelegateAdd(url string) (*DelegateAddResult, error) {
 		return nil, exitText(1, err.Error(), true)
 	}
 
+	// Resolve the delegate's OBI and report what it provides. Registration has
+	// already succeeded; introspection failure only downgrades the report.
+	intro := introspectDelegate(url)
 	return &DelegateAddResult{
-		Added:    "delegate",
-		Delegate: url,
+		Location:     url,
+		Name:         intro.Name,
+		Reachable:    intro.Reachable,
+		Capabilities: intro.Capabilities,
+		Formats:      intro.Formats,
 	}, nil
 }

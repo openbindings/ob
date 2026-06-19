@@ -287,29 +287,26 @@
       }
     },
     "ob.createDelegate": {
-      "description": "Register a delegate: an external binding invoker, reached over exec or HTTP, that handles formats this instance does not support natively.",
+      "description": "Register a delegate by the location of its OpenBindings interface (an exec: or http(s) URL). ob resolves the delegate's OBI and records which format-handling capabilities it offers \u2014 invoke (binding-invoker), create (interface-creator), inspect (source-inspector) \u2014 and the formats it handles, so ob can route work it can't handle natively to the delegate. A delegate satisfies whichever subset it implements; an invoke-only delegate is valid. Returns what was discovered; registration succeeds with a warning when the delegate is unreachable or offers no delegatable capability.",
       "input": {
-        "$ref": "#/schemas/DelegateUrlInput"
+        "$ref": "#/schemas/DelegateLocationInput"
       },
       "output": {
         "$ref": "#/schemas/CreateDelegateResult"
       }
     },
     "ob.deleteDelegate": {
-      "description": "Remove a registered delegate.",
+      "description": "Unregister a delegate by its location.",
       "input": {
-        "$ref": "#/schemas/DelegateUrlInput"
+        "$ref": "#/schemas/DelegateLocationInput"
       },
       "output": {
         "$ref": "#/schemas/DeleteDelegateResult"
       }
     },
     "ob.listDelegates": {
-      "description": "List the registered delegates and the formats each handles.",
+      "description": "List the registered delegates with the capabilities and formats each provides. Capabilities (invoke/create/inspect) and formats are discovered from each delegate's OBI.",
       "idempotent": true,
-      "input": {
-        "$ref": "#/schemas/ListDelegatesInput"
-      },
       "output": {
         "type": "array",
         "items": {
@@ -318,7 +315,7 @@
       }
     },
     "ob.resolveDelegate": {
-      "description": "Report which delegate handles a given format token.",
+      "description": "Report which registered delegate handles a given format, and the capabilities it offers for it.",
       "idempotent": true,
       "input": {
         "$ref": "#/schemas/ResolveDelegateInput"
@@ -1847,95 +1844,98 @@
       ],
       "additionalProperties": false
     },
-    "DelegateUrlInput": {
-      "type": "object",
-      "properties": {
-        "url": {
-          "type": "string",
-          "description": "Delegate URL (e.g. exec:my-cli, https://api.example.com)."
-        }
-      },
-      "required": [
-        "url"
-      ],
-      "additionalProperties": false
-    },
     "CreateDelegateResult": {
       "type": "object",
+      "description": "What ob discovered when registering the delegate. Registration succeeds even when the delegate is unreachable or offers nothing delegatable; reachable is then false and capabilities/formats are empty.",
       "properties": {
-        "added": {
+        "location": {
           "type": "string",
-          "description": "The URL that was added."
+          "description": "The registered delegate location."
         },
-        "delegate": {
+        "name": {
           "type": "string",
-          "description": "Identifier of the registered delegate."
+          "description": "Display name resolved from the delegate's OBI, or derived from its location."
+        },
+        "reachable": {
+          "type": "boolean",
+          "description": "Whether ob could resolve the delegate's OBI at registration."
+        },
+        "capabilities": {
+          "type": "array",
+          "items": {
+            "$ref": "#/schemas/DelegateCapability"
+          }
+        },
+        "formats": {
+          "type": "array",
+          "items": {
+            "$ref": "#/schemas/DelegateFormatInfo"
+          }
         }
       },
       "required": [
-        "delegate"
+        "location",
+        "reachable"
       ],
       "additionalProperties": false
     },
     "DeleteDelegateResult": {
       "type": "object",
       "properties": {
-        "removed": {
+        "location": {
           "type": "string",
-          "description": "The URL that was removed."
-        },
-        "delegate": {
-          "type": "string"
+          "description": "The unregistered delegate location."
         }
       },
       "required": [
-        "delegate"
+        "location"
       ],
-      "additionalProperties": false
-    },
-    "ListDelegatesInput": {
-      "type": "object",
-      "properties": {
-        "includeBuiltin": {
-          "type": "boolean",
-          "description": "Include the builtin delegate (default true)."
-        }
-      },
       "additionalProperties": false
     },
     "DelegateSummary": {
       "type": "object",
+      "description": "A registered delegate and what it provides, discovered from its OBI.",
       "properties": {
-        "delegate": {
+        "name": {
           "type": "string",
-          "description": "Delegate URL or identifier."
+          "description": "Display name: the delegate OBI's name, or one derived from its location."
         },
-        "builtin": {
-          "type": "boolean"
+        "location": {
+          "type": "string",
+          "description": "The delegate's location (exec: or http(s) URL); absent for the builtin self-delegate."
+        },
+        "capabilities": {
+          "type": "array",
+          "items": {
+            "$ref": "#/schemas/DelegateCapability"
+          },
+          "description": "The format-handling capabilities the delegate offers."
         },
         "formats": {
           "type": "array",
           "items": {
-            "type": "string"
+            "$ref": "#/schemas/DelegateFormatInfo"
           },
-          "description": "Format tokens this delegate handles."
+          "description": "The formats the delegate handles."
+        },
+        "builtin": {
+          "type": "boolean",
+          "description": "True for ob's own native handling \u2014 the implicit self-delegate, delegate 0."
         }
       },
-      "required": [
-        "delegate"
-      ],
-      "additionalProperties": true
+      "required": [],
+      "additionalProperties": false
     },
     "ResolveDelegateInput": {
       "type": "object",
       "properties": {
-        "formatToken": {
+        "format": {
           "type": "string",
-          "description": "Format token to resolve."
+          "description": "Format token to resolve to a delegate."
         }
       },
       "required": [
-        "formatToken"
+        "format"
       ],
       "additionalProperties": false
     },
@@ -1943,18 +1943,31 @@
       "type": "object",
       "properties": {
         "format": {
-          "type": "string"
+          "type": "string",
+          "description": "The requested format token."
         },
-        "delegate": {
-          "type": "string"
+        "name": {
+          "type": "string",
+          "description": "Display name of the delegate that handles it."
         },
         "location": {
-          "type": "string"
+          "type": "string",
+          "description": "The delegate's location."
+        },
+        "capabilities": {
+          "type": "array",
+          "items": {
+            "$ref": "#/schemas/DelegateCapability"
+          },
+          "description": "The capabilities the delegate offers for this format."
+        },
+        "builtin": {
+          "type": "boolean",
+          "description": "True when ob's own native handling is selected for the format."
         }
       },
       "required": [
-        "format",
-        "delegate"
+        "format"
       ],
       "additionalProperties": false
     },
@@ -2286,6 +2299,45 @@
         "operation",
         "action",
         "applied"
+      ],
+      "additionalProperties": false
+    },
+    "DelegateLocationInput": {
+      "type": "object",
+      "properties": {
+        "location": {
+          "type": "string",
+          "description": "Delegate location: the exec: or http(s) URL of the delegate's OpenBindings interface."
+        }
+      },
+      "required": [
+        "location"
+      ],
+      "additionalProperties": false
+    },
+    "DelegateCapability": {
+      "type": "string",
+      "enum": [
+        "invoke",
+        "create",
+        "inspect"
+      ],
+      "description": "A format-handling capability a delegate provides, mapping to the interface it satisfies: invoke (openbindings.binding-invoker), create (openbindings.interface-creator), inspect (openbindings.source-inspector). A delegate offers whichever subset it satisfies."
+    },
+    "DelegateFormatInfo": {
+      "type": "object",
+      "properties": {
+        "format": {
+          "type": "string",
+          "description": "Format token the delegate handles (e.g. grpc, openapi@3.1)."
+        },
+        "description": {
+          "type": "string",
+          "description": "Human-readable description of the format, when the delegate provides one."
+        }
+      },
+      "required": [
+        "format"
       ],
       "additionalProperties": false
     }
