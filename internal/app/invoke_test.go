@@ -61,13 +61,13 @@ func TestDefaultBindingForOp_NoMatch(t *testing.T) {
 	}
 }
 
-func TestDefaultBindingForOp_PrioritySelection(t *testing.T) {
+func TestDefaultBindingForOp_PreferenceSelection(t *testing.T) {
 	lo := 1.0
 	hi := 10.0
 	iface := &openbindings.Interface{
 		Bindings: map[string]openbindings.BindingEntry{
-			"listPets.backup":  {Operation: "listPets", Source: "backup", Ref: "backup-ref", Priority: &hi},
-			"listPets.primary": {Operation: "listPets", Source: "primary", Ref: "primary-ref", Priority: &lo},
+			"listPets.backup":  {Operation: "listPets", Source: "backup", Ref: "backup-ref", Preference: &lo},
+			"listPets.primary": {Operation: "listPets", Source: "primary", Ref: "primary-ref", Preference: &hi},
 		},
 	}
 	_, got := DefaultBindingForOp("listPets", iface)
@@ -75,16 +75,16 @@ func TestDefaultBindingForOp_PrioritySelection(t *testing.T) {
 		t.Fatal("expected binding, got nil")
 	}
 	if got.Source != "primary" {
-		t.Errorf("expected source 'primary' (lower priority wins), got %q", got.Source)
+		t.Errorf("expected source 'primary' (higher preference wins), got %q", got.Source)
 	}
 }
 
-func TestDefaultBindingForOp_NilPriorityLosesToExplicit(t *testing.T) {
+func TestDefaultBindingForOp_NilPreferenceLosesToExplicit(t *testing.T) {
 	explicit := 5.0
 	iface := &openbindings.Interface{
 		Bindings: map[string]openbindings.BindingEntry{
-			"listPets.explicit": {Operation: "listPets", Source: "explicit", Ref: "e", Priority: &explicit},
-			"listPets.default":  {Operation: "listPets", Source: "default", Ref: "d"}, // nil → +Inf
+			"listPets.explicit": {Operation: "listPets", Source: "explicit", Ref: "e", Preference: &explicit},
+			"listPets.default":  {Operation: "listPets", Source: "default", Ref: "d"}, // nil → 0 (baseline)
 		},
 	}
 	_, got := DefaultBindingForOp("listPets", iface)
@@ -92,7 +92,7 @@ func TestDefaultBindingForOp_NilPriorityLosesToExplicit(t *testing.T) {
 		t.Fatal("expected binding, got nil")
 	}
 	if got.Source != "explicit" {
-		t.Errorf("expected source 'explicit' (nil priority loses to explicit), got %q", got.Source)
+		t.Errorf("expected source 'explicit' (nil preference loses to explicit positive), got %q", got.Source)
 	}
 }
 

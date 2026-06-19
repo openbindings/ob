@@ -50,7 +50,7 @@ Every operation is a stream. One JSON value per event is printed to
 stdout. Unary operations produce one line and exit. Streaming
 operations produce lines until the stream closes or Ctrl-C.
 
-The operation key is a positional argument. The highest-priority
+The operation key is a positional argument. The most-preferred
 binding for that operation is used automatically.
 
 Alternatively, use --binding to select a specific binding directly;

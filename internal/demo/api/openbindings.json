@@ -338,139 +338,139 @@
       "operation": "getMenu",
       "source": "restApi",
       "ref": "#/paths/~1api~1menu/get",
-      "priority": 0
+      "preference": 30
     },
     "getMenu.mcpServer": {
       "operation": "getMenu",
       "source": "mcpServer",
       "ref": "tools/getMenu",
-      "priority": 5
+      "preference": 20
     },
     "getMenu.grpcServer": {
       "operation": "getMenu",
       "source": "grpcServer",
       "ref": "blend.CoffeeShop/GetMenu",
-      "priority": 10
+      "preference": 10
     },
     "placeOrder.restApi": {
       "operation": "placeOrder",
       "source": "restApi",
       "ref": "#/paths/~1api~1orders/post",
-      "priority": 0
+      "preference": 30
     },
     "placeOrder.mcpServer": {
       "operation": "placeOrder",
       "source": "mcpServer",
       "ref": "tools/placeOrder",
-      "priority": 5
+      "preference": 20
     },
     "placeOrder.grpcServer": {
       "operation": "placeOrder",
       "source": "grpcServer",
       "ref": "blend.CoffeeShop/PlaceOrder",
-      "priority": 10
+      "preference": 10
     },
     "getOrderStatus.restApi": {
       "operation": "getOrderStatus",
       "source": "restApi",
       "ref": "#/paths/~1api~1orders~1{orderId}/get",
-      "priority": 0
+      "preference": 30
     },
     "getOrderStatus.mcpServer": {
       "operation": "getOrderStatus",
       "source": "mcpServer",
       "ref": "tools/getOrderStatus",
-      "priority": 5
+      "preference": 20
     },
     "getOrderStatus.grpcServer": {
       "operation": "getOrderStatus",
       "source": "grpcServer",
       "ref": "blend.CoffeeShop/GetOrderStatus",
-      "priority": 10
+      "preference": 10
     },
     "cancelOrder.restApi": {
       "operation": "cancelOrder",
       "source": "restApi",
       "ref": "#/paths/~1api~1orders~1{orderId}~1cancel/post",
-      "priority": 0
+      "preference": 30
     },
     "cancelOrder.mcpServer": {
       "operation": "cancelOrder",
       "source": "mcpServer",
       "ref": "tools/cancelOrder",
-      "priority": 5
+      "preference": 20
     },
     "cancelOrder.grpcServer": {
       "operation": "cancelOrder",
       "source": "grpcServer",
       "ref": "blend.CoffeeShop/CancelOrder",
-      "priority": 10
+      "preference": 10
     },
     "getMenu.connectServer": {
       "operation": "getMenu",
       "source": "connectServer",
       "ref": "blend.CoffeeShop/GetMenu",
-      "priority": 12
+      "preference": 5
     },
     "placeOrder.connectServer": {
       "operation": "placeOrder",
       "source": "connectServer",
       "ref": "blend.CoffeeShop/PlaceOrder",
-      "priority": 12
+      "preference": 5
     },
     "getOrderStatus.connectServer": {
       "operation": "getOrderStatus",
       "source": "connectServer",
       "ref": "blend.CoffeeShop/GetOrderStatus",
-      "priority": 12
+      "preference": 5
     },
     "cancelOrder.connectServer": {
       "operation": "cancelOrder",
       "source": "connectServer",
       "ref": "blend.CoffeeShop/CancelOrder",
-      "priority": 12
+      "preference": 5
     },
     "getMenu.graphqlServer": {
       "operation": "getMenu",
       "source": "graphqlServer",
       "ref": "Query/getMenu",
-      "priority": 15
+      "preference": 1
     },
     "placeOrder.graphqlServer": {
       "operation": "placeOrder",
       "source": "graphqlServer",
       "ref": "Mutation/placeOrder",
-      "priority": 15
+      "preference": 1
     },
     "getOrderStatus.graphqlServer": {
       "operation": "getOrderStatus",
       "source": "graphqlServer",
       "ref": "Mutation/getOrderStatus",
-      "priority": 15
+      "preference": 1
     },
     "cancelOrder.graphqlServer": {
       "operation": "cancelOrder",
       "source": "graphqlServer",
       "ref": "Mutation/cancelOrder",
-      "priority": 15
+      "preference": 1
     },
     "orderUpdates.eventStream": {
       "operation": "orderUpdates",
       "source": "eventStream",
       "ref": "#/operations/onOrderUpdate",
-      "priority": 0
+      "preference": 30
     },
     "orderUpdates.grpcServer": {
       "operation": "orderUpdates",
       "source": "grpcServer",
       "ref": "blend.CoffeeShop/OrderUpdates",
-      "priority": 10
+      "preference": 10
     },
     "orderUpdates.graphqlServer": {
       "operation": "orderUpdates",
       "source": "graphqlServer",
       "ref": "Subscription/orderUpdates",
-      "priority": 15
+      "preference": 1
     },
     "placeAndTrack.graph": {
       "operation": "placeAndTrack",
