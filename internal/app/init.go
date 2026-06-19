@@ -8,8 +8,9 @@ import (
 
 // EnvConfig represents environment-level configuration stored in .openbindings/config.json.
 type EnvConfig struct {
-	Delegates               []string `json:"delegates,omitempty"`
-	RemovedDefaultDelegates []string `json:"removedDefaultDelegates,omitempty"`
+	Delegates               []string                   `json:"delegates,omitempty"`
+	RemovedDefaultDelegates []string                   `json:"removedDefaultDelegates,omitempty"`
+	DelegatePreferences     []DelegatePreferenceConfig `json:"delegatePreferences,omitempty"`
 }
 
 // InitResult is returned by Init.

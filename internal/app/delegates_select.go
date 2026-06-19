@@ -18,10 +18,46 @@ type delegateCandidate struct {
 	// iface is the delegate's resolved OBI, used to operation-invoke it. Nil for
 	// the self-delegate (which runs in-process, not over a transport).
 	iface *openbindings.Interface
-	// preference is the effective preference for this candidate (higher = more
-	// preferred; absent = baseline 0). Phase 5 fills per-delegate/per-offering
-	// values; until then every candidate sits at the baseline.
+	// preference is the delegate-level preference (higher = more preferred;
+	// 0 = the baseline, which absent also maps to). It is the default for every
+	// offering, overridable per (capability[, format]) by perOffering.
 	preference float64
+	// perOffering overrides the delegate-level preference for a specific
+	// capability (and optionally format), mirroring binding-vs-source preference.
+	perOffering []OfferingPreference
+}
+
+// OfferingPreference overrides a delegate's preference for one offering — a
+// capability, optionally scoped to a format. Higher = more preferred.
+type OfferingPreference struct {
+	Capability DelegateCapability `json:"capability"`
+	Format     string             `json:"format,omitempty"`
+	Preference float64            `json:"preference"`
+}
+
+// effectivePreference is the preference to rank this candidate by for a
+// (capability, format) task: the most specific matching per-offering override
+// (capability+format beats capability-only), else the delegate-level value,
+// else the baseline 0.
+func (c *delegateCandidate) effectivePreference(cap DelegateCapability, format string) float64 {
+	pref := c.preference
+	matchedSpecific := false
+	matched := false
+	for _, o := range c.perOffering {
+		if o.Capability != cap {
+			continue
+		}
+		specific := o.Format != ""
+		if specific && !delegates.SupportsFormat(o.Format, format) {
+			continue
+		}
+		if !matched || (specific && !matchedSpecific) {
+			pref = o.Preference
+			matched = true
+			matchedSpecific = specific
+		}
+	}
+	return pref
 }
 
 // selfDelegateCandidate is ob's own native handling as a routing candidate:
@@ -47,7 +83,8 @@ func selfDelegateCandidate() delegateCandidate {
 // follows.
 func gatherDelegates() []delegateCandidate {
 	candidates := []delegateCandidate{selfDelegateCandidate()}
-	for _, loc := range GetDelegateContext().Delegates {
+	delCtx := GetDelegateContext()
+	for _, loc := range delCtx.Delegates {
 		if isSelf(loc) {
 			continue // folded into the self-delegate
 		}
@@ -68,6 +105,10 @@ func gatherDelegates() []delegateCandidate {
 			for _, f := range fmts {
 				c.formats = append(c.formats, DelegateFormatInfo{Format: f})
 			}
+		}
+		if pref, ok := delCtx.Preferences[loc]; ok {
+			c.preference = pref.Preference
+			c.perOffering = pref.PerOffering
 		}
 		candidates = append(candidates, c)
 	}
@@ -105,21 +146,30 @@ func (c *delegateCandidate) handles(format string) bool {
 // order. Returns nil when no candidate qualifies.
 func selectDelegateFrom(candidates []delegateCandidate, cap DelegateCapability, format string) *delegateCandidate {
 	var best *delegateCandidate
+	var bestPref float64
 	for i := range candidates {
 		c := &candidates[i]
 		if !c.provides(cap) || !c.handles(format) {
 			continue
 		}
-		if best == nil || ranksAbove(c, best) {
-			best = c
+		pref := c.effectivePreference(cap, format)
+		switch {
+		case best == nil:
+		case pref > bestPref:
+		case pref == bestPref && c.builtin && !best.builtin:
+			// equal preference → builtin self-delegate wins the tie
+		default:
+			continue // not better; keep earlier (stable registration order)
 		}
+		best, bestPref = c, pref
 	}
 	return best
 }
 
-// ranksAbove reports whether candidate a should outrank the current best b:
-// higher preference first; on equal preference the builtin self-delegate wins;
-// otherwise keep the earlier candidate (stable registration order).
+// ranksAbove reports whether candidate a should outrank the current best b by
+// delegate-level preference (used where there is no capability context, e.g.
+// resolveDelegate): higher preference first; on equal preference the builtin
+// self-delegate wins; otherwise keep the earlier candidate.
 func ranksAbove(a, b *delegateCandidate) bool {
 	if a.preference != b.preference {
 		return a.preference > b.preference

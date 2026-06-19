@@ -8,6 +8,17 @@ var defaultDelegates = []string{"http://localhost:8787"}
 // DelegateContext contains delegate-related data from the environment config.
 type DelegateContext struct {
 	Delegates []string
+	// Preferences holds per-delegate preference config keyed by location.
+	Preferences map[string]DelegatePreferenceConfig
+}
+
+// DelegatePreferenceConfig is the stored preference for a delegate: a
+// delegate-level value (higher = more preferred; absent = baseline 0) plus
+// optional per-(capability[, format]) overrides.
+type DelegatePreferenceConfig struct {
+	Location    string               `json:"location"`
+	Preference  float64              `json:"preference,omitempty"`
+	PerOffering []OfferingPreference `json:"perOffering,omitempty"`
 }
 
 // getDelegateContextFunc is the indirection point for tests so they can
@@ -32,8 +43,13 @@ func defaultGetDelegateContext() DelegateContext {
 	if err != nil {
 		return DelegateContext{}
 	}
+	prefs := make(map[string]DelegatePreferenceConfig, len(config.DelegatePreferences))
+	for _, p := range config.DelegatePreferences {
+		prefs[p.Location] = p
+	}
 	return DelegateContext{
-		Delegates: config.Delegates,
+		Delegates:   config.Delegates,
+		Preferences: prefs,
 	}
 }
 

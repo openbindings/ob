@@ -334,6 +334,15 @@
         "$ref": "#/schemas/OpenBindingsInterface"
       }
     },
+    "ob.setDelegatePreference": {
+      "description": "Set a delegate's selection preference (higher = more preferred; 0 is the baseline, negatives rank below it). With no capability, sets the delegate-level default for all its offerings; with a capability (optionally scoped to a format), sets a per-offering override \u2014 how create can route to one delegate and invoke to another. Selection follows OBI-T-09: effective preference is the per-offering value, else the delegate-level value, else 0.",
+      "input": {
+        "$ref": "#/schemas/SetDelegatePreferenceInput"
+      },
+      "output": {
+        "$ref": "#/schemas/SetDelegatePreferenceResult"
+      }
+    },
     "ob.initializeEnvironment": {
       "description": "Initialize an OpenBindings environment (the .openbindings/ directory) and return its status.",
       "output": {
@@ -2360,6 +2369,53 @@
       },
       "required": [
         "capability"
+      ],
+      "additionalProperties": false
+    },
+    "SetDelegatePreferenceInput": {
+      "type": "object",
+      "properties": {
+        "location": {
+          "type": "string",
+          "description": "The delegate's location."
+        },
+        "preference": {
+          "type": "number",
+          "description": "Preference value; higher is more preferred, 0 is the baseline, negatives rank below it."
+        },
+        "capability": {
+          "$ref": "#/schemas/DelegateCapability"
+        },
+        "format": {
+          "type": "string",
+          "description": "Optional binding-source format scope for the override (requires capability)."
+        }
+      },
+      "required": [
+        "location",
+        "preference"
+      ],
+      "additionalProperties": false
+    },
+    "SetDelegatePreferenceResult": {
+      "type": "object",
+      "properties": {
+        "location": {
+          "type": "string"
+        },
+        "preference": {
+          "type": "number"
+        },
+        "capability": {
+          "$ref": "#/schemas/DelegateCapability"
+        },
+        "format": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "location",
+        "preference"
       ],
       "additionalProperties": false
     }

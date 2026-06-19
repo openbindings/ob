@@ -54,4 +54,53 @@ func TestSelectDelegateFrom(t *testing.T) {
 			t.Fatalf("expected nil (create-capable but wrong format), got %+v", got)
 		}
 	})
+
+	t.Run("per-offering preference: X for create, Y for invoke", func(t *testing.T) {
+		// One delegate does both create and invoke for grpc, with per-offering
+		// preferences that route create to X and invoke to Y.
+		x := delegateCandidate{
+			name: "x", location: "exec:x",
+			capabilities: []DelegateCapability{CapCreate, CapInvoke},
+			formats:      []DelegateFormatInfo{{Format: "grpc"}},
+			perOffering: []OfferingPreference{
+				{Capability: CapCreate, Preference: 10}, // prefer X for create
+			},
+		}
+		y := delegateCandidate{
+			name: "y", location: "exec:y",
+			capabilities: []DelegateCapability{CapCreate, CapInvoke},
+			formats:      []DelegateFormatInfo{{Format: "grpc"}},
+			perOffering: []OfferingPreference{
+				{Capability: CapInvoke, Preference: 10}, // prefer Y for invoke
+			},
+		}
+		set := []delegateCandidate{x, y}
+		if got := selectDelegateFrom(set, CapCreate, "grpc"); got == nil || got.name != "x" {
+			t.Errorf("create/grpc should route to X, got %+v", got)
+		}
+		if got := selectDelegateFrom(set, CapInvoke, "grpc"); got == nil || got.name != "y" {
+			t.Errorf("invoke/grpc should route to Y, got %+v", got)
+		}
+	})
+
+	t.Run("format-specific override beats capability-only", func(t *testing.T) {
+		c := delegateCandidate{
+			name: "z", location: "exec:z", preference: 1,
+			capabilities: []DelegateCapability{CapInvoke},
+			formats:      []DelegateFormatInfo{{Format: "grpc"}},
+			perOffering: []OfferingPreference{
+				{Capability: CapInvoke, Preference: 3},                  // capability-only
+				{Capability: CapInvoke, Format: "grpc", Preference: 9},  // more specific
+			},
+		}
+		if got := c.effectivePreference(CapInvoke, "grpc"); got != 9 {
+			t.Errorf("expected the format-specific override (9), got %v", got)
+		}
+		if got := c.effectivePreference(CapInvoke, "openapi"); got != 3 {
+			t.Errorf("expected the capability-only override (3) for a non-grpc format, got %v", got)
+		}
+		if got := c.effectivePreference(CapCreate, "grpc"); got != 1 {
+			t.Errorf("expected the delegate-level preference (1) when no offering matches, got %v", got)
+		}
+	})
 }
