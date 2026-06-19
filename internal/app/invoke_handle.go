@@ -64,25 +64,25 @@ func InvokeBindingHandle(ctx context.Context, input InvokeOperationInput) openbi
 	return delegateInvoker.InvokeBinding(ctx, args)
 }
 
-// resolveDelegateInvoker finds the delegate handling a format (excluding this
-// binary, to prevent recursion) and wraps it as a BindingInvoker.
+// resolveDelegateInvoker selects an invoke-capable delegate that handles the
+// format via the unified delegate selection (OBI-T-09: capability + format,
+// preference, self-first ties), then wraps it as a BindingInvoker. The
+// self-delegate is excluded here by construction — it has no iface (it runs
+// natively, and native handling was already tried before falling through to a
+// delegate). The chosen delegate's frame/CLI transport is still carried by
+// DelegateBindingInvoker (the frame-transport collapse is the tracked "B"
+// follow-up; see delegate-model-design.md §11b).
 func resolveDelegateInvoker(format string) (openbindings.BindingInvoker, error) {
-	delCtx := GetDelegateContext()
-	var excludeLocs []string
-	for _, loc := range delCtx.Delegates {
-		if isSelf(loc) {
-			excludeLocs = append(excludeLocs, loc)
-		}
+	chosen := selectDelegate(CapInvoke, format)
+	if chosen == nil || chosen.iface == nil {
+		return nil, fmt.Errorf("no invoker or delegate handles format %q", format)
 	}
-	resolved, err := delegates.Resolve(delegates.ResolveParams{
-		Format:           format,
-		Delegates:        delCtx.Delegates,
-		ExcludeLocations: excludeLocs,
+	return DelegateBindingInvoker(delegates.Resolved{
+		Format:   format,
+		Delegate: chosen.name,
+		Location: chosen.location,
+		OBI:      &delegates.ResolvedOBI{Interface: *chosen.iface},
 	})
-	if err != nil {
-		return nil, fmt.Errorf("no invoker or delegate handles format %q: %v", format, err)
-	}
-	return DelegateBindingInvoker(resolved)
 }
 
 // withStoredContext runs the side-effect-free preflight and merges stored

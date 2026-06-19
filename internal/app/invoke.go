@@ -45,7 +45,7 @@ type InvokeOperationOutput struct {
 	BindingKey string `json:"bindingKey,omitempty"`
 }
 
-// DefaultBindingForOp finds the highest-priority, non-deprecated binding for a given operation.
+// DefaultBindingForOp finds the most-preferred, non-deprecated binding for a given operation.
 // Returns the binding key and entry, or ("", nil) if no binding matches.
 func DefaultBindingForOp(opKey string, iface *openbindings.Interface) (string, *openbindings.BindingEntry) {
 	key, entry, err := openbindings.DefaultBindingSelector(iface, opKey)
@@ -299,20 +299,28 @@ func statusFromError(err *openbindings.InvocationError) int {
 // a single InvocationOutput.
 //
 // Exactly one of opKey or bindingKey must be non-empty:
-//   - opKey: selects the highest-priority binding for that operation.
+//   - opKey: selects the most-preferred binding for that operation.
 //   - bindingKey: looks up the binding directly (operation is read from the entry).
 func InvokeOBIOperation(ctx context.Context, obiPath string, opKey string, bindingKey string, input any) (<-chan InvocationOutput, error) {
 	iface, err := resolveInterface(obiPath)
 	if err != nil {
 		return nil, fmt.Errorf("load OBI %q: %w", obiPath, err)
 	}
+	return invokeOnInterface(ctx, iface, opKey, bindingKey, input, filepath.Dir(obiPath))
+}
 
+// invokeOnInterface invokes an operation (or a specific binding) on an
+// already-resolved interface, resolving relative source locations against
+// obiDir. It is the core shared by file-backed invocation (InvokeOBIOperation)
+// and delegate invocation: ob operation-invokes a delegate's operation against
+// the delegate's own resolved OBI through this same path.
+func invokeOnInterface(ctx context.Context, iface *openbindings.Interface, opKey, bindingKey string, input any, obiDir string) (<-chan InvocationOutput, error) {
 	resolved, err := resolveBindingAndSource(iface, opKey, bindingKey, input)
 	if err != nil {
 		return nil, err
 	}
 
-	es := resolveSourceLocation(resolved.source, filepath.Dir(obiPath))
+	es := resolveSourceLocation(resolved.source, obiDir)
 
 	lowLevel := InvokeOperationInput{
 		Source:    InvokeSource{Format: es.Format, Location: es.Location, Content: es.Content},
@@ -514,37 +522,32 @@ func InvokeOperationWithContext(ctx context.Context, input InvokeOperationInput)
 		}
 	}
 
-	delCtx := GetDelegateContext()
-
-	var excludeLocs []string
-	for _, loc := range delCtx.Delegates {
-		if isSelf(loc) {
-			excludeLocs = append(excludeLocs, loc)
-		}
-	}
-
-	resolved, err := delegates.Resolve(delegates.ResolveParams{
-		Format:           input.Source.Format,
-		Delegates:        delCtx.Delegates,
-		ExcludeLocations: excludeLocs,
-	})
+	// Unified delegate selection (capability + format, preference, self-first
+	// ties). Native formats select the self-delegate (iface nil → in-process);
+	// non-native formats select an external delegate when one is registered.
+	chosen := selectDelegate(CapInvoke, input.Source.Format)
 
 	var output InvokeOperationOutput
-	if err != nil {
-		// No external delegate found — try in-process invocation.
-		// This handles the case where ob itself supports the format natively.
+	if chosen == nil || chosen.iface == nil {
+		// Self-delegate or nothing: invoke in-process when ob supports the
+		// format natively, else there is nowhere to route.
 		if BuiltinSupportsFormat(input.Source.Format) {
 			output = invokeViaBuiltin(ctx, input)
 		} else {
 			return InvokeOperationOutput{
 				Error: &Error{
 					Code:    "delegate_resolution_failed",
-					Message: err.Error(),
+					Message: fmt.Sprintf("no invoker or delegate handles format %q", input.Source.Format),
 				},
 			}
 		}
 	} else {
-		output = invokeViaExternalDelegate(ctx, resolved, input)
+		output = invokeViaExternalDelegate(ctx, delegates.Resolved{
+			Format:   input.Source.Format,
+			Delegate: chosen.name,
+			Location: chosen.location,
+			OBI:      &delegates.ResolvedOBI{Interface: *chosen.iface},
+		}, input)
 	}
 
 	output.DurationMs = time.Since(start).Milliseconds()
