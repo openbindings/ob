@@ -8,10 +8,11 @@ cmd "init" help="Initialize an OpenBindings environment (.openbindings/)" opKey=
   flag "-F --format <format>" help="Output format: json|yaml|text"
 }
 
-cmd "status" help="Show environment status or OBI sync report" opKey="getEnvironmentStatus" {
+cmd "status" help="Show environment status or OBI drift report" opKey="getEnvironmentStatus" {
+  flag "--exit-code" help="Exit non-zero if any source has drift (CI gate)"
   flag "-o --output <path>" help="Write output to file"
   flag "-F --format <format>" help="Output format: json|yaml|text"
-  arg "[obi-path]" help="OBI file path (shows sync report instead of env status)"
+  arg "[obi-path]" help="OBI file path (shows drift report instead of env status)"
 }
 
 cmd "resolve" help="Resolve an OpenBindings interface from a URL or host" opKey="resolveInterface" {
@@ -116,6 +117,7 @@ cmd "source" help="Manage source references on an OBI" subcommand_required=true 
     arg "<source>" help="Source path or format:path (e.g., openapi.json or usage@2.0.0:./cli.kdl)"
   }
   cmd "pull" help="Derive operations and bindings from registered sources" opKey="pullSource" {
+    flag "--pure" help="Strip x-ob metadata from the output (publish-clean); requires -o"
     flag "-o --output <path>" help="Write output to file"
     flag "-F --format <format>" help="Output format: json|yaml|text"
     arg "<obi-path>" help="Path to the OBI file"
@@ -132,22 +134,6 @@ cmd "source" help="Manage source references on an OBI" subcommand_required=true 
     arg "<obi-path>" help="Path to the OBI file"
     arg "<key>" help="Source key to remove"
   }
-}
-
-cmd "sync" help="Sync sources in an OBI from their x-ob references" opKey="syncInterface" {
-  flag "--force" help="Prefer source for all conflicts (overwrite local edits)"
-  flag "--op <key>" help="Sync only specific operations and their bindings (repeatable)"
-  flag "--pure" help="Strip all x-ob metadata from output (requires -o)"
-  flag "-o --output <path>" help="Write output to file"
-  flag "-F --format <format>" help="Output format: json|yaml|text"
-  arg "<obi-path>" help="Path to the OBI file"
-  arg "[source-key]..." help="Source keys to sync (default: all)"
-}
-
-cmd "conflicts" help="List merge conflicts between local edits and source changes" opKey="listConflicts" {
-  flag "-o --output <path>" help="Write output to file"
-  flag "-F --format <format>" help="Output format: json|yaml|text"
-  arg "<obi-path>" help="Path to the OBI file"
 }
 
 cmd "operation" help="Manage and invoke operations on an OBI" subcommand_required=true {

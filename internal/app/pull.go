@@ -18,6 +18,7 @@ type SourcePullInput struct {
 	SourceKeys []string // specific sources to pull (empty = all)
 	OutputPath string   // write to a different path
 	Format     string   // output format override
+	Pure       bool     // strip all x-ob metadata from the output (publish-clean); requires OutputPath
 }
 
 // SourcePullOutput reports what a pull changed. Each field is the set of keys
@@ -137,6 +138,12 @@ func SourcePull(input SourcePullInput) (SourcePullOutput, error) {
 	if input.OutputPath != "" {
 		outputPath = input.OutputPath
 	}
+	if input.Pure {
+		if input.OutputPath == "" || input.OutputPath == input.OBIPath {
+			return SourcePullOutput{}, fmt.Errorf("--pure requires -o to write a separate stripped copy (refusing to strip x-ob in place)")
+		}
+		StripAllXOB(iface)
+	}
 	if err := WriteInterfaceToPath(outputPath, iface, input.Format); err != nil {
 		return SourcePullOutput{}, fmt.Errorf("write OBI: %w", err)
 	}
@@ -164,6 +171,9 @@ func pullSourceInto(iface *openbindings.Interface, sourceKey string, derived Der
 				"source %q: derived operation %q collides with a hand-authored operation; left unchanged", sourceKey, opKey))
 			continue
 		}
+		if exists && sameContent(existing, freshOp) {
+			continue // unchanged source-owned op: no churn, no drift
+		}
 		markSourceOwned(&freshOp.LosslessFields, freshOp, out)
 		iface.Operations[opKey] = freshOp
 		if exists {
@@ -176,7 +186,16 @@ func pullSourceInto(iface *openbindings.Interface, sourceKey string, derived Der
 	derivedBinds := map[string]bool{}
 	for bk, freshBind := range derived.Bindings {
 		derivedBinds[bk] = true
-		_, exists := iface.Bindings[bk]
+		existingBind, exists := iface.Bindings[bk]
+		if exists && !HasXOB(existingBind.LosslessFields) {
+			// A hand-authored binding owns this key; don't clobber it.
+			out.Warnings = append(out.Warnings, fmt.Sprintf(
+				"source %q: derived binding %q collides with a hand-authored binding; left unchanged", sourceKey, bk))
+			continue
+		}
+		if exists && sameContent(existingBind, freshBind) {
+			continue // unchanged source-owned binding
+		}
 		markSourceOwned(&freshBind.LosslessFields, freshBind, out)
 		iface.Bindings[bk] = freshBind
 		if exists {
@@ -234,6 +253,20 @@ func markSourceOwned(lossless *openbindings.LosslessFields, obj any, out *Source
 	if err := SetBase(lossless, fields); err != nil {
 		out.Warnings = append(out.Warnings, fmt.Sprintf("record provenance: %v", err))
 	}
+}
+
+// sameContent reports whether two objects (operations or bindings) have
+// identical content, ignoring x-ob provenance metadata. Used so an overwrite
+// with unchanged content is neither written nor reported as drift.
+func sameContent(a, b any) bool {
+	am, err1 := ObjectToFieldMap(a)
+	bm, err2 := ObjectToFieldMap(b)
+	if err1 != nil || err2 != nil {
+		return false
+	}
+	aj, _ := json.Marshal(am)
+	bj, _ := json.Marshal(bm)
+	return string(aj) == string(bj)
 }
 
 // reReadAndDerive re-reads a managed source, updates its x-ob metadata in the

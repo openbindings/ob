@@ -721,7 +721,7 @@ func newOperationRemoveCmd() *cobra.Command {
 All bindings that reference the removed operations are also deleted.
 
 For managed operations (those with x-ob metadata from sync), a warning
-is shown because the next 'ob sync' will recreate them. Use --force to
+is shown because the next 'ob source pull' will re-derive them. Use --force to
 suppress the warning, or 'ob source remove' to stop syncing from the
 source entirely.
 
@@ -781,7 +781,7 @@ func checkManagedOps(obiPath string, keys []string) string {
 		return ""
 	}
 
-	return "managed operations (will be recreated by sync): " +
+	return "managed operations (will be re-derived by 'ob source pull'): " +
 		joinKeys(warn) +
 		"\nuse --force to remove anyway, or 'ob source remove' to stop syncing"
 }

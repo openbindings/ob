@@ -110,12 +110,6 @@ func NewRoot() *cobra.Command {
 	mergeCmd := newMergeCmd()
 	mergeCmd.GroupID = "authoring"
 
-	syncCmd := newSyncCmd()
-	syncCmd.GroupID = "authoring"
-
-	conflictsCmd := newConflictsCmd()
-	conflictsCmd.GroupID = "authoring"
-
 	bindingCmd := newBindingCmd()
 	bindingCmd.GroupID = "authoring"
 
@@ -161,8 +155,6 @@ func NewRoot() *cobra.Command {
 		bindingCmd,
 		codegenCmd,
 		conformCmd,
-		syncCmd,
-		conflictsCmd,
 		diffCmd,
 		mergeCmd,
 		formatsCmd,

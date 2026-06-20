@@ -1,11 +1,14 @@
 package app
 
 import (
+	"encoding/json"
 	"fmt"
 	"path/filepath"
 	"sort"
 	"strings"
 	"time"
+
+	openbindings "github.com/openbindings/openbindings-go"
 )
 
 // OBIStatusInput represents input for the OBI status command.
@@ -25,13 +28,16 @@ type SourceStatus struct {
 	OBVersion  string `json:"obVersion,omitempty"`
 	Error      string `json:"error,omitempty"`
 
-	// Diff details: what ob sync would change for this source.
-	OperationsAdded      []string `json:"operationsAdded,omitempty"`
-	OperationsUpdated    []string `json:"operationsUpdated,omitempty"`
-	OperationsConflicted []string `json:"operationsConflicted,omitempty"`
-	BindingsAdded        []string `json:"bindingsAdded,omitempty"`
-	BindingsUpdated      []string `json:"bindingsUpdated,omitempty"`
-	BindingsConflicted   []string `json:"bindingsConflicted,omitempty"`
+	// Drift details: what `ob source pull` would change for this source —
+	// added/updated/removed source-owned objects — plus custodial drift on
+	// hand-authored bindings whose target no longer exists in the source.
+	OperationsAdded   []string `json:"operationsAdded,omitempty"`
+	OperationsUpdated []string `json:"operationsUpdated,omitempty"`
+	OperationsRemoved []string `json:"operationsRemoved,omitempty"`
+	BindingsAdded     []string `json:"bindingsAdded,omitempty"`
+	BindingsUpdated   []string `json:"bindingsUpdated,omitempty"`
+	BindingsRemoved   []string `json:"bindingsRemoved,omitempty"`
+	Custodial         []string `json:"custodial,omitempty"`
 }
 
 // OBIStatusOutput represents the result of the OBI status command.
@@ -42,6 +48,17 @@ type OBIStatusOutput struct {
 	Sources    []SourceStatus `json:"sources"`
 	Operations ManagedKeys    `json:"operations"`
 	Bindings   ManagedKeys    `json:"bindings"`
+}
+
+// HasDrift reports whether any managed source is out of sync (the source would
+// add/update/remove objects, or a hand-authored binding has custodial drift).
+func (o OBIStatusOutput) HasDrift() bool {
+	for _, src := range o.Sources {
+		if src.Managed && !src.InSync {
+			return true
+		}
+	}
+	return false
 }
 
 // ManagedKeys lists keys split by management status. Counts are len(Managed) + len(HandAuthored).
@@ -118,7 +135,7 @@ func (o OBIStatusOutput) Render() string {
 	}
 	if outOfSync > 0 {
 		sb.WriteString(fmt.Sprintf("\n%s",
-			s.Warning.Render(fmt.Sprintf("%d source(s) out of sync. Run 'ob sync <obi>' to update.", outOfSync))))
+			s.Warning.Render(fmt.Sprintf("%d source(s) out of sync. Run 'ob source pull <obi>' to update.", outOfSync))))
 	} else if len(o.Sources) > 0 {
 		sb.WriteString(fmt.Sprintf("\n%s", s.Success.Render("All sources in sync.")))
 	}
@@ -128,15 +145,15 @@ func (o OBIStatusOutput) Render() string {
 
 // renderSourceDiff appends per-source diff details (what ob sync would change).
 func renderSourceDiff(sb *strings.Builder, s styles, src SourceStatus) {
-	lines := make([]string, 0, 6)
+	lines := make([]string, 0, 7)
 	if len(src.OperationsAdded) > 0 {
 		lines = append(lines, fmt.Sprintf("operations to add: %s", strings.Join(src.OperationsAdded, ", ")))
 	}
 	if len(src.OperationsUpdated) > 0 {
 		lines = append(lines, fmt.Sprintf("operations to update: %s", strings.Join(src.OperationsUpdated, ", ")))
 	}
-	if len(src.OperationsConflicted) > 0 {
-		lines = append(lines, fmt.Sprintf("operations with conflicts: %s", strings.Join(src.OperationsConflicted, ", ")))
+	if len(src.OperationsRemoved) > 0 {
+		lines = append(lines, fmt.Sprintf("operations to remove (orphaned): %s", strings.Join(src.OperationsRemoved, ", ")))
 	}
 	if len(src.BindingsAdded) > 0 {
 		lines = append(lines, fmt.Sprintf("bindings to add: %s", strings.Join(src.BindingsAdded, ", ")))
@@ -144,8 +161,11 @@ func renderSourceDiff(sb *strings.Builder, s styles, src SourceStatus) {
 	if len(src.BindingsUpdated) > 0 {
 		lines = append(lines, fmt.Sprintf("bindings to update: %s", strings.Join(src.BindingsUpdated, ", ")))
 	}
-	if len(src.BindingsConflicted) > 0 {
-		lines = append(lines, fmt.Sprintf("bindings with conflicts: %s", strings.Join(src.BindingsConflicted, ", ")))
+	if len(src.BindingsRemoved) > 0 {
+		lines = append(lines, fmt.Sprintf("bindings to remove (orphaned): %s", strings.Join(src.BindingsRemoved, ", ")))
+	}
+	if len(src.Custodial) > 0 {
+		lines = append(lines, fmt.Sprintf("custodial drift (hand-authored, target gone): %s", strings.Join(src.Custodial, ", ")))
 	}
 	for _, line := range lines {
 		sb.WriteString(s.Dim.Render("    ↳ " + line))
@@ -217,15 +237,9 @@ func OBIStatus(input OBIStatusInput) (OBIStatusOutput, error) {
 		ss.LastSynced = meta.LastSynced
 		ss.OBVersion = meta.OBVersion
 
-		// Preview what sync would change for this source.
-		preview, err := PreviewSourceMerge(src, key, iface, obiDir)
-		if err != nil {
+		if err := detectSourceDrift(iface, key, obiDir, &ss); err != nil {
 			ss.Error = err.Error()
-			sources = append(sources, ss)
-			continue
 		}
-
-		populateSourceDiff(&ss, preview)
 		sources = append(sources, ss)
 	}
 
@@ -263,16 +277,69 @@ func OBIStatus(input OBIStatusInput) (OBIStatusOutput, error) {
 	}, nil
 }
 
-// populateSourceDiff fills SourceStatus diff fields from a MergePreview.
-// InSync is true only when the preview has no changes or conflicts.
-func populateSourceDiff(ss *SourceStatus, preview MergePreview) {
-	ss.OperationsAdded = preview.OperationsAdded()
-	ss.OperationsUpdated = preview.OperationsUpdated()
-	ss.OperationsConflicted = preview.OperationsConflicted()
-	ss.BindingsAdded = preview.BindingsAdded()
-	ss.BindingsUpdated = preview.BindingsUpdated()
-	ss.BindingsConflicted = preview.BindingsConflicted()
-	ss.InSync = !preview.HasChanges()
+// detectSourceDrift fills a source's drift fields by performing a dry `pull`
+// on a throwaway clone of the interface — so status reports exactly what
+// `ob source pull` would change (added/updated/removed source-owned objects) —
+// then adds custodial drift for hand-authored bindings to this source whose
+// target the source no longer emits (pull leaves those alone, so they'd
+// silently rot into a dead ref).
+func detectSourceDrift(iface *openbindings.Interface, key, obiDir string, ss *SourceStatus) error {
+	clone, err := cloneInterface(iface)
+	if err != nil {
+		return err
+	}
+	derived, ok, warning := reReadAndDerive(clone, key, obiDir)
+	if !ok {
+		if warning != "" {
+			return fmt.Errorf("%s", warning)
+		}
+		return nil
+	}
+
+	var pull SourcePullOutput
+	pullSourceInto(clone, key, derived, &pull)
+	ss.OperationsAdded = pull.OperationsAdded
+	ss.OperationsUpdated = pull.OperationsUpdated
+	ss.OperationsRemoved = pull.OperationsPruned
+	ss.BindingsAdded = pull.BindingsAdded
+	ss.BindingsUpdated = pull.BindingsUpdated
+	ss.BindingsRemoved = pull.BindingsPruned
+
+	derivedRefs := map[string]bool{}
+	for _, b := range derived.Bindings {
+		derivedRefs[b.Ref] = true
+	}
+	var custodial []string
+	for _, b := range iface.Bindings {
+		if b.Source != key || HasXOB(b.LosslessFields) {
+			continue // source-owned bindings are handled by the pull pass above
+		}
+		if !derivedRefs[b.Ref] {
+			custodial = append(custodial, fmt.Sprintf("%s → %s (target gone)", b.Operation, b.Ref))
+		}
+	}
+	sort.Strings(custodial)
+	ss.Custodial = custodial
+
+	ss.InSync = len(ss.OperationsAdded) == 0 && len(ss.OperationsUpdated) == 0 &&
+		len(ss.OperationsRemoved) == 0 && len(ss.BindingsAdded) == 0 &&
+		len(ss.BindingsUpdated) == 0 && len(ss.BindingsRemoved) == 0 &&
+		len(ss.Custodial) == 0
+	return nil
+}
+
+// cloneInterface deep-copies an interface via a JSON round-trip, for read-only
+// dry-run computations that must not mutate the original.
+func cloneInterface(iface *openbindings.Interface) (*openbindings.Interface, error) {
+	data, err := json.Marshal(iface)
+	if err != nil {
+		return nil, err
+	}
+	var clone openbindings.Interface
+	if err := json.Unmarshal(data, &clone); err != nil {
+		return nil, err
+	}
+	return &clone, nil
 }
 
 // padRight pads a string to the given width with spaces.

@@ -136,15 +136,6 @@
         }
       }
     },
-    "openbindings.ob.syncInterface": {
-      "description": "Re-derive an interface's operations and bindings from its sources' x-ob references and return the synced interface alongside a report of what changed. Local edits that conflict with source changes are surfaced unless overridden.",
-      "input": {
-        "$ref": "#/schemas/SyncInterfaceInput"
-      },
-      "output": {
-        "$ref": "#/schemas/SyncResult"
-      }
-    },
     "openbindings.ob.mergeInterfaces": {
       "description": "Selectively apply changes from one interface (or from the target's own sources) into another, and return the merged interface alongside a report of what was applied and skipped.",
       "input": {
@@ -152,16 +143,6 @@
       },
       "output": {
         "$ref": "#/schemas/MergeResult"
-      }
-    },
-    "openbindings.ob.listConflicts": {
-      "description": "List the unresolved conflicts between an interface's local edits and the latest content of its sources.",
-      "idempotent": true,
-      "input": {
-        "$ref": "#/schemas/InterfaceInput"
-      },
-      "output": {
-        "$ref": "#/schemas/ConflictsReport"
       }
     },
     "openbindings.ob.validateInterface": {
@@ -939,105 +920,6 @@
       ],
       "additionalProperties": false
     },
-    "SyncInterfaceInput": {
-      "type": "object",
-      "properties": {
-        "interface": {
-          "$ref": "#/schemas/OpenBindingsInterface"
-        },
-        "force": {
-          "type": "boolean",
-          "description": "Prefer source for all conflicts, overwriting local edits."
-        },
-        "operations": {
-          "type": "array",
-          "items": {
-            "type": "string"
-          },
-          "description": "Sync only these operations and their bindings."
-        },
-        "sourceKeys": {
-          "type": "array",
-          "items": {
-            "type": "string"
-          },
-          "description": "Source keys to sync; default all."
-        },
-        "pure": {
-          "type": "boolean",
-          "description": "Strip all x-ob metadata from the result."
-        }
-      },
-      "required": [
-        "interface"
-      ],
-      "additionalProperties": false
-    },
-    "SyncResult": {
-      "type": "object",
-      "description": "The synced interface plus a report of what changed. Each list is the set of affected keys.",
-      "properties": {
-        "interface": {
-          "$ref": "#/schemas/OpenBindingsInterface"
-        },
-        "sources": {
-          "type": "array",
-          "items": {
-            "type": "string"
-          }
-        },
-        "skipped": {
-          "type": "array",
-          "items": {
-            "type": "string"
-          }
-        },
-        "operationsUpdated": {
-          "type": "array",
-          "items": {
-            "type": "string"
-          }
-        },
-        "operationsAdded": {
-          "type": "array",
-          "items": {
-            "type": "string"
-          }
-        },
-        "bindingsUpdated": {
-          "type": "array",
-          "items": {
-            "type": "string"
-          }
-        },
-        "bindingsAdded": {
-          "type": "array",
-          "items": {
-            "type": "string"
-          }
-        },
-        "conflicts": {
-          "type": "array",
-          "items": {
-            "$ref": "#/schemas/SyncConflict"
-          }
-        },
-        "warnings": {
-          "type": "array",
-          "items": {
-            "type": "string"
-          }
-        },
-        "pure": {
-          "type": "boolean",
-          "description": "True when x-ob metadata was stripped from the result."
-        }
-      },
-      "required": [
-        "interface"
-      ],
-      "additionalProperties": false
-    },
     "MergeInterfacesInput": {
       "type": "object",
       "properties": {
@@ -1104,71 +986,6 @@
       },
       "required": [
         "interface"
-      ],
-      "additionalProperties": false
-    },
-    "ConflictsReport": {
-      "type": "object",
-      "properties": {
-        "conflicts": {
-          "type": "array",
-          "items": {
-            "$ref": "#/schemas/ObjectConflict"
-          }
-        }
-      },
-      "required": [
-        "conflicts"
-      ],
-      "additionalProperties": false
-    },
-    "ObjectConflict": {
-      "type": "object",
-      "description": "An operation or binding whose local edits conflict with source changes.",
-      "properties": {
-        "key": {
-          "type": "string"
-        },
-        "type": {
-          "type": "string",
-          "enum": [
-            "operation",
-            "binding"
-          ]
-        },
-        "fields": {
-          "type": "array",
-          "items": {
-            "$ref": "#/schemas/FieldConflict"
-          }
-        }
-      },
-      "required": [
-        "key",
-        "type",
-        "fields"
-      ],
-      "additionalProperties": false
-    },
-    "FieldConflict": {
-      "type": "object",
-      "description": "One field that differs across the three-way merge of an object.",
-      "properties": {
-        "field": {
-          "type": "string"
-        },
-        "base": {
-          "description": "The value in the common ancestor."
-        },
-        "local": {
-          "description": "The locally edited value."
-        },
-        "source": {
-          "description": "The value the source now produces."
-        }
-      },
-      "required": [
-        "field"
       ],
       "additionalProperties": false
     },
@@ -2365,33 +2182,6 @@
       ],
       "additionalProperties": false
     },
-    "SyncConflict": {
-      "type": "object",
-      "description": "A single conflicting field on an object during sync.",
-      "properties": {
-        "object": {
-          "type": "string",
-          "description": "The conflicted object, e.g. 'operation:hello' or 'binding:hello.openapi'."
-        },
-        "field": {
-          "type": "string"
-        },
-        "base": {
-          "description": "The value in the common ancestor."
-        },
-        "local": {
-          "description": "The locally edited value."
-        },
-        "source": {
-          "description": "The value the source now produces."
-        }
-      },
-      "required": [
-        "object",
-        "field"
-      ],
-      "additionalProperties": false
-    },
     "MergeEntry": {
       "type": "object",
       "description": "One operation-level change in a merge, and whether it was applied.",
@@ -2541,7 +2331,7 @@
     },
     "SourceStatus": {
       "type": "object",
-      "description": "Sync status of one source on an interface, including what a sync would change.",
+      "description": "Drift status of one source on an interface: what `ob source pull` would add/update/remove, plus custodial drift on hand-authored bindings whose target is gone.",
       "properties": {
         "key": {
           "type": "string"
@@ -2557,7 +2347,7 @@
         },
         "inSync": {
           "type": "boolean",
-          "description": "Whether the interface's managed content matches what this source currently produces."
+          "description": "Whether the source would change nothing and has no custodial drift."
         },
         "managed": {
           "type": "boolean"
@@ -2583,12 +2373,6 @@
             "type": "string"
           }
         },
-        "operationsConflicted": {
-          "type": "array",
-          "items": {
-            "type": "string"
-          }
-        },
         "bindingsAdded": {
           "type": "array",
           "items": {
@@ -2601,11 +2385,24 @@
             "type": "string"
           }
         },
-        "bindingsConflicted": {
+        "operationsRemoved": {
           "type": "array",
           "items": {
             "type": "string"
           }
+        },
+        "bindingsRemoved": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "custodial": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Hand-authored bindings whose source target no longer exists."
         }
       },
       "required": [

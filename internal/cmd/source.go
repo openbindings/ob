@@ -56,13 +56,13 @@ choose which delegate to use. Use --delegate to select non-interactively,
 or --yes to accept the first capable delegate.
 
 The delegate choice is stored in the source's x-ob metadata so that
-'ob sync' knows which delegate to use later.
+'ob source pull' knows which delegate to use later.
 
 The source path is stored relative to the OBI file's directory, so the
 reference works regardless of where you run commands from.
 
 This does NOT derive operations or create bindings — it only registers
-the source reference. Use 'ob sync' afterward to derive operations
+the source reference. Use 'ob source pull' afterward to derive operations
 and bindings from the source.
 
 The --resolve flag controls how the source is stored in the OBI:
@@ -257,6 +257,8 @@ func claimNames(claims []app.DelegateClaim) string {
 }
 
 func newSourcePullCmd() *cobra.Command {
+	var pure bool
+
 	cmd := &cobra.Command{
 		Use:   "pull <obi-path> [source-key]...",
 		Short: "Derive operations and bindings from registered sources",
@@ -272,9 +274,13 @@ hand-edited operation, use 'ob merge --from-sources'.
 
 With no source keys, every registered source is pulled.
 
+Use --pure with -o to write a clean, spec-only copy (x-ob metadata
+stripped) suitable for publishing.
+
 Examples:
   ob source pull interface.json
   ob source pull interface.json openapi
+  ob source pull interface.json -o dist/interface.json --pure
   ob source add interface.json openapi.json && ob source pull interface.json`,
 		Args: cobra.MinimumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
@@ -284,6 +290,7 @@ Examples:
 				SourceKeys: args[1:],
 				OutputPath: outputPath,
 				Format:     format,
+				Pure:       pure,
 			})
 			if err != nil {
 				return app.ExitResult{Code: 1, Message: fmt.Sprintf("pull sources in %s: %v", args[0], err), ToStderr: true}
@@ -291,6 +298,8 @@ Examples:
 			return app.OutputResult(result, format, outputPath)
 		},
 	}
+
+	cmd.Flags().BoolVar(&pure, "pure", false, "strip x-ob metadata from the output (publish-clean); requires -o")
 	return cmd
 }
 

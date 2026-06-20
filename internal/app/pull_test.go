@@ -87,6 +87,35 @@ func TestPullSourceInto_DoesNotClobberHandAuthored(t *testing.T) {
 	}
 }
 
+func TestSameContent(t *testing.T) {
+	// Same content, one carrying x-ob provenance — must compare equal (x-ob ignored).
+	a := managedOp(openbindings.Operation{Description: "x", Input: map[string]any{"type": "object"}})
+	b := openbindings.Operation{Description: "x", Input: map[string]any{"type": "object"}}
+	if !sameContent(a, b) {
+		t.Error("operations with identical content (ignoring x-ob) should be equal")
+	}
+	// Different content — must compare unequal.
+	c := openbindings.Operation{Description: "y"}
+	if sameContent(a, c) {
+		t.Error("operations with different content should not be equal")
+	}
+}
+
+func TestOBIStatusOutput_HasDrift(t *testing.T) {
+	clean := OBIStatusOutput{Sources: []SourceStatus{{Managed: true, InSync: true}}}
+	if clean.HasDrift() {
+		t.Error("an in-sync managed source is not drift")
+	}
+	drift := OBIStatusOutput{Sources: []SourceStatus{{Managed: true, InSync: false}}}
+	if !drift.HasDrift() {
+		t.Error("an out-of-sync managed source is drift")
+	}
+	hand := OBIStatusOutput{Sources: []SourceStatus{{Managed: false, InSync: false}}}
+	if hand.HasDrift() {
+		t.Error("a hand-authored source is never drift")
+	}
+}
+
 func TestPullSourceInto_KeepsOtherTransportBinding(t *testing.T) {
 	// getA is bound to both 'api' and 'grpc'; pulling 'api' must not prune the
 	// grpc binding or the op (still bound elsewhere).
