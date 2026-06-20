@@ -92,8 +92,11 @@ func NewRoot() *cobra.Command {
 	resolveCmd := newResolveCmd()
 	resolveCmd.GroupID = "explore"
 
-	createCmd := newCreateCmd()
-	createCmd.GroupID = "authoring"
+	newCmd := newNewCmd()
+	newCmd.GroupID = "authoring"
+
+	metaCmd := newMetaCmd()
+	metaCmd.GroupID = "authoring"
 
 	inspectCmd := newInspectCmd()
 	inspectCmd.GroupID = "authoring"
@@ -148,7 +151,8 @@ func NewRoot() *cobra.Command {
 		statusCmd,
 		contextCmd,
 		resolveCmd,
-		createCmd,
+		newCmd,
+		metaCmd,
 		inspectCmd,
 		sourceCmd,
 		operationCmd,

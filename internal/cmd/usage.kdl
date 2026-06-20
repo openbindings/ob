@@ -89,15 +89,26 @@ cmd "formats" help="List format tokens this ob instance can handle" opKey="listF
   flag "-F --format <format>" help="Output format: json|yaml|text"
 }
 
-cmd "create" help="Create an OpenBindings interface from binding source artifacts" opKey="createInterface" {
-  flag "--to <version>" help="Target OpenBindings version (e.g., 0.1.0)"
-  flag "--name <name>" help="Interface name override"
-  flag "--version <version>" help="Interface version override"
-  flag "--description <desc>" help="Interface description override"
+cmd "new" help="Create an empty OpenBindings interface document" opKey="newInterface" {
+  flag "--name <name>" help="Interface name"
+  flag "--version <version>" help="Interface version"
+  flag "--description <desc>" help="Interface description"
+  flag "--openbindings <version>" help="Target OpenBindings spec version (default: latest tested)"
+  flag "--force" help="Overwrite an existing file"
   flag "-o --output <path>" help="Write output to file"
   flag "-F --format <format>" help="Output format: json|yaml|text"
-  flag "-y --yes" help="Accept defaults without prompting"
-  arg "[sources]..." help="Binding sources as format:path[?options] (e.g., usage@2.13.1:./cli.kdl?name=cli&embed)"
+  arg "<path>" help="Path for the new OBI file"
+}
+
+cmd "meta" help="Manage interface-level metadata" subcommand_required=true {
+  cmd "set" help="Edit interface metadata (name, version, description)" opKey="setMetadata" {
+    flag "--name <name>" help="Set the interface name"
+    flag "--version <version>" help="Set the interface version"
+    flag "--description <desc>" help="Set the interface description"
+    flag "-o --output <path>" help="Write output to file"
+    flag "-F --format <format>" help="Output format: json|yaml|text"
+    arg "<obi-path>" help="Path to the OBI file"
+  }
 }
 
 cmd "inspect" help="Inspect a binding source and list its bindable targets" opKey="inspectSource" {

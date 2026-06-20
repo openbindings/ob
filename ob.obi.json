@@ -494,6 +494,24 @@
       "output": {
         "$ref": "#/schemas/OpenBindingsInterface"
       }
+    },
+    "openbindings.ob.newInterface": {
+      "description": "Create an empty interface document (core fields + empty operations map) and return it.",
+      "input": {
+        "$ref": "#/schemas/NewInterfaceInput"
+      },
+      "output": {
+        "$ref": "#/schemas/OpenBindingsInterface"
+      }
+    },
+    "openbindings.ob.setMetadata": {
+      "description": "Edit an interface's top-level metadata (name, version, description) and return the modified interface.",
+      "input": {
+        "$ref": "#/schemas/SetMetadataInput"
+      },
+      "output": {
+        "$ref": "#/schemas/OpenBindingsInterface"
+      }
     }
   },
   "schemas": {
@@ -2710,6 +2728,46 @@
         "interface",
         "operation",
         "source"
+      ],
+      "additionalProperties": false
+    },
+    "NewInterfaceInput": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "version": {
+          "type": "string"
+        },
+        "description": {
+          "type": "string"
+        },
+        "openbindings": {
+          "type": "string",
+          "description": "Target OpenBindings spec version; defaults to the tool's max tested version."
+        }
+      },
+      "additionalProperties": false
+    },
+    "SetMetadataInput": {
+      "type": "object",
+      "properties": {
+        "interface": {
+          "$ref": "#/schemas/OpenBindingsInterface"
+        },
+        "name": {
+          "type": "string"
+        },
+        "version": {
+          "type": "string"
+        },
+        "description": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "interface"
       ],
       "additionalProperties": false
     }
