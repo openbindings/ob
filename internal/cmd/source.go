@@ -20,11 +20,12 @@ func newSourceCmd() *cobra.Command {
 
 Sources are registered references to binding specification artifacts
 (e.g., OpenAPI specs, usage specs). Adding a source does not derive
-operations — use 'ob sync' for that.`,
+operations — use 'ob source pull' for that.`,
 	}
 
 	cmd.AddCommand(
 		newSourceAddCmd(),
+		newSourcePullCmd(),
 		newSourceListCmd(),
 		newSourceRemoveCmd(),
 	)
@@ -253,6 +254,44 @@ func claimNames(claims []app.DelegateClaim) string {
 		names[i] = c.DelegateName
 	}
 	return strings.Join(names, ", ")
+}
+
+func newSourcePullCmd() *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "pull <obi-path> [source-key]...",
+		Short: "Derive operations and bindings from registered sources",
+		Long: `Derive operations and bindings from a registered source into the OBI.
+
+On first run this creates the source's operations and bindings; on later
+runs it overwrites the source-owned objects and prunes ones the source no
+longer emits. Hand-authored operations and bindings are never touched.
+
+Unlike a three-way merge, pull does not reconcile local edits — the source
+is authoritative for what it owns. To fold upstream changes into a
+hand-edited operation, use 'ob merge --from-sources'.
+
+With no source keys, every registered source is pulled.
+
+Examples:
+  ob source pull interface.json
+  ob source pull interface.json openapi
+  ob source add interface.json openapi.json && ob source pull interface.json`,
+		Args: cobra.MinimumNArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			format, outputPath := getOutputFlags(cmd)
+			result, err := app.SourcePull(app.SourcePullInput{
+				OBIPath:    args[0],
+				SourceKeys: args[1:],
+				OutputPath: outputPath,
+				Format:     format,
+			})
+			if err != nil {
+				return app.ExitResult{Code: 1, Message: fmt.Sprintf("pull sources in %s: %v", args[0], err), ToStderr: true}
+			}
+			return app.OutputResult(result, format, outputPath)
+		},
+	}
+	return cmd
 }
 
 func newSourceListCmd() *cobra.Command {

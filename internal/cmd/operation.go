@@ -10,8 +10,10 @@ import (
 	"strings"
 	"time"
 
+	"github.com/charmbracelet/huh"
 	"github.com/openbindings/ob/internal/app"
 	"github.com/spf13/cobra"
+	"golang.org/x/term"
 )
 
 func newOperationCmd() *cobra.Command {
@@ -30,6 +32,10 @@ exposes. Use subcommands to list, rename, remove, or invoke operations.`,
 		newOperationInvokeCmd(),
 		newOperationPrepareCmd(),
 		newOperationAddCmd(),
+		newOperationSetCmd(),
+		newOperationDetachCmd(),
+		newOperationBindCmd(),
+		newOperationUnbindCmd(),
 		newOperationAliasCmd(),
 		newOperationRenameCmd(),
 		newOperationRemoveCmd(),
@@ -411,6 +417,269 @@ Examples:
 		},
 	}
 	return cmd
+}
+
+func newOperationSetCmd() *cobra.Command {
+	var (
+		description string
+		idempotent  string
+		deprecated  string
+		inputJSON   string
+		outputJSON  string
+		addTags     []string
+		removeTags  []string
+		own         bool
+	)
+	cmd := &cobra.Command{
+		Use:   "set <obi-path> <operation>",
+		Short: "Edit an existing operation",
+		Long: `Edit fields of an existing operation: description, idempotency,
+deprecation, schemas, and tags.
+
+A source-owned operation (derived via 'ob source pull') can only be
+edited with --own, which detaches it first — otherwise the edit would be
+overwritten by the next pull.
+
+Schema flags accept inline JSON, '@path' to read a file, or '-' for stdin.
+
+Examples:
+  ob op set interface.json greet --description "Greet a user"
+  ob op set interface.json greet --deprecated true
+  ob op set interface.json getA --own --output-schema @new-output.json`,
+		Args: cobra.ExactArgs(2),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			setInput := app.OperationSetInput{
+				OBIPath:    args[0],
+				Op:         args[1],
+				AddTags:    addTags,
+				RemoveTags: removeTags,
+				Own:        own,
+			}
+			if cmd.Flags().Changed("description") {
+				setInput.Description = &description
+			}
+			if idempotent != "" {
+				v := idempotent == "true"
+				setInput.Idempotent = &v
+			}
+			if deprecated != "" {
+				v := deprecated == "true"
+				setInput.Deprecated = &v
+			}
+			if inputJSON != "" {
+				schema, err := readSchemaArg(inputJSON, "--input-schema")
+				if err != nil {
+					return err
+				}
+				setInput.Input = schema
+			}
+			if outputJSON != "" {
+				schema, err := readSchemaArg(outputJSON, "--output-schema")
+				if err != nil {
+					return err
+				}
+				setInput.Output = schema
+			}
+			result, err := app.OperationSet(setInput)
+			if err != nil {
+				return app.ExitResult{Code: 1, Message: fmt.Sprintf("set operation: %v", err), ToStderr: true}
+			}
+			format, outputPath := getOutputFlags(cmd)
+			return app.OutputResult(result, format, outputPath)
+		},
+	}
+	cmd.Flags().StringVar(&description, "description", "", "set the operation description")
+	cmd.Flags().StringVar(&idempotent, "idempotent", "", "set whether the operation is idempotent (true/false)")
+	cmd.Flags().StringVar(&deprecated, "deprecated", "", "set whether the operation is deprecated (true/false)")
+	cmd.Flags().StringVar(&inputJSON, "input-schema", "", "set input schema: inline JSON, @file, or - for stdin")
+	cmd.Flags().StringVar(&outputJSON, "output-schema", "", "set output schema: inline JSON, @file, or - for stdin")
+	cmd.Flags().StringArrayVar(&addTags, "add-tag", nil, "add a tag (repeatable)")
+	cmd.Flags().StringArrayVar(&removeTags, "remove-tag", nil, "remove a tag (repeatable)")
+	cmd.Flags().BoolVar(&own, "own", false, "take ownership of a source-owned operation (detach) before editing")
+	return cmd
+}
+
+func newOperationDetachCmd() *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "detach <obi-path> <operation>",
+		Short: "Convert a source-owned operation to hand-authored",
+		Long: `Detach a source-owned operation so 'ob source pull' no longer overwrites
+its schema. The operation becomes hand-authored ("you own it now").
+
+Examples:
+  ob op detach interface.json getA`,
+		Args: cobra.ExactArgs(2),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			result, err := app.OperationDetach(args[0], args[1])
+			if err != nil {
+				return app.ExitResult{Code: 1, Message: fmt.Sprintf("detach operation: %v", err), ToStderr: true}
+			}
+			format, outputPath := getOutputFlags(cmd)
+			return app.OutputResult(result, format, outputPath)
+		},
+	}
+	return cmd
+}
+
+func newOperationBindCmd() *cobra.Command {
+	var (
+		transformStub   bool
+		inputTransform  string
+		outputTransform string
+		preference      float64
+		force           bool
+	)
+	cmd := &cobra.Command{
+		Use:   "bind <obi-path> [operation] [source] [ref]",
+		Short: "Attach a source ref to an existing operation",
+		Long: `Attach a registered source's ref to an existing operation — the
+contract-keyed wire-up. The operation keeps its key; the source's wire
+identifier lives in the binding's ref.
+
+When operation, source, or ref are omitted, you are prompted to pick them
+(operation → source → ref). When all are given, it runs without prompts.
+
+On a shape mismatch between the operation and the ref, it warns; with
+--transform-stub it scaffolds identity transform stubs ($) for you to
+complete. Use --force to re-point an existing binding.
+
+Examples:
+  ob op bind interface.json                              # interactive picker
+  ob op bind interface.json greet openapi getGreeting
+  ob op bind interface.json fetch openapi readEntry --transform-stub`,
+		Args: cobra.RangeArgs(1, 4),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			obiPath := args[0]
+			var op, source, ref string
+			if len(args) > 1 {
+				op = args[1]
+			}
+			if len(args) > 2 {
+				source = args[2]
+			}
+			if len(args) > 3 {
+				ref = args[3]
+			}
+			if op == "" || source == "" || ref == "" {
+				var err error
+				op, source, ref, err = pickBindArgs(obiPath, op, source, ref)
+				if err != nil {
+					return app.ExitResult{Code: 2, Message: err.Error(), ToStderr: true}
+				}
+			}
+			bindInput := app.OperationBindInput{
+				OBIPath:         obiPath,
+				Op:              op,
+				Source:          source,
+				Ref:             ref,
+				TransformStub:   transformStub,
+				InputTransform:  inputTransform,
+				OutputTransform: outputTransform,
+				Force:           force,
+			}
+			if cmd.Flags().Changed("preference") {
+				bindInput.Preference = &preference
+			}
+			result, err := app.OperationBind(bindInput)
+			if err != nil {
+				return app.ExitResult{Code: 1, Message: fmt.Sprintf("bind operation: %v", err), ToStderr: true}
+			}
+			format, outputPath := getOutputFlags(cmd)
+			return app.OutputResult(result, format, outputPath)
+		},
+	}
+	cmd.Flags().BoolVar(&transformStub, "transform-stub", false, "scaffold identity transform stub(s) on shape mismatch")
+	cmd.Flags().StringVar(&inputTransform, "input-transform", "", "inline JSONata transforming operation input to binding input")
+	cmd.Flags().StringVar(&outputTransform, "output-transform", "", "inline JSONata transforming binding output to operation output")
+	cmd.Flags().Float64Var(&preference, "preference", 0, "binding selection preference (higher = more preferred)")
+	cmd.Flags().BoolVar(&force, "force", false, "overwrite an existing binding for this operation+source (re-point)")
+	return cmd
+}
+
+func newOperationUnbindCmd() *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "unbind <obi-path> <operation> <source>",
+		Short: "Remove a binding from an operation (keep the operation)",
+		Long: `Remove the binding connecting an operation to a source, leaving the
+operation in place. Useful for re-pointing to a different backend.
+
+Examples:
+  ob op unbind interface.json greet openapi`,
+		Args: cobra.ExactArgs(3),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			result, err := app.OperationUnbind(args[0], args[1], args[2])
+			if err != nil {
+				return app.ExitResult{Code: 1, Message: fmt.Sprintf("unbind operation: %v", err), ToStderr: true}
+			}
+			format, outputPath := getOutputFlags(cmd)
+			return app.OutputResult(result, format, outputPath)
+		},
+	}
+	return cmd
+}
+
+// pickBindArgs interactively fills any missing operation/source/ref for
+// `operation bind`. It requires a TTY; on a non-interactive stdin it returns an
+// error directing the caller to supply all three positionally.
+func pickBindArgs(obiPath, op, source, ref string) (string, string, string, error) {
+	if !term.IsTerminal(int(os.Stdin.Fd())) {
+		return "", "", "", fmt.Errorf("operation, source, and ref are required (no TTY for interactive selection)")
+	}
+	if op == "" {
+		ops, err := app.OperationList(obiPath, "")
+		if err != nil {
+			return "", "", "", err
+		}
+		if len(ops.Operations) == 0 {
+			return "", "", "", fmt.Errorf("no operations to bind; add one with 'ob operation add'")
+		}
+		opts := make([]huh.Option[string], len(ops.Operations))
+		for i, e := range ops.Operations {
+			opts[i] = huh.NewOption(e.Key, e.Key)
+		}
+		if err := huh.NewForm(huh.NewGroup(
+			huh.NewSelect[string]().Title("Operation").Options(opts...).Value(&op),
+		)).Run(); err != nil {
+			return "", "", "", err
+		}
+	}
+	if source == "" {
+		srcs, err := app.SourceList(obiPath)
+		if err != nil {
+			return "", "", "", err
+		}
+		if len(srcs.Sources) == 0 {
+			return "", "", "", fmt.Errorf("no sources registered; add one with 'ob source add'")
+		}
+		opts := make([]huh.Option[string], len(srcs.Sources))
+		for i, e := range srcs.Sources {
+			opts[i] = huh.NewOption(e.Key, e.Key)
+		}
+		if err := huh.NewForm(huh.NewGroup(
+			huh.NewSelect[string]().Title("Source").Options(opts...).Value(&source),
+		)).Run(); err != nil {
+			return "", "", "", err
+		}
+	}
+	if ref == "" {
+		refs, err := app.SourceRefs(obiPath, source)
+		if err != nil {
+			return "", "", "", err
+		}
+		if len(refs) == 0 {
+			return "", "", "", fmt.Errorf("source %q exposes no bindable refs", source)
+		}
+		opts := make([]huh.Option[string], len(refs))
+		for i, r := range refs {
+			opts[i] = huh.NewOption(r, r)
+		}
+		if err := huh.NewForm(huh.NewGroup(
+			huh.NewSelect[string]().Title("Ref").Options(opts...).Value(&ref),
+		)).Run(); err != nil {
+			return "", "", "", err
+		}
+	}
+	return op, source, ref, nil
 }
 
 func newOperationRenameCmd() *cobra.Command {

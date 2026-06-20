@@ -468,6 +468,51 @@
           "$ref": "#/schemas/OperationAliasEntry"
         }
       }
+    },
+    "openbindings.ob.pullSource": {
+      "description": "Derive operations and bindings from registered sources into the interface \u2014 create on first pull, overwrite + prune source-owned objects on later pulls, leave hand-authored objects untouched. Returns the modified interface.",
+      "input": {
+        "$ref": "#/schemas/PullSourceInput"
+      },
+      "output": {
+        "$ref": "#/schemas/OpenBindingsInterface"
+      }
+    },
+    "openbindings.ob.updateOperation": {
+      "description": "Edit an existing operation's fields (description, idempotency, deprecation, schemas, tags) and return the modified interface. A source-owned operation requires own=true (detaches first).",
+      "input": {
+        "$ref": "#/schemas/UpdateOperationInput"
+      },
+      "output": {
+        "$ref": "#/schemas/OpenBindingsInterface"
+      }
+    },
+    "openbindings.ob.detachOperation": {
+      "description": "Convert a source-owned operation into a hand-authored one (so pull no longer overwrites it) and return the modified interface.",
+      "input": {
+        "$ref": "#/schemas/DetachOperationInput"
+      },
+      "output": {
+        "$ref": "#/schemas/OpenBindingsInterface"
+      }
+    },
+    "openbindings.ob.bindOperation": {
+      "description": "Attach a source ref to an existing operation (preserving the operation's key) and return the modified interface. Warns and optionally scaffolds transform stubs on a shape mismatch.",
+      "input": {
+        "$ref": "#/schemas/BindOperationInput"
+      },
+      "output": {
+        "$ref": "#/schemas/OpenBindingsInterface"
+      }
+    },
+    "openbindings.ob.unbindOperation": {
+      "description": "Remove a binding from an operation without removing the operation, and return the modified interface.",
+      "input": {
+        "$ref": "#/schemas/UnbindOperationInput"
+      },
+      "output": {
+        "$ref": "#/schemas/OpenBindingsInterface"
+      }
     }
   },
   "schemas": {
@@ -2703,6 +2748,159 @@
       "required": [
         "key",
         "aliases"
+      ],
+      "additionalProperties": false
+    },
+    "PullSourceInput": {
+      "type": "object",
+      "properties": {
+        "interface": {
+          "$ref": "#/schemas/OpenBindingsInterface"
+        },
+        "sourceKeys": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Sources to pull; empty means all registered sources."
+        }
+      },
+      "required": [
+        "interface"
+      ],
+      "additionalProperties": false
+    },
+    "UpdateOperationInput": {
+      "type": "object",
+      "properties": {
+        "interface": {
+          "$ref": "#/schemas/OpenBindingsInterface"
+        },
+        "operation": {
+          "type": "string",
+          "description": "The operation's key or any identifier."
+        },
+        "description": {
+          "type": "string"
+        },
+        "idempotent": {
+          "type": "boolean"
+        },
+        "deprecated": {
+          "type": "boolean"
+        },
+        "input": {
+          "description": "Replacement JSON Schema for the operation's input."
+        },
+        "output": {
+          "description": "Replacement JSON Schema for the operation's output."
+        },
+        "addTags": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "removeTags": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "own": {
+          "type": "boolean",
+          "description": "Take ownership of a source-owned operation (detach) before editing."
+        }
+      },
+      "required": [
+        "interface",
+        "operation"
+      ],
+      "additionalProperties": false
+    },
+    "DetachOperationInput": {
+      "type": "object",
+      "properties": {
+        "interface": {
+          "$ref": "#/schemas/OpenBindingsInterface"
+        },
+        "operation": {
+          "type": "string",
+          "description": "The operation's key or any identifier."
+        }
+      },
+      "required": [
+        "interface",
+        "operation"
+      ],
+      "additionalProperties": false
+    },
+    "BindOperationInput": {
+      "type": "object",
+      "properties": {
+        "interface": {
+          "$ref": "#/schemas/OpenBindingsInterface"
+        },
+        "operation": {
+          "type": "string",
+          "description": "The operation's key or any identifier."
+        },
+        "source": {
+          "type": "string",
+          "description": "Registered source key."
+        },
+        "ref": {
+          "type": "string",
+          "description": "Source ref (wire identifier) to bind."
+        },
+        "preference": {
+          "type": "number",
+          "description": "Binding selection preference (higher = more preferred)."
+        },
+        "inputTransform": {
+          "type": "string",
+          "description": "Inline JSONata transforming operation input to binding input."
+        },
+        "outputTransform": {
+          "type": "string",
+          "description": "Inline JSONata transforming binding output to operation output."
+        },
+        "transformStub": {
+          "type": "boolean",
+          "description": "Scaffold identity transform stub(s) on shape mismatch."
+        },
+        "force": {
+          "type": "boolean",
+          "description": "Overwrite an existing binding for this operation and source."
+        }
+      },
+      "required": [
+        "interface",
+        "operation",
+        "source",
+        "ref"
+      ],
+      "additionalProperties": false
+    },
+    "UnbindOperationInput": {
+      "type": "object",
+      "properties": {
+        "interface": {
+          "$ref": "#/schemas/OpenBindingsInterface"
+        },
+        "operation": {
+          "type": "string",
+          "description": "The operation's key or any identifier."
+        },
+        "source": {
+          "type": "string",
+          "description": "Source key whose binding to remove."
+        }
+      },
+      "required": [
+        "interface",
+        "operation",
+        "source"
       ],
       "additionalProperties": false
     }
