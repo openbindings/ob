@@ -43,6 +43,70 @@ func TestMerge_AddOperation(t *testing.T) {
 	}
 }
 
+func donorWithBindingAndSource(t *testing.T, dir string) string {
+	t.Helper()
+	return writeInterface(t, dir, "donor.json", map[string]any{
+		"openbindings": "0.2.0", "name": "Contract", "version": "0.1.0",
+		"operations": map[string]any{"getThing": map[string]any{"input": map[string]any{"type": "object"}}},
+		"sources":    map[string]any{"donorSrc": map[string]any{"format": "openapi@3.1", "location": "x.yaml"}},
+		"bindings":   map[string]any{"getThing.donorSrc": map[string]any{"operation": "getThing", "source": "donorSrc", "ref": "getThing"}},
+	})
+}
+
+func TestMerge_OpsOnly_AdoptsOpsWithoutBindingsOrSources(t *testing.T) {
+	dir := t.TempDir()
+	donor := donorWithBindingAndSource(t, dir)
+	target := writeInterface(t, dir, "target.json", minimalInterface(map[string]any{}))
+
+	if _, err := Merge(MergeInput{TargetPath: target, SourceLocator: donor, All: true, OpsOnly: true}); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	iface, _ := loadInterfaceFile(target)
+	if _, ok := iface.Operations["getThing"]; !ok {
+		t.Error("--ops-only should adopt the operation")
+	}
+	if len(iface.Bindings) != 0 {
+		t.Errorf("--ops-only should graft no bindings, got %v", iface.Bindings)
+	}
+	if len(iface.Sources) != 0 {
+		t.Errorf("--ops-only should graft no sources, got %v", iface.Sources)
+	}
+}
+
+func TestMerge_NoSources_KeepsBindingsDropsSources(t *testing.T) {
+	dir := t.TempDir()
+	donor := donorWithBindingAndSource(t, dir)
+	target := writeInterface(t, dir, "target.json", minimalInterface(map[string]any{}))
+
+	if _, err := Merge(MergeInput{TargetPath: target, SourceLocator: donor, All: true, NoSources: true}); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	iface, _ := loadInterfaceFile(target)
+	if _, ok := iface.Bindings["getThing.donorSrc"]; !ok {
+		t.Error("--no-sources should still graft bindings")
+	}
+	if len(iface.Sources) != 0 {
+		t.Errorf("--no-sources should graft no source entries, got %v", iface.Sources)
+	}
+}
+
+func TestMerge_NoBindings_KeepsSourcesDropsBindings(t *testing.T) {
+	dir := t.TempDir()
+	donor := donorWithBindingAndSource(t, dir)
+	target := writeInterface(t, dir, "target.json", minimalInterface(map[string]any{}))
+
+	if _, err := Merge(MergeInput{TargetPath: target, SourceLocator: donor, All: true, NoBindings: true}); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	iface, _ := loadInterfaceFile(target)
+	if len(iface.Bindings) != 0 {
+		t.Errorf("--no-bindings should graft no bindings, got %v", iface.Bindings)
+	}
+	if _, ok := iface.Sources["donorSrc"]; !ok {
+		t.Error("--no-bindings should still graft the referenced source")
+	}
+}
+
 func TestMerge_UpdateOperation_PreservesUserFields(t *testing.T) {
 	dir := t.TempDir()
 

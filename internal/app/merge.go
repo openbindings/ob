@@ -50,6 +50,12 @@ type MergeInput struct {
 	Operations []string // if non-empty, only merge these operations (cherry-pick)
 	ExcludeOps []string // if non-empty, skip these operations
 
+	// Selectivity — what to graft. The adopt-keys satisfaction strategy uses
+	// OpsOnly to take operation shapes without bindings or sources.
+	OpsOnly    bool // graft operations only (no bindings, no source entries)
+	NoBindings bool // don't graft bindings (operations and their sources still come)
+	NoSources  bool // don't graft source entries (operations and bindings still come)
+
 	// PromptFunc is called for each actionable entry when in interactive mode.
 	// Set by the cmd layer when TTY is detected and --all is not specified.
 	PromptFunc MergePromptFunc
@@ -172,8 +178,23 @@ func Merge(input MergeInput) (MergeOutput, error) {
 		}
 	}
 
+	copyBindings := !input.OpsOnly && !input.NoBindings
+	copySources := !input.OpsOnly && !input.NoSources
+
 	// Compute what needs to happen.
 	entries := computeMergeEntries(target, source)
+
+	// When not managing bindings, drop unbind entries so they're neither
+	// counted nor applied.
+	if !copyBindings {
+		var kept []MergeEntry
+		for _, e := range entries {
+			if e.Action != MergeUnbind {
+				kept = append(kept, e)
+			}
+		}
+		entries = kept
+	}
 
 	// If --op is set, filter to only those operations.
 	if len(input.Operations) > 0 {
@@ -239,7 +260,7 @@ func Merge(input MergeInput) (MergeOutput, error) {
 
 	// Apply the merge if not dry-run.
 	if !input.DryRun && applied > 0 {
-		applyMerge(target, source, entries)
+		applyMerge(target, source, entries, copyBindings, copySources)
 
 		outPath := input.TargetPath
 		if input.OutPath != "" {
@@ -359,7 +380,12 @@ func computeMergeEntries(target, source *openbindings.Interface) []MergeEntry {
 }
 
 // applyMerge applies the merge entries to the target interface.
-func applyMerge(target, source *openbindings.Interface, entries []MergeEntry) {
+// applyMerge writes the applied entries into target. copyBindings controls
+// whether the source's bindings are grafted; copySources controls whether the
+// source's referenced source artifacts are migrated. Operations (and their
+// schemas) are always grafted. These let `--ops-only`/`--no-bindings`/
+// `--no-sources` select what comes across (e.g. adopt-keys satisfaction).
+func applyMerge(target, source *openbindings.Interface, entries []MergeEntry, copyBindings, copySources bool) {
 	for _, e := range entries {
 		if !e.Applied {
 			continue
@@ -380,15 +406,20 @@ func applyMerge(target, source *openbindings.Interface, entries []MergeEntry) {
 				}
 			}
 
-			// Add corresponding bindings and their source artifacts.
-			if target.Bindings == nil {
-				target.Bindings = map[string]openbindings.BindingEntry{}
-			}
+			// Graft this operation's bindings and/or their source artifacts.
 			for k, b := range source.Bindings {
-				if b.Operation == e.Operation {
+				if b.Operation != e.Operation {
+					continue
+				}
+				if copyBindings {
+					if target.Bindings == nil {
+						target.Bindings = map[string]openbindings.BindingEntry{}
+					}
 					target.Bindings[k] = b
-					migrateBindingSource(target, source, b.Source)
 					migrateBindingTransforms(target, source, b)
+				}
+				if copySources {
+					migrateBindingSource(target, source, b.Source)
 				}
 			}
 
@@ -411,8 +442,13 @@ func applyMerge(target, source *openbindings.Interface, entries []MergeEntry) {
 
 				// Ensure binding source artifacts and transforms are present in target.
 				for _, b := range source.Bindings {
-					if b.Operation == e.Operation {
+					if b.Operation != e.Operation {
+						continue
+					}
+					if copySources {
 						migrateBindingSource(target, source, b.Source)
+					}
+					if copyBindings {
 						migrateBindingTransforms(target, source, b)
 					}
 				}
@@ -420,6 +456,7 @@ func applyMerge(target, source *openbindings.Interface, entries []MergeEntry) {
 
 		case MergeUnbind:
 			// Remove binding entries for this operation, but keep the operation.
+			// (Unbind entries are filtered out earlier when bindings aren't managed.)
 			for k, b := range target.Bindings {
 				if b.Operation == e.Operation {
 					delete(target.Bindings, k)

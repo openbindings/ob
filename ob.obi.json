@@ -950,6 +950,18 @@
             "type": "string"
           },
           "description": "Exclude these operations from the merge."
+        },
+        "opsOnly": {
+          "type": "boolean",
+          "description": "Graft operations only (no bindings or source entries) \u2014 the adopt-keys satisfaction strategy."
+        },
+        "noBindings": {
+          "type": "boolean",
+          "description": "Don't graft bindings (operations and their referenced sources still come)."
+        },
+        "noSources": {
+          "type": "boolean",
+          "description": "Don't graft source entries (operations and bindings still come)."
         }
       },
       "required": [
