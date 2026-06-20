@@ -142,9 +142,14 @@ func OperationRename(obiPath, oldKey, newKey string) (OperationRenameOutput, err
 		return OperationRenameOutput{}, fmt.Errorf("operation %q not found", oldKey)
 	}
 
-	// Verify new key doesn't already exist.
-	if _, exists := iface.Operations[newKey]; exists {
-		return OperationRenameOutput{}, fmt.Errorf("operation %q already exists", newKey)
+	// Verify the new key is free in the flat key+alias namespace (OBI-D-04) —
+	// not just as an operations-map key. It must not collide with another
+	// operation's alias either, which would produce an invalid document.
+	if owner := operationNameOwner(iface, newKey); owner != "" {
+		if owner == newKey {
+			return OperationRenameOutput{}, fmt.Errorf("operation %q already exists", newKey)
+		}
+		return OperationRenameOutput{}, fmt.Errorf("name %q is already an alias of operation %q", newKey, owner)
 	}
 
 	// Move the operation.
@@ -279,6 +284,7 @@ func OperationRemove(obiPath string, keys []string) (OperationRemoveOutput, erro
 type OperationAddInput struct {
 	OBIPath     string
 	Key         string
+	Aliases     []string
 	Description string
 	Tags        []string
 	Input       map[string]any
@@ -310,12 +316,29 @@ func OperationAdd(input OperationAddInput) (OperationAddOutput, error) {
 	if iface.Operations == nil {
 		iface.Operations = map[string]openbindings.Operation{}
 	}
-	if _, exists := iface.Operations[input.Key]; exists {
-		return OperationAddOutput{}, fmt.Errorf("operation %q already exists", input.Key)
+	// The key must be free in the flat key+alias namespace (OBI-D-04), not just
+	// as an operations-map key.
+	if owner := operationNameOwner(iface, input.Key); owner != "" {
+		if owner == input.Key {
+			return OperationAddOutput{}, fmt.Errorf("operation %q already exists", input.Key)
+		}
+		return OperationAddOutput{}, fmt.Errorf("operation key %q is already an alias of operation %q", input.Key, owner)
+	}
+	// Validate aliases against the flat namespace and each other.
+	seen := map[string]bool{input.Key: true}
+	for _, a := range input.Aliases {
+		if seen[a] {
+			return OperationAddOutput{}, fmt.Errorf("duplicate alias %q", a)
+		}
+		if owner := operationNameOwner(iface, a); owner != "" {
+			return OperationAddOutput{}, fmt.Errorf("alias %q is already in use by operation %q", a, owner)
+		}
+		seen[a] = true
 	}
 
 	op := openbindings.Operation{
 		Description: input.Description,
+		Aliases:     input.Aliases,
 		Tags:        input.Tags,
 		Idempotent:  input.Idempotent,
 		Input:       input.Input,
@@ -329,4 +352,202 @@ func OperationAdd(input OperationAddInput) (OperationAddOutput, error) {
 	}
 
 	return OperationAddOutput{Key: input.Key}, nil
+}
+
+// operationNameOwner returns the canonical key of the operation that already
+// claims `name` in the flat key+alias namespace (OBI-T-12 / OBI-D-04), or ""
+// if the name is free.
+func operationNameOwner(iface *openbindings.Interface, name string) string {
+	if key, _, found := openbindings.ResolveOperation(iface, name); found {
+		return key
+	}
+	return ""
+}
+
+// --- Alias ---
+
+// OperationAliasOutput represents the result of adding or removing aliases.
+type OperationAliasOutput struct {
+	Key     string   `json:"key"`     // the operation's canonical key
+	Action  string   `json:"action"`  // "added" or "removed"
+	Changed []string `json:"changed"` // the aliases added or removed
+	Aliases []string `json:"aliases"` // the operation's aliases after the change
+}
+
+// Render returns a human-friendly representation.
+func (o OperationAliasOutput) Render() string {
+	s := Styles
+	var sb strings.Builder
+	sb.WriteString(s.Header.Render(fmt.Sprintf("%s %d alias(es)", titleCase(o.Action), len(o.Changed))))
+	sb.WriteString(" on ")
+	sb.WriteString(s.Key.Render(o.Key))
+	for _, a := range o.Changed {
+		sb.WriteString("\n  ")
+		if o.Action == "removed" {
+			sb.WriteString(s.Removed.Render(a))
+		} else {
+			sb.WriteString(s.Added.Render(a))
+		}
+	}
+	return sb.String()
+}
+
+func titleCase(s string) string {
+	if s == "" {
+		return s
+	}
+	return strings.ToUpper(s[:1]) + s[1:]
+}
+
+// OperationAliasAdd declares satisfaction aliases on an operation (OBI-T-12).
+// The operation may be referenced by its key or any existing identifier.
+func OperationAliasAdd(obiPath, op string, aliases []string) (OperationAliasOutput, error) {
+	if len(aliases) == 0 {
+		return OperationAliasOutput{}, fmt.Errorf("no aliases specified")
+	}
+	iface, err := loadInterfaceFile(obiPath)
+	if err != nil {
+		return OperationAliasOutput{}, fmt.Errorf("load OBI: %w", err)
+	}
+
+	key, operation, found := openbindings.ResolveOperation(iface, op)
+	if !found {
+		return OperationAliasOutput{}, fmt.Errorf("operation %q not found", op)
+	}
+
+	have := map[string]bool{}
+	for _, a := range operation.Aliases {
+		have[a] = true
+	}
+	seen := map[string]bool{}
+	for _, a := range aliases {
+		if a == key {
+			return OperationAliasOutput{}, fmt.Errorf("alias %q is the operation's own key", a)
+		}
+		if have[a] {
+			return OperationAliasOutput{}, fmt.Errorf("operation %q already has alias %q", key, a)
+		}
+		if seen[a] {
+			return OperationAliasOutput{}, fmt.Errorf("duplicate alias %q", a)
+		}
+		// A collision is only legal if the name already belongs to this very
+		// operation (it can't — we checked key and existing aliases above).
+		if owner := operationNameOwner(iface, a); owner != "" && owner != key {
+			return OperationAliasOutput{}, fmt.Errorf("alias %q is already in use by operation %q", a, owner)
+		}
+		seen[a] = true
+	}
+
+	operation.Aliases = append(operation.Aliases, aliases...)
+	iface.Operations[key] = operation
+
+	if err := WriteInterfaceFile(obiPath, iface); err != nil {
+		return OperationAliasOutput{}, fmt.Errorf("write OBI: %w", err)
+	}
+	return OperationAliasOutput{Key: key, Action: "added", Changed: aliases, Aliases: operation.Aliases}, nil
+}
+
+// OperationAliasRemove withdraws satisfaction aliases from an operation.
+func OperationAliasRemove(obiPath, op string, aliases []string) (OperationAliasOutput, error) {
+	if len(aliases) == 0 {
+		return OperationAliasOutput{}, fmt.Errorf("no aliases specified")
+	}
+	iface, err := loadInterfaceFile(obiPath)
+	if err != nil {
+		return OperationAliasOutput{}, fmt.Errorf("load OBI: %w", err)
+	}
+
+	key, operation, found := openbindings.ResolveOperation(iface, op)
+	if !found {
+		return OperationAliasOutput{}, fmt.Errorf("operation %q not found", op)
+	}
+
+	remove := toStringSet(aliases)
+	present := map[string]bool{}
+	for _, a := range operation.Aliases {
+		present[a] = true
+	}
+	for _, a := range aliases {
+		if !present[a] {
+			return OperationAliasOutput{}, fmt.Errorf("operation %q has no alias %q", key, a)
+		}
+	}
+
+	var kept []string
+	for _, a := range operation.Aliases {
+		if _, drop := remove[a]; !drop {
+			kept = append(kept, a)
+		}
+	}
+	operation.Aliases = kept
+	iface.Operations[key] = operation
+
+	if err := WriteInterfaceFile(obiPath, iface); err != nil {
+		return OperationAliasOutput{}, fmt.Errorf("write OBI: %w", err)
+	}
+	return OperationAliasOutput{Key: key, Action: "removed", Changed: aliases, Aliases: kept}, nil
+}
+
+// OperationAliasListEntry is one operation and the interface ops it satisfies.
+type OperationAliasListEntry struct {
+	Key     string   `json:"key"`
+	Aliases []string `json:"aliases"`
+}
+
+// OperationAliasListOutput is the satisfaction map.
+type OperationAliasListOutput struct {
+	Operations []OperationAliasListEntry `json:"operations"`
+}
+
+// Render returns a human-friendly representation.
+func (o OperationAliasListOutput) Render() string {
+	s := Styles
+	if len(o.Operations) == 0 {
+		return s.Dim.Render("No satisfaction aliases")
+	}
+	var sb strings.Builder
+	sb.WriteString(s.Header.Render("Satisfies"))
+	for _, e := range o.Operations {
+		sb.WriteString("\n\n  ")
+		sb.WriteString(s.Key.Render(e.Key))
+		if len(e.Aliases) == 0 {
+			sb.WriteString(s.Dim.Render("  (no aliases)"))
+			continue
+		}
+		for _, a := range e.Aliases {
+			sb.WriteString("\n    ")
+			sb.WriteString(s.Dim.Render("→ "))
+			sb.WriteString(a)
+		}
+	}
+	return sb.String()
+}
+
+// OperationAliasList renders the satisfaction map — each operation and the
+// interface operations it satisfies via aliases. When op is non-empty it is
+// scoped to that single operation (shown even if it has no aliases).
+func OperationAliasList(obiPath, op string) (OperationAliasListOutput, error) {
+	iface, err := loadInterfaceFile(obiPath)
+	if err != nil {
+		return OperationAliasListOutput{}, fmt.Errorf("load OBI: %w", err)
+	}
+
+	var entries []OperationAliasListEntry
+	if op != "" {
+		key, operation, found := openbindings.ResolveOperation(iface, op)
+		if !found {
+			return OperationAliasListOutput{}, fmt.Errorf("operation %q not found", op)
+		}
+		entries = append(entries, OperationAliasListEntry{Key: key, Aliases: operation.Aliases})
+	} else {
+		for key, operation := range iface.Operations {
+			if len(operation.Aliases) == 0 {
+				continue
+			}
+			entries = append(entries, OperationAliasListEntry{Key: key, Aliases: operation.Aliases})
+		}
+		sort.Slice(entries, func(i, j int) bool { return entries[i].Key < entries[j].Key })
+	}
+
+	return OperationAliasListOutput{Operations: entries}, nil
 }

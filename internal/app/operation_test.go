@@ -361,6 +361,184 @@ func TestOperationRemove_RenderMultiple(t *testing.T) {
 	}
 }
 
+// --- Alias tests ---
+
+func TestOperationAliasAdd_Basic(t *testing.T) {
+	dir := t.TempDir()
+	obiPath := writeInterface(t, dir, "test.obi.json", minimalInterface(map[string]any{
+		"acme.fetch": map[string]any{},
+	}))
+
+	result, err := OperationAliasAdd(obiPath, "acme.fetch", []string{"openbindings.kv-store.get"})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if result.Key != "acme.fetch" || result.Action != "added" {
+		t.Errorf("unexpected result: %+v", result)
+	}
+
+	iface, _ := loadInterfaceFile(obiPath)
+	op := iface.Operations["acme.fetch"]
+	if len(op.Aliases) != 1 || op.Aliases[0] != "openbindings.kv-store.get" {
+		t.Errorf("expected alias added, got %v", op.Aliases)
+	}
+}
+
+func TestOperationAliasAdd_Collision(t *testing.T) {
+	dir := t.TempDir()
+	obiPath := writeInterface(t, dir, "test.obi.json", minimalInterface(map[string]any{
+		"acme.fetch": map[string]any{"aliases": []string{"openbindings.kv-store.get"}},
+		"acme.other": map[string]any{},
+	}))
+
+	// Adding an alias already claimed by another operation must fail (flat namespace).
+	_, err := OperationAliasAdd(obiPath, "acme.other", []string{"openbindings.kv-store.get"})
+	if err == nil {
+		t.Fatal("expected collision error for alias already in use")
+	}
+}
+
+func TestOperationAliasAdd_ResolveByAlias(t *testing.T) {
+	dir := t.TempDir()
+	obiPath := writeInterface(t, dir, "test.obi.json", minimalInterface(map[string]any{
+		"acme.fetch": map[string]any{"aliases": []string{"openbindings.kv-store.get"}},
+	}))
+
+	// The operation may be referenced by an existing alias; result uses the canonical key.
+	result, err := OperationAliasAdd(obiPath, "openbindings.kv-store.get", []string{"x.y.z"})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if result.Key != "acme.fetch" {
+		t.Errorf("expected canonical key acme.fetch, got %q", result.Key)
+	}
+}
+
+func TestOperationAliasAdd_OwnKey(t *testing.T) {
+	dir := t.TempDir()
+	obiPath := writeInterface(t, dir, "test.obi.json", minimalInterface(map[string]any{
+		"acme.fetch": map[string]any{},
+	}))
+
+	_, err := OperationAliasAdd(obiPath, "acme.fetch", []string{"acme.fetch"})
+	if err == nil {
+		t.Fatal("expected error aliasing an operation to its own key")
+	}
+}
+
+func TestOperationAliasRemove_Basic(t *testing.T) {
+	dir := t.TempDir()
+	obiPath := writeInterface(t, dir, "test.obi.json", minimalInterface(map[string]any{
+		"acme.fetch": map[string]any{"aliases": []string{"a.b.c", "d.e.f"}},
+	}))
+
+	_, err := OperationAliasRemove(obiPath, "acme.fetch", []string{"a.b.c"})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	iface, _ := loadInterfaceFile(obiPath)
+	op := iface.Operations["acme.fetch"]
+	if len(op.Aliases) != 1 || op.Aliases[0] != "d.e.f" {
+		t.Errorf("expected only d.e.f remaining, got %v", op.Aliases)
+	}
+}
+
+func TestOperationAliasRemove_NotPresent(t *testing.T) {
+	dir := t.TempDir()
+	obiPath := writeInterface(t, dir, "test.obi.json", minimalInterface(map[string]any{
+		"acme.fetch": map[string]any{},
+	}))
+
+	_, err := OperationAliasRemove(obiPath, "acme.fetch", []string{"nope"})
+	if err == nil {
+		t.Fatal("expected error removing a non-present alias")
+	}
+}
+
+func TestOperationAliasList_All(t *testing.T) {
+	dir := t.TempDir()
+	obiPath := writeInterface(t, dir, "test.obi.json", minimalInterface(map[string]any{
+		"acme.fetch": map[string]any{"aliases": []string{"openbindings.kv-store.get"}},
+		"acme.plain": map[string]any{},
+	}))
+
+	result, err := OperationAliasList(obiPath, "")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	// Only operations with aliases appear in the satisfaction map.
+	if len(result.Operations) != 1 || result.Operations[0].Key != "acme.fetch" {
+		t.Errorf("expected only acme.fetch, got %+v", result.Operations)
+	}
+}
+
+func TestOperationAliasList_Scoped(t *testing.T) {
+	dir := t.TempDir()
+	obiPath := writeInterface(t, dir, "test.obi.json", minimalInterface(map[string]any{
+		"acme.plain": map[string]any{},
+	}))
+
+	// Scoped to a single op, it's listed even with no aliases.
+	result, err := OperationAliasList(obiPath, "acme.plain")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(result.Operations) != 1 || result.Operations[0].Key != "acme.plain" {
+		t.Errorf("expected acme.plain listed, got %+v", result.Operations)
+	}
+}
+
+// --- Add with aliases (the --alias path + OBI-D-04 key guard) ---
+
+func TestOperationAdd_WithAliases(t *testing.T) {
+	dir := t.TempDir()
+	obiPath := writeInterface(t, dir, "test.obi.json", minimalInterface(map[string]any{}))
+
+	_, err := OperationAdd(OperationAddInput{
+		OBIPath: obiPath,
+		Key:     "acme.set",
+		Aliases: []string{"openbindings.kv-store.set"},
+	})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	iface, _ := loadInterfaceFile(obiPath)
+	if op := iface.Operations["acme.set"]; len(op.Aliases) != 1 {
+		t.Errorf("expected 1 alias, got %v", op.Aliases)
+	}
+}
+
+func TestOperationAdd_KeyCollidesWithAlias(t *testing.T) {
+	dir := t.TempDir()
+	obiPath := writeInterface(t, dir, "test.obi.json", minimalInterface(map[string]any{
+		"acme.fetch": map[string]any{"aliases": []string{"openbindings.kv-store.get"}},
+	}))
+
+	// A new operation's key must not collide with an existing alias (OBI-D-04).
+	_, err := OperationAdd(OperationAddInput{OBIPath: obiPath, Key: "openbindings.kv-store.get"})
+	if err == nil {
+		t.Fatal("expected error: key collides with an existing alias")
+	}
+}
+
+// --- Rename into the flat key+alias namespace (the OBI-D-04 fix) ---
+
+func TestOperationRename_IntoExistingAlias(t *testing.T) {
+	dir := t.TempDir()
+	obiPath := writeInterface(t, dir, "test.obi.json", minimalInterface(map[string]any{
+		"acme.fetch": map[string]any{"aliases": []string{"openbindings.kv-store.get"}},
+		"acme.other": map[string]any{},
+	}))
+
+	// Renaming into a name that is another operation's alias must fail; the old
+	// behavior (checking only the operations map) would have produced an
+	// invalid document.
+	_, err := OperationRename(obiPath, "acme.other", "openbindings.kv-store.get")
+	if err == nil {
+		t.Fatal("expected error renaming into an existing alias (flat-namespace collision)")
+	}
+}
+
 // --- renameBindingKey tests ---
 
 func TestRenameBindingKey(t *testing.T) {

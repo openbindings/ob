@@ -437,6 +437,37 @@
       "input": {
         "$ref": "#/schemas/DemoInput"
       }
+    },
+    "openbindings.ob.addOperationAlias": {
+      "description": "Declare satisfaction alias(es) on an operation (OBI-T-12) and return the modified interface.",
+      "input": {
+        "$ref": "#/schemas/AddOperationAliasInput"
+      },
+      "output": {
+        "$ref": "#/schemas/OpenBindingsInterface"
+      }
+    },
+    "openbindings.ob.removeOperationAlias": {
+      "description": "Withdraw satisfaction alias(es) from an operation and return the modified interface.",
+      "input": {
+        "$ref": "#/schemas/RemoveOperationAliasInput"
+      },
+      "output": {
+        "$ref": "#/schemas/OpenBindingsInterface"
+      }
+    },
+    "openbindings.ob.listOperationAliases": {
+      "description": "List the satisfaction map \u2014 each operation and the interface operations it satisfies via aliases.",
+      "idempotent": true,
+      "input": {
+        "$ref": "#/schemas/ListOperationAliasesInput"
+      },
+      "output": {
+        "type": "array",
+        "items": {
+          "$ref": "#/schemas/OperationAliasEntry"
+        }
+      }
     }
   },
   "schemas": {
@@ -787,6 +818,13 @@
         "idempotent": {
           "type": "boolean",
           "description": "Whether the new operation is idempotent."
+        },
+        "aliases": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Satisfaction aliases \u2014 other interfaces' operation keys this operation also answers to (OBI-T-12)."
         }
       },
       "required": [
@@ -2577,6 +2615,94 @@
       },
       "required": [
         "interface"
+      ],
+      "additionalProperties": false
+    },
+    "AddOperationAliasInput": {
+      "type": "object",
+      "properties": {
+        "interface": {
+          "$ref": "#/schemas/OpenBindingsInterface"
+        },
+        "operation": {
+          "type": "string",
+          "description": "The operation's key or any existing identifier."
+        },
+        "aliases": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "minItems": 1,
+          "description": "Satisfaction alias(es) to add."
+        }
+      },
+      "required": [
+        "interface",
+        "operation",
+        "aliases"
+      ],
+      "additionalProperties": false
+    },
+    "RemoveOperationAliasInput": {
+      "type": "object",
+      "properties": {
+        "interface": {
+          "$ref": "#/schemas/OpenBindingsInterface"
+        },
+        "operation": {
+          "type": "string",
+          "description": "The operation's key or any existing identifier."
+        },
+        "aliases": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "minItems": 1,
+          "description": "Satisfaction alias(es) to remove."
+        }
+      },
+      "required": [
+        "interface",
+        "operation",
+        "aliases"
+      ],
+      "additionalProperties": false
+    },
+    "ListOperationAliasesInput": {
+      "type": "object",
+      "properties": {
+        "interface": {
+          "$ref": "#/schemas/OpenBindingsInterface"
+        },
+        "operation": {
+          "type": "string",
+          "description": "Scope the satisfaction map to a single operation."
+        }
+      },
+      "required": [
+        "interface"
+      ],
+      "additionalProperties": false
+    },
+    "OperationAliasEntry": {
+      "type": "object",
+      "description": "An operation and the interface operations it satisfies via aliases.",
+      "properties": {
+        "key": {
+          "type": "string"
+        },
+        "aliases": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "required": [
+        "key",
+        "aliases"
       ],
       "additionalProperties": false
     }

@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"os"
 	"os/signal"
 	"strings"
@@ -29,6 +30,7 @@ exposes. Use subcommands to list, rename, remove, or invoke operations.`,
 		newOperationInvokeCmd(),
 		newOperationPrepareCmd(),
 		newOperationAddCmd(),
+		newOperationAliasCmd(),
 		newOperationRenameCmd(),
 		newOperationRemoveCmd(),
 	)
@@ -215,6 +217,7 @@ Examples:
 func newOperationAddCmd() *cobra.Command {
 	var (
 		description string
+		aliases     []string
 		tags        []string
 		inputJSON   string
 		outputJSON  string
@@ -227,33 +230,37 @@ func newOperationAddCmd() *cobra.Command {
 		Long: `Add a new operation to an OpenBindings interface document.
 
 Creates a bare operation with the given key. Use flags to set
-description, tags, and schemas. The operation is added without any
-bindings — add bindings separately via merge or source.
+description, satisfaction aliases, tags, and schemas. The operation is
+added without any bindings — bind it to a source with 'ob operation bind'.
+
+Schema flags accept inline JSON, '@path' to read a file, or '-' for stdin.
 
 Examples:
   ob op add interface.json createUser --description "Create a new user"
-  ob op add interface.json createUser --input-schema '{"type":"object","properties":{"name":{"type":"string"}}}'
+  ob op add interface.json get --input-schema @get-input.json --output-schema @get-output.json
+  ob op add interface.json get --alias openbindings.kv-store.get
   ob op add interface.json listUsers --tag admin --tag readonly --idempotent true`,
 		Args: cobra.ExactArgs(2),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			addInput := app.OperationAddInput{
 				OBIPath:     args[0],
 				Key:         args[1],
+				Aliases:     aliases,
 				Description: description,
 				Tags:        tags,
 			}
 
 			if inputJSON != "" {
-				var schema map[string]any
-				if err := json.Unmarshal([]byte(inputJSON), &schema); err != nil {
-					return app.ExitResult{Code: 2, Message: fmt.Sprintf("invalid --input-schema JSON: %v", err), ToStderr: true}
+				schema, err := readSchemaArg(inputJSON, "--input-schema")
+				if err != nil {
+					return err
 				}
 				addInput.Input = schema
 			}
 			if outputJSON != "" {
-				var schema map[string]any
-				if err := json.Unmarshal([]byte(outputJSON), &schema); err != nil {
-					return app.ExitResult{Code: 2, Message: fmt.Sprintf("invalid --output-schema JSON: %v", err), ToStderr: true}
+				schema, err := readSchemaArg(outputJSON, "--output-schema")
+				if err != nil {
+					return err
 				}
 				addInput.Output = schema
 			}
@@ -272,11 +279,137 @@ Examples:
 	}
 
 	cmd.Flags().StringVar(&description, "description", "", "operation description")
+	cmd.Flags().StringArrayVar(&aliases, "alias", nil, "satisfaction alias: another interface's operation key this satisfies (repeatable)")
 	cmd.Flags().StringArrayVar(&tags, "tag", nil, "operation tag (repeatable)")
-	cmd.Flags().StringVar(&inputJSON, "input-schema", "", "input schema as JSON")
-	cmd.Flags().StringVar(&outputJSON, "output-schema", "", "output schema as JSON")
+	cmd.Flags().StringVar(&inputJSON, "input-schema", "", "input schema: inline JSON, @file, or - for stdin")
+	cmd.Flags().StringVar(&outputJSON, "output-schema", "", "output schema: inline JSON, @file, or - for stdin")
 	cmd.Flags().StringVar(&idempotent, "idempotent", "", "whether the operation is idempotent (true/false)")
 
+	return cmd
+}
+
+// readSchemaArg resolves a schema flag value into a parsed JSON object. The
+// value is inline JSON, "@path" to read a file, or "-" to read stdin. The
+// flagName is used only for error messages.
+func readSchemaArg(val, flagName string) (map[string]any, error) {
+	raw := val
+	switch {
+	case val == "-":
+		data, err := io.ReadAll(os.Stdin)
+		if err != nil {
+			return nil, app.ExitResult{Code: 2, Message: fmt.Sprintf("%s: read stdin: %v", flagName, err), ToStderr: true}
+		}
+		raw = string(data)
+	case strings.HasPrefix(val, "@"):
+		data, err := os.ReadFile(val[1:])
+		if err != nil {
+			return nil, app.ExitResult{Code: 2, Message: fmt.Sprintf("%s: %v", flagName, err), ToStderr: true}
+		}
+		raw = string(data)
+	}
+	var schema map[string]any
+	if err := json.Unmarshal([]byte(raw), &schema); err != nil {
+		return nil, app.ExitResult{Code: 2, Message: fmt.Sprintf("invalid %s JSON: %v", flagName, err), ToStderr: true}
+	}
+	return schema, nil
+}
+
+func newOperationAliasCmd() *cobra.Command {
+	cmd := &cobra.Command{
+		Use:     "alias",
+		Aliases: []string{"aliases"},
+		Short:   "Manage an operation's satisfaction aliases",
+		Long: `Manage the satisfaction aliases on an operation.
+
+An alias is another interface's operation key that this operation also
+answers to. Key and aliases form one flat, document-unique namespace
+(OBI-T-12): an operation satisfies a published interface by carrying that
+interface's operation key as an alias.`,
+	}
+
+	cmd.AddCommand(
+		newOperationAliasAddCmd(),
+		newOperationAliasRemoveCmd(),
+		newOperationAliasListCmd(),
+	)
+
+	return cmd
+}
+
+func newOperationAliasAddCmd() *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "add <obi-path> <operation> <alias>...",
+		Short: "Add satisfaction alias(es) to an operation",
+		Long: `Add one or more satisfaction aliases to an operation.
+
+The operation may be referenced by its key or any existing identifier.
+Each alias must be free in the document's flat key+alias namespace.
+
+Examples:
+  ob op alias add interface.json acme.cache.fetch openbindings.kv-store.get
+  ob op alias add interface.json describe openbindings.software-descriptor.describe`,
+		Args: cobra.MinimumNArgs(3),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			result, err := app.OperationAliasAdd(args[0], args[1], args[2:])
+			if err != nil {
+				return app.ExitResult{Code: 1, Message: fmt.Sprintf("add alias: %v", err), ToStderr: true}
+			}
+			format, outputPath := getOutputFlags(cmd)
+			return app.OutputResult(result, format, outputPath)
+		},
+	}
+	return cmd
+}
+
+func newOperationAliasRemoveCmd() *cobra.Command {
+	cmd := &cobra.Command{
+		Use:     "remove <obi-path> <operation> <alias>...",
+		Aliases: []string{"rm"},
+		Short:   "Remove satisfaction alias(es) from an operation",
+		Long: `Remove one or more satisfaction aliases from an operation.
+
+Examples:
+  ob op alias rm interface.json acme.cache.fetch openbindings.kv-store.get`,
+		Args: cobra.MinimumNArgs(3),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			result, err := app.OperationAliasRemove(args[0], args[1], args[2:])
+			if err != nil {
+				return app.ExitResult{Code: 1, Message: fmt.Sprintf("remove alias: %v", err), ToStderr: true}
+			}
+			format, outputPath := getOutputFlags(cmd)
+			return app.OutputResult(result, format, outputPath)
+		},
+	}
+	return cmd
+}
+
+func newOperationAliasListCmd() *cobra.Command {
+	cmd := &cobra.Command{
+		Use:     "list <obi-path> [operation]",
+		Aliases: []string{"ls"},
+		Short:   "Show the satisfaction map (which ops satisfy which interfaces)",
+		Long: `List the satisfaction aliases in an interface — each operation and the
+interface operations it satisfies. With no operation argument, shows every
+operation that carries aliases (a quick "what does this OBI satisfy?").
+Scoped to one operation when given.
+
+Examples:
+  ob op alias list interface.json
+  ob op alias ls interface.json acme.cache.fetch`,
+		Args: cobra.RangeArgs(1, 2),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			var op string
+			if len(args) == 2 {
+				op = args[1]
+			}
+			result, err := app.OperationAliasList(args[0], op)
+			if err != nil {
+				return app.ExitResult{Code: 1, Message: fmt.Sprintf("list aliases in %s: %v", args[0], err), ToStderr: true}
+			}
+			format, outputPath := getOutputFlags(cmd)
+			return app.OutputResult(result, format, outputPath)
+		},
+	}
 	return cmd
 }
 

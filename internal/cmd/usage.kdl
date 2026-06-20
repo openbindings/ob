@@ -147,14 +147,37 @@ cmd "conflicts" help="List merge conflicts between local edits and source change
 cmd "operation" help="Manage and invoke operations on an OBI" subcommand_required=true {
   cmd "add" help="Add a new operation to an OBI" opKey="createOperation" {
     flag "--description <desc>" help="Operation description"
+    flag "--alias <alias>" help="Satisfaction alias: another interface's operation key this satisfies (repeatable)"
     flag "--tag <tag>" help="Operation tag (repeatable)"
-    flag "--input-schema <json>" help="Input schema as JSON"
-    flag "--output-schema <json>" help="Output schema as JSON"
+    flag "--input-schema <schema>" help="Input schema: inline JSON, @file, or - for stdin"
+    flag "--output-schema <schema>" help="Output schema: inline JSON, @file, or - for stdin"
     flag "--idempotent <bool>" help="Whether the operation is idempotent (true/false)"
     flag "-o --output <path>" help="Write output to file"
     flag "-F --format <format>" help="Output format: json|yaml|text"
     arg "<obi-path>" help="Path to the OBI file"
     arg "<key>" help="Key for the new operation"
+  }
+  cmd "alias" help="Manage an operation's satisfaction aliases" subcommand_required=true {
+    cmd "add" help="Add satisfaction alias(es) to an operation" opKey="addOperationAlias" {
+      flag "-o --output <path>" help="Write output to file"
+      flag "-F --format <format>" help="Output format: json|yaml|text"
+      arg "<obi-path>" help="Path to the OBI file"
+      arg "<operation>" help="Operation key or identifier"
+      arg "<alias>..." help="Satisfaction alias(es) to add"
+    }
+    cmd "remove" help="Remove satisfaction alias(es) from an operation" opKey="removeOperationAlias" {
+      flag "-o --output <path>" help="Write output to file"
+      flag "-F --format <format>" help="Output format: json|yaml|text"
+      arg "<obi-path>" help="Path to the OBI file"
+      arg "<operation>" help="Operation key or identifier"
+      arg "<alias>..." help="Satisfaction alias(es) to remove"
+    }
+    cmd "list" help="Show the satisfaction map (which ops satisfy which interfaces)" opKey="listOperationAliases" {
+      flag "-o --output <path>" help="Write output to file"
+      flag "-F --format <format>" help="Output format: json|yaml|text"
+      arg "<obi-path>" help="Path to the OBI file"
+      arg "[operation]" help="Scope to a single operation"
+    }
   }
   cmd "invoke" help="Invoke an operation via a binding" opKey="invokeOperation" {
     flag "--binding <key>" help="Binding key to invoke (operation is derived from the entry)"
