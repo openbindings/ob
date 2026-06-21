@@ -30,15 +30,15 @@
       "source": "usage",
       "x-ob": {}
     },
-    "createInterface.openapi": {
-      "operation": "createInterface",
+    "synthesizeInterface.openapi": {
+      "operation": "synthesizeInterface",
       "ref": "#/paths/~1interfaces~1create/post",
       "source": "openapi",
       "x-ob": {},
       "inputTransform": "{ \"to\": openbindingsVersion, \"sources\": sources, \"name\": name, \"version\": version, \"description\": description }"
     },
-    "createInterface.usage": {
-      "operation": "createInterface",
+    "synthesizeInterface.usage": {
+      "operation": "synthesizeInterface",
       "ref": "create",
       "source": "usage",
       "x-ob": {},
@@ -408,13 +408,13 @@
       ],
       "x-ob": {}
     },
-    "createInterface": {
+    "synthesizeInterface": {
       "description": "Create an OpenBindings interface, optionally from binding source artifacts.",
       "tags": [
         "authoring"
       ],
       "aliases": [
-        "openbindings.interface-creator.createInterface"
+        "openbindings.interface-synthesizer.synthesizeInterface"
       ],
       "input": {
         "$ref": "#/schemas/CreateInterfaceInput"
@@ -906,7 +906,7 @@
         "format"
       ],
       "aliases": [
-        "openbindings.interface-creator.listFormats"
+        "openbindings.interface-synthesizer.listFormats"
       ],
       "idempotent": true,
       "output": {

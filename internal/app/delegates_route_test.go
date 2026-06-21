@@ -10,7 +10,7 @@ func TestDelegateOpKey(t *testing.T) {
 	iface := &openbindings.Interface{
 		Operations: map[string]openbindings.Operation{
 			// Keyed bare, with the namespaced interface op as an alias.
-			"createInterface": {Aliases: []string{"openbindings.interface-creator.createInterface"}},
+			"synthesizeInterface": {Aliases: []string{"openbindings.interface-synthesizer.synthesizeInterface"}},
 			// Keyed by the namespaced interface op directly.
 			"openbindings.source-inspector.inspectSource": {},
 			"somethingElse": {},
@@ -18,9 +18,9 @@ func TestDelegateOpKey(t *testing.T) {
 	}
 
 	t.Run("matches by alias", func(t *testing.T) {
-		key, ok := delegateOpKey(iface, createOpNames...)
-		if !ok || key != "createInterface" {
-			t.Fatalf("expected createInterface (via alias), got %q ok=%v", key, ok)
+		key, ok := delegateOpKey(iface, synthesizeOpNames...)
+		if !ok || key != "synthesizeInterface" {
+			t.Fatalf("expected synthesizeInterface (via alias), got %q ok=%v", key, ok)
 		}
 	})
 

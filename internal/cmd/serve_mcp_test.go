@@ -67,7 +67,7 @@ func TestMCPEndpoint_ListTools(t *testing.T) {
 	}
 
 	wantTools := []string{
-		"describe", "listFormats", "createInterface", "invokeBinding",
+		"describe", "listFormats", "synthesizeInterface", "invokeBinding",
 		"listContexts", "getContext", "setContext", "deleteContext",
 		"resolveInterface",
 	}
@@ -256,17 +256,17 @@ func TestMCPEndpoint_CreateInterface_EmptySources(t *testing.T) {
 	ctx := context.Background()
 
 	result, err := session.CallTool(ctx, &gomcp.CallToolParams{
-		Name:      "createInterface",
+		Name:      "synthesizeInterface",
 		Arguments: map[string]any{},
 	})
 	if err != nil {
-		t.Fatalf("CallTool createInterface: %v", err)
+		t.Fatalf("CallTool synthesizeInterface: %v", err)
 	}
 	// Empty input should either error or return a minimal interface.
 	// Just verify we get valid JSON back.
 	text := textContent(result)
 	if text == "" {
-		t.Fatal("createInterface returned empty content")
+		t.Fatal("synthesizeInterface returned empty content")
 	}
 }
 

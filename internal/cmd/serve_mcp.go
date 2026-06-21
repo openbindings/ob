@@ -54,8 +54,8 @@ func registerMCPTools(srv *mcp.Server) {
 	})
 
 	srv.AddTool(&mcp.Tool{
-		Name:        "createInterface",
-		Description: "Create an OpenBindings interface from binding source artifacts.",
+		Name:        "synthesizeInterface",
+		Description: "Synthesize an OpenBindings interface from binding source artifacts.",
 		InputSchema: map[string]any{
 			"type": "object",
 			"properties": map[string]any{

@@ -174,7 +174,7 @@ ob conform host.json my-service.obi.json --dry-run
 
 ## Delegates
 
-Delegates extend `ob` with binding format support. A delegate is any program that satisfies the `binding-invoker` and/or `interface-creator` interfaces. When `ob` encounters a binding format, it asks its registered delegates which one handles it and routes `createInterface` / `invokeBinding` calls there. Credentials and context flow through the same `ContextStore` pipeline as in-process execution.
+Delegates extend `ob` with binding format support. A delegate is any program that satisfies the `binding-invoker` and/or `interface-synthesizer` interfaces. When `ob` encounters a binding format, it asks its registered delegates which one handles it and routes `synthesizeInterface` / `invokeBinding` calls there. Credentials and context flow through the same `ContextStore` pipeline as in-process execution.
 
 `ob` itself is a delegate. A fresh `ob init` registers two default delegates: `exec:ob` (this binary, which provides OpenAPI, AsyncAPI, gRPC, Connect, MCP, GraphQL, and usage-spec) and `http://localhost:8787` (a conventional local host). Removing a default with `ob delegate remove` records it under `removedDefaultDelegates` so a later `ob init` doesn't bring it back; re-adding clears that record.
 
@@ -211,7 +211,7 @@ A minimal `exec:` delegate is a CLI that:
 
 1. Responds to `--openbindings` by printing its OBI to stdout.
 2. Binds `listFormats` via a `usage@…` source so `ob` can enumerate supported format tokens at registration.
-3. Implements `invokeBinding` (and optionally `createInterface`) as its OBI declares.
+3. Implements `invokeBinding` (and optionally `synthesizeInterface`) as its OBI declares.
 
 ## Source Resolution
 

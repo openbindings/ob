@@ -34,7 +34,7 @@ var serveOBI []byte
 
 // ServeOBI returns the embedded OBI document that `ob serve` publishes.
 // It declares which published interfaces this binary's serve subcommand
-// satisfies (software-descriptor, binding-invoker, interface-creator,
+// satisfies (software-descriptor, binding-invoker, interface-synthesizer,
 // source-inspector, kv-store). The historical name "host.obi.json" predates
 // the split into modular published interfaces.
 func ServeOBI() []byte {

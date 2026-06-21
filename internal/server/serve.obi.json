@@ -1,12 +1,12 @@
 {
   "bindings": {
-    "createInterface.mcp": {
-      "operation": "createInterface",
-      "ref": "tools/createInterface",
+    "synthesizeInterface.mcp": {
+      "operation": "synthesizeInterface",
+      "ref": "tools/synthesizeInterface",
       "source": "mcp"
     },
-    "createInterface.openapi": {
-      "operation": "createInterface",
+    "synthesizeInterface.openapi": {
+      "operation": "synthesizeInterface",
       "ref": "#/paths/~1interfaces~1create/post",
       "source": "openapi"
     },
@@ -114,10 +114,10 @@
   "name": "OpenBindings Local Service",
   "openbindings": "0.2.0",
   "operations": {
-    "createInterface": {
+    "synthesizeInterface": {
       "description": "Create an OpenBindings interface from binding source artifacts.",
       "aliases": [
-        "openbindings.interface-creator.createInterface"
+        "openbindings.interface-synthesizer.synthesizeInterface"
       ],
       "input": {
         "$ref": "#/schemas/CreateInterfaceInput"
@@ -222,7 +222,7 @@
       "description": "List binding formats supported by this host.",
       "aliases": [
         "openbindings.binding-invoker.listFormats",
-        "openbindings.interface-creator.listFormats",
+        "openbindings.interface-synthesizer.listFormats",
         "openbindings.source-inspector.listFormats"
       ],
       "idempotent": true,

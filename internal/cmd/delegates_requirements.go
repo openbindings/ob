@@ -18,7 +18,7 @@ contract:
   ob compat <(ob delegate requirements invoke) my-tool.obi.json
 
 Capabilities map to published interfaces: invoke → binding-invoker,
-create → interface-creator, inspect → source-inspector.`,
+create → interface-synthesizer, inspect → source-inspector.`,
 		Args: cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			cap := app.DelegateCapability(strings.ToLower(strings.TrimSpace(args[0])))

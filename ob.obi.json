@@ -18,7 +18,7 @@
       "description": "List the binding formats this instance can handle. One operation satisfies the listFormats slot of every interface that has one, since the answer is the same regardless of which capability is asking.",
       "aliases": [
         "openbindings.binding-invoker.listFormats",
-        "openbindings.interface-creator.listFormats",
+        "openbindings.interface-synthesizer.listFormats",
         "openbindings.source-inspector.listFormats"
       ],
       "idempotent": true,
@@ -39,7 +39,7 @@
         "$ref": "#/schemas/ResolveInterfaceOutput"
       }
     },
-    "openbindings.ob.createInterface": {
+    "openbindings.ob.synthesizeInterface": {
       "description": "Create an OpenBindings interface, optionally from binding source artifacts. Given one or more sources (e.g. an OpenAPI spec, a CLI usage spec), extracts operations, schemas, sources, and bindings into the new OBI; with no sources, produces an empty interface to author by hand.",
       "idempotent": true,
       "input": {
@@ -49,7 +49,7 @@
         "$ref": "#/schemas/OpenBindingsInterface"
       },
       "aliases": [
-        "openbindings.interface-creator.createInterface"
+        "openbindings.interface-synthesizer.synthesizeInterface"
       ]
     },
     "openbindings.ob.inspectSource": {
@@ -290,7 +290,7 @@
       }
     },
     "openbindings.ob.createDelegate": {
-      "description": "Register a delegate by the location of its OpenBindings interface (an exec: or http(s) URL). ob resolves the delegate's OBI and records which format-handling capabilities it offers \u2014 invoke (binding-invoker), create (interface-creator), inspect (source-inspector) \u2014 and the formats it handles, so ob can route work it can't handle natively to the delegate. A delegate satisfies whichever subset it implements; an invoke-only delegate is valid. Returns what was discovered; registration succeeds with a warning when the delegate is unreachable or offers no delegatable capability.",
+      "description": "Register a delegate by the location of its OpenBindings interface (an exec: or http(s) URL). ob resolves the delegate's OBI and records which format-handling capabilities it offers \u2014 invoke (binding-invoker), create (interface-synthesizer), inspect (source-inspector) \u2014 and the formats it handles, so ob can route work it can't handle natively to the delegate. A delegate satisfies whichever subset it implements; an invoke-only delegate is valid. Returns what was discovered; registration succeeds with a warning when the delegate is unreachable or offers no delegatable capability.",
       "input": {
         "$ref": "#/schemas/DelegateLocationInput"
       },
@@ -328,7 +328,7 @@
       }
     },
     "openbindings.ob.getDelegateRequirements": {
-      "description": "Return the published interface a delegate must satisfy to provide a capability (invoke \u2192 binding-invoker, create \u2192 interface-creator, inspect \u2192 source-inspector), so a prospective delegate can be checked against the exact contract (e.g. via assessCompatibility). The interfaces are immutable documents bundled with this ob release.",
+      "description": "Return the published interface a delegate must satisfy to provide a capability (invoke \u2192 binding-invoker, create \u2192 interface-synthesizer, inspect \u2192 source-inspector), so a prospective delegate can be checked against the exact contract (e.g. via assessCompatibility). The interfaces are immutable documents bundled with this ob release.",
       "idempotent": true,
       "input": {
         "$ref": "#/schemas/GetDelegateRequirementsInput"
@@ -2262,7 +2262,7 @@
         "create",
         "inspect"
       ],
-      "description": "A format-handling capability a delegate provides, mapping to the interface it satisfies: invoke (openbindings.binding-invoker), create (openbindings.interface-creator), inspect (openbindings.source-inspector). A delegate offers whichever subset it satisfies."
+      "description": "A format-handling capability a delegate provides, mapping to the interface it satisfies: invoke (openbindings.binding-invoker), create (openbindings.interface-synthesizer), inspect (openbindings.source-inspector). A delegate offers whichever subset it satisfies."
     },
     "DelegateFormatInfo": {
       "type": "object",

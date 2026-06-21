@@ -137,7 +137,7 @@ func selfDelegateEntry() DelegateListEntry {
 	return DelegateListEntry{
 		Name:         "ob",
 		Builtin:      true,
-		Capabilities: []DelegateCapability{CapInvoke, CapCreate, CapInspect},
+		Capabilities: []DelegateCapability{CapInvoke, CapSynthesize, CapInspect},
 		Formats:      formats,
 	}
 }

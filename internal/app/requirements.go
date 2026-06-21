@@ -23,17 +23,17 @@ type DelegateCapability string
 
 const (
 	CapInvoke  DelegateCapability = "invoke"  // openbindings.binding-invoker
-	CapCreate  DelegateCapability = "create"  // openbindings.interface-creator
+	CapSynthesize  DelegateCapability = "synthesize"  // openbindings.interface-synthesizer
 	CapInspect DelegateCapability = "inspect" // openbindings.source-inspector
 )
 
 // DelegateCapabilities is the ordered set of delegatable capabilities.
-var DelegateCapabilities = []DelegateCapability{CapInvoke, CapCreate, CapInspect}
+var DelegateCapabilities = []DelegateCapability{CapInvoke, CapSynthesize, CapInspect}
 
 // requirementFiles maps each capability to its embedded requirement interface.
 var requirementFiles = map[DelegateCapability]string{
 	CapInvoke:  "requirements/binding-invoker.json",
-	CapCreate:  "requirements/interface-creator.json",
+	CapSynthesize:  "requirements/interface-synthesizer.json",
 	CapInspect: "requirements/source-inspector.json",
 }
 

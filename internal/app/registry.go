@@ -96,7 +96,7 @@ func DefaultCreator() openbindings.InterfaceCreator {
 // creator by format, falling through to a create-capable delegate when the
 // format is not natively supported.
 func CreateInterfaceFromSource(ctx context.Context, input *openbindings.CreateInput) (*openbindings.Interface, error) {
-	if iface, routed, err := createViaDelegate(ctx, input); routed {
+	if iface, routed, err := synthesizeViaDelegate(ctx, input); routed {
 		return iface, err
 	}
 	return DefaultCreator().CreateInterface(ctx, input)

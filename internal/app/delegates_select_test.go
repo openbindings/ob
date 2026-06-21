@@ -5,7 +5,7 @@ import "testing"
 func TestSelectDelegateFrom(t *testing.T) {
 	self := delegateCandidate{
 		name: "ob", builtin: true,
-		capabilities: []DelegateCapability{CapInvoke, CapCreate, CapInspect},
+		capabilities: []DelegateCapability{CapInvoke, CapSynthesize, CapInspect},
 		formats:      []DelegateFormatInfo{{Format: "openapi@3.1"}, {Format: "grpc"}},
 	}
 	extInvoke := delegateCandidate{
@@ -15,7 +15,7 @@ func TestSelectDelegateFrom(t *testing.T) {
 	}
 	extCreate := delegateCandidate{
 		name: "y", location: "exec:y",
-		capabilities: []DelegateCapability{CapCreate},
+		capabilities: []DelegateCapability{CapSynthesize},
 		formats:      []DelegateFormatInfo{{Format: "thrift"}},
 	}
 
@@ -36,7 +36,7 @@ func TestSelectDelegateFrom(t *testing.T) {
 	})
 
 	t.Run("capability filter: only the create-capable external handles thrift create", func(t *testing.T) {
-		got := selectDelegateFrom([]delegateCandidate{self, extInvoke, extCreate}, CapCreate, "thrift")
+		got := selectDelegateFrom([]delegateCandidate{self, extInvoke, extCreate}, CapSynthesize, "thrift")
 		if got == nil || got.name != "y" {
 			t.Fatalf("expected the create delegate y for create/thrift, got %+v", got)
 		}
@@ -50,7 +50,7 @@ func TestSelectDelegateFrom(t *testing.T) {
 
 	t.Run("capability present but format absent yields nil", func(t *testing.T) {
 		// extCreate can create, but only thrift — not openapi.
-		if got := selectDelegateFrom([]delegateCandidate{extCreate}, CapCreate, "openapi@3.1"); got != nil {
+		if got := selectDelegateFrom([]delegateCandidate{extCreate}, CapSynthesize, "openapi@3.1"); got != nil {
 			t.Fatalf("expected nil (create-capable but wrong format), got %+v", got)
 		}
 	})
@@ -60,22 +60,22 @@ func TestSelectDelegateFrom(t *testing.T) {
 		// preferences that route create to X and invoke to Y.
 		x := delegateCandidate{
 			name: "x", location: "exec:x",
-			capabilities: []DelegateCapability{CapCreate, CapInvoke},
+			capabilities: []DelegateCapability{CapSynthesize, CapInvoke},
 			formats:      []DelegateFormatInfo{{Format: "grpc"}},
 			perOffering: []OfferingPreference{
-				{Capability: CapCreate, Preference: 10}, // prefer X for create
+				{Capability: CapSynthesize, Preference: 10}, // prefer X for create
 			},
 		}
 		y := delegateCandidate{
 			name: "y", location: "exec:y",
-			capabilities: []DelegateCapability{CapCreate, CapInvoke},
+			capabilities: []DelegateCapability{CapSynthesize, CapInvoke},
 			formats:      []DelegateFormatInfo{{Format: "grpc"}},
 			perOffering: []OfferingPreference{
 				{Capability: CapInvoke, Preference: 10}, // prefer Y for invoke
 			},
 		}
 		set := []delegateCandidate{x, y}
-		if got := selectDelegateFrom(set, CapCreate, "grpc"); got == nil || got.name != "x" {
+		if got := selectDelegateFrom(set, CapSynthesize, "grpc"); got == nil || got.name != "x" {
 			t.Errorf("create/grpc should route to X, got %+v", got)
 		}
 		if got := selectDelegateFrom(set, CapInvoke, "grpc"); got == nil || got.name != "y" {
@@ -99,7 +99,7 @@ func TestSelectDelegateFrom(t *testing.T) {
 		if got := c.effectivePreference(CapInvoke, "openapi"); got != 3 {
 			t.Errorf("expected the capability-only override (3) for a non-grpc format, got %v", got)
 		}
-		if got := c.effectivePreference(CapCreate, "grpc"); got != 1 {
+		if got := c.effectivePreference(CapSynthesize, "grpc"); got != 1 {
 			t.Errorf("expected the delegate-level preference (1) when no offering matches, got %v", got)
 		}
 	})

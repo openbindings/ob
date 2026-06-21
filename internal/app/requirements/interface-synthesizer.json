@@ -1,6 +1,6 @@
 {
     "openbindings": "0.2.0",
-    "name": "OpenBindings Interface Creator",
+    "name": "OpenBindings Interface Synthesizer",
     "version": "0.2.0",
     "description": "Interface for creating OpenBindings interfaces from binding artifacts. Given a binding specification (e.g., an OpenAPI spec), an interface creator extracts operations, schemas, sources, and bindings into an OBI document.",
     "schemas": {
@@ -106,7 +106,7 @@
         }
     },
     "operations": {
-        "openbindings.interface-creator.listFormats": {
+        "openbindings.interface-synthesizer.listFormats": {
             "description": "List binding formats this creator can produce interfaces from.",
             "idempotent": true,
             "output": {
@@ -116,7 +116,7 @@
                 }
             }
         },
-        "openbindings.interface-creator.createInterface": {
+        "openbindings.interface-synthesizer.synthesizeInterface": {
             "description": "Create an OpenBindings interface, optionally from binding source artifacts.",
             "idempotent": true,
             "input": {

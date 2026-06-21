@@ -10,7 +10,7 @@ import (
 
 // Create / inspect delegation. When a source's format is not natively
 // supported, ob routes the work to a registered delegate that satisfies the
-// matching interface, by operation-invoking the delegate's createInterface /
+// matching interface, by operation-invoking the delegate's synthesizeInterface /
 // inspectSource against the delegate's own OBI (the same invokeOnInterface core
 // the invoke path uses). Native formats and the no-delegate case fall through
 // to the in-process creator/inspector unchanged.
@@ -21,7 +21,7 @@ import (
 
 // abstract operation names for the delegatable capabilities, namespaced and bare.
 var (
-	createOpNames  = []string{"openbindings.interface-creator.createInterface", "createInterface"}
+	synthesizeOpNames  = []string{"openbindings.interface-synthesizer.synthesizeInterface", "synthesizeInterface"}
 	inspectOpNames = []string{"openbindings.source-inspector.inspectSource", "inspectSource"}
 )
 
@@ -45,10 +45,10 @@ func delegateOpKey(iface *openbindings.Interface, names ...string) (string, bool
 	return "", false
 }
 
-// createViaDelegate routes a single-source, non-native createInterface to a
+// synthesizeViaDelegate routes a single-source, non-native synthesizeInterface to a
 // create-capable delegate. routed reports whether a delegate handled it; when
 // false, the caller uses the native creator.
-func createViaDelegate(ctx context.Context, input *openbindings.CreateInput) (iface *openbindings.Interface, routed bool, err error) {
+func synthesizeViaDelegate(ctx context.Context, input *openbindings.CreateInput) (iface *openbindings.Interface, routed bool, err error) {
 	if input == nil || len(input.Sources) != 1 {
 		return nil, false, nil // multi-source/mixed not routed; native handles or errors
 	}
@@ -56,18 +56,18 @@ func createViaDelegate(ctx context.Context, input *openbindings.CreateInput) (if
 	if format == "" || BuiltinSupportsFormat(format) {
 		return nil, false, nil // native
 	}
-	chosen := selectDelegate(CapCreate, format)
+	chosen := selectDelegate(CapSynthesize, format)
 	if chosen == nil || chosen.iface == nil {
 		return nil, false, nil // no delegate; let the native path report the unsupported format
 	}
-	opKey, ok := delegateOpKey(chosen.iface, createOpNames...)
+	opKey, ok := delegateOpKey(chosen.iface, synthesizeOpNames...)
 	if !ok {
 		return nil, false, nil
 	}
 
 	out, ierr := invokeDelegateUnary(ctx, chosen, opKey, input)
 	if ierr != nil {
-		return nil, true, fmt.Errorf("delegate %q createInterface: %w", chosen.name, ierr)
+		return nil, true, fmt.Errorf("delegate %q synthesizeInterface: %w", chosen.name, ierr)
 	}
 	result, cerr := decodeOutput[openbindings.Interface](out)
 	if cerr != nil {

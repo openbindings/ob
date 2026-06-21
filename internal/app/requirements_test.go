@@ -19,7 +19,7 @@ func TestDelegateCapabilities_DetectedByConformance(t *testing.T) {
 	}
 
 	// The binding-invoker requirement, treated as a candidate delegate OBI,
-	// provides ONLY the invoke capability: it has no createInterface or
+	// provides ONLY the invoke capability: it has no synthesizeInterface or
 	// inspectSource, and its listFormats is keyed to binding-invoker (no alias
 	// to the other interfaces), so it does not satisfy create/inspect. This is
 	// the invoke-only delegate case.

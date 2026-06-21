@@ -70,7 +70,7 @@ func selfDelegateCandidate() delegateCandidate {
 	return delegateCandidate{
 		name:         "ob",
 		builtin:      true,
-		capabilities: []DelegateCapability{CapInvoke, CapCreate, CapInspect},
+		capabilities: []DelegateCapability{CapInvoke, CapSynthesize, CapInspect},
 		formats:      formats,
 	}
 }

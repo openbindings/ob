@@ -230,11 +230,11 @@ paths:
 
   /interfaces/create:
     post:
-      operationId: createInterface
+      operationId: synthesizeInterface
       summary: Create an OpenBindings interface from binding sources
       description: >
         Creates an OpenBindings interface document, optionally from one or more
-        binding source artifacts. This is the interface-creator host capability.
+        binding source artifacts. This is the interface-synthesizer host capability.
       requestBody:
         required: true
         content:
