@@ -1,740 +1,379 @@
 {
   "bindings": {
-    "assessCompatibility.openapi": {
-      "operation": "assessCompatibility",
-      "ref": "#/paths/~1compatibility/post",
-      "source": "openapi",
-      "x-ob": {}
+    "openbindings.ob.addOperationAlias.usage": {
+      "operation": "openbindings.ob.addOperationAlias",
+      "ref": "operation alias add",
+      "source": "usage"
     },
-    "assessCompatibility.usage": {
-      "operation": "assessCompatibility",
+    "openbindings.ob.assessCompatibility.usage": {
+      "operation": "openbindings.ob.assessCompatibility",
       "ref": "compat",
-      "source": "usage",
-      "x-ob": {}
+      "source": "usage"
     },
-    "compareInterfaces.openapi": {
-      "operation": "compareInterfaces",
-      "ref": "#/paths/~1diff/post",
-      "source": "openapi",
-      "x-ob": {}
+    "openbindings.ob.bindOperation.usage": {
+      "operation": "openbindings.ob.bindOperation",
+      "ref": "operation bind",
+      "source": "usage"
     },
-    "compareInterfaces.usage": {
-      "operation": "compareInterfaces",
+    "openbindings.ob.codegen.usage": {
+      "operation": "openbindings.ob.codegen",
+      "ref": "codegen",
+      "source": "usage"
+    },
+    "openbindings.ob.compareInterfaces.usage": {
+      "operation": "openbindings.ob.compareInterfaces",
       "ref": "diff",
-      "source": "usage",
-      "x-ob": {}
+      "source": "usage"
     },
-    "createDelegate.usage": {
-      "operation": "createDelegate",
+    "openbindings.ob.conform.usage": {
+      "operation": "openbindings.ob.conform",
+      "ref": "conform",
+      "source": "usage"
+    },
+    "openbindings.ob.createDelegate.usage": {
+      "operation": "openbindings.ob.createDelegate",
       "ref": "delegate add",
-      "source": "usage",
-      "x-ob": {}
+      "source": "usage"
     },
-    "synthesizeInterface.openapi": {
-      "operation": "synthesizeInterface",
-      "ref": "#/paths/~1interfaces~1create/post",
-      "source": "openapi",
-      "x-ob": {},
-      "inputTransform": "{ \"to\": openbindingsVersion, \"sources\": sources, \"name\": name, \"version\": version, \"description\": description }"
+    "openbindings.ob.createOperation.usage": {
+      "operation": "openbindings.ob.createOperation",
+      "ref": "operation add",
+      "source": "usage"
     },
-    "synthesizeInterface.usage": {
-      "operation": "synthesizeInterface",
-      "ref": "create",
-      "source": "usage",
-      "x-ob": {},
-      "inputTransform": "{ \"flags\": { \"to\": openbindingsVersion, \"name\": name, \"version\": version, \"description\": description }, \"args\": sources.(format & \":\" & location & (embed ? \"?embed\" : \"\")) }"
-    },
-    "createMCPServer.openapi": {
-      "operation": "createMCPServer",
-      "ref": "#/paths/~1mcp~1servers/post",
-      "source": "openapi",
-      "x-ob": {}
-    },
-    "createMCPServer.usage": {
-      "operation": "createMCPServer",
-      "ref": "mcp",
-      "source": "usage",
-      "x-ob": {}
-    },
-    "createSource.usage": {
-      "operation": "createSource",
+    "openbindings.ob.createSource.usage": {
+      "operation": "openbindings.ob.createSource",
       "ref": "source add",
-      "source": "usage",
-      "x-ob": {}
+      "source": "usage"
     },
-    "deleteContext.openapi": {
-      "operation": "deleteContext",
-      "ref": "#/paths/~1contexts~1{url}/delete",
-      "source": "openapi",
-      "x-ob": {},
-      "inputTransform": "{ \"url\": key }"
-    },
-    "deleteContext.usage": {
-      "operation": "deleteContext",
+    "openbindings.ob.deleteContext.usage": {
+      "operation": "openbindings.ob.deleteContext",
       "ref": "context remove",
-      "source": "usage",
-      "x-ob": {},
-      "inputTransform": "{ \"url\": key }"
+      "source": "usage"
     },
-    "deleteDelegate.usage": {
-      "operation": "deleteDelegate",
+    "openbindings.ob.deleteDelegate.usage": {
+      "operation": "openbindings.ob.deleteDelegate",
       "ref": "delegate remove",
-      "source": "usage",
-      "x-ob": {}
+      "source": "usage"
     },
-    "deleteOperation.usage": {
-      "operation": "deleteOperation",
+    "openbindings.ob.deleteOperation.usage": {
+      "operation": "openbindings.ob.deleteOperation",
       "ref": "operation remove",
-      "source": "usage",
-      "x-ob": {}
+      "source": "usage"
     },
-    "deleteSource.usage": {
-      "operation": "deleteSource",
+    "openbindings.ob.deleteSource.usage": {
+      "operation": "openbindings.ob.deleteSource",
       "ref": "source remove",
-      "source": "usage",
-      "x-ob": {}
+      "source": "usage"
     },
-    "invokeBinding.usage": {
-      "operation": "invokeBinding",
-      "ref": "binding invoke",
-      "source": "usage",
-      "x-ob": {},
-      "inputTransform": "{ \"input\": $string($) }"
-    },
-    "executeLocalOperation.usage": {
-      "operation": "executeLocalOperation",
-      "ref": "operation invoke",
-      "source": "usage",
-      "x-ob": {}
-    },
-    "resolveInterface.openapi": {
-      "operation": "resolveInterface",
-      "ref": "#/paths/~1resolve/post",
-      "source": "openapi",
-      "x-ob": {}
-    },
-    "resolveInterface.usage": {
-      "operation": "resolveInterface",
-      "ref": "resolve",
-      "source": "usage",
-      "x-ob": {}
-    },
-    "getContext.openapi": {
-      "operation": "getContext",
-      "ref": "#/paths/~1contexts~1{url}/get",
-      "source": "openapi",
-      "x-ob": {},
-      "inputTransform": "{ \"url\": key }"
-    },
-    "getContext.usage": {
-      "operation": "getContext",
-      "ref": "context get",
-      "source": "usage",
-      "x-ob": {},
-      "inputTransform": "{ \"url\": key }"
-    },
-    "getEnvironmentStatus.openapi": {
-      "operation": "getEnvironmentStatus",
-      "ref": "#/paths/~1status/get",
-      "source": "openapi",
-      "x-ob": {}
-    },
-    "getEnvironmentStatus.usage": {
-      "operation": "getEnvironmentStatus",
-      "ref": "status",
-      "source": "usage",
-      "x-ob": {}
-    },
-    "getInfo.openapi": {
-      "operation": "getInfo",
-      "ref": "#/paths/~1info/get",
-      "source": "openapi",
-      "x-ob": {}
-    },
-    "getInfo.usage": {
-      "operation": "getInfo",
+    "openbindings.ob.describe.usage": {
+      "operation": "openbindings.ob.describe",
       "ref": "info",
-      "source": "usage",
-      "x-ob": {}
+      "source": "usage"
     },
-    "getSource.usage": {
-      "operation": "getSource",
-      "ref": "source show",
-      "source": "usage",
-      "x-ob": {}
+    "openbindings.ob.detachOperation.usage": {
+      "operation": "openbindings.ob.detachOperation",
+      "ref": "operation detach",
+      "source": "usage"
     },
-    "initializeEnvironment.usage": {
-      "operation": "initializeEnvironment",
+    "openbindings.ob.getContext.usage": {
+      "operation": "openbindings.ob.getContext",
+      "ref": "context get",
+      "source": "usage"
+    },
+    "openbindings.ob.getDelegateRequirements.usage": {
+      "operation": "openbindings.ob.getDelegateRequirements",
+      "ref": "delegate requirements",
+      "source": "usage"
+    },
+    "openbindings.ob.getEnvironmentStatus.usage": {
+      "operation": "openbindings.ob.getEnvironmentStatus",
+      "ref": "status",
+      "source": "usage"
+    },
+    "openbindings.ob.initializeEnvironment.usage": {
+      "operation": "openbindings.ob.initializeEnvironment",
       "ref": "init",
-      "source": "usage",
-      "x-ob": {}
+      "source": "usage"
     },
-    "listConflicts.usage": {
-      "operation": "listConflicts",
-      "ref": "conflicts",
-      "source": "usage",
-      "x-ob": {}
+    "openbindings.ob.inspectSource.usage": {
+      "operation": "openbindings.ob.inspectSource",
+      "ref": "inspect",
+      "source": "usage"
     },
-    "listContexts.openapi": {
-      "operation": "listContexts",
-      "ref": "#/paths/~1contexts/get",
-      "source": "openapi",
-      "x-ob": {}
+    "openbindings.ob.invokeBinding.usage": {
+      "operation": "openbindings.ob.invokeBinding",
+      "ref": "binding invoke",
+      "source": "usage"
     },
-    "listContexts.usage": {
-      "operation": "listContexts",
+    "openbindings.ob.invokeOperation.usage": {
+      "operation": "openbindings.ob.invokeOperation",
+      "ref": "operation invoke",
+      "source": "usage"
+    },
+    "openbindings.ob.listContexts.usage": {
+      "operation": "openbindings.ob.listContexts",
       "ref": "context list",
-      "source": "usage",
-      "x-ob": {}
+      "source": "usage"
     },
-    "listDelegates.openapi": {
-      "operation": "listDelegates",
-      "ref": "#/paths/~1delegates/get",
-      "source": "openapi",
-      "x-ob": {}
-    },
-    "listDelegates.usage": {
-      "operation": "listDelegates",
+    "openbindings.ob.listDelegates.usage": {
+      "operation": "openbindings.ob.listDelegates",
       "ref": "delegate list",
-      "source": "usage",
-      "x-ob": {}
+      "source": "usage"
     },
-    "listFormats.openapi": {
-      "operation": "listFormats",
-      "ref": "#/paths/~1formats/get",
-      "source": "openapi",
-      "x-ob": {}
-    },
-    "listFormats.usage": {
-      "operation": "listFormats",
+    "openbindings.ob.listFormats.usage": {
+      "operation": "openbindings.ob.listFormats",
       "ref": "formats",
-      "source": "usage",
-      "x-ob": {}
+      "source": "usage"
     },
-    "listMCPServers.openapi": {
-      "operation": "listMCPServers",
-      "ref": "#/paths/~1mcp~1servers/get",
-      "source": "openapi",
-      "x-ob": {}
+    "openbindings.ob.listOperationAliases.usage": {
+      "operation": "openbindings.ob.listOperationAliases",
+      "ref": "operation alias list",
+      "source": "usage"
     },
-    "listOperations.usage": {
-      "operation": "listOperations",
+    "openbindings.ob.listOperations.usage": {
+      "operation": "openbindings.ob.listOperations",
       "ref": "operation list",
-      "source": "usage",
-      "x-ob": {}
+      "source": "usage"
     },
-    "listSources.usage": {
-      "operation": "listSources",
+    "openbindings.ob.listSources.usage": {
+      "operation": "openbindings.ob.listSources",
       "ref": "source list",
-      "source": "usage",
-      "x-ob": {}
+      "source": "usage"
     },
-    "mergeInterfaces.usage": {
-      "operation": "mergeInterfaces",
+    "openbindings.ob.mergeInterfaces.usage": {
+      "operation": "openbindings.ob.mergeInterfaces",
       "ref": "merge",
-      "source": "usage",
-      "x-ob": {}
+      "source": "usage"
     },
-    "renameOperation.usage": {
-      "operation": "renameOperation",
+    "openbindings.ob.newInterface.usage": {
+      "operation": "openbindings.ob.newInterface",
+      "ref": "new",
+      "source": "usage"
+    },
+    "openbindings.ob.prepareOperation.usage": {
+      "operation": "openbindings.ob.prepareOperation",
+      "ref": "operation prepare",
+      "source": "usage"
+    },
+    "openbindings.ob.pullSource.usage": {
+      "operation": "openbindings.ob.pullSource",
+      "ref": "source pull",
+      "source": "usage"
+    },
+    "openbindings.ob.removeOperationAlias.usage": {
+      "operation": "openbindings.ob.removeOperationAlias",
+      "ref": "operation alias remove",
+      "source": "usage"
+    },
+    "openbindings.ob.renameOperation.usage": {
+      "operation": "openbindings.ob.renameOperation",
       "ref": "operation rename",
-      "source": "usage",
-      "x-ob": {}
+      "source": "usage"
     },
-    "resolveDelegate.usage": {
-      "operation": "resolveDelegate",
+    "openbindings.ob.resolveDelegate.usage": {
+      "operation": "openbindings.ob.resolveDelegate",
       "ref": "delegate resolve",
-      "source": "usage",
-      "x-ob": {}
+      "source": "usage"
     },
-    "setContext.openapi": {
-      "operation": "setContext",
-      "ref": "#/paths/~1contexts~1{url}/put",
-      "source": "openapi",
-      "x-ob": {},
-      "inputTransform": "$merge([{ \"url\": key }, value])"
+    "openbindings.ob.resolveInterface.usage": {
+      "operation": "openbindings.ob.resolveInterface",
+      "ref": "resolve",
+      "source": "usage"
     },
-    "setContext.usage": {
-      "operation": "setContext",
+    "openbindings.ob.setContext.usage": {
+      "operation": "openbindings.ob.setContext",
       "ref": "context set",
-      "source": "usage",
-      "x-ob": {},
-      "inputTransform": "{ \"url\": key, \"bearer-token\": value.bearerToken, \"api-key\": value.apiKey }"
+      "source": "usage"
     },
-    "startServer.usage": {
-      "operation": "startServer",
+    "openbindings.ob.setDelegatePreference.usage": {
+      "operation": "openbindings.ob.setDelegatePreference",
+      "ref": "delegate prefer",
+      "source": "usage"
+    },
+    "openbindings.ob.setMetadata.usage": {
+      "operation": "openbindings.ob.setMetadata",
+      "ref": "meta set",
+      "source": "usage"
+    },
+    "openbindings.ob.startServer.usage": {
+      "operation": "openbindings.ob.startServer",
       "ref": "serve",
-      "source": "usage",
-      "x-ob": {}
+      "source": "usage"
     },
-    "syncInterface.usage": {
-      "operation": "syncInterface",
-      "ref": "sync",
-      "source": "usage",
-      "x-ob": {}
+    "openbindings.ob.unbindOperation.usage": {
+      "operation": "openbindings.ob.unbindOperation",
+      "ref": "operation unbind",
+      "source": "usage"
     },
-    "terminateMCPServer.openapi": {
-      "operation": "terminateMCPServer",
-      "ref": "#/paths/~1mcp~1servers~1{id}/delete",
-      "source": "openapi",
-      "x-ob": {}
+    "openbindings.ob.updateOperation.usage": {
+      "operation": "openbindings.ob.updateOperation",
+      "ref": "operation set",
+      "source": "usage"
     },
-    "updateMCPServer.openapi": {
-      "operation": "updateMCPServer",
-      "ref": "#/paths/~1mcp~1servers~1{id}/patch",
-      "source": "openapi",
-      "x-ob": {}
-    },
-    "validateInterface.openapi": {
-      "operation": "validateInterface",
-      "ref": "#/paths/~1validate/post",
-      "source": "openapi",
-      "x-ob": {}
-    },
-    "validateInterface.usage": {
-      "operation": "validateInterface",
+    "openbindings.ob.validateInterface.usage": {
+      "operation": "openbindings.ob.validateInterface",
       "ref": "validate",
-      "source": "usage",
-      "x-ob": {}
+      "source": "usage"
     }
   },
-  "description": "Portable interfaces, flexible bindings \u2013 the ob command-line tool",
-  "name": "OpenBindings CLI",
+  "description": "The complete interface implemented by ob, the OpenBindings reference tool. One unbound contract describing everything ob does: creating, inspecting, editing, validating, comparing, and invoking OpenBindings interfaces, plus context storage and environment management. This document carries no bindings or sources; it is the single source of truth from which the per-surface realizations (CLI via usage, server via OpenAPI/AsyncAPI/MCP) are derived, so they cannot drift. An operation that realizes a published OpenBindings interface is keyed by that interface's operation name (e.g. openbindings.kv-store.set), so satisfaction needs no alias; ob's own operations are keyed under the ob namespace (e.g. ob.syncInterface). Aliases appear only where one operation satisfies more than one published interface, as listFormats does.",
+  "name": "ob",
   "openbindings": "0.2.0",
   "operations": {
-    "assessCompatibility": {
-      "description": "Check interface conformance between two interfaces",
+    "openbindings.ob.addOperationAlias": {
+      "description": "Declare satisfaction alias(es) on an operation (OBI-T-12) and return the modified interface.",
       "input": {
-        "properties": {
-          "candidate": {
-            "description": "Candidate interface (locator)",
-            "type": "string"
-          },
-          "format": {
-            "description": "Output format: json|yaml|text",
-            "type": "string"
-          },
-          "output": {
-            "description": "Write output to file",
-            "type": "string"
-          },
-          "quiet": {
-            "description": "Exit code only, no output",
-            "type": "boolean"
-          },
-          "target": {
-            "description": "Target interface (locator)",
-            "type": "string"
-          }
-        },
-        "required": [
-          "target",
-          "candidate"
-        ],
-        "type": "object"
-      },
-      "tags": [
-        "authoring"
-      ],
-      "x-ob": {}
-    },
-    "compareInterfaces": {
-      "description": "Structural comparison of two OBIs",
-      "input": {
-        "properties": {
-          "baseline": {
-            "description": "Baseline OBI (file path, URL, or exec: locator)",
-            "type": "string"
-          },
-          "comparison": {
-            "description": "Comparison OBI (omit with --from-sources)",
-            "type": "string"
-          },
-          "format": {
-            "description": "Output format: json|yaml|text",
-            "type": "string"
-          },
-          "from-sources": {
-            "description": "Compare against what binding sources produce",
-            "type": "boolean"
-          },
-          "only": {
-            "description": "Scope to a specific source key (requires --from-sources)",
-            "type": "string"
-          },
-          "output": {
-            "description": "Write output to file",
-            "type": "string"
-          },
-          "quiet": {
-            "description": "Exit code only, no output",
-            "type": "boolean"
-          }
-        },
-        "required": [
-          "baseline"
-        ],
-        "type": "object"
-      },
-      "tags": [
-        "authoring"
-      ],
-      "x-ob": {}
-    },
-    "createDelegate": {
-      "description": "Add a delegate",
-      "input": {
-        "properties": {
-          "format": {
-            "description": "Output format: json|yaml|text",
-            "type": "string"
-          },
-          "output": {
-            "description": "Write output to file",
-            "type": "string"
-          },
-          "url": {
-            "description": "Delegate URL (e.g., exec:my-cli, https://api.example.com)",
-            "type": "string"
-          }
-        },
-        "required": [
-          "url"
-        ],
-        "type": "object"
-      },
-      "tags": [
-        "delegate"
-      ],
-      "x-ob": {}
-    },
-    "synthesizeInterface": {
-      "description": "Create an OpenBindings interface, optionally from binding source artifacts.",
-      "tags": [
-        "authoring"
-      ],
-      "aliases": [
-        "openbindings.interface-synthesizer.synthesizeInterface"
-      ],
-      "input": {
-        "$ref": "#/schemas/CreateInterfaceInput"
+        "$ref": "#/schemas/AddOperationAliasInput"
       },
       "output": {
         "$ref": "#/schemas/OpenBindingsInterface"
       }
     },
-    "createMCPServer": {
-      "description": "Create an MCP server from interfaces and/or URLs",
+    "openbindings.ob.assessCompatibility": {
+      "description": "Assess whether a candidate interface conforms to a target interface and produce a report: per-operation input/output slot status, overall conformance level, and coverage. A report, not a binary verdict.",
+      "idempotent": true,
       "input": {
-        "properties": {
-          "interfaces": {
-            "description": "Interface documents to expose as MCP tools",
-            "items": {
-              "type": "object"
-            },
-            "type": "array"
-          },
-          "name": {
-            "description": "MCP server name",
-            "type": "string"
-          },
-          "urls": {
-            "description": "Interface URLs to resolve and expose as MCP tools",
-            "items": {
-              "type": "string"
-            },
-            "type": "array"
-          }
-        },
-        "type": "object"
+        "$ref": "#/schemas/AssessCompatibilityInput"
       },
       "output": {
-        "properties": {
-          "endpoint": {
-            "type": "string"
-          },
-          "id": {
-            "type": "string"
-          },
-          "name": {
-            "type": "string"
-          },
-          "toolCount": {
-            "type": "integer"
-          }
-        },
-        "type": "object"
-      },
-      "tags": [
-        "mcp"
-      ],
-      "x-ob": {}
+        "$ref": "#/schemas/CompatibilityReport"
+      }
     },
-    "createSource": {
-      "description": "Register a source reference on an OBI",
+    "openbindings.ob.bindOperation": {
+      "description": "Attach a source ref to an existing operation (preserving the operation's key) and return the modified interface. Warns and optionally scaffolds transform stubs on a shape mismatch.",
       "input": {
-        "properties": {
-          "format": {
-            "description": "Output format: json|yaml|text",
-            "type": "string"
-          },
-          "key": {
-            "description": "Explicit source key (default: derived from format and path)",
-            "type": "string"
-          },
-          "obi-path": {
-            "description": "Path to the OBI file",
-            "type": "string"
-          },
-          "output": {
-            "description": "Write output to file",
-            "type": "string"
-          },
-          "resolve": {
-            "description": "Resolution mode: location (default) or content",
-            "type": "string"
-          },
-          "source": {
-            "description": "Source path or format:path (e.g., openapi.json or usage@2.0.0:./cli.kdl)",
-            "type": "string"
-          },
-          "uri": {
-            "description": "Explicit published URI for location mode",
-            "type": "string"
-          }
-        },
-        "required": [
-          "obi-path",
-          "source"
-        ],
-        "type": "object"
+        "$ref": "#/schemas/BindOperationInput"
       },
-      "tags": [
-        "source"
-      ],
-      "x-ob": {}
+      "output": {
+        "$ref": "#/schemas/OpenBindingsInterface"
+      }
     },
-    "deleteContext": {
-      "description": "Delete the stored context for a key. Deleting an absent key succeeds.",
-      "tags": [
-        "context"
-      ],
+    "openbindings.ob.codegen": {
+      "description": "Generate a typed invoker for an interface in a target language (TypeScript or Go). The output is an invoker over the cardinality-agnostic handle, not a cardinality-specific client.",
+      "idempotent": true,
+      "input": {
+        "$ref": "#/schemas/CodegenInput"
+      },
+      "output": {
+        "$ref": "#/schemas/CodegenOutput"
+      }
+    },
+    "openbindings.ob.compareInterfaces": {
+      "description": "Structurally compare two interfaces (or one interface against what its sources produce) and report the differences per operation and metadata field, including cross-source drift.",
+      "idempotent": true,
+      "input": {
+        "$ref": "#/schemas/CompareInterfacesInput"
+      },
+      "output": {
+        "$ref": "#/schemas/DiffReport"
+      }
+    },
+    "openbindings.ob.conform": {
+      "description": "Scaffold a target interface so it conforms to a reference interface: add the operations the reference requires and reconcile mismatches, returning the updated target and a report of each change. With dryRun, reports the changes without applying them.",
+      "input": {
+        "$ref": "#/schemas/ConformInput"
+      },
+      "output": {
+        "$ref": "#/schemas/ConformResult"
+      }
+    },
+    "openbindings.ob.createDelegate": {
+      "description": "Register a delegate by the location of its OpenBindings interface (an exec: or http(s) URL). ob resolves the delegate's OBI and records which format-handling capabilities it offers — invoke (binding-invoker), create (interface-synthesizer), inspect (source-inspector) — and the formats it handles, so ob can route work it can't handle natively to the delegate. A delegate satisfies whichever subset it implements; an invoke-only delegate is valid. Returns what was discovered; registration succeeds with a warning when the delegate is unreachable or offers no delegatable capability.",
+      "input": {
+        "$ref": "#/schemas/DelegateLocationInput"
+      },
+      "output": {
+        "$ref": "#/schemas/CreateDelegateResult"
+      }
+    },
+    "openbindings.ob.createOperation": {
+      "description": "Add an operation with the given key to an interface and return the modified interface.",
+      "input": {
+        "$ref": "#/schemas/CreateOperationInput"
+      },
+      "output": {
+        "$ref": "#/schemas/OpenBindingsInterface"
+      }
+    },
+    "openbindings.ob.createSource": {
+      "description": "Register a binding source reference on an interface and return the modified interface.",
+      "input": {
+        "$ref": "#/schemas/CreateSourceInput"
+      },
+      "output": {
+        "$ref": "#/schemas/OpenBindingsInterface"
+      }
+    },
+    "openbindings.ob.deleteContext": {
       "aliases": [
         "openbindings.kv-store.delete"
       ],
+      "description": "Delete the stored context for a key. Deleting an absent key succeeds.",
       "idempotent": true,
       "input": {
-        "type": "object",
-        "properties": {
-          "key": {
-            "type": "string",
-            "description": "Context store key."
-          }
-        },
-        "required": [
-          "key"
-        ],
-        "additionalProperties": false
+        "$ref": "#/schemas/ContextKeyInput"
       }
     },
-    "deleteDelegate": {
-      "description": "Remove a delegate",
+    "openbindings.ob.deleteDelegate": {
+      "description": "Unregister a delegate by its location.",
       "input": {
-        "properties": {
-          "format": {
-            "description": "Output format: json|yaml|text",
-            "type": "string"
-          },
-          "output": {
-            "description": "Write output to file",
-            "type": "string"
-          },
-          "url": {
-            "description": "Delegate URL",
-            "type": "string"
-          }
-        },
-        "required": [
-          "url"
-        ],
-        "type": "object"
-      },
-      "tags": [
-        "delegate"
-      ],
-      "x-ob": {}
-    },
-    "deleteOperation": {
-      "description": "Remove operations and their bindings from an OBI",
-      "input": {
-        "properties": {
-          "force": {
-            "description": "Remove managed operations without warning",
-            "type": "boolean"
-          },
-          "format": {
-            "description": "Output format: json|yaml|text",
-            "type": "string"
-          },
-          "key": {
-            "description": "Operation keys to remove",
-            "items": {
-              "type": "string"
-            },
-            "minItems": 1,
-            "type": "array"
-          },
-          "obi-path": {
-            "description": "Path to the OBI file",
-            "type": "string"
-          },
-          "output": {
-            "description": "Write output to file",
-            "type": "string"
-          }
-        },
-        "required": [
-          "obi-path",
-          "key"
-        ],
-        "type": "object"
-      },
-      "tags": [
-        "operation"
-      ],
-      "x-ob": {}
-    },
-    "deleteSource": {
-      "description": "Remove a source reference from an OBI",
-      "input": {
-        "properties": {
-          "format": {
-            "description": "Output format: json|yaml|text",
-            "type": "string"
-          },
-          "key": {
-            "description": "Source key to remove",
-            "type": "string"
-          },
-          "obi-path": {
-            "description": "Path to the OBI file",
-            "type": "string"
-          },
-          "output": {
-            "description": "Write output to file",
-            "type": "string"
-          }
-        },
-        "required": [
-          "obi-path",
-          "key"
-        ],
-        "type": "object"
-      },
-      "tags": [
-        "source"
-      ],
-      "x-ob": {}
-    },
-    "invokeBinding": {
-      "description": "Invoke a resolved binding.",
-      "input": {
-        "$ref": "#/schemas/InvokeBindingInput"
+        "$ref": "#/schemas/DelegateLocationInput"
       },
       "output": {
-        "$ref": "#/schemas/InvokeBindingOutput"
-      },
-      "tags": [
-        "binding"
-      ]
+        "$ref": "#/schemas/DeleteDelegateResult"
+      }
     },
-    "executeLocalOperation": {
-      "description": "Execute an operation via a binding",
+    "openbindings.ob.deleteOperation": {
+      "description": "Remove one or more operations and their bindings from an interface and return the modified interface.",
       "input": {
-        "properties": {
-          "binding": {
-            "description": "Binding key to execute (operation is derived from the entry)",
-            "type": "string"
-          },
-          "context": {
-            "description": "Named context to apply (credentials, headers, etc.)",
-            "type": "string"
-          },
-          "format": {
-            "description": "Output format: json|yaml|text",
-            "type": "string"
-          },
-          "input": {
-            "description": "Operation input as JSON",
-            "type": "string"
-          },
-          "obi-path": {
-            "description": "Path to the OBI file",
-            "type": "string"
-          },
-          "operation": {
-            "description": "Operation key to execute",
-            "type": "string"
-          },
-          "output": {
-            "description": "Write output to file",
-            "type": "string"
-          }
-        },
-        "required": [
-          "obi-path"
-        ],
-        "type": "object"
+        "$ref": "#/schemas/DeleteOperationInput"
       },
-      "tags": [
-        "operation"
-      ],
-      "x-ob": {}
+      "output": {
+        "$ref": "#/schemas/OpenBindingsInterface"
+      }
     },
-    "resolveInterface": {
-      "description": "Resolve an OpenBindings interface from a URL or host",
+    "openbindings.ob.deleteSource": {
+      "description": "Remove a source reference from an interface and return the modified interface.",
       "input": {
-        "properties": {
-          "output": {
-            "description": "Write output to file (default: derived from host)",
-            "type": "string"
-          },
-          "url-or-host": {
-            "description": "Base URL or host (e.g. localhost:8080)",
-            "type": "string"
-          }
-        },
-        "required": [
-          "url-or-host"
-        ],
-        "type": "object"
+        "$ref": "#/schemas/SourceKeyInput"
       },
-      "tags": [
-        "resolve"
-      ],
-      "x-ob": {}
+      "output": {
+        "$ref": "#/schemas/OpenBindingsInterface"
+      }
     },
-    "getContext": {
-      "description": "Get the stored context for a key. Returns the unified context payload (credentials, headers, cookies, environment, metadata in a single opaque map), or null when no context exists for the key.",
-      "tags": [
-        "context"
+    "openbindings.ob.demo": {
+      "description": "Start the bundled demonstration servers (HTTP and gRPC) that showcase one interface satisfied across multiple binding formats. A foreground, environment-local operation, like startServer; not meaningfully invoked over a remote transport.",
+      "input": {
+        "$ref": "#/schemas/DemoInput"
+      }
+    },
+    "openbindings.ob.describe": {
+      "aliases": [
+        "openbindings.software-descriptor.describe"
       ],
+      "description": "Return identity and metadata about ob: name, version, description, homepage, repository, maintainer.",
+      "idempotent": true,
+      "output": {
+        "$ref": "#/schemas/SoftwareIdentity"
+      }
+    },
+    "openbindings.ob.detachOperation": {
+      "description": "Convert a source-owned operation into a hand-authored one (so pull no longer overwrites it) and return the modified interface.",
+      "input": {
+        "$ref": "#/schemas/DetachOperationInput"
+      },
+      "output": {
+        "$ref": "#/schemas/OpenBindingsInterface"
+      }
+    },
+    "openbindings.ob.getContext": {
       "aliases": [
         "openbindings.kv-store.get"
       ],
+      "description": "Get the stored context for a key. Returns the unified context payload (credentials, headers, cookies, environment, metadata in a single opaque map), or null when no context exists for the key.",
       "idempotent": true,
       "input": {
-        "type": "object",
-        "properties": {
-          "key": {
-            "type": "string",
-            "description": "Context store key."
-          }
-        },
-        "required": [
-          "key"
-        ],
-        "additionalProperties": false
+        "$ref": "#/schemas/ContextKeyInput"
       },
       "output": {
         "oneOf": [
@@ -747,919 +386,2613 @@
         ]
       }
     },
-    "getEnvironmentStatus": {
-      "description": "Show environment status or OBI sync report",
-      "input": {
-        "properties": {
-          "format": {
-            "description": "Output format: json|yaml|text",
-            "type": "string"
-          },
-          "obi-path": {
-            "description": "OBI file path (shows sync report instead of env status)",
-            "type": "string"
-          },
-          "output": {
-            "description": "Write output to file",
-            "type": "string"
-          }
-        },
-        "type": "object"
-      },
-      "tags": [
-        "environment"
-      ],
-      "x-ob": {}
-    },
-    "getInfo": {
-      "description": "Return identity and metadata about this software.",
-      "tags": [
-        "info"
-      ],
-      "aliases": [
-        "openbindings.software-descriptor.getInfo"
-      ],
+    "openbindings.ob.getDelegateRequirements": {
+      "description": "Return the published interface a delegate must satisfy to provide a capability (invoke → binding-invoker, create → interface-synthesizer, inspect → source-inspector), so a prospective delegate can be checked against the exact contract (e.g. via assessCompatibility). The interfaces are immutable documents bundled with this ob release.",
       "idempotent": true,
+      "input": {
+        "$ref": "#/schemas/GetDelegateRequirementsInput"
+      },
       "output": {
-        "$ref": "#/schemas/SoftwareInfo"
+        "$ref": "#/schemas/OpenBindingsInterface"
       }
     },
-    "getSource": {
-      "description": "Show details of a source reference",
-      "input": {
-        "properties": {
-          "format": {
-            "description": "Output format: json|yaml|text",
-            "type": "string"
-          },
-          "key": {
-            "description": "Source key",
-            "type": "string"
-          },
-          "obi-path": {
-            "description": "Path to the OBI file",
-            "type": "string"
-          },
-          "output": {
-            "description": "Write output to file",
-            "type": "string"
-          }
-        },
-        "required": [
-          "obi-path",
-          "key"
-        ],
-        "type": "object"
-      },
-      "tags": [
-        "source"
-      ],
-      "x-ob": {}
-    },
-    "initializeEnvironment": {
-      "description": "Initialize an OpenBindings environment (.openbindings/)",
-      "input": {
-        "properties": {
-          "format": {
-            "description": "Output format: json|yaml|text",
-            "type": "string"
-          },
-          "output": {
-            "description": "Write output to file",
-            "type": "string"
-          }
-        },
-        "type": "object"
-      },
-      "tags": [
-        "environment"
-      ],
-      "x-ob": {}
-    },
-    "listConflicts": {
-      "description": "List merge conflicts between local edits and source changes",
-      "input": {
-        "properties": {
-          "format": {
-            "description": "Output format: json|yaml|text",
-            "type": "string"
-          },
-          "obi-path": {
-            "description": "Path to the OBI file",
-            "type": "string"
-          },
-          "output": {
-            "description": "Write output to file",
-            "type": "string"
-          }
-        },
-        "required": [
-          "obi-path"
-        ],
-        "type": "object"
-      },
-      "tags": [
-        "authoring"
-      ],
-      "x-ob": {}
-    },
-    "listContexts": {
-      "description": "List metadata summaries for all stored contexts (no secret values). Not part of the kv-store interface \u2014 this is ob's management surface.",
+    "openbindings.ob.getEnvironmentStatus": {
+      "description": "Report a snapshot of the active OpenBindings environment (the .openbindings/ directory): whether it is local or global, its path, and counts of the delegates and contexts it holds.",
       "idempotent": true,
       "output": {
-        "type": "array",
+        "$ref": "#/schemas/EnvironmentStatus"
+      }
+    },
+    "openbindings.ob.getInterfaceStatus": {
+      "description": "Report an interface's status against its sources: per-source sync state (in-sync, managed, what a sync would change) and the managed-vs-hand-authored breakdown of its operations and bindings. Read-only — distinct from syncInterface (which re-derives and writes) and from compareInterfaces with fromSources (which reports raw differences).",
+      "idempotent": true,
+      "input": {
+        "$ref": "#/schemas/InterfaceStatusInput"
+      },
+      "output": {
+        "$ref": "#/schemas/InterfaceStatus"
+      }
+    },
+    "openbindings.ob.initializeEnvironment": {
+      "description": "Initialize an OpenBindings environment (the .openbindings/ directory) and return its status.",
+      "output": {
+        "$ref": "#/schemas/EnvironmentStatus"
+      }
+    },
+    "openbindings.ob.inspectSource": {
+      "aliases": [
+        "openbindings.source-inspector.inspectSource"
+      ],
+      "description": "Inspect a binding source artifact and report the bindable targets it contains, before any interface is created. Lets tooling show a user what an artifact offers.",
+      "idempotent": true,
+      "input": {
+        "$ref": "#/schemas/InspectSourceInput"
+      },
+      "output": {
+        "$ref": "#/schemas/SourceInspection"
+      }
+    },
+    "openbindings.ob.invokeBinding": {
+      "aliases": [
+        "openbindings.binding-invoker.invokeBinding"
+      ],
+      "description": "Invoke a resolved binding via a typed bidirectional I/O frame stream (the binding-invoker frame protocol). The caller streams BindingInvokerInputFrame messages (one `open` carrying the BindingInvocationInput, zero or more `input`, one `close`); the service streams BindingInvokerOutputFrame messages back (zero or more `output`/`input_closed`, then exactly one terminal `complete` or `error`). One shape covers unary, server-streaming, client-streaming, and bidirectional bindings; cardinality is observed by how the caller drives the frames. Missing runtime context fails with a terminal CONTEXT_REQUIRED error carrying ContextRequiredDetails, before any output and any side effect.",
+      "input": {
+        "$ref": "#/schemas/BindingInvokerInputFrame"
+      },
+      "output": {
+        "$ref": "#/schemas/BindingInvokerOutputFrame"
+      }
+    },
+    "openbindings.ob.invokeOperation": {
+      "aliases": [
+        "openbindings.operation-invoker.invokeOperation"
+      ],
+      "description": "Invoke an operation on an interface via a typed bidirectional I/O frame stream (the operation-invoker frame protocol). Unlike invokeBinding, the caller names an operation (or a specific binding) on a supplied interface, and the invoker resolves the name, selects a binding, validates against the operation's schemas, applies its transforms, and drives the underlying binding invoker. The frame shape mirrors invokeBinding exactly: one `open` carrying the OperationInvocationInput, then input frames and a close; output frames plus a terminal complete or error. Cardinality is observed, not declared, so a request/response and a streaming binding can satisfy the same operation identically. Missing context fails with a terminal CONTEXT_REQUIRED error before any side effect.",
+      "input": {
+        "$ref": "#/schemas/OperationInvokerInputFrame"
+      },
+      "output": {
+        "$ref": "#/schemas/OperationInvokerOutputFrame"
+      }
+    },
+    "openbindings.ob.listContexts": {
+      "description": "List non-secret metadata summaries for all stored contexts; never returns secret values. Completes the context surface with listing and inspection: the generic kv-store substrate these contexts are stored under (satisfied by getContext/setContext/deleteContext) standardizes only opaque get/set/delete, so this management view is ob's own.",
+      "idempotent": true,
+      "output": {
         "items": {
           "$ref": "#/schemas/ContextSummary"
-        }
-      },
-      "tags": [
-        "context"
-      ]
-    },
-    "listDelegates": {
-      "description": "List delegates",
-      "input": {
-        "properties": {
-          "builtin": {
-            "description": "Include the builtin delegate (default: true)",
-            "type": "boolean"
-          },
-          "format": {
-            "description": "Output format: json|yaml|text",
-            "type": "string"
-          },
-          "output": {
-            "description": "Write output to file",
-            "type": "string"
-          }
-        },
-        "type": "object"
-      },
-      "tags": [
-        "delegate"
-      ],
-      "x-ob": {}
-    },
-    "listFormats": {
-      "description": "List binding formats supported by this invoker.",
-      "tags": [
-        "format"
-      ],
-      "aliases": [
-        "openbindings.interface-synthesizer.listFormats"
-      ],
-      "idempotent": true,
-      "output": {
-        "type": "array",
-        "items": {
-          "$ref": "#/schemas/FormatInfo"
-        }
-      }
-    },
-    "listMCPServers": {
-      "description": "List active MCP server instances",
-      "output": {
-        "items": {
-          "type": "object",
-          "properties": {
-            "id": {
-              "type": "string"
-            },
-            "name": {
-              "type": "string"
-            },
-            "toolCount": {
-              "type": "integer"
-            },
-            "endpoint": {
-              "type": "string"
-            }
-          }
         },
         "type": "array"
-      },
-      "tags": [
-        "mcp"
-      ],
-      "x-ob": {}
+      }
     },
-    "listOperations": {
-      "description": "List operations on an OBI",
-      "input": {
-        "properties": {
-          "format": {
-            "description": "Output format: json|yaml|text",
-            "type": "string"
-          },
-          "obi-path": {
-            "description": "Path to the OBI file",
-            "type": "string"
-          },
-          "output": {
-            "description": "Write output to file",
-            "type": "string"
-          },
-          "tag": {
-            "description": "Filter operations by tag",
-            "type": "string"
-          }
+    "openbindings.ob.listDelegates": {
+      "description": "List the registered delegates with the capabilities and formats each provides. Capabilities (invoke/create/inspect) and formats are discovered from each delegate's OBI.",
+      "idempotent": true,
+      "output": {
+        "items": {
+          "$ref": "#/schemas/DelegateSummary"
         },
-        "required": [
-          "obi-path"
-        ],
-        "type": "object"
-      },
-      "tags": [
-        "operation"
-      ],
-      "x-ob": {}
+        "type": "array"
+      }
     },
-    "listSources": {
-      "description": "List source references on an OBI",
-      "input": {
-        "properties": {
-          "format": {
-            "description": "Output format: json|yaml|text",
-            "type": "string"
-          },
-          "obi-path": {
-            "description": "Path to the OBI file",
-            "type": "string"
-          },
-          "output": {
-            "description": "Write output to file",
-            "type": "string"
-          }
+    "openbindings.ob.listFormats": {
+      "aliases": [
+        "openbindings.binding-invoker.listFormats",
+        "openbindings.interface-synthesizer.listFormats",
+        "openbindings.source-inspector.listFormats"
+      ],
+      "description": "List the binding formats this instance can handle. One operation satisfies the listFormats slot of every interface that has one, since the answer is the same regardless of which capability is asking.",
+      "idempotent": true,
+      "output": {
+        "items": {
+          "$ref": "#/schemas/FormatInfo"
         },
-        "required": [
-          "obi-path"
-        ],
-        "type": "object"
-      },
-      "tags": [
-        "source"
-      ],
-      "x-ob": {}
+        "type": "array"
+      }
     },
-    "mergeInterfaces": {
-      "description": "Selectively apply changes from one OBI into another",
+    "openbindings.ob.listOperationAliases": {
+      "description": "List the satisfaction map — each operation and the interface operations it satisfies via aliases.",
+      "idempotent": true,
       "input": {
-        "properties": {
-          "all": {
-            "description": "Apply all changes (batch mode)",
-            "type": "boolean"
-          },
-          "dry-run": {
-            "description": "Preview changes without writing",
-            "type": "boolean"
-          },
-          "exclude-op": {
-            "description": "Exclude this operation from merge (repeatable)",
-            "type": "string"
-          },
-          "format": {
-            "description": "Output format: json|yaml|text",
-            "type": "string"
-          },
-          "from-sources": {
-            "description": "Derive from the target's binding sources",
-            "type": "boolean"
-          },
-          "only": {
-            "description": "Scope to a specific source key (requires --from-sources)",
-            "type": "string"
-          },
-          "op": {
-            "description": "Only merge this operation (repeatable)",
-            "type": "string"
-          },
-          "out": {
-            "description": "Write to alternate path instead of target",
-            "type": "string"
-          },
-          "output": {
-            "description": "Write output to file",
-            "type": "string"
-          },
-          "source": {
-            "description": "Source OBI (omit with --from-sources)",
-            "type": "string"
-          },
-          "target": {
-            "description": "Target OBI to merge into",
-            "type": "string"
-          },
-          "yes": {
-            "description": "Auto-accept all prompts",
-            "type": "boolean"
-          }
-        },
-        "required": [
-          "target"
-        ],
-        "type": "object"
+        "$ref": "#/schemas/ListOperationAliasesInput"
       },
-      "tags": [
-        "authoring"
-      ],
-      "x-ob": {}
+      "output": {
+        "items": {
+          "$ref": "#/schemas/OperationAliasEntry"
+        },
+        "type": "array"
+      }
     },
-    "renameOperation": {
-      "description": "Rename an operation and update all references",
+    "openbindings.ob.listOperations": {
+      "description": "List the operations on an interface, optionally filtered by tag.",
+      "idempotent": true,
       "input": {
-        "properties": {
-          "format": {
-            "description": "Output format: json|yaml|text",
-            "type": "string"
-          },
-          "new-key": {
-            "description": "New operation key",
-            "type": "string"
-          },
-          "obi-path": {
-            "description": "Path to the OBI file",
-            "type": "string"
-          },
-          "old-key": {
-            "description": "Current operation key",
-            "type": "string"
-          },
-          "output": {
-            "description": "Write output to file",
-            "type": "string"
-          }
-        },
-        "required": [
-          "obi-path",
-          "old-key",
-          "new-key"
-        ],
-        "type": "object"
+        "$ref": "#/schemas/ListOperationsInput"
       },
-      "tags": [
-        "operation"
-      ],
-      "x-ob": {}
+      "output": {
+        "items": {
+          "$ref": "#/schemas/OperationListEntry"
+        },
+        "type": "array"
+      }
     },
-    "resolveDelegate": {
-      "description": "Show which delegate handles a format",
+    "openbindings.ob.listSources": {
+      "description": "List the source references on an interface.",
+      "idempotent": true,
       "input": {
-        "properties": {
-          "format": {
-            "description": "Output format: json|yaml|text",
-            "type": "string"
-          },
-          "format-token": {
-            "description": "Format token to resolve",
-            "type": "string"
-          },
-          "output": {
-            "description": "Write output to file",
-            "type": "string"
-          }
-        },
-        "required": [
-          "format-token"
-        ],
-        "type": "object"
+        "$ref": "#/schemas/InterfaceInput"
       },
-      "tags": [
-        "delegate"
-      ],
-      "x-ob": {}
+      "output": {
+        "items": {
+          "$ref": "#/schemas/SourceListEntry"
+        },
+        "type": "array"
+      }
     },
-    "setContext": {
-      "description": "Create or replace the context for a key. The supplied value fully replaces any existing context (full replacement, not partial update).",
-      "tags": [
-        "context"
+    "openbindings.ob.mergeInterfaces": {
+      "description": "Selectively apply changes from one interface (or from the target's own sources) into another, and return the merged interface alongside a report of what was applied and skipped.",
+      "input": {
+        "$ref": "#/schemas/MergeInterfacesInput"
+      },
+      "output": {
+        "$ref": "#/schemas/MergeResult"
+      }
+    },
+    "openbindings.ob.newInterface": {
+      "description": "Create an empty interface document (core fields + empty operations map) and return it.",
+      "input": {
+        "$ref": "#/schemas/NewInterfaceInput"
+      },
+      "output": {
+        "$ref": "#/schemas/OpenBindingsInterface"
+      }
+    },
+    "openbindings.ob.prepareBinding": {
+      "aliases": [
+        "openbindings.binding-invoker.prepareBinding"
       ],
+      "description": "Preflight a binding: report the context it would require before invocation, without invoking it or causing side effects. Returns ContextRequiredDetails the runtime can resolve proactively, or null when requirements cannot be determined statically. Advisory; invokeBinding's reactive CONTEXT_REQUIRED error is authoritative. When context is supplied, reports only the requirements still unsatisfied by it.",
+      "idempotent": true,
+      "input": {
+        "$ref": "#/schemas/BindingInvocationInput"
+      },
+      "output": {
+        "oneOf": [
+          {
+            "$ref": "#/schemas/ContextRequiredDetails"
+          },
+          {
+            "type": "null"
+          }
+        ]
+      }
+    },
+    "openbindings.ob.prepareOperation": {
+      "aliases": [
+        "openbindings.operation-invoker.prepareOperation"
+      ],
+      "description": "Operation-level preflight: report the context invoking an operation would require, without invoking it or causing side effects. The by-reference counterpart to prepareBinding. Resolves the named operation (or binding) on the supplied interface to a concrete binding and reports that binding's ContextRequiredDetails, or null when requirements cannot be determined without invoking. Returning null is always conformant. Advisory: invokeOperation's reactive CONTEXT_REQUIRED is authoritative. When context is supplied, the result reports only the requirements still unsatisfied by it.",
+      "idempotent": true,
+      "input": {
+        "$ref": "#/schemas/OperationInvocationInput"
+      },
+      "output": {
+        "oneOf": [
+          {
+            "$ref": "#/schemas/ContextRequiredDetails"
+          },
+          {
+            "type": "null"
+          }
+        ]
+      }
+    },
+    "openbindings.ob.pullSource": {
+      "description": "Derive operations and bindings from registered sources into the interface — create on first pull, overwrite + prune source-owned objects on later pulls, leave hand-authored objects untouched. Returns the modified interface.",
+      "input": {
+        "$ref": "#/schemas/PullSourceInput"
+      },
+      "output": {
+        "$ref": "#/schemas/OpenBindingsInterface"
+      }
+    },
+    "openbindings.ob.removeOperationAlias": {
+      "description": "Withdraw satisfaction alias(es) from an operation and return the modified interface.",
+      "input": {
+        "$ref": "#/schemas/RemoveOperationAliasInput"
+      },
+      "output": {
+        "$ref": "#/schemas/OpenBindingsInterface"
+      }
+    },
+    "openbindings.ob.renameOperation": {
+      "description": "Rename an operation and update every reference to it (bindings, aliases) across the interface. Returns the modified interface.",
+      "input": {
+        "$ref": "#/schemas/RenameOperationInput"
+      },
+      "output": {
+        "$ref": "#/schemas/OpenBindingsInterface"
+      }
+    },
+    "openbindings.ob.resolveDelegate": {
+      "description": "Report which registered delegate handles a given format, and the capabilities it offers for it.",
+      "idempotent": true,
+      "input": {
+        "$ref": "#/schemas/ResolveDelegateInput"
+      },
+      "output": {
+        "$ref": "#/schemas/ResolveDelegateResult"
+      }
+    },
+    "openbindings.ob.resolveInterface": {
+      "description": "Resolve an OpenBindings interface from a URL or host. Performs well-known discovery, follows redirects, and synthesizes an OBI from a raw binding spec (e.g. an OpenAPI document) when the target is not already an OBI. Returns the interface and metadata about how it was resolved.",
+      "idempotent": true,
+      "input": {
+        "$ref": "#/schemas/ResolveInterfaceInput"
+      },
+      "output": {
+        "$ref": "#/schemas/ResolveInterfaceOutput"
+      }
+    },
+    "openbindings.ob.setContext": {
       "aliases": [
         "openbindings.kv-store.set"
       ],
+      "description": "Create or replace the context for a key. The supplied value fully replaces any existing context (full replacement, not partial update).",
       "idempotent": true,
       "input": {
-        "type": "object",
-        "properties": {
-          "key": {
-            "type": "string",
-            "description": "Context store key."
-          },
-          "value": {
-            "$ref": "#/schemas/Context"
-          }
-        },
-        "required": [
-          "key",
-          "value"
-        ],
-        "additionalProperties": false
+        "$ref": "#/schemas/SetContextInput"
       }
     },
-    "startServer": {
-      "description": "Start a local HTTP server exposing ob operations",
+    "openbindings.ob.setDelegatePreference": {
+      "description": "Set a delegate's selection preference (higher = more preferred; 0 is the baseline, negatives rank below it). With no capability, sets the delegate-level default for all its offerings; with a capability (optionally scoped to a format), sets a per-offering override — how create can route to one delegate and invoke to another. Selection follows OBI-T-09: effective preference is the per-offering value, else the delegate-level value, else 0.",
       "input": {
-        "properties": {
-          "allow-origin": {
-            "description": "Allowed CORS origin (repeatable)",
-            "type": "string"
-          },
-          "port": {
-            "description": "Port to listen on (default: 20290 = 0x4F42, ASCII OB)",
-            "type": "string"
-          },
-          "token": {
-            "description": "Bearer token for authentication",
-            "type": "string"
-          },
-          "token-file": {
-            "description": "Path to file containing bearer token",
-            "type": "string"
-          }
-        },
-        "type": "object"
-      },
-      "tags": [
-        "server"
-      ],
-      "x-ob": {}
-    },
-    "syncInterface": {
-      "description": "Sync sources in an OBI from their x-ob references",
-      "input": {
-        "properties": {
-          "force": {
-            "description": "Prefer source for all conflicts (overwrite local edits)",
-            "type": "boolean"
-          },
-          "format": {
-            "description": "Output format: json|yaml|text",
-            "type": "string"
-          },
-          "obi-path": {
-            "description": "Path to the OBI file",
-            "type": "string"
-          },
-          "op": {
-            "description": "Sync only specific operations and their bindings (repeatable)",
-            "type": "string"
-          },
-          "output": {
-            "description": "Write output to file",
-            "type": "string"
-          },
-          "pure": {
-            "description": "Strip all x-ob metadata from output (requires -o)",
-            "type": "boolean"
-          },
-          "source-key": {
-            "description": "Source keys to sync (default: all)",
-            "items": {
-              "type": "string"
-            },
-            "type": "array"
-          }
-        },
-        "required": [
-          "obi-path"
-        ],
-        "type": "object"
-      },
-      "tags": [
-        "authoring"
-      ],
-      "x-ob": {}
-    },
-    "terminateMCPServer": {
-      "description": "Terminate an MCP server instance",
-      "input": {
-        "properties": {
-          "id": {
-            "type": "string"
-          }
-        },
-        "required": [
-          "id"
-        ],
-        "type": "object"
+        "$ref": "#/schemas/SetDelegatePreferenceInput"
       },
       "output": {
-        "properties": {
-          "id": {
-            "type": "string"
-          },
-          "status": {
-            "type": "string"
-          }
-        },
-        "type": "object"
-      },
-      "tags": [
-        "mcp"
-      ],
-      "x-ob": {}
-    },
-    "updateMCPServer": {
-      "description": "Add interfaces to a running MCP server instance",
-      "input": {
-        "properties": {
-          "id": {
-            "description": "MCP server instance ID",
-            "type": "string"
-          },
-          "interfaces": {
-            "description": "Interface documents to add",
-            "items": {
-              "type": "object"
-            },
-            "type": "array"
-          },
-          "urls": {
-            "description": "Interface URLs to resolve and add",
-            "items": {
-              "type": "string"
-            },
-            "type": "array"
-          }
-        },
-        "required": [
-          "id"
-        ],
-        "type": "object"
-      },
-      "output": {
-        "properties": {
-          "endpoint": {
-            "type": "string"
-          },
-          "id": {
-            "type": "string"
-          },
-          "name": {
-            "type": "string"
-          },
-          "toolCount": {
-            "type": "integer"
-          }
-        },
-        "type": "object"
-      },
-      "tags": [
-        "mcp"
-      ],
-      "x-ob": {}
-    },
-    "validateInterface": {
-      "description": "Validate an OpenBindings interface document",
-      "input": {
-        "properties": {
-          "format": {
-            "description": "Output format: json|yaml|text",
-            "type": "string"
-          },
-          "locator": {
-            "description": "File path, HTTP(S) URL, or exec: locator",
-            "type": "string"
-          },
-          "output": {
-            "description": "Write output to file",
-            "type": "string"
-          },
-          "quiet": {
-            "description": "Exit code only, no output",
-            "type": "boolean"
-          },
-          "strict": {
-            "description": "Reject unknown fields and require supported version",
-            "type": "boolean"
-          }
-        },
-        "required": [
-          "locator"
-        ],
-        "type": "object"
-      },
-      "tags": [
-        "authoring"
-      ],
-      "x-ob": {}
-    }
-  },
-  "sources": {
-    "asyncapi": {
-      "format": "asyncapi@3.0",
-      "location": "internal/server/asyncapi.yaml"
-    },
-    "openapi": {
-      "format": "openapi@3.1",
-      "location": "internal/server/openapi.yaml",
-      "x-ob": {
-        "contentHash": "sha256:25519341b0b2dd95dbbebbe3d297c5ebca2949646b0f762efc87de7ff7128e4f",
-        "delegate": "ob",
-        "lastSynced": "2026-03-25T01:52:57Z",
-        "obVersion": "dev",
-        "ref": "internal/server/openapi.yaml",
-        "resolve": "location"
+        "$ref": "#/schemas/SetDelegatePreferenceResult"
       }
     },
-    "usage": {
-      "format": "usage@2.0.0",
-      "location": "exec:ob --usage-spec",
-      "x-ob": {
-        "delegate": "ob",
-        "lastSynced": "2026-03-25T01:52:57Z",
-        "obVersion": "dev",
-        "ref": "exec:ob --usage-spec",
-        "resolve": "location"
+    "openbindings.ob.setMetadata": {
+      "description": "Edit an interface's top-level metadata (name, version, description) and return the modified interface.",
+      "input": {
+        "$ref": "#/schemas/SetMetadataInput"
+      },
+      "output": {
+        "$ref": "#/schemas/OpenBindingsInterface"
+      }
+    },
+    "openbindings.ob.startMCPServer": {
+      "description": "Serve one or more interface URLs as an MCP server, exposing their operations as MCP tools over stdio or HTTP. A foreground, environment-local operation, the MCP sibling of startServer; not meaningfully invoked over a remote transport.",
+      "input": {
+        "$ref": "#/schemas/StartMCPServerInput"
+      },
+      "output": {
+        "oneOf": [
+          {
+            "$ref": "#/schemas/ServerInfo"
+          },
+          {
+            "type": "null"
+          }
+        ]
+      }
+    },
+    "openbindings.ob.startServer": {
+      "description": "Start a local server that exposes ob's operations over HTTP (and the binding-invoker frame protocol). A foreground, environment-local operation; not meaningfully invoked over a remote transport.",
+      "input": {
+        "$ref": "#/schemas/StartServerInput"
+      },
+      "output": {
+        "$ref": "#/schemas/ServerInfo"
+      }
+    },
+    "openbindings.ob.synthesizeInterface": {
+      "aliases": [
+        "openbindings.interface-synthesizer.synthesizeInterface"
+      ],
+      "description": "Create an OpenBindings interface, optionally from binding source artifacts. Given one or more sources (e.g. an OpenAPI spec, a CLI usage spec), extracts operations, schemas, sources, and bindings into the new OBI; with no sources, produces an empty interface to author by hand.",
+      "idempotent": true,
+      "input": {
+        "$ref": "#/schemas/CreateInterfaceInput"
+      },
+      "output": {
+        "$ref": "#/schemas/OpenBindingsInterface"
+      }
+    },
+    "openbindings.ob.unbindOperation": {
+      "description": "Remove a binding from an operation without removing the operation, and return the modified interface.",
+      "input": {
+        "$ref": "#/schemas/UnbindOperationInput"
+      },
+      "output": {
+        "$ref": "#/schemas/OpenBindingsInterface"
+      }
+    },
+    "openbindings.ob.updateOperation": {
+      "description": "Edit an existing operation's fields (description, idempotency, deprecation, schemas, tags) and return the modified interface. A source-owned operation requires own=true (detaches first).",
+      "input": {
+        "$ref": "#/schemas/UpdateOperationInput"
+      },
+      "output": {
+        "$ref": "#/schemas/OpenBindingsInterface"
+      }
+    },
+    "openbindings.ob.validateInterface": {
+      "description": "Validate an OpenBindings interface document against the specification. Reports whether it is valid, the declared spec version, and any problems. With strict mode, rejects unknown fields and requires a supported version.",
+      "idempotent": true,
+      "input": {
+        "$ref": "#/schemas/ValidateInterfaceInput"
+      },
+      "output": {
+        "$ref": "#/schemas/ValidationReport"
       }
     }
   },
-  "version": "0.2.0",
   "schemas": {
-    "Context": {
-      "type": "object",
-      "description": "Opaque per-target context payload \u2014 credentials, session state, headers, cookies, environment, metadata, or any other invoker-managed state. Well-known fields include 'bearerToken', 'apiKey', 'basic', 'headers', 'cookies', 'environment', 'metadata'.",
-      "additionalProperties": true
-    },
-    "ContextSummary": {
-      "type": "object",
-      "description": "Non-secret metadata about a stored context entry. Returned by listContexts; never includes secret values.",
-      "properties": {
-        "url": {
-          "type": "string",
-          "description": "Context store key (normalized API origin or other stable identifier)."
-        },
-        "hasCredentials": {
-          "type": "boolean",
-          "description": "Whether the keychain holds credentials for this key."
-        },
-        "headerCount": {
-          "type": "integer",
-          "description": "Number of stored headers."
-        },
-        "cookieCount": {
-          "type": "integer",
-          "description": "Number of stored cookies."
-        },
-        "envCount": {
-          "type": "integer",
-          "description": "Number of stored environment variables."
-        },
-        "metadataCount": {
-          "type": "integer",
-          "description": "Number of stored metadata keys."
-        },
-        "loadError": {
-          "type": "string",
-          "description": "Set if the entry's config file could not be parsed."
-        }
-      },
-      "required": [
-        "url",
-        "hasCredentials"
-      ]
-    },
-    "CreateInterfaceSource": {
-      "type": "object",
-      "description": "A binding source to extract operations from.",
-      "properties": {
-        "format": {
-          "type": "string",
-          "description": "Format token (e.g., openapi@3.1, usage@2.13.1)."
-        },
-        "name": {
-          "type": "string",
-          "description": "Key name for this binding source in the output OBI's sources."
-        },
-        "location": {
-          "type": "string",
-          "description": "Location to fetch content from (path or URL)."
-        },
-        "content": {
-          "description": "Content provided directly."
-        },
-        "outputLocation": {
-          "type": "string",
-          "description": "Location to reference in the output OBI's binding source."
-        },
-        "embed": {
-          "type": "boolean",
-          "description": "If true, embed content inline in the output OBI."
-        },
-        "description": {
-          "type": "string",
-          "description": "Human-readable description for this binding source."
-        }
-      },
-      "required": [
-        "format"
-      ],
+    "AddOperationAliasInput": {
       "additionalProperties": false,
-      "anyOf": [
-        {
-          "required": [
-            "location"
-          ]
-        },
-        {
-          "required": [
-            "content"
-          ]
-        }
-      ]
-    },
-    "CreateInterfaceInput": {
-      "type": "object",
       "properties": {
-        "openbindingsVersion": {
-          "type": "string",
-          "description": "Target OpenBindings spec version (e.g., '0.1.0')."
-        },
-        "sources": {
-          "type": "array",
+        "aliases": {
+          "description": "Satisfaction alias(es) to add.",
           "items": {
-            "$ref": "#/schemas/CreateInterfaceSource"
+            "type": "string"
           },
-          "description": "Binding sources to extract from."
+          "minItems": 1,
+          "type": "array"
         },
-        "name": {
-          "type": "string",
-          "description": "Interface name override."
+        "interface": {
+          "$ref": "#/schemas/OpenBindingsInterface"
         },
-        "version": {
-          "type": "string",
-          "description": "Interface contract version override."
-        },
-        "description": {
-          "type": "string",
-          "description": "Interface description override."
-        }
-      },
-      "additionalProperties": false
-    },
-    "OpenBindingsInterface": {
-      "type": "object",
-      "description": "A valid OpenBindings interface document.",
-      "additionalProperties": true
-    },
-    "InvokeSource": {
-      "type": "object",
-      "description": "Binding source for invocation.",
-      "properties": {
-        "format": {
-          "type": "string",
-          "description": "Format token (e.g., openapi@3.1)."
-        },
-        "location": {
-          "type": "string",
-          "description": "Location of the binding source."
-        },
-        "content": {
-          "description": "Binding source content directly."
+        "operation": {
+          "description": "The operation's key or any existing identifier.",
+          "type": "string"
         }
       },
       "required": [
-        "format"
+        "interface",
+        "operation",
+        "aliases"
       ],
+      "type": "object"
+    },
+    "AssessCompatibilityInput": {
       "additionalProperties": false,
-      "anyOf": [
-        {
-          "required": [
-            "location"
-          ]
-        },
-        {
-          "required": [
-            "content"
-          ]
-        }
-      ]
-    },
-    "BindingContext": {
-      "type": "object",
-      "description": "Opaque runtime context for binding invocation.",
-      "additionalProperties": true
-    },
-    "InvokeBindingInput": {
-      "type": "object",
-      "description": "Input for executing a resolved binding.",
       "properties": {
-        "source": {
-          "$ref": "#/schemas/InvokeSource",
-          "description": "The binding source."
+        "candidate": {
+          "$ref": "#/schemas/OpenBindingsInterface"
+        },
+        "target": {
+          "$ref": "#/schemas/OpenBindingsInterface"
+        }
+      },
+      "required": [
+        "target",
+        "candidate"
+      ],
+      "type": "object"
+    },
+    "BindOperationInput": {
+      "additionalProperties": false,
+      "properties": {
+        "force": {
+          "description": "Overwrite an existing binding for this operation and source.",
+          "type": "boolean"
+        },
+        "inputTransform": {
+          "description": "Inline JSONata transforming operation input to binding input.",
+          "type": "string"
+        },
+        "interface": {
+          "$ref": "#/schemas/OpenBindingsInterface"
+        },
+        "operation": {
+          "description": "The operation's key or any identifier.",
+          "type": "string"
+        },
+        "outputTransform": {
+          "description": "Inline JSONata transforming binding output to operation output.",
+          "type": "string"
+        },
+        "preference": {
+          "description": "Binding selection preference (higher = more preferred).",
+          "type": "number"
         },
         "ref": {
-          "type": "string",
-          "description": "Reference within the binding source."
+          "description": "Source ref (wire identifier) to bind.",
+          "type": "string"
         },
-        "input": {
-          "description": "Operation input data."
+        "source": {
+          "description": "Registered source key.",
+          "type": "string"
         },
+        "transformStub": {
+          "description": "Scaffold identity transform stub(s) on shape mismatch.",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "interface",
+        "operation",
+        "source",
+        "ref"
+      ],
+      "type": "object"
+    },
+    "BindableTarget": {
+      "additionalProperties": true,
+      "properties": {
+        "operation": {
+          "$ref": "#/schemas/Operation"
+        },
+        "operationKey": {
+          "description": "Suggested operation key for this target.",
+          "type": "string"
+        },
+        "ref": {
+          "description": "Reference within the source identifying this target.",
+          "type": "string"
+        }
+      },
+      "required": [
+        "ref"
+      ],
+      "type": "object"
+    },
+    "BindingContext": {
+      "additionalProperties": true,
+      "description": "Opaque runtime context for invocation, typically sourced from a context store. Well-known credential fields: bearerToken, apiKey, basic (username/password), accessToken/refreshToken/expiresAt for OAuth. Well-known transport fields: headers/cookies/environment (string-valued objects) and metadata. Implementations and callers MAY add fields; drivers SHOULD ignore fields they don't recognize.",
+      "type": "object"
+    },
+    "BindingInvocationInput": {
+      "additionalProperties": false,
+      "description": "Initial payload carried by the open frame: identifies the binding to invoke and provides context.",
+      "properties": {
         "context": {
-          "$ref": "#/schemas/BindingContext",
-          "description": "Runtime binding context."
+          "$ref": "#/schemas/BindingContext"
+        },
+        "ref": {
+          "description": "Reference within the binding source.",
+          "type": "string"
+        },
+        "source": {
+          "$ref": "#/schemas/InvokeSource"
         }
       },
       "required": [
         "source",
         "ref"
       ],
-      "additionalProperties": false
+      "type": "object"
     },
-    "Error": {
-      "type": "object",
-      "description": "Structured error information.",
+    "BindingInvokerInputFrame": {
+      "description": "One frame from the caller into invokeBinding. The caller streams: exactly one `open` first (carrying the BindingInvocationInput), then zero or more `input` frames, then exactly one `close`.",
+      "discriminator": {
+        "propertyName": "kind"
+      },
+      "oneOf": [
+        {
+          "additionalProperties": false,
+          "description": "Open the invocation. MUST be the first frame on the input stream.",
+          "properties": {
+            "input": {
+              "$ref": "#/schemas/BindingInvocationInput"
+            },
+            "kind": {
+              "const": "open"
+            }
+          },
+          "required": [
+            "kind",
+            "input"
+          ],
+          "title": "open",
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "description": "Write one input value to the underlying binding. The value's schema is the underlying operation's, not this contract's.",
+          "properties": {
+            "kind": {
+              "const": "input"
+            },
+            "value": {
+              "description": "One input value, opaque at this layer."
+            }
+          },
+          "required": [
+            "kind",
+            "value"
+          ],
+          "title": "input",
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "description": "Caller signals no more input frames will be sent. Idempotent.",
+          "properties": {
+            "kind": {
+              "const": "close"
+            }
+          },
+          "required": [
+            "kind"
+          ],
+          "title": "close",
+          "type": "object"
+        }
+      ]
+    },
+    "BindingInvokerOutputFrame": {
+      "description": "One frame from the service back to the caller. Zero or more non-terminal frames (`output`, `input_closed`) followed by exactly one terminal frame (`complete` or `error`).",
+      "discriminator": {
+        "propertyName": "kind"
+      },
+      "oneOf": [
+        {
+          "additionalProperties": false,
+          "description": "One output value from the underlying binding. Opaque at this layer.",
+          "properties": {
+            "kind": {
+              "const": "output"
+            },
+            "value": {
+              "description": "One output value, opaque at this layer."
+            }
+          },
+          "required": [
+            "kind",
+            "value"
+          ],
+          "title": "output",
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "description": "The binding has closed the input side from its end. Subsequent caller input frames are ignored. Outputs may still flow.",
+          "properties": {
+            "kind": {
+              "const": "input_closed"
+            }
+          },
+          "required": [
+            "kind"
+          ],
+          "title": "input_closed",
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "description": "Terminal: the binding completed normally. MUST be the last frame.",
+          "properties": {
+            "kind": {
+              "const": "complete"
+            }
+          },
+          "required": [
+            "kind"
+          ],
+          "title": "complete",
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "description": "Terminal: the binding failed. MUST be the last frame. Carries a structured InvocationError.",
+          "properties": {
+            "error": {
+              "$ref": "#/schemas/InvocationError"
+            },
+            "kind": {
+              "const": "error"
+            }
+          },
+          "required": [
+            "kind",
+            "error"
+          ],
+          "title": "error",
+          "type": "object"
+        }
+      ]
+    },
+    "CodegenInput": {
+      "additionalProperties": false,
+      "properties": {
+        "interface": {
+          "$ref": "#/schemas/OpenBindingsInterface"
+        },
+        "language": {
+          "description": "Target language for the generated invoker.",
+          "enum": [
+            "typescript",
+            "go"
+          ],
+          "type": "string"
+        },
+        "package": {
+          "description": "Go package name (Go only; default derived from the interface name).",
+          "type": "string"
+        }
+      },
+      "required": [
+        "interface",
+        "language"
+      ],
+      "type": "object"
+    },
+    "CodegenOutput": {
+      "additionalProperties": false,
       "properties": {
         "code": {
-          "type": "string",
-          "description": "Machine-readable error code."
+          "description": "The generated source code.",
+          "type": "string"
         },
-        "message": {
-          "type": "string",
-          "description": "Human-readable error message."
+        "language": {
+          "enum": [
+            "typescript",
+            "go"
+          ],
+          "type": "string"
+        }
+      },
+      "required": [
+        "language",
+        "code"
+      ],
+      "type": "object"
+    },
+    "CompareInterfacesInput": {
+      "additionalProperties": false,
+      "properties": {
+        "baseline": {
+          "$ref": "#/schemas/OpenBindingsInterface"
+        },
+        "comparison": {
+          "$ref": "#/schemas/OpenBindingsInterface"
+        },
+        "fromSources": {
+          "description": "Compare the baseline against what its binding sources produce.",
+          "type": "boolean"
+        },
+        "only": {
+          "description": "Scope to a specific source key (requires fromSources).",
+          "type": "string"
+        }
+      },
+      "required": [
+        "baseline"
+      ],
+      "type": "object"
+    },
+    "CompatibilityReport": {
+      "additionalProperties": true,
+      "properties": {
+        "compatible": {
+          "type": "boolean"
+        },
+        "conformance": {
+          "enum": [
+            "full",
+            "partial",
+            "none"
+          ],
+          "type": "string"
+        },
+        "coverage": {
+          "$ref": "#/schemas/CoverageInfo"
+        },
+        "operations": {
+          "items": {
+            "$ref": "#/schemas/OperationCompatibility"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "compatible",
+        "conformance",
+        "coverage"
+      ],
+      "type": "object"
+    },
+    "ConformAction": {
+      "additionalProperties": false,
+      "description": "A single change conform made or would make to the target.",
+      "properties": {
+        "action": {
+          "description": "scaffold (add a missing operation), replace (update a drifted one), skip, or compatible (already conforms).",
+          "enum": [
+            "scaffold",
+            "replace",
+            "skip",
+            "compatible"
+          ],
+          "type": "string"
         },
         "details": {
-          "description": "Additional error details."
+          "description": "Human-readable description of the change.",
+          "type": "string"
+        },
+        "operation": {
+          "description": "The operation key the change concerns.",
+          "type": "string"
+        }
+      },
+      "required": [
+        "operation",
+        "action"
+      ],
+      "type": "object"
+    },
+    "ConformInput": {
+      "additionalProperties": false,
+      "description": "conform input: `interface` is the reference contract whose operations `target` must satisfy; `target` is the interface scaffolded to conform, returned modified as `interface` in the result.",
+      "properties": {
+        "dryRun": {
+          "description": "Report the changes without applying them.",
+          "type": "boolean"
+        },
+        "interface": {
+          "$ref": "#/schemas/OpenBindingsInterface"
+        },
+        "target": {
+          "$ref": "#/schemas/OpenBindingsInterface"
+        }
+      },
+      "required": [
+        "interface",
+        "target"
+      ],
+      "type": "object"
+    },
+    "ConformResult": {
+      "additionalProperties": false,
+      "properties": {
+        "actions": {
+          "items": {
+            "$ref": "#/schemas/ConformAction"
+          },
+          "type": "array"
+        },
+        "interface": {
+          "$ref": "#/schemas/OpenBindingsInterface"
+        },
+        "modified": {
+          "description": "Whether the target was changed (false under dryRun or when already conformant).",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "interface",
+        "actions",
+        "modified"
+      ],
+      "type": "object"
+    },
+    "Context": {
+      "additionalProperties": true,
+      "description": "Opaque per-target context payload: credentials, session state, headers, cookies, environment, metadata, or any other invoker-managed state. Well-known fields include bearerToken, apiKey, basic, headers, cookies, environment, metadata.",
+      "type": "object"
+    },
+    "ContextKeyInput": {
+      "additionalProperties": false,
+      "properties": {
+        "key": {
+          "description": "Context store key.",
+          "type": "string"
+        }
+      },
+      "required": [
+        "key"
+      ],
+      "type": "object"
+    },
+    "ContextRequiredDetails": {
+      "additionalProperties": false,
+      "description": "The details payload of a CONTEXT_REQUIRED error, and the return shape of prepareBinding. Enumerates the context the invoker needs. `alternatives` are disjunctive (satisfy ANY one); the requirements within an alternative are conjunctive (satisfy ALL). This OR-of-AND shape captures semantics such as 'OAuth2 OR (apiKey AND clientCert)'.",
+      "properties": {
+        "alternatives": {
+          "items": {
+            "additionalProperties": false,
+            "properties": {
+              "requirements": {
+                "items": {
+                  "$ref": "#/schemas/ContextRequirement"
+                },
+                "minItems": 1,
+                "type": "array"
+              }
+            },
+            "required": [
+              "requirements"
+            ],
+            "type": "object"
+          },
+          "minItems": 1,
+          "type": "array"
+        },
+        "target": {
+          "description": "The target the binding addresses; the runtime derives a storage key from it.",
+          "type": "string"
+        }
+      },
+      "required": [
+        "target",
+        "alternatives"
+      ],
+      "type": "object"
+    },
+    "ContextRequirement": {
+      "additionalProperties": true,
+      "description": "One prerequisite that must be satisfied before invocation, resolved into context. `type` names the requirement family (e.g. auth.bearer, auth.oauth2, auth.basic, auth.apiKey, approval.user, config.value); remaining fields are type-specific. A runtime dispatches each requirement to a resolver registered for its type.",
+      "properties": {
+        "description": {
+          "description": "Human-readable description shown during resolution.",
+          "type": "string"
+        },
+        "durable": {
+          "description": "Whether resolved context MAY be cached under the challenge key and reused (true; e.g. credentials), or MUST be satisfied freshly each time (false; e.g. a one-shot approval). Defaults to true.",
+          "type": "boolean"
+        },
+        "type": {
+          "description": "Requirement type identifier.",
+          "type": "string"
+        }
+      },
+      "required": [
+        "type"
+      ],
+      "type": "object"
+    },
+    "ContextSummary": {
+      "additionalProperties": false,
+      "description": "Non-secret metadata about a stored context entry. Never includes secret values.",
+      "properties": {
+        "cookieCount": {
+          "type": "integer"
+        },
+        "envCount": {
+          "type": "integer"
+        },
+        "hasCredentials": {
+          "type": "boolean"
+        },
+        "headerCount": {
+          "type": "integer"
+        },
+        "loadError": {
+          "description": "Set if the entry could not be parsed.",
+          "type": "string"
+        },
+        "metadataCount": {
+          "type": "integer"
+        },
+        "url": {
+          "description": "Context store key (normalized API origin or other stable identifier).",
+          "type": "string"
+        }
+      },
+      "required": [
+        "url",
+        "hasCredentials"
+      ],
+      "type": "object"
+    },
+    "CoverageInfo": {
+      "additionalProperties": false,
+      "properties": {
+        "compatible": {
+          "type": "integer"
+        },
+        "incompatible": {
+          "type": "integer"
+        },
+        "matched": {
+          "type": "integer"
+        },
+        "total": {
+          "type": "integer"
+        }
+      },
+      "required": [
+        "matched",
+        "compatible",
+        "incompatible",
+        "total"
+      ],
+      "type": "object"
+    },
+    "CreateDelegateResult": {
+      "additionalProperties": false,
+      "description": "What ob discovered when registering the delegate. Registration succeeds even when the delegate is unreachable or offers nothing delegatable; reachable is then false and capabilities/formats are empty.",
+      "properties": {
+        "capabilities": {
+          "items": {
+            "$ref": "#/schemas/DelegateCapability"
+          },
+          "type": "array"
+        },
+        "formats": {
+          "items": {
+            "$ref": "#/schemas/DelegateFormatInfo"
+          },
+          "type": "array"
+        },
+        "location": {
+          "description": "The registered delegate location.",
+          "type": "string"
+        },
+        "name": {
+          "description": "Display name resolved from the delegate's OBI, or derived from its location.",
+          "type": "string"
+        },
+        "reachable": {
+          "description": "Whether ob could resolve the delegate's OBI at registration.",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "location",
+        "reachable"
+      ],
+      "type": "object"
+    },
+    "CreateInterfaceInput": {
+      "additionalProperties": false,
+      "properties": {
+        "description": {
+          "description": "Interface description override.",
+          "type": "string"
+        },
+        "name": {
+          "description": "Interface name override.",
+          "type": "string"
+        },
+        "openbindingsVersion": {
+          "description": "Target OpenBindings spec version (e.g. 0.2.0).",
+          "type": "string"
+        },
+        "sources": {
+          "description": "Binding sources to extract from.",
+          "items": {
+            "$ref": "#/schemas/CreateInterfaceSource"
+          },
+          "type": "array"
+        },
+        "version": {
+          "description": "Interface contract version override.",
+          "type": "string"
+        }
+      },
+      "type": "object"
+    },
+    "CreateInterfaceSource": {
+      "additionalProperties": false,
+      "anyOf": [
+        {
+          "required": [
+            "location"
+          ]
+        },
+        {
+          "required": [
+            "content"
+          ]
+        }
+      ],
+      "description": "A binding source to extract operations from.",
+      "properties": {
+        "content": {
+          "description": "Content provided directly."
+        },
+        "description": {
+          "description": "Human-readable description for this source.",
+          "type": "string"
+        },
+        "embed": {
+          "description": "If true, embed content inline in the output interface.",
+          "type": "boolean"
+        },
+        "format": {
+          "description": "Format token (e.g. openapi@3.1, usage@2.13.1).",
+          "type": "string"
+        },
+        "location": {
+          "description": "Location to fetch content from (path or URL).",
+          "type": "string"
+        },
+        "name": {
+          "description": "Key for this source in the output interface's sources.",
+          "type": "string"
+        },
+        "outputLocation": {
+          "description": "Location to reference in the output interface's source.",
+          "type": "string"
+        }
+      },
+      "required": [
+        "format"
+      ],
+      "type": "object"
+    },
+    "CreateOperationInput": {
+      "additionalProperties": false,
+      "properties": {
+        "aliases": {
+          "description": "Satisfaction aliases — other interfaces' operation keys this operation also answers to (OBI-T-12).",
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "description": {
+          "type": "string"
+        },
+        "idempotent": {
+          "description": "Whether the new operation is idempotent.",
+          "type": "boolean"
+        },
+        "input": {
+          "description": "JSON Schema for the new operation's input."
+        },
+        "interface": {
+          "$ref": "#/schemas/OpenBindingsInterface"
+        },
+        "key": {
+          "description": "Key for the new operation.",
+          "type": "string"
+        },
+        "output": {
+          "description": "JSON Schema for the new operation's output."
+        },
+        "tags": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "interface",
+        "key"
+      ],
+      "type": "object"
+    },
+    "CreateSourceInput": {
+      "additionalProperties": false,
+      "properties": {
+        "interface": {
+          "$ref": "#/schemas/OpenBindingsInterface"
+        },
+        "source": {
+          "$ref": "#/schemas/CreateInterfaceSource"
+        }
+      },
+      "required": [
+        "interface",
+        "source"
+      ],
+      "type": "object"
+    },
+    "DelegateCapability": {
+      "description": "A format-handling capability a delegate provides, mapping to the interface it satisfies: invoke (openbindings.binding-invoker), create (openbindings.interface-synthesizer), inspect (openbindings.source-inspector). A delegate offers whichever subset it satisfies.",
+      "enum": [
+        "invoke",
+        "create",
+        "inspect"
+      ],
+      "type": "string"
+    },
+    "DelegateFormatInfo": {
+      "additionalProperties": false,
+      "properties": {
+        "description": {
+          "description": "Human-readable description of the format, when the delegate provides one.",
+          "type": "string"
+        },
+        "format": {
+          "description": "Format token the delegate handles (e.g. grpc, openapi@3.1).",
+          "type": "string"
+        }
+      },
+      "required": [
+        "format"
+      ],
+      "type": "object"
+    },
+    "DelegateLocationInput": {
+      "additionalProperties": false,
+      "properties": {
+        "location": {
+          "description": "Delegate location: the exec: or http(s) URL of the delegate's OpenBindings interface.",
+          "type": "string"
+        }
+      },
+      "required": [
+        "location"
+      ],
+      "type": "object"
+    },
+    "DelegateSummary": {
+      "additionalProperties": false,
+      "description": "A registered delegate and what it provides, discovered from its OBI.",
+      "properties": {
+        "builtin": {
+          "description": "True for ob's own native handling — the implicit self-delegate, delegate 0.",
+          "type": "boolean"
+        },
+        "capabilities": {
+          "description": "The format-handling capabilities the delegate offers.",
+          "items": {
+            "$ref": "#/schemas/DelegateCapability"
+          },
+          "type": "array"
+        },
+        "formats": {
+          "description": "The formats the delegate handles.",
+          "items": {
+            "$ref": "#/schemas/DelegateFormatInfo"
+          },
+          "type": "array"
+        },
+        "location": {
+          "description": "The delegate's location (exec: or http(s) URL); absent for the builtin self-delegate.",
+          "type": "string"
+        },
+        "name": {
+          "description": "Display name: the delegate OBI's name, or one derived from its location.",
+          "type": "string"
+        }
+      },
+      "required": [],
+      "type": "object"
+    },
+    "DeleteDelegateResult": {
+      "additionalProperties": false,
+      "properties": {
+        "location": {
+          "description": "The unregistered delegate location.",
+          "type": "string"
+        }
+      },
+      "required": [
+        "location"
+      ],
+      "type": "object"
+    },
+    "DeleteOperationInput": {
+      "additionalProperties": false,
+      "properties": {
+        "force": {
+          "description": "Remove managed operations without warning.",
+          "type": "boolean"
+        },
+        "interface": {
+          "$ref": "#/schemas/OpenBindingsInterface"
+        },
+        "keys": {
+          "description": "Operation keys to remove.",
+          "items": {
+            "type": "string"
+          },
+          "minItems": 1,
+          "type": "array"
+        }
+      },
+      "required": [
+        "interface",
+        "keys"
+      ],
+      "type": "object"
+    },
+    "DemoInput": {
+      "additionalProperties": false,
+      "properties": {
+        "grpcPort": {
+          "description": "gRPC server port.",
+          "type": "integer"
+        },
+        "httpPort": {
+          "description": "HTTP server port.",
+          "type": "integer"
+        }
+      },
+      "type": "object"
+    },
+    "DetachOperationInput": {
+      "additionalProperties": false,
+      "properties": {
+        "interface": {
+          "$ref": "#/schemas/OpenBindingsInterface"
+        },
+        "operation": {
+          "description": "The operation's key or any identifier.",
+          "type": "string"
+        }
+      },
+      "required": [
+        "interface",
+        "operation"
+      ],
+      "type": "object"
+    },
+    "DiffReport": {
+      "additionalProperties": false,
+      "description": "The differences between two interfaces (or an interface and what its sources produce). Empty operations, metadata, and drift means they are identical.",
+      "properties": {
+        "drift": {
+          "items": {
+            "$ref": "#/schemas/DriftEntry"
+          },
+          "type": "array"
+        },
+        "metadata": {
+          "items": {
+            "$ref": "#/schemas/MetadataDiff"
+          },
+          "type": "array"
+        },
+        "operations": {
+          "items": {
+            "$ref": "#/schemas/OperationDiff"
+          },
+          "type": "array"
+        },
+        "warnings": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        }
+      },
+      "type": "object"
+    },
+    "DriftEntry": {
+      "additionalProperties": false,
+      "description": "One operation key produced by multiple sources with differing schemas.",
+      "properties": {
+        "details": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "operation": {
+          "type": "string"
+        },
+        "sources": {
+          "items": {
+            "$ref": "#/schemas/DriftSource"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "operation",
+        "sources"
+      ],
+      "type": "object"
+    },
+    "DriftSource": {
+      "additionalProperties": false,
+      "properties": {
+        "format": {
+          "type": "string"
+        },
+        "key": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "key"
+      ],
+      "type": "object"
+    },
+    "EnvironmentStatus": {
+      "additionalProperties": false,
+      "properties": {
+        "contextCount": {
+          "description": "Number of stored contexts in this environment.",
+          "type": "integer"
+        },
+        "delegateCount": {
+          "description": "Number of registered delegates in this environment.",
+          "type": "integer"
+        },
+        "environmentPath": {
+          "description": "Path to the .openbindings/ directory.",
+          "type": "string"
+        },
+        "environmentType": {
+          "description": "Local or global environment.",
+          "type": "string"
+        }
+      },
+      "required": [
+        "environmentType",
+        "environmentPath"
+      ],
+      "type": "object"
+    },
+    "FormatInfo": {
+      "additionalProperties": false,
+      "description": "Information about a supported binding format.",
+      "properties": {
+        "description": {
+          "description": "Human-readable description of this format.",
+          "type": "string"
+        },
+        "token": {
+          "description": "Format token (e.g. openapi@3.1, asyncapi@3.0, grpc).",
+          "type": "string"
+        }
+      },
+      "required": [
+        "token"
+      ],
+      "type": "object"
+    },
+    "GetDelegateRequirementsInput": {
+      "additionalProperties": false,
+      "properties": {
+        "capability": {
+          "$ref": "#/schemas/DelegateCapability"
+        }
+      },
+      "required": [
+        "capability"
+      ],
+      "type": "object"
+    },
+    "InspectSourceInput": {
+      "additionalProperties": false,
+      "properties": {
+        "source": {
+          "$ref": "#/schemas/Source"
+        }
+      },
+      "required": [
+        "source"
+      ],
+      "type": "object"
+    },
+    "InterfaceInput": {
+      "additionalProperties": false,
+      "description": "Wraps the interface document an operation acts on.",
+      "properties": {
+        "interface": {
+          "$ref": "#/schemas/OpenBindingsInterface"
+        }
+      },
+      "required": [
+        "interface"
+      ],
+      "type": "object"
+    },
+    "InterfaceStatus": {
+      "additionalProperties": false,
+      "description": "An interface's read-only status against its sources: per-source sync state plus the managed-vs-hand-authored breakdown of its operations and bindings.",
+      "properties": {
+        "bindings": {
+          "$ref": "#/schemas/ManagedKeys"
+        },
+        "name": {
+          "type": "string"
+        },
+        "obiVersion": {
+          "description": "The interface's declared OpenBindings version.",
+          "type": "string"
+        },
+        "operations": {
+          "$ref": "#/schemas/ManagedKeys"
+        },
+        "sources": {
+          "items": {
+            "$ref": "#/schemas/SourceStatus"
+          },
+          "type": "array"
+        },
+        "version": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "obiVersion",
+        "sources",
+        "operations",
+        "bindings"
+      ],
+      "type": "object"
+    },
+    "InterfaceStatusInput": {
+      "additionalProperties": false,
+      "properties": {
+        "interface": {
+          "$ref": "#/schemas/OpenBindingsInterface"
+        }
+      },
+      "required": [
+        "interface"
+      ],
+      "type": "object"
+    },
+    "InvocationError": {
+      "additionalProperties": false,
+      "description": "Structured error carried by an error output frame. Indicates terminal failure of the invocation.",
+      "properties": {
+        "code": {
+          "description": "Machine-readable error code (e.g. ERR_CANCELLED, ERR_VALIDATION_FAILED, ERR_PROTOCOL, CONTEXT_REQUIRED).",
+          "type": "string"
+        },
+        "details": {
+          "description": "Optional structured details specific to the code. For CONTEXT_REQUIRED, a ContextRequiredDetails object."
+        },
+        "message": {
+          "description": "Human-readable description.",
+          "type": "string"
         }
       },
       "required": [
         "code",
         "message"
       ],
-      "additionalProperties": false
+      "type": "object"
     },
-    "InvokeBindingOutput": {
-      "type": "object",
-      "description": "Output from executing a resolved binding.",
+    "InvokeSource": {
+      "additionalProperties": false,
+      "anyOf": [
+        {
+          "required": [
+            "location"
+          ]
+        },
+        {
+          "required": [
+            "content"
+          ]
+        }
+      ],
+      "description": "Binding source for invocation.",
       "properties": {
-        "output": {
-          "description": "Operation output data."
+        "content": {
+          "description": "Binding source content directly."
         },
-        "status": {
-          "type": "integer",
-          "description": "Status or exit code."
+        "format": {
+          "description": "Format token.",
+          "type": "string"
         },
-        "durationMs": {
-          "type": "number",
-          "description": "Execution duration in milliseconds."
-        },
-        "error": {
-          "$ref": "#/schemas/Error",
-          "description": "Present if the operation failed."
+        "location": {
+          "description": "Location of the binding source (path or URL).",
+          "type": "string"
         }
       },
-      "additionalProperties": true
+      "required": [
+        "format"
+      ],
+      "type": "object"
     },
-    "SoftwareInfo": {
-      "type": "object",
-      "description": "Identity and metadata for a piece of software.",
+    "ListOperationAliasesInput": {
+      "additionalProperties": false,
       "properties": {
+        "interface": {
+          "$ref": "#/schemas/OpenBindingsInterface"
+        },
+        "operation": {
+          "description": "Scope the satisfaction map to a single operation.",
+          "type": "string"
+        }
+      },
+      "required": [
+        "interface"
+      ],
+      "type": "object"
+    },
+    "ListOperationsInput": {
+      "additionalProperties": false,
+      "properties": {
+        "interface": {
+          "$ref": "#/schemas/OpenBindingsInterface"
+        },
+        "tag": {
+          "description": "Filter operations by tag.",
+          "type": "string"
+        }
+      },
+      "required": [
+        "interface"
+      ],
+      "type": "object"
+    },
+    "ManagedKeys": {
+      "additionalProperties": false,
+      "description": "Keys split by provenance: managed (derived from a source by sync) vs hand-authored.",
+      "properties": {
+        "handAuthored": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "managed": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        }
+      },
+      "type": "object"
+    },
+    "MergeEntry": {
+      "additionalProperties": false,
+      "description": "One operation-level change in a merge, and whether it was applied.",
+      "properties": {
+        "action": {
+          "description": "The merge action for this entry (e.g. add, update, conflict).",
+          "type": "string"
+        },
+        "applied": {
+          "description": "Whether this change was applied.",
+          "type": "boolean"
+        },
+        "details": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "operation": {
+          "description": "The operation key the change concerns.",
+          "type": "string"
+        }
+      },
+      "required": [
+        "operation",
+        "action",
+        "applied"
+      ],
+      "type": "object"
+    },
+    "MergeInterfacesInput": {
+      "additionalProperties": false,
+      "properties": {
+        "excludeOperations": {
+          "description": "Exclude these operations from the merge.",
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "fromSources": {
+          "description": "Derive the source side from the target's own binding sources.",
+          "type": "boolean"
+        },
+        "noBindings": {
+          "description": "Don't graft bindings (operations and their referenced sources still come).",
+          "type": "boolean"
+        },
+        "noSources": {
+          "description": "Don't graft source entries (operations and bindings still come).",
+          "type": "boolean"
+        },
+        "only": {
+          "description": "Scope to a specific source key (requires fromSources).",
+          "type": "string"
+        },
+        "operations": {
+          "description": "Only merge these operations.",
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "opsOnly": {
+          "description": "Graft operations only (no bindings or source entries) — the adopt-keys satisfaction strategy.",
+          "type": "boolean"
+        },
+        "source": {
+          "$ref": "#/schemas/OpenBindingsInterface"
+        },
+        "target": {
+          "$ref": "#/schemas/OpenBindingsInterface"
+        }
+      },
+      "required": [
+        "target"
+      ],
+      "type": "object"
+    },
+    "MergeResult": {
+      "additionalProperties": false,
+      "properties": {
+        "applied": {
+          "description": "Number of changes applied.",
+          "type": "integer"
+        },
+        "entries": {
+          "items": {
+            "$ref": "#/schemas/MergeEntry"
+          },
+          "type": "array"
+        },
+        "interface": {
+          "$ref": "#/schemas/OpenBindingsInterface"
+        },
+        "skipped": {
+          "description": "Number of changes skipped.",
+          "type": "integer"
+        },
+        "warnings": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "interface"
+      ],
+      "type": "object"
+    },
+    "MetadataDiff": {
+      "additionalProperties": false,
+      "properties": {
+        "baseline": {
+          "type": "string"
+        },
+        "compared": {
+          "type": "string"
+        },
+        "field": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "field"
+      ],
+      "type": "object"
+    },
+    "NewInterfaceInput": {
+      "additionalProperties": false,
+      "properties": {
+        "description": {
+          "type": "string"
+        },
         "name": {
-          "type": "string",
-          "description": "Human-readable display name."
+          "type": "string"
+        },
+        "openbindings": {
+          "description": "Target OpenBindings spec version; defaults to the tool's max tested version.",
+          "type": "string"
         },
         "version": {
-          "type": "string",
-          "description": "Software version."
+          "type": "string"
+        }
+      },
+      "type": "object"
+    },
+    "OpenBindingsInterface": {
+      "additionalProperties": true,
+      "description": "A valid OpenBindings interface document.",
+      "type": "object"
+    },
+    "Operation": {
+      "additionalProperties": true,
+      "description": "An operation definition as it would appear in an interface.",
+      "properties": {
+        "deprecated": {
+          "type": "boolean"
         },
         "description": {
-          "type": "string",
-          "description": "Brief description."
+          "type": "string"
+        },
+        "input": {},
+        "output": {},
+        "tags": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        }
+      },
+      "type": "object"
+    },
+    "OperationAliasEntry": {
+      "additionalProperties": false,
+      "description": "An operation and the interface operations it satisfies via aliases.",
+      "properties": {
+        "aliases": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "key": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "key",
+        "aliases"
+      ],
+      "type": "object"
+    },
+    "OperationCompatibility": {
+      "additionalProperties": false,
+      "description": "Compatibility for a single operation, with per-slot status.",
+      "properties": {
+        "compatible": {
+          "type": "boolean"
+        },
+        "details": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "input": {
+          "$ref": "#/schemas/SlotStatus"
+        },
+        "matched": {
+          "description": "Whether a matching operation exists in the candidate.",
+          "type": "boolean"
+        },
+        "operation": {
+          "type": "string"
+        },
+        "output": {
+          "$ref": "#/schemas/SlotStatus"
+        }
+      },
+      "required": [
+        "operation",
+        "matched",
+        "compatible"
+      ],
+      "type": "object"
+    },
+    "OperationDiff": {
+      "additionalProperties": false,
+      "properties": {
+        "details": {
+          "description": "What specifically changed.",
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "operation": {
+          "type": "string"
+        },
+        "status": {
+          "enum": [
+            "added",
+            "removed",
+            "changed"
+          ],
+          "type": "string"
+        }
+      },
+      "required": [
+        "operation",
+        "status"
+      ],
+      "type": "object"
+    },
+    "OperationInvocationInput": {
+      "additionalProperties": false,
+      "description": "Initial payload carried by invokeOperation's open frame: the interface to act on and which operation (or specific binding) to invoke, plus context.",
+      "oneOf": [
+        {
+          "required": [
+            "operation"
+          ]
+        },
+        {
+          "required": [
+            "binding"
+          ]
+        }
+      ],
+      "properties": {
+        "binding": {
+          "description": "Binding key to invoke; the operation is derived from it. Mutually exclusive with operation.",
+          "type": "string"
+        },
+        "context": {
+          "$ref": "#/schemas/BindingContext"
+        },
+        "interface": {
+          "$ref": "#/schemas/OpenBindingsInterface"
+        },
+        "operation": {
+          "description": "Operation key to invoke. A binding is selected automatically.",
+          "type": "string"
+        }
+      },
+      "required": [
+        "interface"
+      ],
+      "type": "object"
+    },
+    "OperationInvokerInputFrame": {
+      "description": "One frame from the caller into invokeOperation. Same shape as the binding-invoker input stream, with the open frame carrying an OperationInvocationInput: exactly one `open` first, then zero or more `input` frames, then exactly one `close`.",
+      "discriminator": {
+        "propertyName": "kind"
+      },
+      "oneOf": [
+        {
+          "additionalProperties": false,
+          "description": "Open the invocation. MUST be the first frame on the input stream.",
+          "properties": {
+            "input": {
+              "$ref": "#/schemas/OperationInvocationInput"
+            },
+            "kind": {
+              "const": "open"
+            }
+          },
+          "required": [
+            "kind",
+            "input"
+          ],
+          "title": "open",
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "description": "Write one input value to the operation. Validated against the operation's input schema.",
+          "properties": {
+            "kind": {
+              "const": "input"
+            },
+            "value": {
+              "description": "One input value."
+            }
+          },
+          "required": [
+            "kind",
+            "value"
+          ],
+          "title": "input",
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "description": "Caller signals no more input frames will be sent. Idempotent.",
+          "properties": {
+            "kind": {
+              "const": "close"
+            }
+          },
+          "required": [
+            "kind"
+          ],
+          "title": "close",
+          "type": "object"
+        }
+      ]
+    },
+    "OperationInvokerOutputFrame": {
+      "description": "One frame from invokeOperation back to the caller. Same shape as the binding-invoker output stream: zero or more `output`/`input_closed` frames, then exactly one terminal `complete` or `error`. Each output is validated against the operation's output schema.",
+      "discriminator": {
+        "propertyName": "kind"
+      },
+      "oneOf": [
+        {
+          "additionalProperties": false,
+          "description": "One output value from the operation.",
+          "properties": {
+            "kind": {
+              "const": "output"
+            },
+            "value": {
+              "description": "One output value."
+            }
+          },
+          "required": [
+            "kind",
+            "value"
+          ],
+          "title": "output",
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "description": "The operation has closed the input side from its end. Subsequent caller input frames are ignored. Outputs may still flow.",
+          "properties": {
+            "kind": {
+              "const": "input_closed"
+            }
+          },
+          "required": [
+            "kind"
+          ],
+          "title": "input_closed",
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "description": "Terminal: the operation completed normally. MUST be the last frame.",
+          "properties": {
+            "kind": {
+              "const": "complete"
+            }
+          },
+          "required": [
+            "kind"
+          ],
+          "title": "complete",
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "description": "Terminal: the operation failed. MUST be the last frame. Carries a structured InvocationError.",
+          "properties": {
+            "error": {
+              "$ref": "#/schemas/InvocationError"
+            },
+            "kind": {
+              "const": "error"
+            }
+          },
+          "required": [
+            "kind",
+            "error"
+          ],
+          "title": "error",
+          "type": "object"
+        }
+      ]
+    },
+    "OperationListEntry": {
+      "additionalProperties": false,
+      "description": "An operation from the interface's operations map, with its key and the bindings that realize it.",
+      "properties": {
+        "bindings": {
+          "description": "Keys of the binding entries that realize this operation.",
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "key": {
+          "description": "The operation's key in the interface's operations map.",
+          "type": "string"
+        },
+        "operation": {
+          "$ref": "#/schemas/Operation"
+        }
+      },
+      "required": [
+        "key",
+        "operation"
+      ],
+      "type": "object"
+    },
+    "PullSourceInput": {
+      "additionalProperties": false,
+      "properties": {
+        "interface": {
+          "$ref": "#/schemas/OpenBindingsInterface"
+        },
+        "sourceKeys": {
+          "description": "Sources to pull; empty means all registered sources.",
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "interface"
+      ],
+      "type": "object"
+    },
+    "RemoveOperationAliasInput": {
+      "additionalProperties": false,
+      "properties": {
+        "aliases": {
+          "description": "Satisfaction alias(es) to remove.",
+          "items": {
+            "type": "string"
+          },
+          "minItems": 1,
+          "type": "array"
+        },
+        "interface": {
+          "$ref": "#/schemas/OpenBindingsInterface"
+        },
+        "operation": {
+          "description": "The operation's key or any existing identifier.",
+          "type": "string"
+        }
+      },
+      "required": [
+        "interface",
+        "operation",
+        "aliases"
+      ],
+      "type": "object"
+    },
+    "RenameOperationInput": {
+      "additionalProperties": false,
+      "properties": {
+        "interface": {
+          "$ref": "#/schemas/OpenBindingsInterface"
+        },
+        "newKey": {
+          "type": "string"
+        },
+        "oldKey": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "interface",
+        "oldKey",
+        "newKey"
+      ],
+      "type": "object"
+    },
+    "ResolveDelegateInput": {
+      "additionalProperties": false,
+      "properties": {
+        "format": {
+          "description": "Format token to resolve to a delegate.",
+          "type": "string"
+        }
+      },
+      "required": [
+        "format"
+      ],
+      "type": "object"
+    },
+    "ResolveDelegateResult": {
+      "additionalProperties": false,
+      "properties": {
+        "builtin": {
+          "description": "True when ob's own native handling is selected for the format.",
+          "type": "boolean"
+        },
+        "capabilities": {
+          "description": "The capabilities the delegate offers for this format.",
+          "items": {
+            "$ref": "#/schemas/DelegateCapability"
+          },
+          "type": "array"
+        },
+        "format": {
+          "description": "The requested format token.",
+          "type": "string"
+        },
+        "location": {
+          "description": "The delegate's location.",
+          "type": "string"
+        },
+        "name": {
+          "description": "Display name of the delegate that handles it.",
+          "type": "string"
+        }
+      },
+      "required": [
+        "format"
+      ],
+      "type": "object"
+    },
+    "ResolveInterfaceInput": {
+      "additionalProperties": false,
+      "properties": {
+        "address": {
+          "description": "Base URL or host to resolve from (e.g. https://api.example.com or localhost:8080).",
+          "type": "string"
+        }
+      },
+      "required": [
+        "address"
+      ],
+      "type": "object"
+    },
+    "ResolveInterfaceOutput": {
+      "additionalProperties": false,
+      "properties": {
+        "interface": {
+          "$ref": "#/schemas/OpenBindingsInterface"
+        },
+        "synthesizedFrom": {
+          "description": "The binding-format token the interface was synthesized from (e.g. openapi@3.1) when the target was not already an OBI; absent for native OBIs.",
+          "type": "string"
+        }
+      },
+      "required": [
+        "interface"
+      ],
+      "type": "object"
+    },
+    "ServerInfo": {
+      "additionalProperties": false,
+      "properties": {
+        "port": {
+          "type": "integer"
+        },
+        "url": {
+          "description": "Base URL the server is listening on.",
+          "type": "string"
+        }
+      },
+      "type": "object"
+    },
+    "SetContextInput": {
+      "additionalProperties": false,
+      "properties": {
+        "key": {
+          "description": "Context store key.",
+          "type": "string"
+        },
+        "value": {
+          "$ref": "#/schemas/Context"
+        }
+      },
+      "required": [
+        "key",
+        "value"
+      ],
+      "type": "object"
+    },
+    "SetDelegatePreferenceInput": {
+      "additionalProperties": false,
+      "properties": {
+        "capability": {
+          "$ref": "#/schemas/DelegateCapability"
+        },
+        "format": {
+          "description": "Optional binding-source format scope for the override (requires capability).",
+          "type": "string"
+        },
+        "location": {
+          "description": "The delegate's location.",
+          "type": "string"
+        },
+        "preference": {
+          "description": "Preference value; higher is more preferred, 0 is the baseline, negatives rank below it.",
+          "type": "number"
+        }
+      },
+      "required": [
+        "location",
+        "preference"
+      ],
+      "type": "object"
+    },
+    "SetDelegatePreferenceResult": {
+      "additionalProperties": false,
+      "properties": {
+        "capability": {
+          "$ref": "#/schemas/DelegateCapability"
+        },
+        "format": {
+          "type": "string"
+        },
+        "location": {
+          "type": "string"
+        },
+        "preference": {
+          "type": "number"
+        }
+      },
+      "required": [
+        "location",
+        "preference"
+      ],
+      "type": "object"
+    },
+    "SetMetadataInput": {
+      "additionalProperties": false,
+      "properties": {
+        "description": {
+          "type": "string"
+        },
+        "interface": {
+          "$ref": "#/schemas/OpenBindingsInterface"
+        },
+        "name": {
+          "type": "string"
+        },
+        "version": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "interface"
+      ],
+      "type": "object"
+    },
+    "SlotStatus": {
+      "description": "Compatibility status of an input or output slot.",
+      "enum": [
+        "compatible",
+        "incompatible",
+        "unspecified"
+      ],
+      "type": "string"
+    },
+    "SoftwareIdentity": {
+      "additionalProperties": true,
+      "description": "Identity and metadata for a piece of software.",
+      "properties": {
+        "description": {
+          "description": "Brief description.",
+          "type": "string"
         },
         "homepage": {
-          "type": "string",
-          "description": "Documentation URL."
-        },
-        "repository": {
-          "type": "string",
-          "description": "Source code URL."
+          "description": "Documentation URL.",
+          "type": "string"
         },
         "maintainer": {
-          "type": "string",
-          "description": "Author or organization."
+          "description": "Author or organization.",
+          "type": "string"
+        },
+        "name": {
+          "description": "Human-readable display name.",
+          "type": "string"
+        },
+        "repository": {
+          "description": "Source code URL.",
+          "type": "string"
+        },
+        "version": {
+          "description": "Software version.",
+          "type": "string"
         }
       },
       "required": [
         "name"
       ],
-      "additionalProperties": false
+      "type": "object"
     },
-    "FormatInfo": {
-      "type": "object",
-      "description": "Information about a supported binding format.",
+    "Source": {
+      "additionalProperties": true,
+      "anyOf": [
+        {
+          "required": [
+            "location"
+          ]
+        },
+        {
+          "required": [
+            "content"
+          ]
+        }
+      ],
+      "description": "A binding source artifact, referenced by location or carried inline.",
       "properties": {
-        "token": {
-          "type": "string",
-          "description": "Format token."
+        "content": {
+          "description": "Source content provided directly."
         },
         "description": {
-          "type": "string",
-          "description": "Human-readable description."
+          "type": "string"
+        },
+        "format": {
+          "description": "Format token (e.g. openapi@3.1).",
+          "type": "string"
+        },
+        "location": {
+          "description": "Location of the source (path or URL).",
+          "type": "string"
         }
       },
       "required": [
-        "token"
+        "format"
       ],
-      "additionalProperties": false
+      "type": "object"
+    },
+    "SourceInspection": {
+      "additionalProperties": true,
+      "properties": {
+        "exhaustive": {
+          "description": "True if every bindable target in the source is listed.",
+          "type": "boolean"
+        },
+        "targets": {
+          "items": {
+            "$ref": "#/schemas/BindableTarget"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "targets",
+        "exhaustive"
+      ],
+      "type": "object"
+    },
+    "SourceKeyInput": {
+      "additionalProperties": false,
+      "properties": {
+        "interface": {
+          "$ref": "#/schemas/OpenBindingsInterface"
+        },
+        "key": {
+          "description": "Source key.",
+          "type": "string"
+        }
+      },
+      "required": [
+        "interface",
+        "key"
+      ],
+      "type": "object"
+    },
+    "SourceListEntry": {
+      "additionalProperties": false,
+      "description": "A source from the interface's sources map, with its key.",
+      "properties": {
+        "key": {
+          "description": "The source's key in the interface's sources map.",
+          "type": "string"
+        },
+        "source": {
+          "$ref": "#/schemas/Source"
+        }
+      },
+      "required": [
+        "key",
+        "source"
+      ],
+      "type": "object"
+    },
+    "SourceStatus": {
+      "additionalProperties": false,
+      "description": "Drift status of one source on an interface: what `ob source pull` would add/update/remove, plus custodial drift on hand-authored bindings whose target is gone.",
+      "properties": {
+        "bindingsAdded": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "bindingsRemoved": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "bindingsUpdated": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "custodial": {
+          "description": "Hand-authored bindings whose source target no longer exists.",
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "error": {
+          "type": "string"
+        },
+        "format": {
+          "type": "string"
+        },
+        "inSync": {
+          "description": "Whether the source would change nothing and has no custodial drift.",
+          "type": "boolean"
+        },
+        "key": {
+          "type": "string"
+        },
+        "lastSynced": {
+          "type": "string"
+        },
+        "managed": {
+          "type": "boolean"
+        },
+        "obVersion": {
+          "type": "string"
+        },
+        "operationsAdded": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "operationsRemoved": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "operationsUpdated": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "ref": {
+          "type": "string"
+        },
+        "resolve": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "key",
+        "format",
+        "inSync",
+        "managed"
+      ],
+      "type": "object"
+    },
+    "StartMCPServerInput": {
+      "additionalProperties": false,
+      "properties": {
+        "name": {
+          "description": "MCP server name.",
+          "type": "string"
+        },
+        "port": {
+          "description": "HTTP port when transport is http (default 8080).",
+          "type": "integer"
+        },
+        "transport": {
+          "description": "Transport (default stdio).",
+          "enum": [
+            "stdio",
+            "http"
+          ],
+          "type": "string"
+        },
+        "urls": {
+          "description": "Interface URLs to expose as MCP tools.",
+          "items": {
+            "type": "string"
+          },
+          "minItems": 1,
+          "type": "array"
+        }
+      },
+      "required": [
+        "urls"
+      ],
+      "type": "object"
+    },
+    "StartServerInput": {
+      "additionalProperties": false,
+      "properties": {
+        "allowOrigins": {
+          "description": "Allowed CORS origins.",
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "port": {
+          "description": "Port to listen on (default 20290).",
+          "type": "integer"
+        },
+        "token": {
+          "description": "Pre-shared session token.",
+          "type": "string"
+        }
+      },
+      "type": "object"
+    },
+    "UnbindOperationInput": {
+      "additionalProperties": false,
+      "properties": {
+        "interface": {
+          "$ref": "#/schemas/OpenBindingsInterface"
+        },
+        "operation": {
+          "description": "The operation's key or any identifier.",
+          "type": "string"
+        },
+        "source": {
+          "description": "Source key whose binding to remove.",
+          "type": "string"
+        }
+      },
+      "required": [
+        "interface",
+        "operation",
+        "source"
+      ],
+      "type": "object"
+    },
+    "UpdateOperationInput": {
+      "additionalProperties": false,
+      "properties": {
+        "addTags": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "deprecated": {
+          "type": "boolean"
+        },
+        "description": {
+          "type": "string"
+        },
+        "idempotent": {
+          "type": "boolean"
+        },
+        "input": {
+          "description": "Replacement JSON Schema for the operation's input."
+        },
+        "interface": {
+          "$ref": "#/schemas/OpenBindingsInterface"
+        },
+        "operation": {
+          "description": "The operation's key or any identifier.",
+          "type": "string"
+        },
+        "output": {
+          "description": "Replacement JSON Schema for the operation's output."
+        },
+        "own": {
+          "description": "Take ownership of a source-owned operation (detach) before editing.",
+          "type": "boolean"
+        },
+        "removeTags": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "interface",
+        "operation"
+      ],
+      "type": "object"
+    },
+    "ValidateInterfaceInput": {
+      "additionalProperties": false,
+      "properties": {
+        "interface": {
+          "$ref": "#/schemas/OpenBindingsInterface"
+        },
+        "strict": {
+          "description": "Reject unknown fields and require a supported spec version.",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "interface"
+      ],
+      "type": "object"
+    },
+    "ValidationReport": {
+      "additionalProperties": true,
+      "properties": {
+        "problems": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "valid": {
+          "type": "boolean"
+        },
+        "version": {
+          "description": "The spec version the document declares.",
+          "type": "string"
+        }
+      },
+      "required": [
+        "valid"
+      ],
+      "type": "object"
     }
-  }
+  },
+  "sources": {
+    "usage": {
+      "format": "usage@2.13.1",
+      "location": "../cmd/usage.kdl"
+    }
+  },
+  "version": "0.1.0"
 }

@@ -8,6 +8,11 @@ import (
 	"github.com/openbindings/openbindings-go"
 )
 
+// ob.obi.json is the bound CLI realization, generated from the unbound contract
+// (../../ob.obi.json) + usage.kdl. Regenerate with `go generate ./internal/app`;
+// do not hand-edit. The TestBoundCLIConformsToContract guard fails if it drifts.
+//
+//go:generate go run ../genbound
 //go:embed ob.obi.json
 var cliInterfaceJSON []byte
 
