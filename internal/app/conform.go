@@ -17,6 +17,12 @@ type ConformInput struct {
 	InterfaceLocator string
 	// TargetPath is the file path of the target OBI to update.
 	TargetPath string
+	// ContractInterface/TargetInterface are inline documents (the served
+	// operation); they take precedence over the locator/path. When TargetPath is
+	// empty, no file is written and the conformed document is returned in
+	// ConformOutput.Result instead.
+	ContractInterface *openbindings.Interface
+	TargetInterface   *openbindings.Interface
 	// Yes auto-accepts all scaffolding and replacements.
 	Yes bool
 	// DryRun shows what would change without modifying the file.
@@ -32,12 +38,13 @@ type ConformAction struct {
 
 // ConformOutput is the result of a conform operation.
 type ConformOutput struct {
-	Interface        string          `json:"interface"`
-	InterfaceLocator string          `json:"interfaceLocator"`
-	TargetPath       string          `json:"targetPath"`
-	Actions          []ConformAction `json:"actions"`
-	Modified         bool            `json:"modified"`
-	Error            *Error          `json:"error,omitempty"`
+	Interface        string                  `json:"interface"`
+	InterfaceLocator string                  `json:"interfaceLocator"`
+	TargetPath       string                  `json:"targetPath"`
+	Actions          []ConformAction         `json:"actions"`
+	Modified         bool                    `json:"modified"`
+	Result           *openbindings.Interface `json:"result,omitempty"`
+	Error            *Error                  `json:"error,omitempty"`
 }
 
 // Render returns a human-friendly representation.
@@ -107,18 +114,26 @@ func Conform(input ConformInput, confirm func(op string, action string) bool) Co
 		TargetPath:       input.TargetPath,
 	}
 
-	// Load the interface to satisfy.
-	contractIface, err := resolveInterface(input.InterfaceLocator)
-	if err != nil {
-		output.Error = &Error{Code: "resolve_error", Message: fmt.Sprintf("interface: %v", err)}
-		return output
+	// Load the interface to satisfy (inline document wins over the locator).
+	contractIface := input.ContractInterface
+	if contractIface == nil {
+		var err error
+		contractIface, err = resolveInterface(input.InterfaceLocator)
+		if err != nil {
+			output.Error = &Error{Code: "resolve_error", Message: fmt.Sprintf("interface: %v", err)}
+			return output
+		}
 	}
 
-	// Load the target OBI.
-	targetIface, err := loadInterfaceFile(input.TargetPath)
-	if err != nil {
-		output.Error = &Error{Code: "resolve_error", Message: fmt.Sprintf("target: %v", err)}
-		return output
+	// Load the target OBI (inline document wins over the path).
+	targetIface := input.TargetInterface
+	if targetIface == nil {
+		var err error
+		targetIface, err = loadInterfaceFile(input.TargetPath)
+		if err != nil {
+			output.Error = &Error{Code: "resolve_error", Message: fmt.Sprintf("target: %v", err)}
+			return output
+		}
 	}
 
 	// Display label for the contract being conformed to.
@@ -218,13 +233,20 @@ func Conform(input ConformInput, confirm func(op string, action string) bool) Co
 		})
 	}
 
-	// Write the updated OBI if modified.
+	// Persist or return the conformed OBI. The CLI writes to TargetPath; the
+	// served operation has no path, so the conformed document is returned in
+	// Result for the caller (e.g. an agent) to use.
 	if modified && !input.DryRun {
-		if err := WriteInterfaceFile(input.TargetPath, targetIface); err != nil {
-			output.Error = &Error{Code: "write_error", Message: err.Error()}
-			return output
+		if input.TargetPath != "" {
+			if err := WriteInterfaceFile(input.TargetPath, targetIface); err != nil {
+				output.Error = &Error{Code: "write_error", Message: err.Error()}
+				return output
+			}
 		}
 		output.Modified = true
+	}
+	if input.TargetInterface != nil {
+		output.Result = targetIface
 	}
 
 	return output

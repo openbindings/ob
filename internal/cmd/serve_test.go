@@ -382,8 +382,8 @@ func TestServeResolve_MissingURL(t *testing.T) {
 		t.Errorf("status = %d, want 400", resp.StatusCode)
 	}
 	body := mustJSON(t, resp)
-	if body["error"] != "url is required" {
-		t.Errorf("error = %q, want 'url is required'", body["error"])
+	if body["error"] != "address is required" {
+		t.Errorf("error = %q, want 'address is required'", body["error"])
 	}
 }
 
@@ -391,7 +391,7 @@ func TestServeResolve_SSRFBlocked(t *testing.T) {
 	ts := testEnv(t)
 	defer ts.Close()
 
-	resp, err := authedPost(ts.URL+"/resolve", "test-token", `{"url":"http://10.0.0.1/api"}`)
+	resp, err := authedPost(ts.URL+"/resolve", "test-token", `{"address":"http://10.0.0.1/api"}`)
 	if err != nil {
 		t.Fatal(err)
 	}

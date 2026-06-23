@@ -392,17 +392,21 @@ func registerAuthoringRoutes(srv *server.Server) {
 func handleValidate(w http.ResponseWriter, r *http.Request) {
 	r.Body = http.MaxBytesReader(w, r.Body, maxRequestBodyBytes)
 	var body struct {
-		Locator string `json:"locator"`
-		Strict  bool   `json:"strict,omitempty"`
+		Interface *openbindings.Interface `json:"interface"`
+		Strict    bool                    `json:"strict,omitempty"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
 		writeJSON(w, http.StatusBadRequest, ErrorResponse{Error: "invalid request body"})
 		return
 	}
+	if body.Interface == nil {
+		writeJSON(w, http.StatusBadRequest, ErrorResponse{Error: "missing required field: interface"})
+		return
+	}
 
 	report := app.ValidateInterface(app.ValidateInput{
-		Locator: body.Locator,
-		Strict:  body.Strict,
+		Interface: body.Interface,
+		Strict:    body.Strict,
 	})
 	writeJSON(w, http.StatusOK, report)
 }
@@ -410,21 +414,25 @@ func handleValidate(w http.ResponseWriter, r *http.Request) {
 func handleDiff(w http.ResponseWriter, r *http.Request) {
 	r.Body = http.MaxBytesReader(w, r.Body, maxRequestBodyBytes)
 	var body struct {
-		Baseline    string `json:"baseline"`
-		Comparison  string `json:"comparison,omitempty"`
-		FromSources bool   `json:"fromSources,omitempty"`
-		OnlySource  string `json:"onlySource,omitempty"`
+		Baseline    *openbindings.Interface `json:"baseline"`
+		Comparison  *openbindings.Interface `json:"comparison,omitempty"`
+		FromSources bool                    `json:"fromSources,omitempty"`
+		Only        string                  `json:"only,omitempty"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
 		writeJSON(w, http.StatusBadRequest, ErrorResponse{Error: "invalid request body"})
 		return
 	}
+	if body.Baseline == nil {
+		writeJSON(w, http.StatusBadRequest, ErrorResponse{Error: "missing required field: baseline"})
+		return
+	}
 
 	report, err := app.Diff(app.DiffInput{
-		BaselineLocator:   body.Baseline,
-		ComparisonLocator: body.Comparison,
-		FromSources:       body.FromSources,
-		OnlySource:        body.OnlySource,
+		BaselineInterface:   body.Baseline,
+		ComparisonInterface: body.Comparison,
+		FromSources:         body.FromSources,
+		OnlySource:          body.Only,
 	})
 	if err != nil {
 		writeJSON(w, http.StatusBadRequest, ErrorResponse{Error: err.Error()})
@@ -436,17 +444,21 @@ func handleDiff(w http.ResponseWriter, r *http.Request) {
 func handleCompat(w http.ResponseWriter, r *http.Request) {
 	r.Body = http.MaxBytesReader(w, r.Body, maxRequestBodyBytes)
 	var body struct {
-		Target    string `json:"target"`
-		Candidate string `json:"candidate"`
+		Target    *openbindings.Interface `json:"target"`
+		Candidate *openbindings.Interface `json:"candidate"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
 		writeJSON(w, http.StatusBadRequest, ErrorResponse{Error: "invalid request body"})
 		return
 	}
+	if body.Target == nil || body.Candidate == nil {
+		writeJSON(w, http.StatusBadRequest, ErrorResponse{Error: "missing required fields: target, candidate"})
+		return
+	}
 
 	report := app.CompatibilityCheck(app.CompatInput{
-		Target:    body.Target,
-		Candidate: body.Candidate,
+		TargetInterface:    body.Target,
+		CandidateInterface: body.Candidate,
 	})
 	writeJSON(w, http.StatusOK, report)
 }
@@ -454,35 +466,43 @@ func handleCompat(w http.ResponseWriter, r *http.Request) {
 func handleConform(w http.ResponseWriter, r *http.Request) {
 	r.Body = http.MaxBytesReader(w, r.Body, maxRequestBodyBytes)
 	var body struct {
-		Interface string `json:"interface"`
-		Target    string `json:"target"`
-		Yes       bool   `json:"yes,omitempty"`
-		DryRun    bool   `json:"dryRun,omitempty"`
+		Interface *openbindings.Interface `json:"interface"`
+		Target    *openbindings.Interface `json:"target"`
+		DryRun    bool                    `json:"dryRun,omitempty"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
 		writeJSON(w, http.StatusBadRequest, ErrorResponse{Error: "invalid request body"})
 		return
 	}
-	// No interactive prompts on the wire: the confirm callback answers with the
-	// request's `yes` flag (combine with `dryRun` to preview without writing).
+	if body.Interface == nil || body.Target == nil {
+		writeJSON(w, http.StatusBadRequest, ErrorResponse{Error: "missing required fields: interface, target"})
+		return
+	}
+	// Non-interactive on the wire: accept all scaffolding/replacements. With no
+	// target path, Conform returns the conformed document in Result rather than
+	// writing a file; dryRun previews without modifying it.
 	out := app.Conform(app.ConformInput{
-		InterfaceLocator: body.Interface,
-		TargetPath:       body.Target,
-		Yes:              body.Yes,
-		DryRun:           body.DryRun,
-	}, func(string, string) bool { return body.Yes })
+		ContractInterface: body.Interface,
+		TargetInterface:   body.Target,
+		Yes:               true,
+		DryRun:            body.DryRun,
+	}, func(string, string) bool { return true })
 	writeJSON(w, http.StatusOK, out)
 }
 
 func handleCodegen(w http.ResponseWriter, r *http.Request) {
 	r.Body = http.MaxBytesReader(w, r.Body, maxRequestBodyBytes)
 	var body struct {
-		Source   string `json:"source"`
-		Language string `json:"language"`
-		Package  string `json:"package,omitempty"`
+		Interface *openbindings.Interface `json:"interface"`
+		Language  string                  `json:"language"`
+		Package   string                  `json:"package,omitempty"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
 		writeJSON(w, http.StatusBadRequest, ErrorResponse{Error: "invalid request body"})
+		return
+	}
+	if body.Interface == nil {
+		writeJSON(w, http.StatusBadRequest, ErrorResponse{Error: "missing required field: interface"})
 		return
 	}
 	lang := body.Language
@@ -496,12 +516,7 @@ func handleCodegen(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusBadRequest, ErrorResponse{Error: "unsupported language (want typescript or go)"})
 		return
 	}
-	iface, err := app.ResolveInterface(body.Source)
-	if err != nil {
-		writeJSON(w, http.StatusBadRequest, ErrorResponse{Error: err.Error()})
-		return
-	}
-	result, err := codegen.Generate(iface)
+	result, err := codegen.Generate(body.Interface)
 	if err != nil {
 		writeJSON(w, http.StatusBadRequest, ErrorResponse{Error: err.Error()})
 		return
@@ -519,20 +534,37 @@ func handleCodegen(w http.ResponseWriter, r *http.Request) {
 func handleMerge(w http.ResponseWriter, r *http.Request) {
 	r.Body = http.MaxBytesReader(w, r.Body, maxRequestBodyBytes)
 	var body struct {
-		Target string `json:"target"`
-		Source string `json:"source,omitempty"`
-		All    bool   `json:"all,omitempty"`
-		DryRun bool   `json:"dryRun,omitempty"`
+		Target            *openbindings.Interface `json:"target"`
+		Source            *openbindings.Interface `json:"source,omitempty"`
+		FromSources       bool                    `json:"fromSources,omitempty"`
+		Only              string                  `json:"only,omitempty"`
+		Operations        []string                `json:"operations,omitempty"`
+		ExcludeOperations []string                `json:"excludeOperations,omitempty"`
+		OpsOnly           bool                    `json:"opsOnly,omitempty"`
+		NoBindings        bool                    `json:"noBindings,omitempty"`
+		NoSources         bool                    `json:"noSources,omitempty"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
 		writeJSON(w, http.StatusBadRequest, ErrorResponse{Error: "invalid request body"})
 		return
 	}
+	if body.Target == nil {
+		writeJSON(w, http.StatusBadRequest, ErrorResponse{Error: "missing required field: target"})
+		return
+	}
+	// Non-interactive: apply all actionable entries and return the merged
+	// document in Result rather than writing a file.
 	out, err := app.Merge(app.MergeInput{
-		TargetPath:    body.Target,
-		SourceLocator: body.Source,
-		All:           body.All,
-		DryRun:        body.DryRun,
+		TargetInterface: body.Target,
+		SourceInterface: body.Source,
+		FromSources:     body.FromSources,
+		OnlySource:      body.Only,
+		Operations:      body.Operations,
+		ExcludeOps:      body.ExcludeOperations,
+		OpsOnly:         body.OpsOnly,
+		NoBindings:      body.NoBindings,
+		NoSources:       body.NoSources,
+		All:             true,
 	})
 	if err != nil {
 		writeJSON(w, http.StatusBadRequest, ErrorResponse{Error: err.Error()})
@@ -544,13 +576,17 @@ func handleMerge(w http.ResponseWriter, r *http.Request) {
 func handleInterfaceStatus(w http.ResponseWriter, r *http.Request) {
 	r.Body = http.MaxBytesReader(w, r.Body, maxRequestBodyBytes)
 	var body struct {
-		Path string `json:"path"`
+		Interface *openbindings.Interface `json:"interface"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
 		writeJSON(w, http.StatusBadRequest, ErrorResponse{Error: "invalid request body"})
 		return
 	}
-	out, err := app.OBIStatus(app.OBIStatusInput{OBIPath: body.Path})
+	if body.Interface == nil {
+		writeJSON(w, http.StatusBadRequest, ErrorResponse{Error: "missing required field: interface"})
+		return
+	}
+	out, err := app.OBIStatus(app.OBIStatusInput{Interface: body.Interface})
 	if err != nil {
 		writeJSON(w, http.StatusBadRequest, ErrorResponse{Error: err.Error()})
 		return

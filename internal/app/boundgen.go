@@ -3,7 +3,6 @@ package app
 import (
 	"fmt"
 	"os"
-	"path/filepath"
 	"strings"
 
 	openbindings "github.com/openbindings/openbindings-go"
@@ -85,19 +84,27 @@ func GenerateBoundCLI(contractPath, usagePath, usageFormat string) (*openbinding
 	return bound, nil
 }
 
-// GenerateBoundServe builds the bound serve realization (serve.obi.json) for the
-// REST + WS surface: the served subset of the contract's operations
-// (authoritative for identity — keys, aliases, schemas) with transport bindings.
-// HTTP binding refs are derived from openapi.yaml (operationId == operation
-// short-name); the WS invoke binding is attached directly. Hand-tuned binding
-// transforms and the source entries are preserved from the existing serve OBI.
+// GenerateBoundServe builds the bound serve realization (serve.obi.json): the
+// served subset of the contract's operations (authoritative for identity — keys,
+// aliases, schemas) with transport bindings. HTTP binding refs are derived from
+// openapi.yaml (operationId == operation short-name); the WS invoke binding is
+// attached directly. Hand-tuned binding transforms are preserved from the
+// existing serve OBI.
+//
+// Each source's location is an absolute URL under servedBaseURL (the default ob
+// start address, e.g. "http://127.0.0.1:20290") pointing at this server's own
+// live /openapi.yaml and /asyncapi.yaml. Unlike the bound CLI OBI, the served
+// OBI is always fetched from a running server, so it points back at that server
+// rather than embedding a frozen spec copy; handleOBI rewrites the host:port to
+// the actual request address per request (deriveBaseURL). The committed
+// default-port URL keeps the document OBI-D-05-valid without inlining the spec.
 //
 // MCP is not a served transport here: ob's served interface is exposed as an MCP
 // server by pointing the generic bridge at a running server (`ob mcp <url>`), so
 // this OBI carries no mcp source or bindings. Infra endpoints (healthz,
 // /.well-known, oauth, spec resources) are filtered out automatically because
 // they have no matching contract operation.
-func GenerateBoundServe(contractPath, openapiPath, existingServePath string) (*openbindings.Interface, error) {
+func GenerateBoundServe(contractPath, openapiPath, existingServePath, servedBaseURL string) (*openbindings.Interface, error) {
 	contract, err := loadInterfaceFile(contractPath)
 	if err != nil {
 		return nil, fmt.Errorf("load contract: %w", err)
@@ -119,38 +126,22 @@ func GenerateBoundServe(contractPath, openapiPath, existingServePath string) (*o
 		Description:  contract.Description,
 		Schemas:      contract.Schemas,
 		Operations:   map[string]openbindings.Operation{},
-		Sources:      existing.Sources, // preserve the openapi + asyncapi source entries
+		Sources:      map[string]openbindings.Source{},
 		Bindings:     map[string]openbindings.BindingEntry{},
 	}
-	if bound.Sources == nil {
-		bound.Sources = map[string]openbindings.Source{}
-	}
-	// MCP is bridged at runtime, not a served transport: drop any stale mcp source.
-	delete(bound.Sources, "mcp")
 
-	// Embed each served source's artifact as `content` so the bound serve OBI is
-	// self-contained and portable (OBI-D-05): it is served as the discovery
-	// document, where a repo-relative `location` like "./openapi.yaml" would not
-	// resolve for any client. Locations are relative to the serve OBI's directory.
-	serveDir := filepath.Dir(existingServePath)
-	for key, src := range bound.Sources {
-		if src.Content != nil || src.Location == "" {
+	// Point each served source at this server's own live spec endpoint via an
+	// absolute URL (default port; handleOBI rewrites it to the request address).
+	// No embedded content: the served OBI is always fetched from a running
+	// server, so a frozen inline copy would only bloat the discovery document and,
+	// per spec §401, shadow the live location. MCP is bridged at runtime
+	// (`ob mcp <url>`), not a served transport, so its source is dropped.
+	for key, src := range existing.Sources {
+		if key == "mcp" {
 			continue
 		}
-		loc := src.Location
-		if !filepath.IsAbs(loc) && !strings.Contains(loc, "://") {
-			loc = filepath.Join(serveDir, loc)
-		}
-		data, err := os.ReadFile(loc)
-		if err != nil {
-			return nil, fmt.Errorf("read serve source %q: %w", key, err)
-		}
-		content, err := ParseContentForEmbed(data, src.Format)
-		if err != nil {
-			return nil, fmt.Errorf("embed serve source %q: %w", key, err)
-		}
-		src.Content = content
-		src.Location = ""
+		src.Location = servedBaseURL + "/" + key + ".yaml"
+		src.Content = nil
 		bound.Sources[key] = src
 	}
 

@@ -1,6 +1,7 @@
 package app
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/openbindings/openbindings-go/formats/usage"
@@ -40,6 +41,7 @@ func TestBoundServeConformsToContract(t *testing.T) {
 func TestGenerateBoundServe_BindsServedSurface(t *testing.T) {
 	serve, err := GenerateBoundServe(
 		"../../ob.obi.json", "../server/openapi.yaml", "../server/serve.obi.json",
+		"http://127.0.0.1:20290",
 	)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -74,16 +76,20 @@ func TestGenerateBoundServe_BindsServedSurface(t *testing.T) {
 	if b := serve.Bindings["openbindings.ob.getContext.openapi"]; b.InputTransform == nil {
 		t.Error("expected getContext.openapi inputTransform to be preserved from the existing serve OBI")
 	}
-	// The real wire transports are preserved and embedded as content (not a
-	// relative location) so the served discovery OBI is spec-valid (OBI-D-05).
+	// The served OBI points at this server's own live spec endpoints via absolute
+	// URLs (not embedded content): the discovery doc is always fetched from a
+	// running server, which rewrites the host:port per request (handleOBI).
 	for _, src := range []string{"openapi", "asyncapi"} {
 		s, ok := serve.Sources[src]
 		if !ok {
 			t.Errorf("expected preserved source %q", src)
 			continue
 		}
-		if s.Content == nil || s.Location != "" {
-			t.Errorf("source %q: expected embedded content and no location, got content=%v location=%q", src, s.Content != nil, s.Location)
+		if s.Content != nil || s.Location == "" {
+			t.Errorf("source %q: expected an absolute location and no content, got content=%v location=%q", src, s.Content != nil, s.Location)
+		}
+		if !strings.HasPrefix(s.Location, "http://") && !strings.HasPrefix(s.Location, "https://") {
+			t.Errorf("source %q: expected an absolute http(s) URL, got %q", src, s.Location)
 		}
 	}
 }

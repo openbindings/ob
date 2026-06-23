@@ -1,6 +1,8 @@
 package mcpbridge
 
 import (
+	"encoding/json"
+	"strings"
 	"testing"
 
 	gomcp "github.com/modelcontextprotocol/go-sdk/mcp"
@@ -207,34 +209,71 @@ func TestToolNames_CharsetSafeUniqueAndBounded(t *testing.T) {
 	}
 }
 
-func TestBuildInputSchema_Empty(t *testing.T) {
-	schema := buildInputSchema(nil)
-	m, ok := schema.(map[string]any)
-	if !ok {
-		t.Fatal("expected map[string]any")
-	}
-	if m["type"] != "object" {
-		t.Fatalf("expected type=object, got %v", m["type"])
+func TestBundleInputSchema_Empty(t *testing.T) {
+	m, ok := bundleInputSchema(nil, nil).(map[string]any)
+	if !ok || m["type"] != "object" {
+		t.Fatalf("expected {type:object}, got %v", m)
 	}
 }
 
-func TestBuildInputSchema_WithType(t *testing.T) {
+func TestBundleInputSchema_NoRefsPassThrough(t *testing.T) {
 	input := openbindings.JSONSchema{"type": "object", "properties": map[string]any{"a": map[string]any{"type": "string"}}}
-	schema := buildInputSchema(input)
-	m := schema.(map[string]any)
-	if m["type"] != "object" {
-		t.Fatal("type should be preserved")
+	m := bundleInputSchema(input, nil).(map[string]any)
+	if m["type"] != "object" || m["properties"] == nil {
+		t.Fatalf("type+properties should be preserved, got %v", m)
 	}
-	if m["properties"] == nil {
-		t.Fatal("properties should be preserved")
+	if _, ok := m["$defs"]; ok {
+		t.Error("did not expect $defs when there are no refs")
 	}
 }
 
-func TestBuildInputSchema_MissingType(t *testing.T) {
-	input := openbindings.JSONSchema{"properties": map[string]any{"a": map[string]any{"type": "string"}}}
-	schema := buildInputSchema(input)
-	m := schema.(map[string]any)
-	if m["type"] != "object" {
-		t.Fatal("type should be injected as 'object'")
+func TestBundleInputSchema_BundlesAndRewritesRefs(t *testing.T) {
+	schemas := map[string]openbindings.JSONSchema{
+		"ValidateInput": {
+			"type": "object",
+			"properties": map[string]any{
+				"interface": map[string]any{"$ref": "#/schemas/Iface"},
+				"strict":    map[string]any{"type": "boolean"},
+			},
+			"required": []any{"interface"},
+		},
+		"Iface": {
+			"type":       "object",
+			"properties": map[string]any{"name": map[string]any{"type": "string"}},
+		},
+	}
+	got := bundleInputSchema(openbindings.JSONSchema{"$ref": "#/schemas/ValidateInput"}, schemas).(map[string]any)
+
+	// The top-level ref is resolved to a concrete object schema.
+	if got["type"] != "object" || got["properties"] == nil {
+		t.Errorf("expected resolved root object schema, got %v", got)
+	}
+	props := got["properties"].(map[string]any)
+	if ref := props["interface"].(map[string]any)["$ref"]; ref != "#/$defs/Iface" {
+		t.Errorf("nested ref should be rewritten to #/$defs/Iface, got %v", ref)
+	}
+	defs, _ := got["$defs"].(map[string]any)
+	if _, ok := defs["Iface"]; !ok {
+		t.Errorf("expected Iface bundled under $defs, got %v", defs)
+	}
+	// No dangling #/schemas/ refs survive anywhere in the bundled schema.
+	b, _ := json.Marshal(got)
+	if strings.Contains(string(b), "#/schemas/") {
+		t.Errorf("expected no #/schemas/ refs after bundling, got %s", b)
+	}
+}
+
+func TestBundleInputSchema_HandlesCycle(t *testing.T) {
+	schemas := map[string]openbindings.JSONSchema{
+		"Node": {
+			"type":       "object",
+			"properties": map[string]any{"child": map[string]any{"$ref": "#/schemas/Node"}},
+		},
+	}
+	// Must terminate despite the self-reference.
+	got := bundleInputSchema(openbindings.JSONSchema{"$ref": "#/schemas/Node"}, schemas).(map[string]any)
+	defs, _ := got["$defs"].(map[string]any)
+	if _, ok := defs["Node"]; !ok {
+		t.Errorf("expected Node in $defs, got %v", defs)
 	}
 }

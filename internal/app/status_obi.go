@@ -13,7 +13,11 @@ import (
 
 // OBIStatusInput represents input for the OBI status command.
 type OBIStatusInput struct {
-	OBIPath string
+	// OBIPath is the file path (CLI). Interface, when set, is the inline document
+	// (the served operation) and takes precedence; relative source locations
+	// then resolve against the current directory.
+	OBIPath   string
+	Interface *openbindings.Interface
 }
 
 // SourceStatus represents the sync status of a single source.
@@ -192,12 +196,16 @@ func renderManagedSection(sb *strings.Builder, s styles, label string, mk Manage
 
 // OBIStatus computes the drift and management status of an OBI.
 func OBIStatus(input OBIStatusInput) (OBIStatusOutput, error) {
-	iface, err := loadInterfaceFile(input.OBIPath)
-	if err != nil {
-		return OBIStatusOutput{}, fmt.Errorf("load OBI: %w", err)
+	iface := input.Interface
+	obiDir := "."
+	if iface == nil {
+		var err error
+		iface, err = loadInterfaceFile(input.OBIPath)
+		if err != nil {
+			return OBIStatusOutput{}, fmt.Errorf("load OBI: %w", err)
+		}
+		obiDir = filepath.Dir(input.OBIPath)
 	}
-
-	obiDir := filepath.Dir(input.OBIPath)
 
 	// Collect source statuses.
 	var sources []SourceStatus

@@ -7,11 +7,14 @@ import (
 	"github.com/openbindings/openbindings-go"
 )
 
-// ValidateInput specifies the interface to validate.
-// Locator may be a local file path, HTTP(S) URL, or exec: reference.
+// ValidateInput specifies the interface to validate. The served operation
+// supplies it inline as Interface (per the contract's ValidateInterfaceInput);
+// the CLI supplies a Locator (file path, HTTP(S) URL, or exec: reference) that
+// is resolved to the document. Interface takes precedence when set.
 type ValidateInput struct {
-	Locator string
-	Strict  bool
+	Locator   string
+	Interface *openbindings.Interface
+	Strict    bool
 }
 
 // ValidationReport is the result of validating an OpenBindings interface.
@@ -25,14 +28,18 @@ type ValidationReport struct {
 
 // ValidateInterface loads and validates an OpenBindings interface document.
 func ValidateInterface(input ValidateInput) ValidationReport {
-	iface, err := resolveInterface(input.Locator)
-	if err != nil {
-		return ValidationReport{
-			Locator: input.Locator,
-			Error: &Error{
-				Code:    "resolve_error",
-				Message: err.Error(),
-			},
+	iface := input.Interface
+	var err error
+	if iface == nil {
+		iface, err = resolveInterface(input.Locator)
+		if err != nil {
+			return ValidationReport{
+				Locator: input.Locator,
+				Error: &Error{
+					Code:    "resolve_error",
+					Message: err.Error(),
+				},
+			}
 		}
 	}
 

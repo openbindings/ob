@@ -188,7 +188,7 @@ func registerTool(
 	srv.AddTool(&mcp.Tool{
 		Name:        toolName,
 		Description: op.Description,
-		InputSchema: buildInputSchema(op.Input),
+		InputSchema: bundleInputSchema(op.Input, iface.Schemas),
 	}, func(ctx context.Context, req *mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 		var input any
 		if len(req.Params.Arguments) > 0 {
@@ -338,17 +338,98 @@ func guessMIME(uri string) string {
 	}
 }
 
-func buildInputSchema(input openbindings.JSONSchema) any {
+// bundleInputSchema returns a self-contained JSON Schema for an operation's
+// input, suitable as a standalone MCP tool inputSchema. OBI op inputs commonly
+// reference shared schemas via "#/schemas/X" (good DRY authoring), but an MCP
+// tool schema stands alone, so those refs would dangle and an agent couldn't see
+// the fields. This deep-copies the input (never mutating the contract), resolves
+// a top-level schema ref so the root is a concrete object schema, and bundles
+// every transitively-referenced shared schema under "$defs", rewriting
+// "#/schemas/X" -> "#/$defs/X". Cyclic schemas are handled (each is added once).
+func bundleInputSchema(input openbindings.JSONSchema, schemas map[string]openbindings.JSONSchema) any {
 	if len(input) == 0 {
 		return map[string]any{"type": "object"}
 	}
-	if _, ok := input["type"]; ok {
-		return map[string]any(input)
+	root, ok := deepCopyJSON(map[string]any(input)).(map[string]any)
+	if !ok {
+		return map[string]any{"type": "object"}
 	}
-	schema := make(map[string]any, len(input)+1)
-	for k, v := range input {
-		schema[k] = v
+
+	// Resolve a top-level $ref to a shared schema so the root is concrete
+	// (type/properties/required), which is the most broadly-accepted tool shape.
+	if name, ok := schemaRefName(root["$ref"]); ok {
+		if target, ok := schemas[name]; ok {
+			if cp, ok := deepCopyJSON(map[string]any(target)).(map[string]any); ok {
+				root = cp
+			}
+		}
 	}
-	schema["type"] = "object"
-	return schema
+
+	// Bundle transitively-referenced shared schemas under $defs.
+	defs := map[string]any{}
+	var walk func(node any)
+	walk = func(node any) {
+		switch n := node.(type) {
+		case map[string]any:
+			if name, ok := schemaRefName(n["$ref"]); ok {
+				n["$ref"] = "#/$defs/" + name
+				if _, seen := defs[name]; !seen {
+					if target, ok := schemas[name]; ok {
+						cp, _ := deepCopyJSON(map[string]any(target)).(map[string]any)
+						defs[name] = cp
+						walk(cp)
+					}
+				}
+			}
+			for _, v := range n {
+				walk(v)
+			}
+		case []any:
+			for _, v := range n {
+				walk(v)
+			}
+		}
+	}
+	walk(root)
+
+	if len(defs) > 0 {
+		root["$defs"] = defs
+	}
+	if _, ok := root["type"]; !ok {
+		root["type"] = "object"
+	}
+	return root
+}
+
+// schemaRefName returns the shared-schema name X from a whole-schema reference
+// "#/schemas/X". It rejects non-string refs, non-"#/schemas/" refs, and
+// sub-paths ("#/schemas/X/...") which can't be bundled as a unit.
+func schemaRefName(ref any) (string, bool) {
+	s, ok := ref.(string)
+	if !ok {
+		return "", false
+	}
+	const prefix = "#/schemas/"
+	if !strings.HasPrefix(s, prefix) {
+		return "", false
+	}
+	name := s[len(prefix):]
+	if name == "" || strings.Contains(name, "/") {
+		return "", false
+	}
+	return name, true
+}
+
+// deepCopyJSON returns a deep copy of a JSON-serializable value via a marshal
+// round-trip, so rewrites never mutate the source schema maps.
+func deepCopyJSON(v any) any {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return nil
+	}
+	var out any
+	if err := json.Unmarshal(b, &out); err != nil {
+		return nil
+	}
+	return out
 }

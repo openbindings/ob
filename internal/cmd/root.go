@@ -83,11 +83,14 @@ func NewRoot() *cobra.Command {
 	initCmd := newInitCmd()
 	initCmd.GroupID = "setup"
 
-	statusCmd := newStatusCmd()
-	statusCmd.GroupID = "setup"
+	environmentCmd := newEnvironmentCmd()
+	environmentCmd.GroupID = "setup"
 
 	contextCmd := newContextCmd()
 	contextCmd.GroupID = "setup"
+
+	statusCmd := newStatusCmd()
+	statusCmd.GroupID = "authoring"
 
 	resolveCmd := newResolveCmd()
 	resolveCmd.GroupID = "explore"
@@ -148,6 +151,7 @@ func NewRoot() *cobra.Command {
 
 	root.AddCommand(
 		initCmd,
+		environmentCmd,
 		statusCmd,
 		contextCmd,
 		resolveCmd,

@@ -77,12 +77,12 @@ paths:
                 items:
                   $ref: "#/components/schemas/Delegate"
 
-  /delegate-requirements/{cap}:
+  /delegate-requirements/{capability}:
     get:
       operationId: getDelegateRequirements
       summary: Return the interface a delegate must satisfy for a capability
       parameters:
-        - name: cap
+        - name: capability
           in: path
           required: true
           description: Delegate capability
@@ -336,10 +336,11 @@ paths:
           application/json:
             schema:
               type: object
-              required: [url]
+              required: [address]
               properties:
-                url:
+                address:
                   type: string
+                  description: Base URL or host to resolve the interface from.
       responses:
         "200":
           description: Resolved interface
@@ -367,10 +368,11 @@ paths:
           application/json:
             schema:
               type: object
-              required: [locator]
+              required: [interface]
               properties:
-                locator:
-                  type: string
+                interface:
+                  type: object
+                  description: The OpenBindings interface document to validate.
                 strict:
                   type: boolean
       responses:
@@ -394,12 +396,14 @@ paths:
               required: [baseline]
               properties:
                 baseline:
-                  type: string
+                  type: object
+                  description: The baseline OpenBindings interface document.
                 comparison:
-                  type: string
+                  type: object
+                  description: The interface document to compare against the baseline.
                 fromSources:
                   type: boolean
-                onlySource:
+                only:
                   type: string
       responses:
         "200":
@@ -422,9 +426,11 @@ paths:
               required: [target, candidate]
               properties:
                 target:
-                  type: string
+                  type: object
+                  description: The target interface document (the contract).
                 candidate:
-                  type: string
+                  type: object
+                  description: The candidate interface document to check against the target.
       responses:
         "200":
           description: Compatibility report
@@ -446,17 +452,14 @@ paths:
               required: [interface, target]
               properties:
                 interface:
-                  type: string
-                  description: Locator of the interface the target should satisfy
+                  type: object
+                  description: The interface document the target should satisfy.
                 target:
-                  type: string
-                  description: Path of the target OBI to update
-                yes:
-                  type: boolean
-                  description: Auto-accept all scaffolding and replacements
+                  type: object
+                  description: The OpenBindings interface document to update.
                 dryRun:
                   type: boolean
-                  description: Report what would change without writing
+                  description: Report what would change without modifying the document
       responses:
         "200":
           description: Conform report
@@ -475,11 +478,11 @@ paths:
           application/json:
             schema:
               type: object
-              required: [source, language]
+              required: [interface, language]
               properties:
-                source:
-                  type: string
-                  description: Locator of the interface (or a synthesizable source)
+                interface:
+                  type: object
+                  description: The OpenBindings interface document to generate from.
                 language:
                   type: string
                   enum: [typescript, go]
@@ -512,17 +515,29 @@ paths:
               required: [target]
               properties:
                 target:
-                  type: string
-                  description: Path of the target OBI to update
+                  type: object
+                  description: The target OpenBindings interface document to merge into.
                 source:
+                  type: object
+                  description: The source interface document to merge from.
+                fromSources:
+                  type: boolean
+                only:
                   type: string
-                  description: Locator of the source interface to merge from
-                all:
+                operations:
+                  type: array
+                  items:
+                    type: string
+                excludeOperations:
+                  type: array
+                  items:
+                    type: string
+                opsOnly:
                   type: boolean
-                  description: Apply all changes (batch mode)
-                dryRun:
+                noBindings:
                   type: boolean
-                  description: Report what would change without writing
+                noSources:
+                  type: boolean
       responses:
         "200":
           description: Merge report
@@ -541,11 +556,11 @@ paths:
           application/json:
             schema:
               type: object
-              required: [path]
+              required: [interface]
               properties:
-                path:
-                  type: string
-                  description: Path of the OBI to report on
+                interface:
+                  type: object
+                  description: The OpenBindings interface document to report on.
       responses:
         "200":
           description: Interface status report

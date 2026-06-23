@@ -22,8 +22,12 @@ const (
 // CompatInput specifies the two interfaces to compare.
 // Each locator may be a local file path, an HTTP(S) URL, or an exec: reference.
 type CompatInput struct {
-	Target    string
-	Candidate string
+	// Target/Candidate are locators (CLI). TargetInterface/CandidateInterface,
+	// when set, are inline documents (the served operation) and take precedence.
+	Target             string
+	Candidate          string
+	TargetInterface    *openbindings.Interface
+	CandidateInterface *openbindings.Interface
 }
 
 // ConformanceLevel represents the degree of interface conformance.
@@ -78,29 +82,37 @@ type OperationReport struct {
 // CompatibilityCheck compares two OpenBindings interfaces for schema compatibility
 // per the v0.1 profile. Each locator may be a file path, HTTP URL, or exec: ref.
 func CompatibilityCheck(input CompatInput) CompatibilityReport {
-	// Resolve target interface.
-	target, err := resolveInterface(input.Target)
-	if err != nil {
-		return CompatibilityReport{
-			Target:    input.Target,
-			Candidate: input.Candidate,
-			Error: &Error{
-				Code:    "resolve_error",
-				Message: fmt.Sprintf("target: %v", err),
-			},
+	// Resolve target interface (inline document wins over the locator).
+	target := input.TargetInterface
+	if target == nil {
+		var err error
+		target, err = resolveInterface(input.Target)
+		if err != nil {
+			return CompatibilityReport{
+				Target:    input.Target,
+				Candidate: input.Candidate,
+				Error: &Error{
+					Code:    "resolve_error",
+					Message: fmt.Sprintf("target: %v", err),
+				},
+			}
 		}
 	}
 
-	// Resolve candidate interface.
-	candidate, err := resolveInterface(input.Candidate)
-	if err != nil {
-		return CompatibilityReport{
-			Target:    input.Target,
-			Candidate: input.Candidate,
-			Error: &Error{
-				Code:    "resolve_error",
-				Message: fmt.Sprintf("candidate: %v", err),
-			},
+	// Resolve candidate interface (inline document wins over the locator).
+	candidate := input.CandidateInterface
+	if candidate == nil {
+		var err error
+		candidate, err = resolveInterface(input.Candidate)
+		if err != nil {
+			return CompatibilityReport{
+				Target:    input.Target,
+				Candidate: input.Candidate,
+				Error: &Error{
+					Code:    "resolve_error",
+					Message: fmt.Sprintf("candidate: %v", err),
+				},
+			}
 		}
 	}
 

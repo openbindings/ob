@@ -39,6 +39,12 @@ type MergeInput struct {
 	TargetPath    string
 	SourceLocator string
 
+	// Inline documents (the served operation); take precedence over the
+	// path/locator. When TargetPath/OutPath are empty, no file is written and the
+	// merged document is returned in MergeOutput.Result.
+	TargetInterface *openbindings.Interface
+	SourceInterface *openbindings.Interface
+
 	// For --from-sources mode:
 	FromSources bool
 	OnlySource  string
@@ -63,11 +69,12 @@ type MergeInput struct {
 
 // MergeOutput is the result of a merge operation.
 type MergeOutput struct {
-	Entries  []MergeEntry `json:"entries"`
-	Applied  int          `json:"applied"`
-	Skipped  int          `json:"skipped"`
-	Warnings []string     `json:"warnings,omitempty"`
-	DryRun   bool         `json:"dryRun,omitempty"`
+	Entries  []MergeEntry            `json:"entries"`
+	Applied  int                     `json:"applied"`
+	Skipped  int                     `json:"skipped"`
+	Warnings []string                `json:"warnings,omitempty"`
+	DryRun   bool                    `json:"dryRun,omitempty"`
+	Result   *openbindings.Interface `json:"result,omitempty"`
 }
 
 // Render returns a human-friendly representation.
@@ -157,25 +164,34 @@ func (o MergeOutput) Render() string {
 // Merge performs a merge operation.
 func Merge(input MergeInput) (MergeOutput, error) {
 	// Load the target OBI.
-	target, err := loadInterfaceFile(input.TargetPath)
-	if err != nil {
-		return MergeOutput{}, fmt.Errorf("load target: %w", err)
+	target := input.TargetInterface
+	if target == nil {
+		t, err := loadInterfaceFile(input.TargetPath)
+		if err != nil {
+			return MergeOutput{}, fmt.Errorf("load target: %w", err)
+		}
+		target = t
 	}
 
-	// Get the source OBI.
+	// Get the source OBI (inline document wins over from-sources / locator).
 	var source *openbindings.Interface
 	var warnings []string
 
-	if input.FromSources {
-		source, warnings, err = buildSourceFromBindings(target, input)
+	switch {
+	case input.SourceInterface != nil:
+		source = input.SourceInterface
+	case input.FromSources:
+		s, w, err := buildSourceFromBindings(target, input)
 		if err != nil {
 			return MergeOutput{}, err
 		}
-	} else {
-		source, err = resolveInterface(input.SourceLocator)
+		source, warnings = s, w
+	default:
+		s, err := resolveInterface(input.SourceLocator)
 		if err != nil {
 			return MergeOutput{}, fmt.Errorf("load source: %w", err)
 		}
+		source = s
 	}
 
 	copyBindings := !input.OpsOnly && !input.NoBindings
@@ -266,21 +282,28 @@ func Merge(input MergeInput) (MergeOutput, error) {
 		if input.OutPath != "" {
 			outPath = input.OutPath
 		}
-
-		if err := WriteInterfaceFile(outPath, target); err != nil {
-			return MergeOutput{}, fmt.Errorf("write: %w", err)
+		// The served operation has no path; it returns the merged document in
+		// Result instead of writing a file.
+		if outPath != "" {
+			if err := WriteInterfaceFile(outPath, target); err != nil {
+				return MergeOutput{}, fmt.Errorf("write: %w", err)
+			}
 		}
 	}
 
 	sort.Strings(warnings)
 
-	return MergeOutput{
+	out := MergeOutput{
 		Entries:  entries,
 		Applied:  applied,
 		Skipped:  skipped,
 		Warnings: warnings,
 		DryRun:   input.DryRun,
-	}, nil
+	}
+	if input.TargetInterface != nil {
+		out.Result = target
+	}
+	return out, nil
 }
 
 // buildSourceFromBindings derives a source OBI from the target's binding sources.

@@ -16,6 +16,7 @@ import (
 	"os"
 
 	"github.com/openbindings/ob/internal/app"
+	"github.com/openbindings/ob/internal/cmd"
 	"github.com/openbindings/openbindings-go/formats/usage"
 )
 
@@ -40,8 +41,14 @@ func main() {
 	// Bound serve OBI: contract + openapi.yaml (REST) + WS invoke. MCP is not a
 	// served transport here; it is produced by pointing the bridge at a running
 	// server (`ob mcp <url>`), so the served OBI carries no mcp source/bindings.
+	// Sources point at this server's own live spec endpoints. The committed file
+	// carries the default-port base so it's a valid OBI-D-05 document; handleOBI
+	// rewrites it to the actual request address at serve time, so this default is
+	// never what a client sees. Derived from the one port constant
+	// (cmd.DefaultServePort), not a re-typed literal.
 	const servePath = "../server/serve.obi.json"
-	serve, err := app.GenerateBoundServe(contractPath, "../server/openapi.yaml", servePath)
+	serveBase := fmt.Sprintf("http://127.0.0.1:%d", cmd.DefaultServePort)
+	serve, err := app.GenerateBoundServe(contractPath, "../server/openapi.yaml", servePath, serveBase)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, "genbound: serve:", err)
 		os.Exit(1)

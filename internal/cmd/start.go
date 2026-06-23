@@ -176,7 +176,7 @@ func registerRoutes(srv *server.Server, logger *slog.Logger, port int, oauthSt *
 	mux.HandleFunc("POST /resolve", handleResolve)
 
 	mux.HandleFunc("GET /spec/{name...}", handleSpecResource)
-	mux.HandleFunc("GET /delegate-requirements/{cap}", handleDelegateRequirements)
+	mux.HandleFunc("GET /delegate-requirements/{capability}", handleDelegateRequirements)
 
 	registerOAuthRoutes(srv, oauthSt, logger)
 	registerBindingRoutes(srv, logger)
@@ -344,7 +344,7 @@ func handleSpecResource(w http.ResponseWriter, r *http.Request) {
 // against a running ob. The requirement interfaces are immutable bundled
 // documents, served like spec resources.
 func handleDelegateRequirements(w http.ResponseWriter, r *http.Request) {
-	data, err := app.RequirementInterfaceJSON(app.DelegateCapability(r.PathValue("cap")))
+	data, err := app.RequirementInterfaceJSON(app.DelegateCapability(r.PathValue("capability")))
 	if err != nil {
 		writeJSON(w, http.StatusNotFound, ErrorResponse{Error: "unknown delegate capability (want invoke, create, or inspect)"})
 		return
@@ -434,7 +434,7 @@ func handleContextDelete(w http.ResponseWriter, r *http.Request) {
 func handleResolve(w http.ResponseWriter, r *http.Request) {
 	r.Body = http.MaxBytesReader(w, r.Body, maxRequestBodyBytes)
 	var body struct {
-		URL string `json:"url"`
+		URL string `json:"address"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
 		writeJSON(w, http.StatusBadRequest, ErrorResponse{Error: "invalid request body"})
@@ -442,7 +442,7 @@ func handleResolve(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if body.URL == "" {
-		writeJSON(w, http.StatusBadRequest, ErrorResponse{Error: "url is required"})
+		writeJSON(w, http.StatusBadRequest, ErrorResponse{Error: "address is required"})
 		return
 	}
 

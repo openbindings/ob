@@ -157,9 +157,13 @@ func (r DiffReport) Render() string {
 
 // DiffInput represents input for the diff command.
 type DiffInput struct {
-	// For two-arg mode:
+	// For two-arg mode (CLI locators):
 	BaselineLocator   string
 	ComparisonLocator string
+
+	// Inline documents (the served operation); take precedence over locators.
+	BaselineInterface   *openbindings.Interface
+	ComparisonInterface *openbindings.Interface
 
 	// For --from-sources mode:
 	FromSources bool
@@ -172,19 +176,28 @@ func Diff(input DiffInput) (DiffReport, error) {
 	if input.FromSources {
 		return diffFromSources(input)
 	}
-	return diffTwoOBIs(input.BaselineLocator, input.ComparisonLocator)
+	return diffTwoOBIs(input)
 }
 
-// diffTwoOBIs loads two OBIs and compares them.
-func diffTwoOBIs(baselineLocator, comparisonLocator string) (DiffReport, error) {
-	baseline, err := resolveInterface(baselineLocator)
-	if err != nil {
-		return DiffReport{}, fmt.Errorf("baseline: %w", err)
+// diffTwoOBIs loads two OBIs and compares them. Inline documents win over
+// locators (the served operation supplies the documents directly).
+func diffTwoOBIs(input DiffInput) (DiffReport, error) {
+	baseline := input.BaselineInterface
+	if baseline == nil {
+		var err error
+		baseline, err = resolveInterface(input.BaselineLocator)
+		if err != nil {
+			return DiffReport{}, fmt.Errorf("baseline: %w", err)
+		}
 	}
 
-	comparison, err := resolveInterface(comparisonLocator)
-	if err != nil {
-		return DiffReport{}, fmt.Errorf("comparison: %w", err)
+	comparison := input.ComparisonInterface
+	if comparison == nil {
+		var err error
+		comparison, err = resolveInterface(input.ComparisonLocator)
+		if err != nil {
+			return DiffReport{}, fmt.Errorf("comparison: %w", err)
+		}
 	}
 
 	return computeDiff(baseline, comparison, nil)
@@ -192,12 +205,16 @@ func diffTwoOBIs(baselineLocator, comparisonLocator string) (DiffReport, error) 
 
 // diffFromSources loads an OBI and compares it against what its sources produce.
 func diffFromSources(input DiffInput) (DiffReport, error) {
-	baseline, err := resolveInterface(input.BaselineLocator)
-	if err != nil {
-		return DiffReport{}, fmt.Errorf("load OBI: %w", err)
+	baseline := input.BaselineInterface
+	obiDir := "."
+	if baseline == nil {
+		var err error
+		baseline, err = resolveInterface(input.BaselineLocator)
+		if err != nil {
+			return DiffReport{}, fmt.Errorf("load OBI: %w", err)
+		}
+		obiDir = filepath.Dir(input.BaselineLocator)
 	}
-
-	obiDir := filepath.Dir(input.BaselineLocator)
 
 	derived, err := deriveFromAllSources(baseline, obiDir, input.OnlySource)
 	if err != nil {
