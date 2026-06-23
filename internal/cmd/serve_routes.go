@@ -17,12 +17,13 @@ import (
 	openbindings "github.com/openbindings/openbindings-go"
 
 	"github.com/openbindings/ob/internal/app"
+	"github.com/openbindings/ob/internal/codegen"
 	"github.com/openbindings/ob/internal/frames"
 	"github.com/openbindings/ob/internal/server"
 )
 
 // registerBindingRoutes adds binding invocation (the binding-invoker frame
-// protocol), preflight, and interface creation endpoints, making ob serve a
+// protocol), preflight, and interface creation endpoints, making ob start a
 // binding invoker host.
 func registerBindingRoutes(srv *server.Server, logger *slog.Logger) {
 	mux := srv.Mux()
@@ -382,6 +383,10 @@ func registerAuthoringRoutes(srv *server.Server) {
 	mux.HandleFunc("POST /validate", handleValidate)
 	mux.HandleFunc("POST /diff", handleDiff)
 	mux.HandleFunc("POST /compatibility", handleCompat)
+	mux.HandleFunc("POST /conform", handleConform)
+	mux.HandleFunc("POST /codegen", handleCodegen)
+	mux.HandleFunc("POST /merge", handleMerge)
+	mux.HandleFunc("POST /interface-status", handleInterfaceStatus)
 }
 
 func handleValidate(w http.ResponseWriter, r *http.Request) {
@@ -444,4 +449,111 @@ func handleCompat(w http.ResponseWriter, r *http.Request) {
 		Candidate: body.Candidate,
 	})
 	writeJSON(w, http.StatusOK, report)
+}
+
+func handleConform(w http.ResponseWriter, r *http.Request) {
+	r.Body = http.MaxBytesReader(w, r.Body, maxRequestBodyBytes)
+	var body struct {
+		Interface string `json:"interface"`
+		Target    string `json:"target"`
+		Yes       bool   `json:"yes,omitempty"`
+		DryRun    bool   `json:"dryRun,omitempty"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		writeJSON(w, http.StatusBadRequest, ErrorResponse{Error: "invalid request body"})
+		return
+	}
+	// No interactive prompts on the wire: the confirm callback answers with the
+	// request's `yes` flag (combine with `dryRun` to preview without writing).
+	out := app.Conform(app.ConformInput{
+		InterfaceLocator: body.Interface,
+		TargetPath:       body.Target,
+		Yes:              body.Yes,
+		DryRun:           body.DryRun,
+	}, func(string, string) bool { return body.Yes })
+	writeJSON(w, http.StatusOK, out)
+}
+
+func handleCodegen(w http.ResponseWriter, r *http.Request) {
+	r.Body = http.MaxBytesReader(w, r.Body, maxRequestBodyBytes)
+	var body struct {
+		Source   string `json:"source"`
+		Language string `json:"language"`
+		Package  string `json:"package,omitempty"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		writeJSON(w, http.StatusBadRequest, ErrorResponse{Error: "invalid request body"})
+		return
+	}
+	lang := body.Language
+	switch lang {
+	case "ts":
+		lang = "typescript"
+	case "golang":
+		lang = "go"
+	}
+	if lang != "typescript" && lang != "go" {
+		writeJSON(w, http.StatusBadRequest, ErrorResponse{Error: "unsupported language (want typescript or go)"})
+		return
+	}
+	iface, err := app.ResolveInterface(body.Source)
+	if err != nil {
+		writeJSON(w, http.StatusBadRequest, ErrorResponse{Error: err.Error()})
+		return
+	}
+	result, err := codegen.Generate(iface)
+	if err != nil {
+		writeJSON(w, http.StatusBadRequest, ErrorResponse{Error: err.Error()})
+		return
+	}
+	var code string
+	switch lang {
+	case "typescript":
+		code = codegen.EmitTypeScript(result)
+	case "go":
+		code = codegen.EmitGo(result, body.Package)
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"language": lang, "code": code})
+}
+
+func handleMerge(w http.ResponseWriter, r *http.Request) {
+	r.Body = http.MaxBytesReader(w, r.Body, maxRequestBodyBytes)
+	var body struct {
+		Target string `json:"target"`
+		Source string `json:"source,omitempty"`
+		All    bool   `json:"all,omitempty"`
+		DryRun bool   `json:"dryRun,omitempty"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		writeJSON(w, http.StatusBadRequest, ErrorResponse{Error: "invalid request body"})
+		return
+	}
+	out, err := app.Merge(app.MergeInput{
+		TargetPath:    body.Target,
+		SourceLocator: body.Source,
+		All:           body.All,
+		DryRun:        body.DryRun,
+	})
+	if err != nil {
+		writeJSON(w, http.StatusBadRequest, ErrorResponse{Error: err.Error()})
+		return
+	}
+	writeJSON(w, http.StatusOK, out)
+}
+
+func handleInterfaceStatus(w http.ResponseWriter, r *http.Request) {
+	r.Body = http.MaxBytesReader(w, r.Body, maxRequestBodyBytes)
+	var body struct {
+		Path string `json:"path"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		writeJSON(w, http.StatusBadRequest, ErrorResponse{Error: "invalid request body"})
+		return
+	}
+	out, err := app.OBIStatus(app.OBIStatusInput{OBIPath: body.Path})
+	if err != nil {
+		writeJSON(w, http.StatusBadRequest, ErrorResponse{Error: err.Error()})
+		return
+	}
+	writeJSON(w, http.StatusOK, out)
 }

@@ -12,7 +12,7 @@ import (
 // InvokeBindingHandle returns the raw cardinality-agnostic Invocation handle
 // for a binding invocation, routing by source format: the builtin invoker, or
 // a resolved delegate (see DelegateBindingInvoker). This is the entrypoint of
-// `ob serve`'s frame endpoint — the frame stream is this handle, serialized.
+// `ob start`'s frame endpoint — the frame stream is this handle, serialized.
 //
 // Builtin invocations get a store-backed preflight (prepareBinding): when the
 // invoker reports its requirements statically and ob's context store satisfies

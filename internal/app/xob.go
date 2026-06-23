@@ -14,6 +14,7 @@ import (
 
 	"github.com/openbindings/ob/internal/execref"
 	"github.com/openbindings/openbindings-go"
+	"gopkg.in/yaml.v3"
 )
 
 // OBVersion is the current ob CLI version, recorded in x-ob metadata.
@@ -235,18 +236,22 @@ func ParseContentForEmbed(data []byte, format string) (any, error) {
 	isYAML := strings.Contains(formatLower, "yaml") || strings.Contains(formatLower, "yml")
 
 	if isJSON || isYAML {
-		// Try parsing as JSON first.
+		// Embed structured formats as a parsed object. OpenAPI/AsyncAPI artifacts
+		// are commonly authored in YAML, so try JSON first and fall back to YAML
+		// (every JSON document is also valid YAML, but JSON is the cheaper parse).
 		var obj map[string]any
 		if err := json.Unmarshal(data, &obj); err == nil {
 			return obj, nil
 		}
-		// For YAML, we'd need a YAML parser. For now, fall through to string.
+		if err := yaml.Unmarshal(data, &obj); err == nil {
+			return obj, nil
+		}
 		if isJSON {
-			return nil, fmt.Errorf("parse JSON content: invalid JSON")
+			return nil, fmt.Errorf("parse content for format %q: not valid JSON or YAML", format)
 		}
 	}
 
-	// Default: return as string (works for KDL, protobuf, YAML-if-not-JSON, etc.)
+	// Default: return as string (works for KDL, protobuf, and other text formats).
 	return string(data), nil
 }
 

@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"sort"
 	"strings"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
@@ -48,10 +49,14 @@ func drainOperation(ctx context.Context, call openbindings.Invocation[any, any],
 	}
 }
 
-// RegisterInterface maps an OBI's operations to MCP primitives on the given
-// server. Operations with MCP bindings are registered as the correct primitive
-// type based on binding ref prefix (tools/, resources/, prompts/). Operations
-// without MCP bindings are registered as tools.
+// RegisterInterface maps a single OBI's operations to MCP primitives on the
+// given server. Operations with MCP bindings are registered as the correct
+// primitive type based on binding ref prefix (tools/, resources/, prompts/);
+// operations without MCP bindings are registered as tools. Tool/resource names
+// are the operation key, sanitized to the protocol's charset (see toolNames) —
+// the bridge does not namespace by interface: federating multiple services is
+// done by composing an aggregate OBI (deliberate keys/aliases) and bridging
+// that, not by merging at runtime.
 //
 // Returns the number of primitives registered.
 // baseContext is per-call invocation context (e.g. a bearer credential for the
@@ -59,26 +64,90 @@ func drainOperation(ctx context.Context, call openbindings.Invocation[any, any],
 func RegisterInterface(
 	srv *mcp.Server,
 	iface *openbindings.Interface,
-	namespace string,
 	invoker *openbindings.OperationInvoker,
 	baseContext map[string]any,
 ) int {
+	names := toolNames(iface)
+
+	// Deterministic registration order (map iteration is randomized).
+	opKeys := make([]string, 0, len(iface.Operations))
+	for k := range iface.Operations {
+		opKeys = append(opKeys, k)
+	}
+	sort.Strings(opKeys)
+
 	count := 0
-	for opKey, op := range iface.Operations {
+	for _, opKey := range opKeys {
+		op := iface.Operations[opKey]
 		ref, kind := findMCPBinding(iface, opKey)
-		toolName := namespace + "." + opKey
+		name := names[opKey]
 
 		switch kind {
 		case "resources":
-			registerResource(srv, toolName, op, iface, opKey, ref, invoker, baseContext)
+			registerResource(srv, name, op, iface, opKey, ref, invoker, baseContext)
 		case "prompts":
-			registerPrompt(srv, toolName, op, iface, opKey, ref, invoker, baseContext)
+			registerPrompt(srv, name, op, iface, opKey, ref, invoker, baseContext)
 		default:
-			registerTool(srv, toolName, op, iface, opKey, invoker, baseContext)
+			registerTool(srv, name, op, iface, opKey, invoker, baseContext)
 		}
 		count++
 	}
 	return count
+}
+
+// toolNames assigns each operation an MCP tool name that stays as close to the
+// operation key as the protocol's charset allows. The bridge makes NO assumption
+// about an interface's key convention — dotted reverse-DNS keys
+// ("openbindings.ob.describe") are the OpenBindings Project's choice, not
+// something the spec mandates — so it sanitizes whatever key an author used
+// rather than stripping a presumed namespace. Names are restricted to
+// [A-Za-z0-9_-] (every other rune, including the dots in a namespaced key,
+// becomes "_") and capped at 64 characters, the constraint LLM tool-calling APIs
+// (Anthropic, OpenAI) impose. So "openbindings.ob.describe" becomes
+// "openbindings_ob_describe" and a bare key like "echo" is unchanged. A numeric
+// suffix disambiguates the rare case where two keys sanitize to the same name.
+func toolNames(iface *openbindings.Interface) map[string]string {
+	opKeys := make([]string, 0, len(iface.Operations))
+	for k := range iface.Operations {
+		opKeys = append(opKeys, k)
+	}
+	sort.Strings(opKeys) // deterministic suffixing
+
+	out := make(map[string]string, len(opKeys))
+	used := map[string]bool{}
+	for _, k := range opKeys {
+		name := sanitizeName(k)
+		base := name
+		for i := 2; used[name]; i++ {
+			name = fmt.Sprintf("%s_%d", base, i)
+		}
+		used[name] = true
+		out[k] = name
+	}
+	return out
+}
+
+// sanitizeName restricts s to [A-Za-z0-9_-] (replacing other runes with "_") and
+// caps it at 64 characters, matching the tool-name constraint common to LLM
+// tool-calling APIs.
+func sanitizeName(s string) string {
+	var b strings.Builder
+	for _, r := range s {
+		switch {
+		case r >= 'a' && r <= 'z', r >= 'A' && r <= 'Z', r >= '0' && r <= '9', r == '_', r == '-':
+			b.WriteRune(r)
+		default:
+			b.WriteByte('_')
+		}
+	}
+	name := b.String()
+	if len(name) > 64 {
+		name = name[:64]
+	}
+	if name == "" {
+		name = "op"
+	}
+	return name
 }
 
 // findMCPBinding looks for an MCP binding for the given operation and returns
@@ -267,18 +336,6 @@ func guessMIME(uri string) string {
 	default:
 		return "text/plain"
 	}
-}
-
-// DeriveNamespace determines the namespace for primitives from an interface and
-// optional label. Priority: interface Name > label > fallback.
-func DeriveNamespace(iface *openbindings.Interface, label, fallback string) string {
-	if iface.Name != "" {
-		return iface.Name
-	}
-	if label != "" {
-		return label
-	}
-	return fallback
 }
 
 func buildInputSchema(input openbindings.JSONSchema) any {

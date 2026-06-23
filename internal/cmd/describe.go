@@ -5,9 +5,9 @@ import (
 	"github.com/spf13/cobra"
 )
 
-func newInfoCmd() *cobra.Command {
+func newDescribeCmd() *cobra.Command {
 	cmd := &cobra.Command{
-		Use:   "info",
+		Use:   "describe",
 		Short: "Show ob identity and metadata",
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {

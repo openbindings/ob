@@ -1,9 +1,9 @@
 asyncapi: "3.0.0"
 info:
-  title: ob serve streaming API
+  title: ob start streaming API
   version: 0.1.0
   description: >
-    WebSocket API for the OpenBindings CLI (ob serve): the invokeBinding
+    WebSocket API for the OpenBindings CLI (ob start): the invokeBinding
     operation of the binding-invoker interface as a typed I/O
     frame stream. Clients upgrade /bindings/invoke to a WebSocket; one
     connection carries exactly one invocation. The caller streams

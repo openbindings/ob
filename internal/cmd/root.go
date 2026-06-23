@@ -72,7 +72,7 @@ func NewRoot() *cobra.Command {
 	root.PersistentFlags().StringP("format", "F", "", "output format: json|yaml|text")
 
 	root.AddGroup(
-		&cobra.Group{ID: "start", Title: "start a working area"},
+		&cobra.Group{ID: "setup", Title: "set up a working area"},
 		&cobra.Group{ID: "explore", Title: "browse and interact"},
 		&cobra.Group{ID: "authoring", Title: "interface authoring"},
 		&cobra.Group{ID: "delegates", Title: "delegates and formats"},
@@ -81,13 +81,13 @@ func NewRoot() *cobra.Command {
 	)
 
 	initCmd := newInitCmd()
-	initCmd.GroupID = "start"
+	initCmd.GroupID = "setup"
 
 	statusCmd := newStatusCmd()
-	statusCmd.GroupID = "start"
+	statusCmd.GroupID = "setup"
 
 	contextCmd := newContextCmd()
-	contextCmd.GroupID = "start"
+	contextCmd.GroupID = "setup"
 
 	resolveCmd := newResolveCmd()
 	resolveCmd.GroupID = "explore"
@@ -128,8 +128,8 @@ func NewRoot() *cobra.Command {
 	delegateCmd := newDelegateCmd()
 	delegateCmd.GroupID = "delegates"
 
-	infoCmd := newInfoCmd()
-	infoCmd.GroupID = "introspect"
+	describeCmd := newDescribeCmd()
+	describeCmd.GroupID = "introspect"
 
 	validateCmd := newValidateCmd()
 	validateCmd.GroupID = "introspect"
@@ -140,8 +140,8 @@ func NewRoot() *cobra.Command {
 	mcpCmd := newMCPCmd()
 	mcpCmd.GroupID = "serve"
 
-	serveCmd := newServeCmd()
-	serveCmd.GroupID = "serve"
+	startCmd := newStartCmd()
+	startCmd.GroupID = "serve"
 
 	demoCmd := newDemoCmd()
 	demoCmd.GroupID = "explore"
@@ -163,11 +163,11 @@ func NewRoot() *cobra.Command {
 		mergeCmd,
 		formatsCmd,
 		delegateCmd,
-		infoCmd,
+		describeCmd,
 		validateCmd,
 		compatCmd,
 		mcpCmd,
-		serveCmd,
+		startCmd,
 		demoCmd,
 	)
 

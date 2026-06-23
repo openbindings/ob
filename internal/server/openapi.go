@@ -16,7 +16,7 @@ func SpecResource(name string) ([]byte, error) {
 //go:embed openapi.yaml
 var openapiSpec []byte
 
-// OpenAPISpec returns the embedded OpenAPI specification for the ob serve API.
+// OpenAPISpec returns the embedded OpenAPI specification for the ob start API.
 func OpenAPISpec() []byte {
 	return openapiSpec
 }
@@ -24,7 +24,7 @@ func OpenAPISpec() []byte {
 //go:embed asyncapi.yaml
 var asyncapiSpec []byte
 
-// AsyncAPISpec returns the embedded AsyncAPI specification for the ob serve streaming API.
+// AsyncAPISpec returns the embedded AsyncAPI specification for the ob start streaming API.
 func AsyncAPISpec() []byte {
 	return asyncapiSpec
 }
@@ -32,7 +32,7 @@ func AsyncAPISpec() []byte {
 //go:embed serve.obi.json
 var serveOBI []byte
 
-// ServeOBI returns the embedded OBI document that `ob serve` publishes.
+// ServeOBI returns the embedded OBI document that `ob start` publishes.
 // It declares which published interfaces this binary's serve subcommand
 // satisfies (software-descriptor, binding-invoker, interface-synthesizer,
 // source-inspector, kv-store). The historical name "host.obi.json" predates

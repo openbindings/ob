@@ -56,7 +56,7 @@ func TestAuthMiddleware_ValidToken(t *testing.T) {
 	rec := &callRecorder{}
 	handler := s.authMiddleware(rec.handler())
 
-	req := httptest.NewRequest("GET", "/info", nil)
+	req := httptest.NewRequest("GET", "/describe", nil)
 	req.Header.Set("Authorization", "Bearer test-token-123")
 	w := httptest.NewRecorder()
 	handler.ServeHTTP(w, req)
@@ -74,7 +74,7 @@ func TestAuthMiddleware_MissingToken(t *testing.T) {
 	rec := &callRecorder{}
 	handler := s.authMiddleware(rec.handler())
 
-	req := httptest.NewRequest("GET", "/info", nil)
+	req := httptest.NewRequest("GET", "/describe", nil)
 	w := httptest.NewRecorder()
 	handler.ServeHTTP(w, req)
 
@@ -91,7 +91,7 @@ func TestAuthMiddleware_WrongToken(t *testing.T) {
 	rec := &callRecorder{}
 	handler := s.authMiddleware(rec.handler())
 
-	req := httptest.NewRequest("GET", "/info", nil)
+	req := httptest.NewRequest("GET", "/describe", nil)
 	req.Header.Set("Authorization", "Bearer wrong-token")
 	w := httptest.NewRecorder()
 	handler.ServeHTTP(w, req)
@@ -146,7 +146,7 @@ func TestAuthMiddleware_SpoofedUpgradeOnNonWSRouteRejected(t *testing.T) {
 	rec := &callRecorder{}
 	handler := s.authMiddleware(rec.handler())
 
-	req := httptest.NewRequest("GET", "/info", nil)
+	req := httptest.NewRequest("GET", "/describe", nil)
 	req.Header.Set("Connection", "Upgrade")
 	req.Header.Set("Upgrade", "websocket")
 	// Deliberately no Authorization header.
@@ -242,7 +242,7 @@ func TestCORSMiddleware_AllowedOrigin(t *testing.T) {
 	rec := &callRecorder{}
 	handler := s.corsMiddleware(rec.handler())
 
-	req := httptest.NewRequest("GET", "/info", nil)
+	req := httptest.NewRequest("GET", "/describe", nil)
 	req.Header.Set("Origin", "http://localhost:3000")
 	w := httptest.NewRecorder()
 	handler.ServeHTTP(w, req)
@@ -263,7 +263,7 @@ func TestCORSMiddleware_DisallowedOrigin(t *testing.T) {
 	rec := &callRecorder{}
 	handler := s.corsMiddleware(rec.handler())
 
-	req := httptest.NewRequest("GET", "/info", nil)
+	req := httptest.NewRequest("GET", "/describe", nil)
 	req.Header.Set("Origin", "http://evil.com")
 	w := httptest.NewRecorder()
 	handler.ServeHTTP(w, req)
@@ -281,7 +281,7 @@ func TestCORSMiddleware_Preflight(t *testing.T) {
 	rec := &callRecorder{}
 	handler := s.corsMiddleware(rec.handler())
 
-	req := httptest.NewRequest("OPTIONS", "/info", nil)
+	req := httptest.NewRequest("OPTIONS", "/describe", nil)
 	req.Header.Set("Origin", "http://localhost:3000")
 	w := httptest.NewRecorder()
 	handler.ServeHTTP(w, req)
@@ -299,7 +299,7 @@ func TestCORSMiddleware_PreflightDisallowedOrigin(t *testing.T) {
 	rec := &callRecorder{}
 	handler := s.corsMiddleware(rec.handler())
 
-	req := httptest.NewRequest("OPTIONS", "/info", nil)
+	req := httptest.NewRequest("OPTIONS", "/describe", nil)
 	req.Header.Set("Origin", "http://evil.com")
 	w := httptest.NewRecorder()
 	handler.ServeHTTP(w, req)
@@ -327,7 +327,7 @@ func TestCORSMiddleware_AutoLocalhostDefault(t *testing.T) {
 	}
 	for _, origin := range origins {
 		t.Run(origin, func(t *testing.T) {
-			req := httptest.NewRequest("GET", "/info", nil)
+			req := httptest.NewRequest("GET", "/describe", nil)
 			req.Header.Set("Origin", origin)
 			w := httptest.NewRecorder()
 			handler.ServeHTTP(w, req)
@@ -350,7 +350,7 @@ func TestCORSMiddleware_AutoLocalhostRejectsRemote(t *testing.T) {
 	}
 	for _, origin := range origins {
 		t.Run(origin, func(t *testing.T) {
-			req := httptest.NewRequest("GET", "/info", nil)
+			req := httptest.NewRequest("GET", "/describe", nil)
 			req.Header.Set("Origin", origin)
 			w := httptest.NewRecorder()
 			handler.ServeHTTP(w, req)
@@ -369,7 +369,7 @@ func TestCORSMiddleware_AnyHTTPSOriginAllowed(t *testing.T) {
 
 	for _, origin := range []string{"https://example.com", "https://app.example.net", "https://anything.dev"} {
 		t.Run(origin, func(t *testing.T) {
-			req := httptest.NewRequest("GET", "/info", nil)
+			req := httptest.NewRequest("GET", "/describe", nil)
 			req.Header.Set("Origin", origin)
 			w := httptest.NewRecorder()
 			handler.ServeHTTP(w, req)
@@ -386,7 +386,7 @@ func TestCORSMiddleware_HTTPNonLocalhostRejected(t *testing.T) {
 	rec := &callRecorder{}
 	handler := s.corsMiddleware(rec.handler())
 
-	req := httptest.NewRequest("GET", "/info", nil)
+	req := httptest.NewRequest("GET", "/describe", nil)
 	req.Header.Set("Origin", "http://evil.com")
 	w := httptest.NewRecorder()
 	handler.ServeHTTP(w, req)
@@ -406,7 +406,7 @@ func TestHostValidation_Localhost(t *testing.T) {
 			rec := &callRecorder{}
 			handler := s.hostValidation(rec.handler())
 
-			req := httptest.NewRequest("GET", "/info", nil)
+			req := httptest.NewRequest("GET", "/describe", nil)
 			req.Host = host
 			w := httptest.NewRecorder()
 			handler.ServeHTTP(w, req)
@@ -429,7 +429,7 @@ func TestHostValidation_Disallowed(t *testing.T) {
 			rec := &callRecorder{}
 			handler := s.hostValidation(rec.handler())
 
-			req := httptest.NewRequest("GET", "/info", nil)
+			req := httptest.NewRequest("GET", "/describe", nil)
 			req.Host = host
 			w := httptest.NewRecorder()
 			handler.ServeHTTP(w, req)
@@ -456,7 +456,7 @@ func TestRequestIDMiddleware(t *testing.T) {
 	})
 
 	handler := s.requestIDMiddleware(inner)
-	req := httptest.NewRequest("GET", "/info", nil)
+	req := httptest.NewRequest("GET", "/describe", nil)
 	w := httptest.NewRecorder()
 	handler.ServeHTTP(w, req)
 

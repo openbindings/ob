@@ -253,7 +253,7 @@ func TestServeInfo(t *testing.T) {
 	ts := testEnv(t)
 	defer ts.Close()
 
-	resp, err := authedGet(ts.URL+"/info", "test-token")
+	resp, err := authedGet(ts.URL+"/describe", "test-token")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -287,7 +287,7 @@ func TestServeAuthRequired(t *testing.T) {
 	ts := testEnv(t)
 	defer ts.Close()
 
-	paths := []string{"/info", "/formats", "/status"}
+	paths := []string{"/describe", "/formats", "/status"}
 	for _, path := range paths {
 		t.Run(path, func(t *testing.T) {
 			resp, err := http.Get(ts.URL + path)
@@ -306,7 +306,7 @@ func TestServeAuthWrongToken(t *testing.T) {
 	ts := testEnv(t)
 	defer ts.Close()
 
-	resp, err := authedGet(ts.URL+"/info", "wrong-token")
+	resp, err := authedGet(ts.URL+"/describe", "wrong-token")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -419,7 +419,7 @@ func TestServeJSONContentType(t *testing.T) {
 	ts := testEnv(t)
 	defer ts.Close()
 
-	resp, err := authedGet(ts.URL+"/info", "test-token")
+	resp, err := authedGet(ts.URL+"/describe", "test-token")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -475,13 +475,50 @@ func TestServeCompat_InvalidBody(t *testing.T) {
 	}
 }
 
+// --- expansion routes (conform, codegen, merge, interface-status) ---
+
+// TestServeExpansionRoutes_Registered confirms the whole-interface authoring
+// routes are wired: a malformed body must reach the handler and yield a 400
+// (decode error), never a 404 (route missing) or a 500 (panic).
+func TestServeExpansionRoutes_Registered(t *testing.T) {
+	ts := testEnv(t)
+	defer ts.Close()
+
+	for _, path := range []string{"/conform", "/codegen", "/merge", "/interface-status"} {
+		resp, err := authedPost(ts.URL+path, "test-token", `not json`)
+		if err != nil {
+			t.Fatalf("%s: %v", path, err)
+		}
+		resp.Body.Close()
+		if resp.StatusCode != 400 {
+			t.Errorf("%s: status = %d, want 400 (route registered, decode rejected)", path, resp.StatusCode)
+		}
+	}
+}
+
+// TestServeCodegen_UnsupportedLanguage confirms the handler dispatches past
+// decode: a well-formed body with a bad language is rejected by handler logic.
+func TestServeCodegen_UnsupportedLanguage(t *testing.T) {
+	ts := testEnv(t)
+	defer ts.Close()
+
+	resp, err := authedPost(ts.URL+"/codegen", "test-token", `{"source":"x","language":"cobol"}`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	resp.Body.Close()
+	if resp.StatusCode != 400 {
+		t.Errorf("status = %d, want 400", resp.StatusCode)
+	}
+}
+
 // --- Request ID header ---
 
 func TestServeRequestIDHeader(t *testing.T) {
 	ts := testEnv(t)
 	defer ts.Close()
 
-	resp, err := authedGet(ts.URL+"/info", "test-token")
+	resp, err := authedGet(ts.URL+"/describe", "test-token")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -514,6 +551,38 @@ func TestServeWellKnown(t *testing.T) {
 	}
 	if _, ok := body["operations"]; !ok {
 		t.Error("/.well-known/openbindings missing 'operations' field")
+	}
+}
+
+// Root is deliberately NOT an OBI discovery location: discovery is well-known
+// only (spec §7), consistent with the registry. Root serves a non-OBI landing
+// page so the SDK direct-fetch branch fails over to well-known instead of
+// treating root as canonical. This guards against re-introducing OBI-at-root.
+func TestServeRoot_NotOBI(t *testing.T) {
+	ts := testEnv(t)
+	defer ts.Close()
+
+	resp, err := http.Get(ts.URL + "/")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != 200 {
+		t.Fatalf("status = %d, want 200", resp.StatusCode)
+	}
+	if ct := resp.Header.Get("Content-Type"); !strings.HasPrefix(ct, "text/html") {
+		t.Errorf("root Content-Type = %q, want text/html (a non-OBI landing page)", ct)
+	}
+	raw, err := io.ReadAll(resp.Body)
+	if err != nil {
+		t.Fatal(err)
+	}
+	body := string(raw)
+	if strings.Contains(body, "\"openbindings\"") || strings.Contains(body, "\"operations\"") {
+		t.Error("root looks like an OBI document; it must be a non-OBI page")
+	}
+	if !strings.Contains(body, "/.well-known/openbindings") {
+		t.Error("root page should point at /.well-known/openbindings")
 	}
 }
 
@@ -1204,7 +1273,7 @@ func TestServeAuthRequired_AllProtectedEndpoints(t *testing.T) {
 	defer ts.Close()
 
 	getPaths := []string{
-		"/info", "/formats", "/delegates", "/status", "/contexts",
+		"/describe", "/formats", "/delegates", "/status", "/contexts",
 	}
 	for _, path := range getPaths {
 		t.Run("GET "+path, func(t *testing.T) {
@@ -1245,7 +1314,7 @@ func TestServeCORS_PreflightAllowed(t *testing.T) {
 	ts := testEnv(t)
 	defer ts.Close()
 
-	req, _ := http.NewRequest("OPTIONS", ts.URL+"/info", nil)
+	req, _ := http.NewRequest("OPTIONS", ts.URL+"/describe", nil)
 	req.Header.Set("Origin", "http://localhost:3000")
 	req.Header.Set("Access-Control-Request-Method", "GET")
 	resp, err := http.DefaultClient.Do(req)
@@ -1349,7 +1418,7 @@ func TestServeOAuthE2E(t *testing.T) {
 	}
 
 	// 5. Use OAuth token on an authenticated endpoint.
-	resp, err = authedGet(ts.URL+"/info", accessToken)
+	resp, err = authedGet(ts.URL+"/describe", accessToken)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1359,7 +1428,7 @@ func TestServeOAuthE2E(t *testing.T) {
 	}
 
 	// 6. Verify invalid token is rejected.
-	resp, err = authedGet(ts.URL+"/info", "totally-invalid-token")
+	resp, err = authedGet(ts.URL+"/describe", "totally-invalid-token")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1482,7 +1551,7 @@ func TestSpecHandlerConformance(t *testing.T) {
 		{"GET", "/healthz"},
 		{"GET", "/.well-known/openbindings"},
 		{"GET", "/openapi.yaml"},
-		{"GET", "/info"},
+		{"GET", "/describe"},
 		{"GET", "/formats"},
 		{"GET", "/delegates"},
 		{"GET", "/status"},

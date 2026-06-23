@@ -211,7 +211,7 @@ var oauthPages = template.Must(template.New("oauth").Parse(`
     <div class="brand-mark">{{.Glyph}}</div>
     <div class="brand-text">
       <div class="brand-name">OpenBindings</div>
-      <div class="brand-sub">ob serve · authorization</div>
+      <div class="brand-sub">ob start · authorization</div>
     </div>
   </header>
   <div class="card">
@@ -245,7 +245,7 @@ var oauthPages = template.Must(template.New("oauth").Parse(`
     <div class="brand-mark">{{.Glyph}}</div>
     <div class="brand-text">
       <div class="brand-name">OpenBindings</div>
-      <div class="brand-sub">ob serve · authorization</div>
+      <div class="brand-sub">ob start · authorization</div>
     </div>
   </header>
   <div class="card card--error">

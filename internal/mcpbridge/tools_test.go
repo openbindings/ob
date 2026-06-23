@@ -33,7 +33,7 @@ func TestRegisterInterface_ToolsFromNonMCPBindings(t *testing.T) {
 	}
 	srv := gomcp.NewServer(&gomcp.Implementation{Name: "test"}, nil)
 	invoker := openbindings.NewOperationInvoker()
-	count := RegisterInterface(srv, iface, "petstore", invoker, nil)
+	count := RegisterInterface(srv, iface, invoker, nil)
 	if count != 2 {
 		t.Fatalf("expected 2 primitives, got %d", count)
 	}
@@ -59,7 +59,7 @@ func TestRegisterInterface_ResourceFromMCPBinding(t *testing.T) {
 	}
 	srv := gomcp.NewServer(&gomcp.Implementation{Name: "test"}, nil)
 	invoker := openbindings.NewOperationInvoker()
-	count := RegisterInterface(srv, iface, "docs", invoker, nil)
+	count := RegisterInterface(srv, iface, invoker, nil)
 	if count != 1 {
 		t.Fatalf("expected 1 primitive, got %d", count)
 	}
@@ -93,7 +93,7 @@ func TestRegisterInterface_PromptFromMCPBinding(t *testing.T) {
 	}
 	srv := gomcp.NewServer(&gomcp.Implementation{Name: "test"}, nil)
 	invoker := openbindings.NewOperationInvoker()
-	count := RegisterInterface(srv, iface, "assistant", invoker, nil)
+	count := RegisterInterface(srv, iface, invoker, nil)
 	if count != 1 {
 		t.Fatalf("expected 1 primitive, got %d", count)
 	}
@@ -119,7 +119,7 @@ func TestRegisterInterface_MixedPrimitives(t *testing.T) {
 	}
 	srv := gomcp.NewServer(&gomcp.Implementation{Name: "test"}, nil)
 	invoker := openbindings.NewOperationInvoker()
-	count := RegisterInterface(srv, iface, "mixed", invoker, nil)
+	count := RegisterInterface(srv, iface, invoker, nil)
 	if count != 3 {
 		t.Fatalf("expected 3 primitives, got %d", count)
 	}
@@ -158,44 +158,52 @@ func TestFindMCPBinding_ResourceRef(t *testing.T) {
 	}
 }
 
-func TestDeriveNamespace(t *testing.T) {
-	tests := []struct {
-		name     string
-		iface    *openbindings.Interface
-		label    string
-		fallback string
-		want     string
-	}{
-		{
-			name:     "interface name wins",
-			iface:    &openbindings.Interface{Name: "my-api"},
-			label:    "label",
-			fallback: "fallback",
-			want:     "my-api",
-		},
-		{
-			name:     "label when no interface name",
-			iface:    &openbindings.Interface{},
-			label:    "label",
-			fallback: "fallback",
-			want:     "label",
-		},
-		{
-			name:     "fallback when nothing else",
-			iface:    &openbindings.Interface{},
-			label:    "",
-			fallback: "fallback",
-			want:     "fallback",
+func TestToolNames_SanitizesFullKey(t *testing.T) {
+	iface := &openbindings.Interface{
+		Operations: map[string]openbindings.Operation{
+			"openbindings.ob.describe": {},
+			"echo":                     {}, // bare key, e.g. an OpenAPI-derived op
 		},
 	}
+	names := toolNames(iface)
+	// The full key is preserved, only sanitized to the protocol charset — the
+	// bridge assumes no key convention and strips no namespace.
+	if got := names["openbindings.ob.describe"]; got != "openbindings_ob_describe" {
+		t.Errorf("namespaced key: got %q, want %q", got, "openbindings_ob_describe")
+	}
+	if got := names["echo"]; got != "echo" {
+		t.Errorf("bare key: got %q, want %q", got, "echo")
+	}
+}
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			got := DeriveNamespace(tt.iface, tt.label, tt.fallback)
-			if got != tt.want {
-				t.Fatalf("DeriveNamespace() = %q, want %q", got, tt.want)
+func TestToolNames_CharsetSafeUniqueAndBounded(t *testing.T) {
+	iface := &openbindings.Interface{
+		Operations: map[string]openbindings.Operation{
+			"openbindings.kv.get":   {},
+			"openbindings.blob.get": {},
+			"weird key/with:chars":  {},
+		},
+	}
+	names := toolNames(iface)
+	seen := map[string]bool{}
+	for _, n := range names {
+		if seen[n] {
+			t.Errorf("duplicate tool name %q", n)
+		}
+		seen[n] = true
+		if len(n) == 0 || len(n) > 64 {
+			t.Errorf("name %q out of length bounds", n)
+		}
+		for _, r := range n {
+			ok := (r >= 'a' && r <= 'z') || (r >= 'A' && r <= 'Z') || (r >= '0' && r <= '9') || r == '_' || r == '-'
+			if !ok {
+				t.Errorf("name %q contains disallowed char %q", n, r)
 			}
-		})
+		}
+	}
+	// Distinct keys that share a last segment stay distinct (no namespace stripping).
+	if names["openbindings.kv.get"] == names["openbindings.blob.get"] {
+		t.Error("expected distinct names for kv.get vs blob.get")
 	}
 }
 

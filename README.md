@@ -2,7 +2,7 @@
 
 The OpenBindings CLI (`ob`) creates, syncs, validates, and invokes OpenBindings Interface (OBI) documents. An OBI describes what a service can do (operations) and how to access it (bindings to OpenAPI, gRPC, MCP, AsyncAPI, CLI specs, and more) -- all in one format-agnostic document.
 
-**Spec version:** implements OpenBindings 0.2. Run `ob info` to see the exact range this build supports.
+**Spec version:** implements OpenBindings 0.2. Run `ob describe` to see the exact range this build supports.
 
 ## Install
 
@@ -261,7 +261,7 @@ ob sync interface.json -o dist/interface.json --pure  # publish clean
 | `ob demo` | Start the OpenBlendings coffee shop demo |
 | `ob create [sources...]` | Create an OBI from binding source artifacts |
 | `ob status [obi]` | Show environment status or OBI sync report |
-| `ob info` | Show ob identity and metadata |
+| `ob describe` | Show ob identity and metadata |
 | `ob fetch <url-or-host>` | Download an OBI from a URL or host |
 
 ### Interface Authoring
@@ -293,7 +293,7 @@ ob sync interface.json -o dist/interface.json --pure  # publish clean
 
 | Command | Description |
 |---------|-------------|
-| `ob serve` | Run `ob` as a local HTTP/HTTPS service exposing every CLI operation over a stable API |
+| `ob start` | Run `ob` as a local HTTP/HTTPS service exposing every CLI operation over a stable API |
 | `ob mcp <url>...` | Expose one or more OBI URLs as an MCP server for AI agents |
 
 ### Environment
@@ -321,25 +321,25 @@ ob sync interface.json -o dist/interface.json --pure  # publish clean
 
 ## Serve and integrate
 
-`ob` is more than a CLI — it can run as a local service that exposes every CLI operation over HTTP and WebSocket (`ob serve`) or over the Model Context Protocol (`ob mcp`). Other applications, browser UIs, and AI agents can use those endpoints instead of shelling out to the CLI.
+`ob` is more than a CLI — it can run as a local service that exposes every CLI operation over HTTP and WebSocket (`ob start`) or over the Model Context Protocol (`ob mcp`). Other applications, browser UIs, and AI agents can use those endpoints instead of shelling out to the CLI.
 
-### `ob serve` — local HTTP/HTTPS service
+### `ob start` — local HTTP/HTTPS service
 
 ```bash
-ob serve                 # http://localhost:20290 + https://localhost:20291
-ob serve --port 18000    # custom port
-ob serve --no-tls        # HTTP only
-ob serve --token-file ~/.ob/serve.token  # write the session token to a file (for scripts)
+ob start                 # http://localhost:20290 + https://localhost:20291
+ob start --port 18000    # custom port
+ob start --no-tls        # HTTP only
+ob start --token-file ~/.ob/start.token  # write the session token to a file (for scripts)
 ```
 
-On startup `ob serve` prints the address it bound and a random bearer token. The HTTPS listener uses a local CA installed into the system keychain (first run prompts for `sudo`; subsequent runs are silent).
+On startup `ob start` prints the address it bound and a random bearer token. The HTTPS listener uses a local CA installed into the system keychain (first run prompts for `sudo`; subsequent runs are silent).
 
 **Authentication.** Every endpoint except `/`, `/healthz`, `/.well-known/openbindings`, `/openapi.yaml`, `/asyncapi.yaml`, `/oauth/authorize`, and `/oauth/token` requires `Authorization: Bearer <token>`. The token comes from one of:
-- `--token` or the `OB_SERVE_TOKEN` env var (static, caller-supplied)
+- `--token` or the `OB_START_TOKEN` env var (static, caller-supplied)
 - Auto-generated at startup otherwise (printed once, lost on restart). `--token-file` writes that session token to a file instead of stderr, so scripts can read it; it does not supply a token.
 - An OAuth2 access token obtained via `/oauth/authorize` + `/oauth/token` (PKCE flow)
 
-**CORS.** `ob serve` accepts requests from any origin allowed by `--allow-origin` (repeatable). Private Network Access preflights (`Access-Control-Request-Private-Network: true`) are honored when the origin is allowlisted, so browser apps served from `https://app.example.com` can reach `https://localhost:20291`.
+**CORS.** `ob start` accepts requests from any origin allowed by `--allow-origin` (repeatable). Private Network Access preflights (`Access-Control-Request-Private-Network: true`) are honored when the origin is allowlisted, so browser apps served from `https://app.example.com` can reach `https://localhost:20291`.
 
 #### HTTP endpoints
 
@@ -348,14 +348,13 @@ The complete API is described by [`internal/server/openapi.yaml`](https://github
 | Endpoint | Method | Purpose |
 |---|---|---|
 | `/healthz` | GET | Health probe (no auth) |
-| `/.well-known/openbindings` | GET | OBI for `ob serve` itself (no auth) |
-| `/info` | GET | Identity and version metadata |
+| `/.well-known/openbindings` | GET | OBI for `ob start` itself (no auth) |
+| `/describe` | GET | Identity and version metadata |
 | `/formats` | GET | Format tokens this `ob` can handle |
 | `/delegates` | GET | Registered delegates |
 | `/status` | GET | Environment status |
 | `/contexts` | GET | List per-host context entries |
 | `/contexts/{url}` | GET / PUT / DELETE | Inspect, set, or clear one host's context |
-| `/mcp` | — | MCP endpoint exposing the served operations as tools |
 | `/bindings/invoke` | GET (WebSocket) | Invoke a binding via the binding-invoker frame protocol |
 | `/bindings/prepare` | POST | Preflight a binding's context requirements (`prepareBinding`) |
 | `/interfaces/create` | POST | Create an OBI from a binding source |
@@ -393,20 +392,25 @@ Missing runtime context surfaces as a terminal `error` with code `CONTEXT_REQUIR
 
 ### `ob mcp` — Model Context Protocol bridge
 
-`ob mcp` exposes one or more OBI URLs as an MCP server. AI agents (Claude Desktop, Cursor, etc.) that speak MCP can connect and call the underlying service's operations as MCP tools, with `ob` translating the MCP requests into native binding invocations.
+`ob mcp` exposes one OBI URL as an MCP server. AI agents (Claude Desktop, Cursor, etc.) that speak MCP connect and call the interface's operations as MCP tools, with `ob` translating the MCP requests into native binding invocations. Tool names are the interface's operation keys, sanitized to the MCP/LLM charset (`[A-Za-z0-9_-]`, ≤64) — e.g. `openbindings.ob.describe` becomes `openbindings_ob_describe`, a bare key like `createCharge` is unchanged. The bridge assumes no key convention.
 
 ```bash
 ob mcp https://api.example.com           # stdio transport (for Claude Desktop, Cursor)
 ob mcp --transport http --port 9100 https://api.example.com    # HTTP transport
 ob mcp --token "$API_TOKEN" https://api.example.com  # bearer credential for the target API
+ob mcp --token-file ~/.ob/start.token http://127.0.0.1:20290   # bridge a running `ob start`
 ```
 
-Multiple URLs can be passed; all of their operations are merged into a single MCP tool list. Use `--token-file` or `OB_TOKEN` to avoid putting credentials on the command line.
+Use `--token-file` or `OB_TOKEN` to avoid putting credentials on the command line.
+
+To expose **several** services as one MCP server, compose them into a single aggregate OBI first (e.g. `ob merge`), then bridge that — collisions and naming are resolved deliberately in the composed contract rather than guessed at runtime.
+
+This is also how you get an MCP server for `ob` itself: point `ob mcp` at a running `ob start` (last line above). `ob start` exposes no MCP endpoint of its own; ob's served interface becomes an MCP server through the same bridge it offers for any interface, so the MCP surface stays in lockstep with the REST surface automatically.
 
 When invoked through MCP, an operation's input schema is exposed as the tool's input schema; the response body is returned as the tool result.
 
 ### When to use which
 
-- **`ob serve`**: another process (a browser app, a worker, a server-side host) needs to make binding invocations and you want REST/WS access. Use it when the consumer can speak HTTP.
+- **`ob start`**: another process (a browser app, a worker, a server-side host) needs to make binding invocations and you want REST/WS access. Use it when the consumer can speak HTTP.
 - **`ob mcp`**: an AI agent (Claude, Cursor) needs to discover and call your service's operations. Use it when the consumer speaks MCP.
 - Both can run at once — they're independent processes.

@@ -46,7 +46,7 @@ func RequestIDFromContext(ctx context.Context) string {
 	return ""
 }
 
-// Config holds the configuration for an ob serve instance.
+// Config holds the configuration for an ob start instance.
 type Config struct {
 	Port           int
 	AllowedOrigins []string
@@ -55,7 +55,7 @@ type Config struct {
 	TLS            bool
 }
 
-// Server is the ob serve HTTP server.
+// Server is the ob start HTTP server.
 type Server struct {
 	token              string
 	validateOAuthToken func(string) bool
@@ -158,7 +158,7 @@ func (s *Server) ListenAndServe(ctx context.Context) error {
 		if tlsErr != nil {
 			s.logger.Warn("HTTPS disabled — HTTP remains available",
 				"reason", tlsErr,
-				"fix", "re-run `ob serve` in a terminal to retry cert install",
+				"fix", "re-run `ob start` in a terminal to retry cert install",
 			)
 		} else {
 			rawHTTPS, p, bindErr := bindLocalhostPort(httpPort+1, 10)
@@ -280,7 +280,7 @@ func (s *Server) hostValidation(next http.Handler) http.Handler {
 
 // corsMiddleware handles CORS preflight and sets headers for allowed origins.
 //
-// ob serve binds to localhost only and requires a session token on every
+// ob start binds to localhost only and requires a session token on every
 // request. CORS is defense-in-depth, not the primary security boundary.
 // Any HTTPS origin and any localhost origin are allowed by default so that
 // any web app (local or remote) can connect to the user's host without
@@ -366,8 +366,7 @@ func isLocalhostOrigin(origin string) bool {
 
 // authMiddleware requires a valid Bearer token on all requests except
 // public endpoints (root, well-known, healthz, the served openapi/asyncapi
-// specs, and the OAuth authorize/token endpoints). The /mcp transport is NOT
-// public: it is gated by the same token as the rest of the surface.
+// specs, and the OAuth authorize/token endpoints).
 func (s *Server) authMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		path := r.URL.Path
@@ -719,7 +718,7 @@ func installCASystemWide(certPath string, logger *slog.Logger) error {
 		cmd.Stderr = os.Stderr
 		cmd.Stdin = os.Stdin
 		if err := cmd.Run(); err != nil {
-			return fmt.Errorf("sudo security add-trusted-cert failed: %w (HTTP still works; re-run `ob serve` to retry)", err)
+			return fmt.Errorf("sudo security add-trusted-cert failed: %w (HTTP still works; re-run `ob start` to retry)", err)
 		}
 		logger.Info("CA installed successfully — Chrome, Safari, and Firefox will trust HTTPS localhost")
 		return nil

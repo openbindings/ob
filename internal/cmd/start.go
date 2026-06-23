@@ -25,12 +25,12 @@ import (
 
 const maxRequestBodyBytes = 2 << 20 // 2 MiB
 
-// DefaultServePort is the default TCP port for `ob serve`.
+// DefaultServePort is the default TCP port for `ob start`.
 // It equals 0x4F42 (decimal 20290): the big-endian pair of ASCII 'O' (0x4F) and 'B' (0x42),
 // a mnemonic for OpenBindings. High enough to avoid common dev-server collisions.
 const DefaultServePort = 0x4F42
 
-func newServeCmd() *cobra.Command {
+func newStartCmd() *cobra.Command {
 	var (
 		port           int
 		allowedOrigins []string
@@ -40,8 +40,8 @@ func newServeCmd() *cobra.Command {
 	)
 
 	cmd := &cobra.Command{
-		Use:   "serve",
-		Short: "Start a local HTTP server exposing ob operations",
+		Use:   "start",
+		Short: "Start a local server exposing ob operations (HTTP, WebSocket, MCP)",
 		Long: `Start a local HTTP/REST server that exposes ob's full capability surface.
 Authorized clients can invoke operations, browse interfaces,
 and manage contexts through the same operations available via the CLI.
@@ -50,34 +50,34 @@ A session token is generated on startup and printed to the terminal.
 Clients must present it as "Authorization: Bearer <token>" on every request.
 The server binds to 127.0.0.1 only — never exposed to the network.
 
-The token can be provided via --token flag or OB_SERVE_TOKEN environment variable
+The token can be provided via --token flag or OB_START_TOKEN environment variable
 to enable stable tokens for CI/CD and automation. When provided, the token is not
 printed to stderr (the caller already knows it).`,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			logger := slog.New(slog.NewTextHandler(os.Stderr, nil)).With("component", "ob-serve")
+			logger := slog.New(slog.NewTextHandler(os.Stderr, nil)).With("component", "ob-start")
 			slog.SetDefault(logger)
 
 			tokenProvided := false
 			resolvedToken := tokenFlag
 			if resolvedToken == "" {
-				resolvedToken = os.Getenv("OB_SERVE_TOKEN")
+				resolvedToken = os.Getenv("OB_START_TOKEN")
 			}
 			if resolvedToken != "" {
 				tokenProvided = true
 			}
 
 			if !cmd.Flags().Changed("port") {
-				if envPort := os.Getenv("OB_SERVE_PORT"); envPort != "" {
+				if envPort := os.Getenv("OB_START_PORT"); envPort != "" {
 					p, err := parsePort(envPort)
 					if err != nil {
-						return app.ExitResult{Code: 2, Message: fmt.Sprintf("invalid OB_SERVE_PORT=%q: %v", envPort, err), ToStderr: true}
+						return app.ExitResult{Code: 2, Message: fmt.Sprintf("invalid OB_START_PORT=%q: %v", envPort, err), ToStderr: true}
 					}
 					port = p
 				}
 			}
 
 			if len(allowedOrigins) == 0 {
-				if envOrigins := os.Getenv("OB_SERVE_ORIGINS"); envOrigins != "" {
+				if envOrigins := os.Getenv("OB_START_ORIGINS"); envOrigins != "" {
 					allowedOrigins = strings.Split(envOrigins, ",")
 					for i := range allowedOrigins {
 						allowedOrigins[i] = strings.TrimSpace(allowedOrigins[i])
@@ -138,7 +138,7 @@ printed to stderr (the caller already knows it).`,
 
 	cmd.Flags().IntVarP(&port, "port", "p", DefaultServePort, `port to listen on (default 20290 = 0x4F42, ASCII "OB")`)
 	cmd.Flags().StringArrayVar(&allowedOrigins, "allow-origin", nil, "allowed CORS origin (repeatable)")
-	cmd.Flags().StringVar(&tokenFlag, "token", "", "pre-shared session token (also: OB_SERVE_TOKEN env var)")
+	cmd.Flags().StringVar(&tokenFlag, "token", "", "pre-shared session token (also: OB_START_TOKEN env var)")
 	cmd.Flags().StringVar(&tokenFile, "token-file", "", "write session token to file instead of stderr")
 	cmd.Flags().BoolVar(&noTLS, "no-tls", false, "skip HTTPS listener and CA trust setup (HTTP only, no sudo prompt)")
 
@@ -158,11 +158,11 @@ func registerRoutes(srv *server.Server, logger *slog.Logger, port int, oauthSt *
 	mux := srv.Mux()
 
 	mux.HandleFunc("GET /healthz", handleHealthz)
-	mux.HandleFunc("GET /{$}", handleOBI(port))
+	mux.HandleFunc("GET /{$}", handleRoot)
 	mux.HandleFunc("GET /.well-known/openbindings", handleOBI(port))
 	mux.HandleFunc("GET /openapi.yaml", handleOpenAPISpec(port))
 	mux.HandleFunc("GET /asyncapi.yaml", handleAsyncAPISpec(port))
-	mux.HandleFunc("GET /info", handleInfo)
+	mux.HandleFunc("GET /describe", handleDescribe)
 	mux.HandleFunc("GET /formats", handleFormats)
 	mux.HandleFunc("GET /delegates", handleDelegates)
 
@@ -181,7 +181,10 @@ func registerRoutes(srv *server.Server, logger *slog.Logger, port int, oauthSt *
 	registerOAuthRoutes(srv, oauthSt, logger)
 	registerBindingRoutes(srv, logger)
 	registerAuthoringRoutes(srv)
-	registerMCPEndpoint(srv, logger)
+	// MCP is not a built-in endpoint: ob's served interface is exposed as an MCP
+	// server by pointing the generic bridge at this running server —
+	// `ob mcp <this-url>`. That dogfoods the same OBI→MCP path ob offers for any
+	// interface, so there is no bespoke MCP surface to keep in sync here.
 }
 
 // --- Health ---
@@ -190,11 +193,33 @@ func handleHealthz(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
 }
 
+// --- Root ---
+
+// handleRoot serves a minimal human-facing landing page. The machine-readable
+// interface lives at /.well-known/openbindings (spec §7); root is deliberately
+// NOT an OBI discovery location, so this returns a non-OBI page. That keeps
+// discovery consistent with the spec and the registry (both well-known only),
+// and avoids the SDK direct-fetch branch treating root as canonical: a non-OBI
+// body fails tryFetchOBI, so a bare base URL correctly falls through to
+// well-known discovery.
+func handleRoot(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	w.WriteHeader(http.StatusOK)
+	_, _ = w.Write([]byte(rootPageHTML))
+}
+
+const rootPageHTML = `<!doctype html>
+<meta charset="utf-8">
+<title>ob start</title>
+<p>This is an <code>ob start</code> server. Its OpenBindings interface is published at
+<a href="/.well-known/openbindings">/.well-known/openbindings</a>.</p>
+`
+
 // --- OBI / Info / Formats / Delegates ---
 
 func handleOBI(port int) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		// Serve the OBI describing what this `ob serve` instance
+		// Serve the OBI describing what this `ob start` instance
 		// publishes (not the CLI OBI).
 		raw := server.ServeOBI()
 		var iface map[string]any
@@ -273,7 +298,7 @@ func rewriteSpecPlaceholders(spec []byte, baseURL string) []byte {
 	return spec
 }
 
-func handleInfo(w http.ResponseWriter, r *http.Request) {
+func handleDescribe(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, app.Info())
 }
 
@@ -448,7 +473,7 @@ func handleResolve(w http.ResponseWriter, r *http.Request) {
 
 // validateOutboundURL enforces SSRF protection on any outbound fetch ob makes
 // on a caller's behalf (OBI resolution via /resolve). It allows
-// loopback/localhost — ob serve is a local dev tool and reaching
+// loopback/localhost — ob start is a local dev tool and reaching
 // locally-running services is a primary use case — but blocks other private,
 // link-local, and metadata ranges to prevent LAN scanning and metadata theft.
 func validateOutboundURL(rawURL string) error {
@@ -466,7 +491,7 @@ func validateOutboundURL(rawURL string) error {
 		return &url.Error{Op: "fetch", URL: rawURL, Err: errEmptyHost}
 	}
 
-	// Allow localhost and loopback — ob serve is a local dev tool and
+	// Allow localhost and loopback — ob start is a local dev tool and
 	// resolving locally-running services is the primary use case.
 	// Block other private ranges to prevent LAN scanning.
 	ip := net.ParseIP(hostname)
@@ -526,7 +551,7 @@ const (
 
 // --- Helpers ---
 
-// ErrorResponse is the standard error body returned by all ob serve endpoints.
+// ErrorResponse is the standard error body returned by all ob start endpoints.
 type ErrorResponse struct {
 	Error  string `json:"error"`
 	Detail string `json:"detail,omitempty"`

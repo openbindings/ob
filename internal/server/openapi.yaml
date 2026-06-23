@@ -1,8 +1,8 @@
 openapi: "3.1.0"
 info:
-  title: ob serve API
+  title: ob start API
   version: 0.1.0
-  description: Local HTTP API for the OpenBindings CLI (ob serve).
+  description: Local HTTP API for the OpenBindings CLI (ob start).
 servers:
   - url: ${OB_SERVER_URL}
     description: Default local server (port 20290 = 0x4F42, ASCII OB)
@@ -37,7 +37,7 @@ paths:
               schema:
                 type: object
 
-  /info:
+  /describe:
     get:
       operationId: describe
       summary: Show ob identity and metadata
@@ -76,6 +76,28 @@ paths:
                 type: array
                 items:
                   $ref: "#/components/schemas/Delegate"
+
+  /delegate-requirements/{cap}:
+    get:
+      operationId: getDelegateRequirements
+      summary: Return the interface a delegate must satisfy for a capability
+      parameters:
+        - name: cap
+          in: path
+          required: true
+          description: Delegate capability
+          schema:
+            type: string
+            enum: [invoke, create, inspect]
+      responses:
+        "200":
+          description: The interface a delegate must satisfy for the capability
+          content:
+            application/json:
+              schema:
+                type: object
+        "404":
+          description: Unknown delegate capability
 
   /status:
     get:
@@ -411,6 +433,127 @@ paths:
               schema:
                 $ref: "#/components/schemas/CompatibilityReport"
 
+  /conform:
+    post:
+      operationId: conform
+      summary: Update an OBI's operations to satisfy a published interface
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [interface, target]
+              properties:
+                interface:
+                  type: string
+                  description: Locator of the interface the target should satisfy
+                target:
+                  type: string
+                  description: Path of the target OBI to update
+                yes:
+                  type: boolean
+                  description: Auto-accept all scaffolding and replacements
+                dryRun:
+                  type: boolean
+                  description: Report what would change without writing
+      responses:
+        "200":
+          description: Conform report
+          content:
+            application/json:
+              schema:
+                type: object
+
+  /codegen:
+    post:
+      operationId: codegen
+      summary: Generate a typed invoker from an OpenBindings interface
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [source, language]
+              properties:
+                source:
+                  type: string
+                  description: Locator of the interface (or a synthesizable source)
+                language:
+                  type: string
+                  enum: [typescript, go]
+                package:
+                  type: string
+                  description: Go package name (go only)
+      responses:
+        "200":
+          description: Generated code
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  language:
+                    type: string
+                  code:
+                    type: string
+
+  /merge:
+    post:
+      operationId: mergeInterfaces
+      summary: Merge operations and bindings from a source interface into a target OBI
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [target]
+              properties:
+                target:
+                  type: string
+                  description: Path of the target OBI to update
+                source:
+                  type: string
+                  description: Locator of the source interface to merge from
+                all:
+                  type: boolean
+                  description: Apply all changes (batch mode)
+                dryRun:
+                  type: boolean
+                  description: Report what would change without writing
+      responses:
+        "200":
+          description: Merge report
+          content:
+            application/json:
+              schema:
+                type: object
+
+  /interface-status:
+    post:
+      operationId: getInterfaceStatus
+      summary: Report an interface's sync status against its sources
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [path]
+              properties:
+                path:
+                  type: string
+                  description: Path of the OBI to report on
+      responses:
+        "200":
+          description: Interface status report
+          content:
+            application/json:
+              schema:
+                type: object
+
   /spec/{name}:
     get:
       operationId: readSpecResource
@@ -579,7 +722,7 @@ components:
       type: http
       scheme: bearer
       description: >
-        Static session token (printed on startup or set via --token/OB_SERVE_TOKEN)
+        Static session token (printed on startup or set via --token/OB_START_TOKEN)
         or an OAuth2 access token obtained via the /oauth/authorize + /oauth/token flow.
 
   schemas:

@@ -20,7 +20,7 @@ cmd "resolve" help="Resolve an OpenBindings interface from a URL or host" opKey=
   arg "<url-or-host>" help="Base URL or host (e.g. localhost:8080)"
 }
 
-cmd "info" help="Show ob identity and metadata" opKey="describe" {
+cmd "describe" help="Show ob identity and metadata" opKey="describe" {
   flag "-o --output <path>" help="Write output to file"
   flag "-F --format <format>" help="Output format: json|yaml|text"
 }
@@ -326,16 +326,16 @@ cmd "codegen" help="Generate a typed invoker from an interface" opKey="codegen" 
   arg "<source>" help="Interface to generate from (file path or URL)"
 }
 
-cmd "mcp" help="Serve interface URLs as an MCP server" opKey="createMCPServer" {
+cmd "mcp" help="Serve an interface URL as an MCP server" opKey="startMCPServer" {
   flag "--transport <transport>" help="Transport: stdio or http (default: stdio)"
   flag "--port <port>" help="HTTP port (when transport is http, default: 8080)"
   flag "--name <name>" help="MCP server name"
-  arg "<url>..." help="Interface URLs to expose as MCP tools"
+  arg "<url>" help="Interface URL to expose as an MCP server (compose an aggregate OBI for several services)"
 }
 
-cmd "serve" help="Start a local HTTP server exposing ob operations" opKey="startServer" {
+cmd "start" help="Start a local server exposing ob operations (HTTP, WebSocket, MCP)" opKey="startServer" {
   flag "-p --port <port>" help="Port to listen on (default: 20290 = 0x4F42, ASCII OB)"
   flag "--allow-origin <origin>" help="Allowed CORS origin (repeatable)"
-  flag "--token <token>" help="Pre-shared session token (also: OB_SERVE_TOKEN env var)"
+  flag "--token <token>" help="Pre-shared session token (also: OB_START_TOKEN env var)"
   flag "--token-file <path>" help="Write session token to file instead of stderr"
 }

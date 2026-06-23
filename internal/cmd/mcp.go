@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
-	"net/url"
 	"os"
 	"os/signal"
 	"strings"
@@ -30,21 +29,27 @@ func newMCPCmd() *cobra.Command {
 	)
 
 	cmd := &cobra.Command{
-		Use:   "mcp <url> [url...]",
-		Short: "Serve interface URLs as an MCP server",
-		Long: `Start an MCP (Model Context Protocol) server that exposes the given interface
-URLs as tools, resources, and prompts. Agents (Cursor, Claude Desktop, etc.)
-can connect and interact with any API through OpenBindings.
+		Use:   "mcp <url>",
+		Short: "Serve an interface URL as an MCP server",
+		Long: `Start an MCP (Model Context Protocol) server that exposes one interface's
+operations as MCP tools, resources, and prompts. Agents (Cursor, Claude
+Desktop, etc.) connect and interact with the underlying service through
+OpenBindings. Tool names are the interface's operation short-names.
 
 Authentication to the target server can be provided via --token, --token-file,
 or the OB_TOKEN environment variable. The token is used as a Bearer credential
-when resolving interfaces and executing operations.
+when resolving the interface and executing operations.
+
+To expose several services as one MCP server, compose them into a single
+aggregate OBI first (e.g. with 'ob merge'), then bridge that one interface —
+collisions and naming are resolved deliberately in the composed contract,
+not guessed at runtime.
 
 Examples:
   ob mcp https://api.example.com/.well-known/openbindings
-  ob mcp --token-file ~/.ob/session-token http://127.0.0.1:20290
-  ob mcp https://api.stripe.com/openapi.yaml https://xkcd.com/info.0.json`,
-		Args: cobra.MinimumNArgs(1),
+  ob mcp --token-file ~/.ob/start.token http://127.0.0.1:20290   # bridge a running 'ob start'
+  ob mcp https://api.stripe.com/openapi.yaml`,
+		Args: cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			logger := slog.New(slog.NewTextHandler(os.Stderr, nil)).With("component", "ob-mcp")
 			invoker := app.DefaultInvoker()
@@ -70,30 +75,22 @@ Examples:
 			ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt)
 			defer cancel()
 
-			logger.Info("resolving interfaces", "count", len(args))
-
-			for i, rawURL := range args {
-				normalized := app.NormalizeURL(rawURL)
-				if normalized == "" {
-					return app.ExitResult{Code: 2, Message: fmt.Sprintf("invalid URL: %s", rawURL), ToStderr: true}
-				}
-
-				fetched, err := openbindings.FetchInterface(ctx, normalized)
-				if err != nil {
-					logger.Warn("failed to resolve interface", "url", normalized, "error", err)
-					continue
-				}
-				iface := fetched.Interface
-				if iface == nil {
-					logger.Warn("no interface resolved", "url", normalized)
-					continue
-				}
-
-				label := labelFromURL(normalized)
-				namespace := mcpbridge.DeriveNamespace(iface, label, fmt.Sprintf("arg-%d", i))
-				count := mcpbridge.RegisterInterface(mcpServer, iface, namespace, invoker, baseContext)
-				logger.Info("resolved interface", "url", normalized, "namespace", namespace, "primitives", count)
+			normalized := app.NormalizeURL(args[0])
+			if normalized == "" {
+				return app.ExitResult{Code: 2, Message: fmt.Sprintf("invalid URL: %s", args[0]), ToStderr: true}
 			}
+
+			fetched, err := openbindings.FetchInterface(ctx, normalized)
+			if err != nil {
+				return app.ExitResult{Code: 1, Message: fmt.Sprintf("failed to resolve interface %s: %v", normalized, err), ToStderr: true}
+			}
+			iface := fetched.Interface
+			if iface == nil {
+				return app.ExitResult{Code: 1, Message: fmt.Sprintf("no interface resolved from %s", normalized), ToStderr: true}
+			}
+
+			count := mcpbridge.RegisterInterface(mcpServer, iface, invoker, baseContext)
+			logger.Info("resolved interface", "url", normalized, "primitives", count)
 
 			switch transport {
 			case "stdio", "":
@@ -145,16 +142,3 @@ func resolveToken(flag, file string) string {
 	return os.Getenv("OB_TOKEN")
 }
 
-func labelFromURL(u string) string {
-	u = strings.TrimRight(u, "/")
-	if idx := strings.LastIndex(u, "/"); idx >= 0 && idx < len(u)-1 {
-		seg := u[idx+1:]
-		if seg != "openbindings" && seg != "openapi.yaml" && seg != "openapi.json" {
-			return seg
-		}
-	}
-	if parsed, err := url.Parse(u); err == nil && parsed.Host != "" {
-		return parsed.Host
-	}
-	return u
-}

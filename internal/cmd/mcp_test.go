@@ -11,6 +11,7 @@ import (
 	gomcp "github.com/modelcontextprotocol/go-sdk/mcp"
 	openbindings "github.com/openbindings/openbindings-go"
 
+	"github.com/openbindings/ob/internal/app"
 	"github.com/openbindings/ob/internal/mcpbridge"
 )
 
@@ -67,8 +68,7 @@ func TestMCPCommand_BridgesInterfaceToTools(t *testing.T) {
 		Version: "1.0.0",
 	}, nil)
 
-	namespace := mcpbridge.DeriveNamespace(iface, "test", "fallback")
-	count := mcpbridge.RegisterInterface(mcpServer, iface, namespace, invoker, nil)
+	count := mcpbridge.RegisterInterface(mcpServer, iface, invoker, nil)
 	if count != 1 {
 		t.Fatalf("expected 1 registered primitive, got %d", count)
 	}
@@ -101,7 +101,7 @@ func TestMCPCommand_BridgesInterfaceToTools(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ListTools failed: %v", err)
 	}
-	wantToolName := namespace + ".echo"
+	wantToolName := "echo"
 	foundTool := false
 	for _, tool := range listResult.Tools {
 		if tool.Name == wantToolName {
@@ -154,6 +154,35 @@ func TestMCPCommand_BridgesInterfaceToTools(t *testing.T) {
 	}
 	if decoded["message"] != "hello world" {
 		t.Errorf("output message = %v, want \"hello world\"", decoded["message"])
+	}
+}
+
+// TestObStartServedInterfaceBridgesToMCP proves the dogfood that lets ob start
+// drop its bespoke MCP endpoint: ob's own served interface, fetched live from a
+// running server, maps onto MCP via the same RegisterInterface bridge ob offers
+// for any interface. `ob mcp <ob-url>` is therefore the MCP surface — no
+// hand-written tools, automatic parity with the REST surface.
+func TestObStartServedInterfaceBridgesToMCP(t *testing.T) {
+	ts := testEnv(t)
+	defer ts.Close()
+
+	fetched, err := openbindings.FetchInterface(context.Background(), ts.URL+"/.well-known/openbindings")
+	if err != nil {
+		t.Fatalf("fetch ob's served OBI: %v", err)
+	}
+	if fetched.Interface == nil {
+		t.Fatal("no interface resolved from ob start")
+	}
+
+	srv := gomcp.NewServer(&gomcp.Implementation{Name: "ob", Version: "test"}, nil)
+	count := mcpbridge.RegisterInterface(srv, fetched.Interface, app.DefaultInvoker(),
+		map[string]any{"bearerToken": "test-token"})
+
+	if count == 0 {
+		t.Fatal("bridge registered no MCP primitives from ob's served interface")
+	}
+	if count != len(fetched.Interface.Operations) {
+		t.Errorf("registered %d primitives, want one per served operation (%d)", count, len(fetched.Interface.Operations))
 	}
 }
 

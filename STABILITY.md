@@ -1,6 +1,6 @@
 # Stability
 
-This document describes the stability guarantees for `ob` and `ob serve`.
+This document describes the stability guarantees for `ob` and `ob start`.
 
 ## Versioning
 
@@ -22,7 +22,7 @@ in minor releases.
 
 ## API Contract
 
-The `ob serve` HTTP API is described by two artifacts:
+The `ob start` HTTP API is described by two artifacts:
 
 - **`/.well-known/openbindings`** — the OpenBindings Interface document, which
   lists all operations the server supports. Clients should use this for runtime
