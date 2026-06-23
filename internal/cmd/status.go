@@ -9,35 +9,16 @@ import (
 )
 
 func newStatusCmd() *cobra.Command {
-	var exitCode bool
-
 	cmd := &cobra.Command{
-		Use:   "status [obi-path]",
-		Short: "Show environment status or OBI drift report",
-		Long: `Show current environment status.
+		Use:   "status",
+		Short: "Show environment status",
+		Long: `Show the active OpenBindings environment: whether it is local or global,
+its path, and counts of the delegates and contexts it holds.
 
-If an OBI file path is provided, shows a per-source drift report
-(operations/bindings the sources would add, update, or remove, plus
-custodial drift on hand-authored bindings whose target is gone) with
-managed vs hand-authored breakdowns. This is read-only — it never
-modifies the OBI. Without arguments, shows environment info.
-
-Use --exit-code to exit non-zero when any source has drift (a CI gate).`,
-		Args: cobra.MaximumNArgs(1),
+For an OBI file's drift against its sources, use 'ob source status <obi-path>'.`,
+		Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			format, outputPath := getOutputFlags(cmd)
-
-			if len(args) == 1 {
-				result, err := app.OBIStatus(app.OBIStatusInput{OBIPath: args[0]})
-				if err != nil {
-					return app.ExitResult{Code: 1, Message: err.Error(), ToStderr: true}
-				}
-				code := 0
-				if exitCode && result.HasDrift() {
-					code = 1
-				}
-				return app.OutputResultWithCode(result, format, outputPath, code)
-			}
 
 			status, err := app.GetEnvironmentStatus()
 			if err != nil {
@@ -54,6 +35,5 @@ Use --exit-code to exit non-zero when any source has drift (a CI gate).`,
 		},
 	}
 
-	cmd.Flags().BoolVar(&exitCode, "exit-code", false, "exit non-zero if any source has drift (CI gate)")
 	return cmd
 }

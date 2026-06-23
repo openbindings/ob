@@ -22,7 +22,7 @@ func main() {
 	const contractPath = "../../ob.obi.json"
 
 	// Bound CLI OBI: contract + usage.kdl.
-	cli, err := app.GenerateBoundCLI(contractPath, "../cmd/usage.kdl", "usage@2.13.1", "../cmd/usage.kdl")
+	cli, err := app.GenerateBoundCLI(contractPath, "../cmd/usage.kdl", "usage@2.13.1")
 	if err != nil {
 		fmt.Fprintln(os.Stderr, "genbound: cli:", err)
 		os.Exit(1)

@@ -70,16 +70,40 @@ func TestGenerateBoundServe_BindsServedSurface(t *testing.T) {
 	if b := serve.Bindings["openbindings.ob.getContext.openapi"]; b.InputTransform == nil {
 		t.Error("expected getContext.openapi inputTransform to be preserved from the existing serve OBI")
 	}
-	// The real wire transports are preserved.
+	// The real wire transports are preserved and embedded as content (not a
+	// relative location) so the served discovery OBI is spec-valid (OBI-D-05).
 	for _, src := range []string{"openapi", "asyncapi"} {
-		if _, ok := serve.Sources[src]; !ok {
+		s, ok := serve.Sources[src]
+		if !ok {
 			t.Errorf("expected preserved source %q", src)
+			continue
+		}
+		if s.Content == nil || s.Location != "" {
+			t.Errorf("source %q: expected embedded content and no location, got content=%v location=%q", src, s.Content != nil, s.Location)
+		}
+	}
+}
+
+// TestBoundOBIsAreSpecValid guards spec validity of the committed bound OBIs.
+// The conformance guards above (assessCompatibility) only check operation/schema
+// parity with the contract; they do not catch document-level rule violations such
+// as a non-absolute source location (OBI-D-05). Since `ob --openbindings` emits
+// the bound CLI OBI and the server serves the bound serve OBI as its discovery
+// document, both must validate. If this fails, run `go generate ./internal/app`.
+func TestBoundOBIsAreSpecValid(t *testing.T) {
+	for _, path := range []string{"ob.obi.json", "../server/serve.obi.json"} {
+		report := ValidateInterface(ValidateInput{Locator: path, Strict: true})
+		if report.Error != nil {
+			t.Fatalf("%s: validate error: %s", path, report.Error.Message)
+		}
+		if !report.Valid {
+			t.Fatalf("%s: not spec-valid: %v", path, report.Problems)
 		}
 	}
 }
 
 func TestGenerateBoundCLI_BindsOpsByShortName(t *testing.T) {
-	bound, err := GenerateBoundCLI("../../ob.obi.json", "../cmd/usage.kdl", "usage@2.13.1", "../cmd/usage.kdl")
+	bound, err := GenerateBoundCLI("../../ob.obi.json", "../cmd/usage.kdl", "usage@2.13.1")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -95,7 +119,13 @@ func TestGenerateBoundCLI_BindsOpsByShortName(t *testing.T) {
 	if b.Operation != "openbindings.ob.describe" || b.Source != "usage" || b.Ref == "" {
 		t.Errorf("unexpected binding: %+v", b)
 	}
-	if _, ok := bound.Sources["usage"]; !ok {
-		t.Error("expected a usage source entry")
+	// The usage source is embedded as content (not a relative location) so the
+	// emitted OBI is self-contained and spec-valid (OBI-D-05).
+	src, ok := bound.Sources["usage"]
+	if !ok {
+		t.Fatal("expected a usage source entry")
+	}
+	if src.Content == nil || src.Location != "" {
+		t.Errorf("expected embedded usage content and no location, got content=%v location=%q", src.Content != nil, src.Location)
 	}
 }

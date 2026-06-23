@@ -8,11 +8,9 @@ cmd "init" help="Initialize an OpenBindings environment (.openbindings/)" opKey=
   flag "-F --format <format>" help="Output format: json|yaml|text"
 }
 
-cmd "status" help="Show environment status or OBI drift report" opKey="getEnvironmentStatus" {
-  flag "--exit-code" help="Exit non-zero if any source has drift (CI gate)"
+cmd "status" help="Show environment status" opKey="getEnvironmentStatus" {
   flag "-o --output <path>" help="Write output to file"
   flag "-F --format <format>" help="Output format: json|yaml|text"
-  arg "[obi-path]" help="OBI file path (shows drift report instead of env status)"
 }
 
 cmd "resolve" help="Resolve an OpenBindings interface from a URL or host" opKey="resolveInterface" {
@@ -133,6 +131,12 @@ cmd "source" help="Manage source references on an OBI" subcommand_required=true 
     flag "-F --format <format>" help="Output format: json|yaml|text"
     arg "<obi-path>" help="Path to the OBI file"
     arg "[source-key]..." help="Sources to pull (default: all)"
+  }
+  cmd "status" help="Report an OBI's drift against its sources (read-only)" opKey="getInterfaceStatus" {
+    flag "--exit-code" help="Exit non-zero if any source has drift (CI gate)"
+    flag "-o --output <path>" help="Write output to file"
+    flag "-F --format <format>" help="Output format: json|yaml|text"
+    arg "<obi-path>" help="Path to the OBI file"
   }
   cmd "list" help="List source references on an OBI" opKey="listSources" {
     flag "-o --output <path>" help="Write output to file"
@@ -338,4 +342,9 @@ cmd "start" help="Start a local server exposing ob operations (HTTP, WebSocket, 
   flag "--allow-origin <origin>" help="Allowed CORS origin (repeatable)"
   flag "--token <token>" help="Pre-shared session token (also: OB_START_TOKEN env var)"
   flag "--token-file <path>" help="Write session token to file instead of stderr"
+}
+
+cmd "demo" help="Start the OpenBlendings demo server (one interface, six protocols)" opKey="demo" {
+  flag "-p --port <port>" help="HTTP server port (default: 8080)"
+  flag "--grpc-port <port>" help="gRPC server port (default: 9090)"
 }

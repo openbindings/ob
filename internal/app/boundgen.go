@@ -16,10 +16,13 @@ import (
 // `ob --openbindings` emits; regenerating it from the contract keeps it
 // conformant instead of drifting as a hand-maintained file.
 //
-// contractPath and usagePath are read for generation; usageFormat is the
-// usage format token (e.g. "usage@2.13.1"); storedUsageLocation is the source
-// location recorded in the output (relative to the output file's directory).
-func GenerateBoundCLI(contractPath, usagePath, usageFormat, storedUsageLocation string) (*openbindings.Interface, error) {
+// contractPath and usagePath are read for generation; usageFormat is the usage
+// format token (e.g. "usage@2.13.1"). The usage source is embedded as `content`
+// (not a relative `location`) so the emitted OBI is self-contained and portable
+// per the spec's context-free reference guarantee (OBI-D-05): `ob --openbindings`
+// is consumed away from this repo (delegate registration, agents), where a
+// relative path would not resolve.
+func GenerateBoundCLI(contractPath, usagePath, usageFormat string) (*openbindings.Interface, error) {
 	contract, err := loadInterfaceFile(contractPath)
 	if err != nil {
 		return nil, fmt.Errorf("load contract: %w", err)
@@ -36,6 +39,17 @@ func GenerateBoundCLI(contractPath, usagePath, usageFormat, storedUsageLocation 
 		refByShort[b.Operation] = b.Ref
 	}
 
+	// Embed the usage spec inline so the bound OBI carries no out-of-document
+	// reference. usage.kdl is text, so this embeds as its UTF-8 source string.
+	usageData, err := os.ReadFile(usagePath)
+	if err != nil {
+		return nil, fmt.Errorf("read usage source: %w", err)
+	}
+	usageContent, err := ParseContentForEmbed(usageData, usageFormat)
+	if err != nil {
+		return nil, fmt.Errorf("embed usage source: %w", err)
+	}
+
 	bound := &openbindings.Interface{
 		OpenBindings: contract.OpenBindings,
 		Name:         contract.Name,
@@ -44,7 +58,7 @@ func GenerateBoundCLI(contractPath, usagePath, usageFormat, storedUsageLocation 
 		Schemas:      contract.Schemas,
 		Operations:   make(map[string]openbindings.Operation, len(contract.Operations)),
 		Sources: map[string]openbindings.Source{
-			"usage": {Format: usageFormat, Location: storedUsageLocation},
+			"usage": {Format: usageFormat, Content: usageContent},
 		},
 		Bindings: map[string]openbindings.BindingEntry{},
 	}
@@ -113,6 +127,32 @@ func GenerateBoundServe(contractPath, openapiPath, existingServePath string) (*o
 	}
 	// MCP is bridged at runtime, not a served transport: drop any stale mcp source.
 	delete(bound.Sources, "mcp")
+
+	// Embed each served source's artifact as `content` so the bound serve OBI is
+	// self-contained and portable (OBI-D-05): it is served as the discovery
+	// document, where a repo-relative `location` like "./openapi.yaml" would not
+	// resolve for any client. Locations are relative to the serve OBI's directory.
+	serveDir := filepath.Dir(existingServePath)
+	for key, src := range bound.Sources {
+		if src.Content != nil || src.Location == "" {
+			continue
+		}
+		loc := src.Location
+		if !filepath.IsAbs(loc) && !strings.Contains(loc, "://") {
+			loc = filepath.Join(serveDir, loc)
+		}
+		data, err := os.ReadFile(loc)
+		if err != nil {
+			return nil, fmt.Errorf("read serve source %q: %w", key, err)
+		}
+		content, err := ParseContentForEmbed(data, src.Format)
+		if err != nil {
+			return nil, fmt.Errorf("embed serve source %q: %w", key, err)
+		}
+		src.Content = content
+		src.Location = ""
+		bound.Sources[key] = src
+	}
 
 	include := func(opKey string) bool {
 		op, ok := contract.Operations[opKey]

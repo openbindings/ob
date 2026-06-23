@@ -50,7 +50,7 @@ Your service also has a CLI described by a usage spec:
 
 ```bash
 ob source add interface.json usage@2.0:./cli.usage.kdl
-ob sync interface.json
+ob source pull interface.json
 ```
 
 The OBI now has operations from both the REST API and the CLI, each with their own bindings pointing to the appropriate source.
@@ -60,7 +60,7 @@ The OBI now has operations from both the REST API and the CLI, each with their o
 Your team updates the OpenAPI spec. Check if the OBI is out of date:
 
 ```bash
-ob status interface.json
+ob source status interface.json
 ```
 
 ```
@@ -73,13 +73,13 @@ Sources (2)
 Operations (8) -- 8 managed, 0 hand-authored
 Bindings (10) -- 10 managed, 0 hand-authored
 
-1 source(s) drifted. Run 'ob sync interface.json' to update.
+1 source(s) out of sync. Run 'ob source pull interface.json' to update.
 ```
 
-### 4. Sync
+### 4. Pull
 
 ```bash
-ob sync interface.json
+ob source pull interface.json
 ```
 
 `ob` re-reads the drifted sources, updates operations and bindings, and preserves any hand-authored operations you added manually.
@@ -104,7 +104,7 @@ Produces a typed, transport-agnostic invoker with a method for each operation. T
 ### 7. Publish a clean OBI
 
 ```bash
-ob sync interface.json -o published.json --pure
+ob source pull interface.json -o published.json --pure
 ```
 
 Strips `ob`'s internal metadata (`x-ob` fields), producing a clean OBI suitable for distribution or committing to a repo.
@@ -241,15 +241,15 @@ ob source add interface.json usage@2.0:./cli.kdl --resolve content
 
 JSON/YAML formats embed as native objects. Text formats (KDL, protobuf) embed as strings.
 
-## Drift Detection and Sync
+## Drift Detection and Pull
 
-`ob` hashes each source artifact at sync time (`x-ob.contentHash`). `ob status` compares the current file against the stored hash to detect changes.
+`ob` hashes each source artifact when it is pulled (`x-ob.contentHash`). `ob source status` compares the current file against the stored hash to detect changes.
 
 ```bash
-ob status interface.json      # check for drift
-ob sync interface.json        # update from drifted sources
-ob sync interface.json usage  # sync just one source
-ob sync interface.json -o dist/interface.json --pure  # publish clean
+ob source status interface.json      # check for drift
+ob source pull interface.json        # update from drifted sources
+ob source pull interface.json usage  # pull just one source
+ob source pull interface.json -o dist/interface.json --pure  # publish clean
 ```
 
 ## Command Reference
@@ -260,7 +260,7 @@ ob sync interface.json -o dist/interface.json --pure  # publish clean
 |---------|-------------|
 | `ob demo` | Start the OpenBlendings coffee shop demo |
 | `ob create [sources...]` | Create an OBI from binding source artifacts |
-| `ob status [obi]` | Show environment status or OBI sync report |
+| `ob status` | Show environment status |
 | `ob describe` | Show ob identity and metadata |
 | `ob fetch <url-or-host>` | Download an OBI from a URL or host |
 
@@ -269,9 +269,10 @@ ob sync interface.json -o dist/interface.json --pure  # publish clean
 | Command | Description |
 |---------|-------------|
 | `ob source add <obi> <source>` | Register a source reference |
+| `ob source pull <obi> [source-keys...]` | Derive operations and bindings from registered sources |
+| `ob source status <obi>` | Report an OBI's drift against its sources (read-only) |
 | `ob source list <obi>` | List source references |
 | `ob source remove <obi> <key>` | Remove a source reference |
-| `ob sync <obi> [source-keys...]` | Sync sources from x-ob references |
 | `ob diff <obi> --from-sources` | Show structural differences between an OBI and its sources |
 | `ob merge <target> [source]` | Selectively apply changes from one OBI into another |
 | `ob conflicts <obi>` | List merge conflicts between local edits and source changes |
