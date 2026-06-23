@@ -490,9 +490,6 @@
     },
     "BindingInvokerInputFrame": {
       "description": "One frame from the caller into invokeBinding. The caller streams: exactly one `open` first (carrying the BindingInvocationInput), then zero or more `input` frames, then exactly one `close`.",
-      "discriminator": {
-        "propertyName": "kind"
-      },
       "oneOf": [
         {
           "additionalProperties": false,
@@ -548,9 +545,6 @@
     },
     "BindingInvokerOutputFrame": {
       "description": "One frame from the service back to the caller. Zero or more non-terminal frames (`output`, `input_closed`) followed by exactly one terminal frame (`complete` or `error`).",
-      "discriminator": {
-        "propertyName": "kind"
-      },
       "oneOf": [
         {
           "additionalProperties": false,
@@ -1839,9 +1833,6 @@
     },
     "OperationInvokerInputFrame": {
       "description": "One frame from the caller into invokeOperation. Same shape as the binding-invoker input stream, with the open frame carrying an OperationInvocationInput: exactly one `open` first, then zero or more `input` frames, then exactly one `close`.",
-      "discriminator": {
-        "propertyName": "kind"
-      },
       "oneOf": [
         {
           "additionalProperties": false,
@@ -1897,9 +1888,6 @@
     },
     "OperationInvokerOutputFrame": {
       "description": "One frame from invokeOperation back to the caller. Same shape as the binding-invoker output stream: zero or more `output`/`input_closed` frames, then exactly one terminal `complete` or `error`. Each output is validated against the operation's output schema.",
-      "discriminator": {
-        "propertyName": "kind"
-      },
       "oneOf": [
         {
           "additionalProperties": false,

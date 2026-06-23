@@ -16,13 +16,16 @@ import (
 	"os"
 
 	"github.com/openbindings/ob/internal/app"
+	"github.com/openbindings/openbindings-go/formats/usage"
 )
 
 func main() {
 	const contractPath = "../../ob.obi.json"
 
-	// Bound CLI OBI: contract + usage.kdl.
-	cli, err := app.GenerateBoundCLI(contractPath, "../cmd/usage.kdl", "usage@2.13.1")
+	// Bound CLI OBI: contract + usage.kdl. The source token pins the usage
+	// format version ob is built against (usage.MaxTestedVersion), so it tracks
+	// the SDK instead of drifting as a hand-copied literal.
+	cli, err := app.GenerateBoundCLI(contractPath, "../cmd/usage.kdl", "usage@"+usage.MaxTestedVersion)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, "genbound: cli:", err)
 		os.Exit(1)

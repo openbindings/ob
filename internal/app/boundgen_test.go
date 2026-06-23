@@ -1,6 +1,10 @@
 package app
 
-import "testing"
+import (
+	"testing"
+
+	"github.com/openbindings/openbindings-go/formats/usage"
+)
 
 // TestBoundCLIConformsToContract is the drift guard: the committed bound CLI
 // OBI (internal/app/ob.obi.json) must conform to the unbound contract
@@ -103,7 +107,7 @@ func TestBoundOBIsAreSpecValid(t *testing.T) {
 }
 
 func TestGenerateBoundCLI_BindsOpsByShortName(t *testing.T) {
-	bound, err := GenerateBoundCLI("../../ob.obi.json", "../cmd/usage.kdl", "usage@2.13.1")
+	bound, err := GenerateBoundCLI("../../ob.obi.json", "../cmd/usage.kdl", "usage@"+usage.MaxTestedVersion)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
