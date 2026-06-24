@@ -8,12 +8,12 @@ cmd "init" help="Initialize an OpenBindings environment (.openbindings/)" opKey=
   flag "-F --format <format>" help="Output format: json|yaml|text"
 }
 
-cmd "environment" help="Show the active OpenBindings environment" opKey="getEnvironmentStatus" {
+cmd "environment" help="Show the active OpenBindings environment" opKey="reportEnvironmentStatus" {
   flag "-o --output <path>" help="Write output to file"
   flag "-F --format <format>" help="Output format: json|yaml|text"
 }
 
-cmd "status" help="Report an OBI's drift against its sources (read-only)" opKey="getInterfaceStatus" {
+cmd "status" help="Report an OBI's drift against its sources (read-only)" opKey="reportInterfaceStatus" {
   flag "--exit-code" help="Exit non-zero if any source has drift (CI gate)"
   flag "-o --output <path>" help="Write output to file"
   flag "-F --format <format>" help="Output format: json|yaml|text"
@@ -51,7 +51,7 @@ cmd "context" help="Manage binding context (credentials, headers, environment)" 
     flag "--from-curl <curl>" help="Import context from a curl command string"
     arg "<url>" help="Target URL"
   }
-  cmd "remove" help="Remove context for a target URL" opKey="deleteContext" {
+  cmd "remove" help="Remove context for a target URL" opKey="removeContext" {
     arg "<url>" help="Target URL"
   }
 }
@@ -61,12 +61,12 @@ cmd "delegate" help="Manage delegates" subcommand_required=true {
     flag "-o --output <path>" help="Write output to file"
     flag "-F --format <format>" help="Output format: json|yaml|text"
   }
-  cmd "add" help="Add a delegate" opKey="createDelegate" {
+  cmd "add" help="Add a delegate" opKey="addDelegate" {
     flag "-o --output <path>" help="Write output to file"
     flag "-F --format <format>" help="Output format: json|yaml|text"
     arg "<url>" help="Delegate URL (e.g., exec:my-cli, https://api.example.com)"
   }
-  cmd "remove" help="Remove a delegate" opKey="deleteDelegate" {
+  cmd "remove" help="Remove a delegate" opKey="removeDelegate" {
     flag "-o --output <path>" help="Write output to file"
     flag "-F --format <format>" help="Output format: json|yaml|text"
     arg "<url>" help="Delegate URL"
@@ -123,7 +123,7 @@ cmd "inspect" help="Inspect a binding source and list its bindable targets" opKe
 }
 
 cmd "source" help="Manage source references on an OBI" subcommand_required=true {
-  cmd "add" help="Register a source reference on an OBI" opKey="createSource" {
+  cmd "add" help="Register a source reference on an OBI" opKey="addSource" {
     flag "--key <name>" help="Explicit source key (default: derived from format and path)"
     flag "--resolve <mode>" help="Resolution mode: location (default) or content"
     flag "--uri <url>" help="Explicit published URI for location mode"
@@ -144,7 +144,7 @@ cmd "source" help="Manage source references on an OBI" subcommand_required=true 
     flag "-F --format <format>" help="Output format: json|yaml|text"
     arg "<obi-path>" help="Path to the OBI file"
   }
-  cmd "remove" help="Remove a source reference from an OBI" opKey="deleteSource" {
+  cmd "remove" help="Remove a source reference from an OBI" opKey="removeSource" {
     flag "-o --output <path>" help="Write output to file"
     flag "-F --format <format>" help="Output format: json|yaml|text"
     arg "<obi-path>" help="Path to the OBI file"
@@ -153,7 +153,7 @@ cmd "source" help="Manage source references on an OBI" subcommand_required=true 
 }
 
 cmd "operation" help="Manage and invoke operations on an OBI" subcommand_required=true {
-  cmd "add" help="Add a new operation to an OBI" opKey="createOperation" {
+  cmd "add" help="Add a new operation to an OBI" opKey="addOperation" {
     flag "--description <desc>" help="Operation description"
     flag "--alias <alias>" help="Satisfaction alias: another interface's operation key this satisfies (repeatable)"
     flag "--tag <tag>" help="Operation tag (repeatable)"
@@ -187,7 +187,7 @@ cmd "operation" help="Manage and invoke operations on an OBI" subcommand_require
       arg "[operation]" help="Scope to a single operation"
     }
   }
-  cmd "set" help="Edit an existing operation" opKey="updateOperation" {
+  cmd "set" help="Edit an existing operation" opKey="setOperation" {
     flag "--description <desc>" help="Set the operation description"
     flag "--idempotent <bool>" help="Set whether the operation is idempotent (true/false)"
     flag "--deprecated <bool>" help="Set whether the operation is deprecated (true/false)"
@@ -254,7 +254,7 @@ cmd "operation" help="Manage and invoke operations on an OBI" subcommand_require
     arg "<old-key>" help="Current operation key"
     arg "<new-key>" help="New operation key"
   }
-  cmd "remove" help="Remove operations and their bindings from an OBI" opKey="deleteOperation" {
+  cmd "remove" help="Remove operations and their bindings from an OBI" opKey="removeOperation" {
     flag "--force" help="Remove managed operations without warning"
     flag "-o --output <path>" help="Write output to file"
     flag "-F --format <format>" help="Output format: json|yaml|text"
@@ -312,7 +312,7 @@ cmd "validate" help="Validate an OpenBindings interface document" opKey="validat
   arg "<locator>" help="File path, HTTP(S) URL, or exec: locator"
 }
 
-cmd "compat" help="Check interface conformance between two interfaces" opKey="assessCompatibility" {
+cmd "compat" help="Check interface conformance between two interfaces" opKey="reportCompatibility" {
   flag "-q --quiet" help="Exit code only, no output"
   flag "-o --output <path>" help="Write output to file"
   flag "-F --format <format>" help="Output format: json|yaml|text"

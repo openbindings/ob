@@ -43,7 +43,7 @@
       "description": "Create an OpenBindings interface, optionally from binding source artifacts. Given one or more sources (e.g. an OpenAPI spec, a CLI usage spec), extracts operations, schemas, sources, and bindings into the new OBI; with no sources, produces an empty interface to author by hand.",
       "idempotent": true,
       "input": {
-        "$ref": "#/schemas/CreateInterfaceInput"
+        "$ref": "#/schemas/SynthesizeInterfaceInput"
       },
       "output": {
         "$ref": "#/schemas/OpenBindingsInterface"
@@ -65,16 +65,16 @@
         "openbindings.source-inspector.inspectSource"
       ]
     },
-    "openbindings.ob.createSource": {
+    "openbindings.ob.addSource": {
       "description": "Register a binding source reference on an interface and return the modified interface.",
       "input": {
-        "$ref": "#/schemas/CreateSourceInput"
+        "$ref": "#/schemas/AddSourceInput"
       },
       "output": {
         "$ref": "#/schemas/OpenBindingsInterface"
       }
     },
-    "openbindings.ob.deleteSource": {
+    "openbindings.ob.removeSource": {
       "description": "Remove a source reference from an interface and return the modified interface.",
       "input": {
         "$ref": "#/schemas/SourceKeyInput"
@@ -96,10 +96,10 @@
         }
       }
     },
-    "openbindings.ob.createOperation": {
+    "openbindings.ob.addOperation": {
       "description": "Add an operation with the given key to an interface and return the modified interface.",
       "input": {
-        "$ref": "#/schemas/CreateOperationInput"
+        "$ref": "#/schemas/AddOperationInput"
       },
       "output": {
         "$ref": "#/schemas/OpenBindingsInterface"
@@ -114,10 +114,10 @@
         "$ref": "#/schemas/OpenBindingsInterface"
       }
     },
-    "openbindings.ob.deleteOperation": {
+    "openbindings.ob.removeOperation": {
       "description": "Remove one or more operations and their bindings from an interface and return the modified interface.",
       "input": {
-        "$ref": "#/schemas/DeleteOperationInput"
+        "$ref": "#/schemas/RemoveOperationInput"
       },
       "output": {
         "$ref": "#/schemas/OpenBindingsInterface"
@@ -165,11 +165,11 @@
         "$ref": "#/schemas/DiffReport"
       }
     },
-    "openbindings.ob.assessCompatibility": {
-      "description": "Assess whether a candidate interface conforms to a target interface and produce a report: per-operation input/output slot status, overall conformance level, and coverage. A report, not a binary verdict.",
+    "openbindings.ob.reportCompatibility": {
+      "description": "Report whether a candidate interface conforms to a target interface and produce a report: per-operation input/output slot status, overall conformance level, and coverage. A report, not a binary verdict.",
       "idempotent": true,
       "input": {
-        "$ref": "#/schemas/AssessCompatibilityInput"
+        "$ref": "#/schemas/ReportCompatibilityInput"
       },
       "output": {
         "$ref": "#/schemas/CompatibilityReport"
@@ -269,8 +269,8 @@
         "openbindings.kv-store.set"
       ]
     },
-    "openbindings.ob.deleteContext": {
-      "description": "Delete the stored context for a key. Deleting an absent key succeeds.",
+    "openbindings.ob.removeContext": {
+      "description": "Remove the stored context for a key. Deleting an absent key succeeds.",
       "idempotent": true,
       "input": {
         "$ref": "#/schemas/ContextKeyInput"
@@ -280,7 +280,7 @@
       ]
     },
     "openbindings.ob.listContexts": {
-      "description": "List non-secret metadata summaries for all stored contexts; never returns secret values. Completes the context surface with listing and inspection: the generic kv-store substrate these contexts are stored under (satisfied by getContext/setContext/deleteContext) standardizes only opaque get/set/delete, so this management view is ob's own.",
+      "description": "List non-secret metadata summaries for all stored contexts; never returns secret values. Completes the context surface with listing and inspection: the generic kv-store substrate these contexts are stored under (satisfied by getContext/setContext/removeContext) standardizes only opaque get/set/delete, so this management view is ob's own.",
       "idempotent": true,
       "output": {
         "type": "array",
@@ -289,22 +289,22 @@
         }
       }
     },
-    "openbindings.ob.createDelegate": {
+    "openbindings.ob.addDelegate": {
       "description": "Register a delegate by the location of its OpenBindings interface (an exec: or http(s) URL). ob resolves the delegate's OBI and records which format-handling capabilities it offers \u2014 invoke (binding-invoker), create (interface-synthesizer), inspect (source-inspector) \u2014 and the formats it handles, so ob can route work it can't handle natively to the delegate. A delegate satisfies whichever subset it implements; an invoke-only delegate is valid. Returns what was discovered; registration succeeds with a warning when the delegate is unreachable or offers no delegatable capability.",
       "input": {
         "$ref": "#/schemas/DelegateLocationInput"
       },
       "output": {
-        "$ref": "#/schemas/CreateDelegateResult"
+        "$ref": "#/schemas/AddDelegateResult"
       }
     },
-    "openbindings.ob.deleteDelegate": {
+    "openbindings.ob.removeDelegate": {
       "description": "Unregister a delegate by its location.",
       "input": {
         "$ref": "#/schemas/DelegateLocationInput"
       },
       "output": {
-        "$ref": "#/schemas/DeleteDelegateResult"
+        "$ref": "#/schemas/RemoveDelegateResult"
       }
     },
     "openbindings.ob.listDelegates": {
@@ -328,7 +328,7 @@
       }
     },
     "openbindings.ob.getDelegateRequirements": {
-      "description": "Return the published interface a delegate must satisfy to provide a capability (invoke \u2192 binding-invoker, create \u2192 interface-synthesizer, inspect \u2192 source-inspector), so a prospective delegate can be checked against the exact contract (e.g. via assessCompatibility). The interfaces are immutable documents bundled with this ob release.",
+      "description": "Return the published interface a delegate must satisfy to provide a capability (invoke \u2192 binding-invoker, create \u2192 interface-synthesizer, inspect \u2192 source-inspector), so a prospective delegate can be checked against the exact contract (e.g. via reportCompatibility). The interfaces are immutable documents bundled with this ob release.",
       "idempotent": true,
       "input": {
         "$ref": "#/schemas/GetDelegateRequirementsInput"
@@ -352,14 +352,14 @@
         "$ref": "#/schemas/EnvironmentStatus"
       }
     },
-    "openbindings.ob.getEnvironmentStatus": {
+    "openbindings.ob.reportEnvironmentStatus": {
       "description": "Report a snapshot of the active OpenBindings environment (the .openbindings/ directory): whether it is local or global, its path, and counts of the delegates and contexts it holds.",
       "idempotent": true,
       "output": {
         "$ref": "#/schemas/EnvironmentStatus"
       }
     },
-    "openbindings.ob.getInterfaceStatus": {
+    "openbindings.ob.reportInterfaceStatus": {
       "description": "Report an interface's status against its sources: per-source sync state (in-sync, managed, what a sync would change) and the managed-vs-hand-authored breakdown of its operations and bindings. Read-only \u2014 distinct from pullSource (which re-derives and writes) and from compareInterfaces with fromSources (which reports raw differences).",
       "idempotent": true,
       "input": {
@@ -469,10 +469,10 @@
         "$ref": "#/schemas/OpenBindingsInterface"
       }
     },
-    "openbindings.ob.updateOperation": {
+    "openbindings.ob.setOperation": {
       "description": "Edit an existing operation's fields (description, idempotency, deprecation, schemas, tags) and return the modified interface. A source-owned operation requires own=true (detaches first).",
       "input": {
-        "$ref": "#/schemas/UpdateOperationInput"
+        "$ref": "#/schemas/SetOperationInput"
       },
       "output": {
         "$ref": "#/schemas/OpenBindingsInterface"
@@ -709,7 +709,7 @@
       ],
       "additionalProperties": false
     },
-    "CreateInterfaceInput": {
+    "SynthesizeInterfaceInput": {
       "type": "object",
       "properties": {
         "openbindingsVersion": {
@@ -811,7 +811,7 @@
       },
       "additionalProperties": true
     },
-    "CreateSourceInput": {
+    "AddSourceInput": {
       "type": "object",
       "properties": {
         "interface": {
@@ -844,7 +844,7 @@
       ],
       "additionalProperties": false
     },
-    "CreateOperationInput": {
+    "AddOperationInput": {
       "type": "object",
       "properties": {
         "interface": {
@@ -907,7 +907,7 @@
       ],
       "additionalProperties": false
     },
-    "DeleteOperationInput": {
+    "RemoveOperationInput": {
       "type": "object",
       "properties": {
         "interface": {
@@ -1208,7 +1208,7 @@
       ],
       "additionalProperties": false
     },
-    "AssessCompatibilityInput": {
+    "ReportCompatibilityInput": {
       "type": "object",
       "properties": {
         "target": {
@@ -1813,7 +1813,7 @@
       ],
       "additionalProperties": false
     },
-    "CreateDelegateResult": {
+    "AddDelegateResult": {
       "type": "object",
       "description": "What ob discovered when registering the delegate. Registration succeeds even when the delegate is unreachable or offers nothing delegatable; reachable is then false and capabilities/formats are empty.",
       "properties": {
@@ -1848,7 +1848,7 @@
       ],
       "additionalProperties": false
     },
-    "DeleteDelegateResult": {
+    "RemoveDelegateResult": {
       "type": "object",
       "properties": {
         "location": {
@@ -2658,7 +2658,7 @@
       ],
       "additionalProperties": false
     },
-    "UpdateOperationInput": {
+    "SetOperationInput": {
       "type": "object",
       "properties": {
         "interface": {

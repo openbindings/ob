@@ -101,7 +101,7 @@ paths:
 
   /status:
     get:
-      operationId: getEnvironmentStatus
+      operationId: reportEnvironmentStatus
       summary: Show environment status
       responses:
         "200":
@@ -184,7 +184,7 @@ paths:
                   status:
                     type: string
     delete:
-      operationId: deleteContext
+      operationId: removeContext
       summary: Remove context for a target URL
       parameters:
         - name: url
@@ -415,7 +415,7 @@ paths:
 
   /compatibility:
     post:
-      operationId: assessCompatibility
+      operationId: reportCompatibility
       summary: Check interface conformance between two interfaces
       requestBody:
         required: true
@@ -548,7 +548,7 @@ paths:
 
   /interface-status:
     post:
-      operationId: getInterfaceStatus
+      operationId: reportInterfaceStatus
       summary: Report an interface's sync status against its sources
       requestBody:
         required: true
