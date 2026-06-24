@@ -459,6 +459,16 @@
         "$ref": "#/schemas/SourcePullOutput"
       }
     },
+    "openbindings.ob.purifyInterface": {
+      "description": "Strip x-ob vendor metadata from an interface, yielding a spec-only document suitable for publishing.",
+      "idempotent": true,
+      "input": {
+        "$ref": "#/schemas/OpenBindingsInterface"
+      },
+      "output": {
+        "$ref": "#/schemas/OpenBindingsInterface"
+      }
+    },
     "openbindings.ob.updateOperation": {
       "description": "Edit an existing operation's fields (description, idempotency, deprecation, schemas, tags) and return the modified interface. A source-owned operation requires own=true (detaches first).",
       "input": {

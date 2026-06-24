@@ -149,6 +149,9 @@ func NewRoot() *cobra.Command {
 	demoCmd := newDemoCmd()
 	demoCmd.GroupID = "explore"
 
+	purifyCmd := newPurifyCmd()
+	purifyCmd.GroupID = "authoring"
+
 	root.AddCommand(
 		initCmd,
 		environmentCmd,
@@ -173,6 +176,7 @@ func NewRoot() *cobra.Command {
 		mcpCmd,
 		startCmd,
 		demoCmd,
+		purifyCmd,
 	)
 
 	return root

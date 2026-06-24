@@ -329,6 +329,12 @@ cmd "conform" help="Scaffold a target OBI so it satisfies a reference interface"
   arg "<target-obi>" help="Target OBI to scaffold into"
 }
 
+cmd "purify" help="Strip x-ob vendor metadata, yielding a spec-only interface" opKey="purifyInterface" {
+  flag "-o --output <path>" help="Write output to file"
+  flag "-F --format <format>" help="Output format: json|yaml|text"
+  arg "<obi-path>" help="Interface to purify"
+}
+
 cmd "codegen" help="Generate a typed invoker from an interface" opKey="codegen" {
   flag "-l --lang <language>" help="Target language: typescript or go (required)"
   flag "-o --output <path>" help="Output file path (default: stdout)"
