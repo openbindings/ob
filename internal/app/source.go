@@ -259,7 +259,8 @@ func SourceRemove(obiPath string, key string) (SourceRemoveOutput, error) {
 	}
 
 	if _, exists := iface.Sources[key]; !exists {
-		return SourceRemoveOutput{}, fmt.Errorf("source %q not found", key)
+		// Tolerant: removing an absent source succeeds with nothing removed.
+		return SourceRemoveOutput{Key: key}, nil
 	}
 
 	// Remove bindings that reference this source.

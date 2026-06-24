@@ -239,9 +239,6 @@ func newContextRemoveCmd() *cobra.Command {
 		Args:    cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			targetURL := args[0]
-			if !app.ContextExists(targetURL) {
-				return app.ExitResult{Code: 1, Message: fmt.Sprintf("no context found for %q", targetURL), ToStderr: true}
-			}
 			if err := app.DeleteContext(targetURL); err != nil {
 				return app.ExitResult{Code: 1, Message: err.Error(), ToStderr: true}
 			}

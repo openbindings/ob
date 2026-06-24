@@ -308,9 +308,12 @@ func TestOperationRemove_NotFound(t *testing.T) {
 		"hello": map[string]any{},
 	}))
 
-	_, err := OperationRemove(obiPath, []string{"nonexistent"})
-	if err == nil {
-		t.Fatal("expected error for nonexistent operation")
+	out, err := OperationRemove(obiPath, []string{"nonexistent"})
+	if err != nil {
+		t.Fatalf("removing an absent operation should succeed (tolerant): %v", err)
+	}
+	if len(out.Removed) != 0 {
+		t.Errorf("nothing should be reported removed, got %v", out.Removed)
 	}
 }
 
@@ -320,16 +323,18 @@ func TestOperationRemove_PartialNotFound(t *testing.T) {
 		"hello": map[string]any{},
 	}))
 
-	// One exists, one doesn't — should fail before removing any.
-	_, err := OperationRemove(obiPath, []string{"hello", "nonexistent"})
-	if err == nil {
-		t.Fatal("expected error for partially nonexistent operations")
+	// One exists, one doesn't — the present one is removed, the absent one is a no-op.
+	out, err := OperationRemove(obiPath, []string{"hello", "nonexistent"})
+	if err != nil {
+		t.Fatalf("partial remove should succeed: %v", err)
+	}
+	if len(out.Removed) != 1 || out.Removed[0] != "hello" {
+		t.Errorf("only hello should be reported removed, got %v", out.Removed)
 	}
 
-	// Verify nothing was removed.
 	iface, _ := loadInterfaceFile(obiPath)
-	if _, ok := iface.Operations["hello"]; !ok {
-		t.Error("hello should still exist (atomic failure)")
+	if _, ok := iface.Operations["hello"]; ok {
+		t.Error("hello should have been removed")
 	}
 }
 

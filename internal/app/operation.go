@@ -242,19 +242,15 @@ func OperationRemove(obiPath string, keys []string) (OperationRemoveOutput, erro
 		return OperationRemoveOutput{}, fmt.Errorf("load OBI: %w", err)
 	}
 
-	// Verify all keys exist before removing any.
+	// Remove the operations that are present; an absent key is a tolerant no-op.
+	var removed []string
 	for _, key := range keys {
-		if _, exists := iface.Operations[key]; !exists {
-			return OperationRemoveOutput{}, fmt.Errorf("operation %q not found", key)
+		if _, exists := iface.Operations[key]; exists {
+			delete(iface.Operations, key)
+			removed = append(removed, key)
 		}
 	}
-
-	removeSet := toStringSet(keys)
-
-	// Remove operations.
-	for _, key := range keys {
-		delete(iface.Operations, key)
-	}
+	removeSet := toStringSet(removed)
 
 	// Remove associated bindings.
 	bindingsRemoved := 0
@@ -269,11 +265,9 @@ func OperationRemove(obiPath string, keys []string) (OperationRemoveOutput, erro
 		return OperationRemoveOutput{}, fmt.Errorf("write OBI: %w", err)
 	}
 
-	sorted := make([]string, len(keys))
-	copy(sorted, keys)
-	sort.Strings(sorted)
+	sort.Strings(removed)
 	return OperationRemoveOutput{
-		Removed:         sorted,
+		Removed:         removed,
 		BindingsRemoved: bindingsRemoved,
 	}, nil
 }

@@ -194,9 +194,12 @@ func TestSourceRemove_NotFound(t *testing.T) {
 
 	obiPath := writeInterface(t, dir, "my.obi.json", minimalInterface(map[string]any{}))
 
-	_, err := SourceRemove(obiPath, "nonexistent")
-	if err == nil {
-		t.Fatal("expected error for nonexistent source")
+	out, err := SourceRemove(obiPath, "nonexistent")
+	if err != nil {
+		t.Fatalf("removing an absent source should succeed (tolerant): %v", err)
+	}
+	if out.RemovedBindings != 0 {
+		t.Errorf("nothing should be removed, got %d", out.RemovedBindings)
 	}
 }
 
