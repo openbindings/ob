@@ -14,6 +14,7 @@ They are the building blocks used by delegates and orchestrators.`,
 
 	c.AddCommand(
 		newBindingInvokeCmd(),
+		newBindingPrepareCmd(),
 	)
 
 	return c
