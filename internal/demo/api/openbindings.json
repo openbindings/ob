@@ -225,17 +225,17 @@
   "sources": {
     "restApi": {
       "format": "openapi@3.1",
-      "location": "./openapi.json",
+      "location": "http://localhost:8080/openapi.json",
       "description": "REST API \u2014 the mobile ordering app calls this"
     },
     "eventStream": {
       "format": "asyncapi@3.0",
-      "location": "./asyncapi.json",
+      "location": "http://localhost:8080/asyncapi.json",
       "description": "SSE event stream \u2014 the barista dashboard watches this"
     },
     "mcpServer": {
       "format": "mcp@2025-11-25",
-      "location": "./mcp",
+      "location": "http://localhost:8080/mcp",
       "description": "MCP tools via Streamable HTTP \u2014 AI assistants use this"
     },
     "grpcServer": {
@@ -245,12 +245,12 @@
     },
     "connectServer": {
       "format": "connect",
-      "location": "./",
+      "location": "http://localhost:8080",
       "description": "Connect (Buf) \u2014 same protobuf service over HTTP/1.1 + JSON"
     },
     "graphqlServer": {
       "format": "graphql",
-      "location": "./graphql",
+      "location": "http://localhost:8080/graphql",
       "description": "GraphQL API \u2014 flexible queries with field selection"
     },
     "placeAndTrackGraph": {

@@ -82,12 +82,10 @@ func serveOBI(port int) http.HandlerFunc {
 
 		baseURL := fmt.Sprintf("http://localhost:%d", port)
 
-		body := string(data)
-		body = strings.ReplaceAll(body, `"./openapi.json"`, `"`+baseURL+`/openapi.json"`)
-		body = strings.ReplaceAll(body, `"./asyncapi.json"`, `"`+baseURL+`/asyncapi.json"`)
-		body = strings.ReplaceAll(body, `"./mcp"`, `"`+baseURL+`/mcp"`)
-		body = strings.ReplaceAll(body, `"./graphql"`, `"`+baseURL+`/graphql"`)
-		body = strings.ReplaceAll(body, `"location": "./"`, `"location": "`+baseURL+`"`)
+		// The static OBI declares the default-port base (http://localhost:8080)
+		// so it is a valid standalone OBI; rewrite it to the running port so the
+		// served document's source locations point at this process.
+		body := strings.ReplaceAll(string(data), "http://localhost:8080", baseURL)
 
 		w.Header().Set("Content-Type", "application/json")
 		w.Header().Set("Access-Control-Allow-Origin", "*")
