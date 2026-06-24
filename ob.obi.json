@@ -451,12 +451,12 @@
       }
     },
     "openbindings.ob.pullSource": {
-      "description": "Derive operations and bindings from registered sources into the interface \u2014 create on first pull, overwrite + prune source-owned objects on later pulls, leave hand-authored objects untouched. Returns the modified interface.",
+      "description": "Derive operations and bindings from registered sources into the interface \u2014 create on first pull, overwrite + prune source-owned objects on later pulls, leave hand-authored objects untouched. Returns the change log of affected operation and binding keys.",
       "input": {
         "$ref": "#/schemas/PullSourceInput"
       },
       "output": {
-        "$ref": "#/schemas/OpenBindingsInterface"
+        "$ref": "#/schemas/SourcePullOutput"
       }
     },
     "openbindings.ob.updateOperation": {
@@ -2339,6 +2339,69 @@
           }
         },
         "handAuthored": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    "SourcePullOutput": {
+      "type": "object",
+      "description": "The change log a `source pull` produced: the source-owned operations and bindings added, updated, or pruned, the sources pulled and skipped, and any warnings.",
+      "properties": {
+        "sources": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Source keys pulled."
+        },
+        "skipped": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Source keys skipped (hand-authored or unreadable)."
+        },
+        "operationsAdded": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "operationsUpdated": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "operationsPruned": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "bindingsAdded": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "bindingsUpdated": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "bindingsPruned": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "warnings": {
           "type": "array",
           "items": {
             "type": "string"

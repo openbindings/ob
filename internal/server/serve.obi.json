@@ -2351,6 +2351,69 @@
       ],
       "type": "object"
     },
+    "SourcePullOutput": {
+      "additionalProperties": false,
+      "description": "The change log a `source pull` produced: the source-owned operations and bindings added, updated, or pruned, the sources pulled and skipped, and any warnings.",
+      "properties": {
+        "bindingsAdded": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "bindingsPruned": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "bindingsUpdated": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "operationsAdded": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "operationsPruned": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "operationsUpdated": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "skipped": {
+          "description": "Source keys skipped (hand-authored or unreadable).",
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "sources": {
+          "description": "Source keys pulled.",
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "warnings": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        }
+      },
+      "type": "object"
+    },
     "SourceStatus": {
       "additionalProperties": false,
       "description": "Drift status of one source on an interface: what `ob source pull` would add/update/remove, plus custodial drift on hand-authored bindings whose target is gone.",

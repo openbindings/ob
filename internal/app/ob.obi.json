@@ -609,12 +609,12 @@
       }
     },
     "openbindings.ob.pullSource": {
-      "description": "Derive operations and bindings from registered sources into the interface — create on first pull, overwrite + prune source-owned objects on later pulls, leave hand-authored objects untouched. Returns the modified interface.",
+      "description": "Derive operations and bindings from registered sources into the interface — create on first pull, overwrite + prune source-owned objects on later pulls, leave hand-authored objects untouched. Returns the change log of affected operation and binding keys.",
       "input": {
         "$ref": "#/schemas/PullSourceInput"
       },
       "output": {
-        "$ref": "#/schemas/OpenBindingsInterface"
+        "$ref": "#/schemas/SourcePullOutput"
       }
     },
     "openbindings.ob.removeOperationAlias": {
@@ -2747,6 +2747,69 @@
         "key",
         "source"
       ],
+      "type": "object"
+    },
+    "SourcePullOutput": {
+      "additionalProperties": false,
+      "description": "The change log a `source pull` produced: the source-owned operations and bindings added, updated, or pruned, the sources pulled and skipped, and any warnings.",
+      "properties": {
+        "bindingsAdded": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "bindingsPruned": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "bindingsUpdated": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "operationsAdded": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "operationsPruned": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "operationsUpdated": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "skipped": {
+          "description": "Source keys skipped (hand-authored or unreadable).",
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "sources": {
+          "description": "Source keys pulled.",
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "warnings": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        }
+      },
       "type": "object"
     },
     "SourceStatus": {
