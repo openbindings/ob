@@ -109,7 +109,7 @@
       "source": "openapi"
     }
   },
-  "description": "The complete interface implemented by ob, the OpenBindings reference tool. One unbound contract describing everything ob does: creating, inspecting, editing, validating, comparing, and invoking OpenBindings interfaces, plus context storage and environment management. This document carries no bindings or sources; it is the single source of truth from which the per-surface realizations (CLI via usage, server via OpenAPI/AsyncAPI/MCP) are derived, so they cannot drift. An operation that realizes a published OpenBindings interface is keyed by that interface's operation name (e.g. openbindings.kv-store.set), so satisfaction needs no alias; ob's own operations are keyed under the ob namespace (e.g. ob.syncInterface). Aliases appear only where one operation satisfies more than one published interface, as listFormats does.",
+  "description": "The complete interface implemented by ob, the OpenBindings reference tool. One unbound contract describing everything ob does: creating, inspecting, editing, validating, comparing, and invoking OpenBindings interfaces, plus context storage and environment management. This document carries no bindings or sources; it is the single source of truth from which the per-surface realizations (CLI via usage, server via OpenAPI/AsyncAPI/MCP) are derived, so they cannot drift. An operation that realizes a published OpenBindings interface is keyed by that interface's operation name (e.g. openbindings.kv-store.set), so satisfaction needs no alias; ob's own operations are keyed under the ob namespace (e.g. ob.pullSource). Aliases appear only where one operation satisfies more than one published interface, as listFormats does.",
   "name": "ob",
   "openbindings": "0.2.0",
   "operations": {
@@ -210,7 +210,7 @@
       }
     },
     "openbindings.ob.getInterfaceStatus": {
-      "description": "Report an interface's status against its sources: per-source sync state (in-sync, managed, what a sync would change) and the managed-vs-hand-authored breakdown of its operations and bindings. Read-only — distinct from syncInterface (which re-derives and writes) and from compareInterfaces with fromSources (which reports raw differences).",
+      "description": "Report an interface's status against its sources: per-source sync state (in-sync, managed, what a sync would change) and the managed-vs-hand-authored breakdown of its operations and bindings. Read-only — distinct from pullSource (which re-derives and writes) and from compareInterfaces with fromSources (which reports raw differences).",
       "idempotent": true,
       "input": {
         "$ref": "#/schemas/InterfaceStatusInput"
@@ -1522,7 +1522,7 @@
     },
     "ManagedKeys": {
       "additionalProperties": false,
-      "description": "Keys split by provenance: managed (derived from a source by sync) vs hand-authored.",
+      "description": "Keys split by provenance: managed (derived from a source by pullSource) vs hand-authored.",
       "properties": {
         "handAuthored": {
           "items": {
