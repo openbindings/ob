@@ -50,7 +50,11 @@ func DelegateRemove(url string) (*DelegateRemoveResult, error) {
 	}
 
 	if !found {
-		return nil, exitText(1, fmt.Sprintf("delegate %q not found", url), true)
+		// Tolerant: removing a delegate that isn't registered is a no-op success.
+		// Active defaults are merged into config.Delegates at load (LoadEnvConfig ->
+		// migrateDefaultDelegates), so they are found above and suppressed normally;
+		// reaching here means the delegate genuinely isn't active.
+		return &DelegateRemoveResult{Location: url}, nil
 	}
 
 	config.Delegates = newDelegates
