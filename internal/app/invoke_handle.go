@@ -108,7 +108,9 @@ func withStoredContext(ctx context.Context, invoker *openbindings.OperationInvok
 	if !openbindings.ContextSatisfies(merged, details) {
 		return args.Context
 	}
-	return merged
+	// Least privilege: the preflight already told us the requirements, so hand the
+	// invoker only the context they scope to, not the whole merged store.
+	return openbindings.ScopeContext(merged, details)
 }
 
 // PrepareBinding is the prepareBinding operation: a side-effect-free

@@ -126,11 +126,10 @@ func (d *delegateFrameInvoker) InvokeBinding(ctx context.Context, args *openbind
 			Content:  args.Source.Content,
 		},
 		Ref: args.Ref,
-		// NOTE (least privilege): a delegate is a separate, untrusted party.
-		// args.Context is scoped when it flows from the challenge-driven resolver,
-		// but a full pre-loaded context (withStoredContext) still over-shares
-		// here. Proper fix: scope to the delegate's own declared requirement
-		// (challenge-driven pre-scope). Tracked as a follow-up.
+		// Caller's per-call context only. ob does not pre-load the store for
+		// delegate formats (PrepareBinding returns nil for them), so a delegate,
+		// like any interface client, raises CONTEXT_REQUIRED for what it needs and
+		// ob's resolver answers scoped (ScopeContext).
 		Context: args.Context,
 	}
 	return frames.Invoke(ctx, d.dial, input)
