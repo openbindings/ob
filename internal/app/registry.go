@@ -60,6 +60,11 @@ func newDefaultInvoker() *openbindings.OperationInvoker {
 	// invoker.Invoke stays dormant on that path. If any app-layer code is ever
 	// moved onto invoker.Invoke, remove driveBinding's loop first — otherwise
 	// both loops fire and a single challenge is retried up to 3×3 times.
+	//
+	// Least privilege: the resolver hands back only challenge-scoped context
+	// (openbindings.ScopeContext) — the credentials the satisfied alternative
+	// needs plus non-secret config, never other stored credentials — and a
+	// binding invoker never gets raw store access.
 	invoker.ContextResolver = CLIContextResolver()
 	return invoker
 }

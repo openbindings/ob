@@ -125,7 +125,12 @@ func (d *delegateFrameInvoker) InvokeBinding(ctx context.Context, args *openbind
 			Location: args.Source.Location,
 			Content:  args.Source.Content,
 		},
-		Ref:     args.Ref,
+		Ref: args.Ref,
+		// NOTE (least privilege): a delegate is a separate, untrusted party.
+		// args.Context is scoped when it flows from the challenge-driven resolver,
+		// but a full pre-loaded context (withStoredContext) still over-shares
+		// here. Proper fix: scope to the delegate's own declared requirement
+		// (challenge-driven pre-scope). Tracked as a follow-up.
 		Context: args.Context,
 	}
 	return frames.Invoke(ctx, d.dial, input)

@@ -27,7 +27,9 @@ func CLIPlatformCallbacks() *openbindings.PlatformCallbacks {
 // challenge's target and first consults the CLI context store under it; if the
 // stored context can't satisfy the challenge, it prompts for the missing
 // credentials (the first satisfiable alternative), persists them under the
-// key, and returns the resolved context.
+// key, and returns the resolved context scoped to the challenge (ScopeContext:
+// only the satisfied alternative's credentials plus non-secret config, never
+// other stored credentials).
 // It declines (returns nil) when no prompt is possible (e.g. not a TTY), so the
 // challenge surfaces to the caller unchanged.
 func CLIContextResolver() openbindings.ContextResolver {
@@ -41,7 +43,7 @@ func CLIContextResolver() openbindings.ContextResolver {
 		// 1. Try the stored context first.
 		stored, _ := store.Get(ctx, key)
 		if stored != nil && openbindings.ContextSatisfies(stored, details) {
-			return stored, nil
+			return openbindings.ScopeContext(stored, details), nil
 		}
 
 		// 2. Interactively resolve the first satisfiable alternative.
@@ -57,12 +59,12 @@ func CLIContextResolver() openbindings.ContextResolver {
 			if promptForAlternative(ctx, alt, candidate) && openbindings.ContextSatisfies(candidate, details) {
 				// 3. Persist only the durable portion under the challenge key.
 				// Non-durable context (e.g. a short-lived token) MUST NOT be
-				// written to disk/keychain; it is re-acquired each call. The
-				// resolved candidate is still returned in full for this call.
+				// written to disk/keychain; it is re-acquired each call.
 				if persistable := durableSubset(alt, candidate); len(persistable) > 0 {
 					_ = store.Set(ctx, key, persistable)
 				}
-				return candidate, nil
+				// Least privilege: hand back only what this challenge needs.
+				return openbindings.ScopeContext(candidate, details), nil
 			}
 		}
 		return nil, nil
