@@ -156,7 +156,7 @@ contract operation by carrying its name as the key or an alias (spec
 OBI-T-12).
 
 ```bash
-ob conform kv-store.json my-service.obi.json
+ob conform key-value-store.json my-service.obi.json
 ```
 
 For each operation in the contract interface:

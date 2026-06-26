@@ -196,7 +196,7 @@ func deleteKeychainCredentials(key string) error {
 }
 
 // LoadContext returns the unified context payload for a target URL, matching
-// the Context schema ob stores as the kv-store value. Credential fields
+// the Context schema ob stores as the key-value-store value. Credential fields
 // (bearerToken, apiKey, basic, ...) sit alongside transport fields (headers,
 // cookies, environment, metadata) in a single opaque map. Internally the
 // implementation splits storage — secrets to the OS keychain, transport
@@ -424,7 +424,7 @@ func GetContextSummary(rawURL string) (ContextSummary, error) {
 // file+keychain persistence. The SDK and drivers call this through the
 // ContextStore interface — they never import this package directly.
 //
-// The store backs the kv-store interface; ob's values are unified Context
+// The store backs the key-value-store interface; ob's values are unified Context
 // payloads: credential fields (bearerToken, apiKey, basic, ...) alongside
 // transport fields (headers, cookies, environment, metadata) in a single
 // opaque map. The implementation splits storage internally — secrets to the

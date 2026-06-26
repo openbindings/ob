@@ -244,7 +244,7 @@ Schema flags accept inline JSON, '@path' to read a file, or '-' for stdin.
 Examples:
   ob op add interface.json createUser --description "Create a new user"
   ob op add interface.json get --input-schema @get-input.json --output-schema @get-output.json
-  ob op add interface.json get --alias openbindings.kv-store.get
+  ob op add interface.json get --alias openbindings.key-value-store.get
   ob op add interface.json listUsers --tag admin --tag readonly --idempotent true`,
 		Args: cobra.ExactArgs(2),
 		RunE: func(cmd *cobra.Command, args []string) error {
@@ -352,7 +352,7 @@ The operation may be referenced by its key or any existing identifier.
 Each alias must be free in the document's flat key+alias namespace.
 
 Examples:
-  ob op alias add interface.json acme.cache.fetch openbindings.kv-store.get
+  ob op alias add interface.json acme.cache.fetch openbindings.key-value-store.get
   ob op alias add interface.json describe openbindings.software-descriptor.describe`,
 		Args: cobra.MinimumNArgs(3),
 		RunE: func(cmd *cobra.Command, args []string) error {
@@ -375,7 +375,7 @@ func newOperationAliasRemoveCmd() *cobra.Command {
 		Long: `Remove one or more satisfaction aliases from an operation.
 
 Examples:
-  ob op alias rm interface.json acme.cache.fetch openbindings.kv-store.get`,
+  ob op alias rm interface.json acme.cache.fetch openbindings.key-value-store.get`,
 		Args: cobra.MinimumNArgs(3),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			result, err := app.OperationAliasRemove(args[0], args[1], args[2:])

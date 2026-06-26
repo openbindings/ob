@@ -241,7 +241,7 @@
       "source": "usage"
     }
   },
-  "description": "The complete interface implemented by ob, the OpenBindings reference tool. One unbound contract describing everything ob does: creating, inspecting, editing, validating, comparing, and invoking OpenBindings interfaces, plus context storage and environment management. This document carries no bindings or sources; it is the single source of truth from which the per-surface realizations (CLI via usage, server via OpenAPI/AsyncAPI/MCP) are derived, so they cannot drift. An operation that realizes a published OpenBindings interface is keyed by that interface's operation name (e.g. openbindings.kv-store.set), so satisfaction needs no alias; ob's own operations are keyed under the ob namespace (e.g. ob.pullSource). Aliases appear only where one operation satisfies more than one published interface, as listFormats does.",
+  "description": "The complete interface implemented by ob, the OpenBindings reference tool. One unbound contract describing everything ob does: creating, inspecting, editing, validating, comparing, and invoking OpenBindings interfaces, plus context storage and environment management. This document carries no bindings or sources; it is the single source of truth from which the per-surface realizations (CLI via usage, server via OpenAPI/AsyncAPI/MCP) are derived, so they cannot drift. An operation that realizes a published OpenBindings interface is keyed by that interface's operation name (e.g. openbindings.key-value-store.set), so satisfaction needs no alias; ob's own operations are keyed under the ob namespace (e.g. ob.pullSource). Aliases appear only where one operation satisfies more than one published interface, as listFormats does.",
   "name": "ob",
   "openbindings": "0.2.0",
   "operations": {
@@ -346,7 +346,7 @@
     },
     "openbindings.ob.getContext": {
       "aliases": [
-        "openbindings.kv-store.get"
+        "openbindings.key-value-store.get"
       ],
       "description": "Get the stored context for a key. Returns the unified context payload (credentials, headers, cookies, environment, metadata in a single opaque map), or null when no context exists for the key.",
       "idempotent": true,
@@ -418,7 +418,7 @@
       }
     },
     "openbindings.ob.listContexts": {
-      "description": "List non-secret metadata summaries for all stored contexts; never returns secret values. Completes the context surface with listing and inspection: the generic kv-store substrate these contexts are stored under (satisfied by getContext/setContext/removeContext) standardizes only opaque get/set/delete, so this management view is ob's own.",
+      "description": "List non-secret metadata summaries for all stored contexts; never returns secret values. Completes the context surface with listing and inspection: the generic key-value-store substrate these contexts are stored under (satisfied by getContext/setContext/removeContext) standardizes only opaque get/set/delete, so this management view is ob's own.",
       "idempotent": true,
       "output": {
         "items": {
@@ -570,7 +570,7 @@
     },
     "openbindings.ob.removeContext": {
       "aliases": [
-        "openbindings.kv-store.delete"
+        "openbindings.key-value-store.delete"
       ],
       "description": "Remove the stored context for a key. Deleting an absent key succeeds.",
       "idempotent": true,
@@ -672,7 +672,7 @@
     },
     "openbindings.ob.setContext": {
       "aliases": [
-        "openbindings.kv-store.set"
+        "openbindings.key-value-store.set"
       ],
       "description": "Create or replace the context for a key. The supplied value fully replaces any existing context (full replacement, not partial update).",
       "idempotent": true,

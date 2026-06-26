@@ -2,7 +2,7 @@
   "openbindings": "0.2.0",
   "name": "ob",
   "version": "0.1.0",
-  "description": "The complete interface implemented by ob, the OpenBindings reference tool. One unbound contract describing everything ob does: creating, inspecting, editing, validating, comparing, and invoking OpenBindings interfaces, plus context storage and environment management. This document carries no bindings or sources; it is the single source of truth from which the per-surface realizations (CLI via usage, server via OpenAPI/AsyncAPI/MCP) are derived, so they cannot drift. An operation that realizes a published OpenBindings interface is keyed by that interface's operation name (e.g. openbindings.kv-store.set), so satisfaction needs no alias; ob's own operations are keyed under the ob namespace (e.g. ob.pullSource). Aliases appear only where one operation satisfies more than one published interface, as listFormats does.",
+  "description": "The complete interface implemented by ob, the OpenBindings reference tool. One unbound contract describing everything ob does: creating, inspecting, editing, validating, comparing, and invoking OpenBindings interfaces, plus context storage and environment management. This document carries no bindings or sources; it is the single source of truth from which the per-surface realizations (CLI via usage, server via OpenAPI/AsyncAPI/MCP) are derived, so they cannot drift. An operation that realizes a published OpenBindings interface is keyed by that interface's operation name (e.g. openbindings.key-value-store.set), so satisfaction needs no alias; ob's own operations are keyed under the ob namespace (e.g. ob.pullSource). Aliases appear only where one operation satisfies more than one published interface, as listFormats does.",
   "operations": {
     "openbindings.ob.describe": {
       "description": "Return identity and metadata about ob: name, version, description, homepage, repository, maintainer.",
@@ -256,7 +256,7 @@
         ]
       },
       "aliases": [
-        "openbindings.kv-store.get"
+        "openbindings.key-value-store.get"
       ]
     },
     "openbindings.ob.setContext": {
@@ -266,7 +266,7 @@
         "$ref": "#/schemas/SetContextInput"
       },
       "aliases": [
-        "openbindings.kv-store.set"
+        "openbindings.key-value-store.set"
       ]
     },
     "openbindings.ob.removeContext": {
@@ -276,11 +276,11 @@
         "$ref": "#/schemas/ContextKeyInput"
       },
       "aliases": [
-        "openbindings.kv-store.delete"
+        "openbindings.key-value-store.delete"
       ]
     },
     "openbindings.ob.listContexts": {
-      "description": "List non-secret metadata summaries for all stored contexts; never returns secret values. Completes the context surface with listing and inspection: the generic kv-store substrate these contexts are stored under (satisfied by getContext/setContext/removeContext) standardizes only opaque get/set/delete, so this management view is ob's own.",
+      "description": "List non-secret metadata summaries for all stored contexts; never returns secret values. Completes the context surface with listing and inspection: the generic key-value-store substrate these contexts are stored under (satisfied by getContext/setContext/removeContext) standardizes only opaque get/set/delete, so this management view is ob's own.",
       "idempotent": true,
       "output": {
         "type": "array",
