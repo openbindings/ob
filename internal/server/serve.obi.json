@@ -2187,6 +2187,31 @@
       ],
       "type": "object"
     },
+    "SetOperationCodegenNameInput": {
+      "additionalProperties": false,
+      "properties": {
+        "clear": {
+          "description": "Remove the codegen-name override.",
+          "type": "boolean"
+        },
+        "codegenName": {
+          "description": "The symbol name 'ob codegen' should emit for this operation. Omit (or send empty) with clear=true to remove the override.",
+          "type": "string"
+        },
+        "interface": {
+          "$ref": "#/schemas/OpenBindingsInterface"
+        },
+        "operation": {
+          "description": "The operation's key or any identifier.",
+          "type": "string"
+        }
+      },
+      "required": [
+        "interface",
+        "operation"
+      ],
+      "type": "object"
+    },
     "SetOperationInput": {
       "additionalProperties": false,
       "properties": {

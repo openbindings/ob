@@ -9,11 +9,17 @@ import (
 	openbindings "github.com/openbindings/openbindings-go"
 )
 
-// clearXOB removes the x-ob marker from a LosslessFields object, converting a
-// source-owned (managed) object into a hand-authored one.
+// clearXOB strips a LosslessFields object's source provenance, converting a
+// source-owned (managed) object into a hand-authored one. An author-set
+// codegenName override is preserved: it is authoring intent, not sync
+// ownership, and should survive detach.
 func clearXOB(lf *openbindings.LosslessFields) {
+	name := GetCodegenName(*lf)
 	if lf.Extensions != nil {
 		delete(lf.Extensions, xobKey)
+	}
+	if name != "" {
+		_ = SetCodegenName(lf, name)
 	}
 }
 
@@ -41,7 +47,7 @@ func OperationDetach(obiPath, op string) (OperationDetachOutput, error) {
 	if !found {
 		return OperationDetachOutput{}, fmt.Errorf("operation %q not found", op)
 	}
-	if !HasXOB(operation.LosslessFields) {
+	if !IsSourceOwned(operation.LosslessFields) {
 		return OperationDetachOutput{}, fmt.Errorf("operation %q is already hand-authored (not source-owned)", key)
 	}
 	clearXOB(&operation.LosslessFields)
@@ -92,7 +98,7 @@ func OperationSet(input OperationSetInput) (OperationSetOutput, error) {
 		return OperationSetOutput{}, fmt.Errorf("operation %q not found", input.Op)
 	}
 
-	if HasXOB(op.LosslessFields) {
+	if IsSourceOwned(op.LosslessFields) {
 		if !input.Own {
 			return OperationSetOutput{}, fmt.Errorf(
 				"operation %q is source-owned; an edit would be overwritten by the next 'ob source pull'.\n"+

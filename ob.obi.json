@@ -487,6 +487,15 @@
         "$ref": "#/schemas/OpenBindingsInterface"
       }
     },
+    "openbindings.ob.setOperationCodegenName": {
+      "description": "Set (or clear) the symbol name 'ob codegen' emits for an operation, stored in the operation's x-ob.codegenName metadata, and return the modified interface. The operation key is unchanged; the override survives sync and is stripped by purify.",
+      "input": {
+        "$ref": "#/schemas/SetOperationCodegenNameInput"
+      },
+      "output": {
+        "$ref": "#/schemas/OpenBindingsInterface"
+      }
+    },
     "openbindings.ob.bindOperation": {
       "description": "Attach a source ref to an existing operation (preserving the operation's key) and return the modified interface. Warns and optionally scaffolds transform stubs on a shape mismatch.",
       "input": {
@@ -2715,6 +2724,31 @@
         "operation": {
           "type": "string",
           "description": "The operation's key or any identifier."
+        }
+      },
+      "required": [
+        "interface",
+        "operation"
+      ],
+      "additionalProperties": false
+    },
+    "SetOperationCodegenNameInput": {
+      "type": "object",
+      "properties": {
+        "interface": {
+          "$ref": "#/schemas/OpenBindingsInterface"
+        },
+        "operation": {
+          "type": "string",
+          "description": "The operation's key or any identifier."
+        },
+        "codegenName": {
+          "type": "string",
+          "description": "The symbol name 'ob codegen' should emit for this operation. Omit (or send empty) with clear=true to remove the override."
+        },
+        "clear": {
+          "type": "boolean",
+          "description": "Remove the codegen-name override."
         }
       },
       "required": [

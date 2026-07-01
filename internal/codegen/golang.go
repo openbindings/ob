@@ -71,7 +71,7 @@ func emitGoSignatures(b *strings.Builder, r *CodegenResult) {
 	b.WriteString(goDocComment("operationSignatures is the namespace type holding one typed signature per operation. Use the OperationSignatures value below, not this type directly.", ""))
 	b.WriteString("type operationSignatures struct {\n")
 	for _, op := range r.Operations {
-		field := toPascalCase(op.Key)
+		field := toPascalCase(op.Name)
 		var doc strings.Builder
 		if op.Description != "" {
 			doc.WriteString(op.Description)
@@ -89,13 +89,13 @@ func emitGoSignatures(b *strings.Builder, r *CodegenResult) {
 
 	// Package-level namespace value, built through the SDK constructor (the
 	// signature's key field is unexported, so a struct literal won't do).
-	example := toPascalCase(r.Operations[0].Key)
+	example := toPascalCase(r.Operations[0].Name)
 	doc := fmt.Sprintf("OperationSignatures holds one typed signature per operation declared by the codegen-time OBI. Pass the runtime interface and a signature to openbindings.Invoke; input flows through the handle's Write and output through Single (the typed [I, O] is not a unary in/out shortcut):\n\n\tcall := openbindings.Invoke(ctx, invoker, obi, OperationSignatures.%s)\n\tout, err := openbindings.Single(ctx, call.Outputs())", example)
 	b.WriteString(goDocComment(doc, ""))
 	b.WriteString("var OperationSignatures = operationSignatures{\n")
 	for _, op := range r.Operations {
 		b.WriteString(fmt.Sprintf("\t%s: openbindings.NewOperationSignature[%s, %s](%q),\n",
-			toPascalCase(op.Key), goSigType(op.Input), goSigType(op.Output), op.Key))
+			toPascalCase(op.Name), goSigType(op.Input), goSigType(op.Output), op.Key))
 	}
 	b.WriteString("}\n")
 }

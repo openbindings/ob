@@ -37,6 +37,7 @@ exposes. Use subcommands to list, rename, remove, or invoke operations.`,
 		newOperationBindCmd(),
 		newOperationUnbindCmd(),
 		newOperationAliasCmd(),
+		newOperationCodegenNameCmd(),
 		newOperationRenameCmd(),
 		newOperationRemoveCmd(),
 	)
@@ -682,6 +683,50 @@ func pickBindArgs(obiPath, op, source, ref string) (string, string, string, erro
 	return op, source, ref, nil
 }
 
+func newOperationCodegenNameCmd() *cobra.Command {
+	var clear bool
+	cmd := &cobra.Command{
+		Use:   "codegen-name <obi-path> <operation> [name]",
+		Short: "Set the symbol name 'ob codegen' emits for an operation",
+		Long: `Set (or clear) the codegen-name override on an operation.
+
+By default 'ob codegen' derives a symbol name from the full operation key, so a
+namespace-prefixed key like "openbindings.binding-invoker.invokeBinding" emits
+the verbose OpenbindingsBindingInvokerInvokeBinding. Set an override to emit a
+friendlier name (e.g. "invokeBinding" becomes InvokeBinding in Go, invokeBinding
+in TS) without changing the operation key itself — bindings and the wire still
+reference the key verbatim.
+
+The override is stored in the operation's x-ob metadata. It survives 'ob sync'
+and 'ob source pull', and is stripped by 'ob purify' along with the rest of x-ob.
+
+Examples:
+  ob op codegen-name interface.json openbindings.binding-invoker.invokeBinding invokeBinding
+  ob op codegen-name interface.json invokeBinding --clear`,
+		Args: cobra.RangeArgs(2, 3),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			var name string
+			if len(args) == 3 {
+				name = args[2]
+			}
+			switch {
+			case clear:
+				name = ""
+			case name == "":
+				return app.ExitResult{Code: 2, Message: "provide a name, or pass --clear to remove the override", ToStderr: true}
+			}
+			result, err := app.OperationSetCodegenName(args[0], args[1], name)
+			if err != nil {
+				return app.ExitResult{Code: 1, Message: fmt.Sprintf("set codegen name: %v", err), ToStderr: true}
+			}
+			format, outputPath := getOutputFlags(cmd)
+			return app.OutputResult(result, format, outputPath)
+		},
+	}
+	cmd.Flags().BoolVar(&clear, "clear", false, "remove the codegen-name override")
+	return cmd
+}
+
 func newOperationRenameCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:     "rename <obi-path> <old-key> <new-key>",
@@ -765,7 +810,7 @@ func checkManagedOps(obiPath string, keys []string) string {
 
 	managed := map[string]bool{}
 	for _, op := range result.Operations {
-		if app.HasXOB(op.Operation.LosslessFields) {
+		if app.IsSourceOwned(op.Operation.LosslessFields) {
 			managed[op.Key] = true
 		}
 	}

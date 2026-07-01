@@ -40,7 +40,7 @@ func (o OperationListOutput) Render() string {
 			sb.WriteString(strings.Join(op.Operation.Tags, ", "))
 			sb.WriteString(s.Dim.Render("]"))
 		}
-		if HasXOB(op.Operation.LosslessFields) {
+		if IsSourceOwned(op.Operation.LosslessFields) {
 			sb.WriteString(s.Dim.Render("  managed"))
 		}
 		if len(op.Bindings) > 0 {

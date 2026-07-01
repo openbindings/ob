@@ -207,6 +207,14 @@ cmd "operation" help="Manage and invoke operations on an OBI" subcommand_require
     arg "<obi-path>" help="Path to the OBI file"
     arg "<operation>" help="Operation key or identifier"
   }
+  cmd "codegen-name" help="Set the symbol name 'ob codegen' emits for an operation" opKey="setOperationCodegenName" {
+    flag "--clear" help="Remove the codegen-name override"
+    flag "-o --output <path>" help="Write output to file"
+    flag "-F --format <format>" help="Output format: json|yaml|text"
+    arg "<obi-path>" help="Path to the OBI file"
+    arg "<operation>" help="Operation key or identifier"
+    arg "[name]" help="New codegen symbol name (omit with --clear)"
+  }
   cmd "bind" help="Attach a source ref to an existing operation" opKey="bindOperation" {
     flag "--transform-stub" help="Scaffold identity transform stub(s) on shape mismatch"
     flag "--input-transform <jsonata>" help="Inline JSONata transforming operation input to binding input"

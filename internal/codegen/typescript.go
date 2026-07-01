@@ -48,7 +48,7 @@ func EmitTypeScript(r *CodegenResult) string {
 // per operation, with each operation's description and deprecation on its
 // property so they surface in editor hover.
 func emitTSSignatures(b *strings.Builder, r *CodegenResult) {
-	example := toCamelCase(r.Operations[0].Key)
+	example := toCamelCase(r.Operations[0].Name)
 	var doc strings.Builder
 	doc.WriteString("OperationSignatures holds one typed signature per operation declared by")
 	doc.WriteString("\nthe codegen-time OBI. Pass the runtime interface and a signature to")
@@ -67,7 +67,7 @@ func emitTSSignatures(b *strings.Builder, r *CodegenResult) {
 }
 
 func emitTSSignatureField(b *strings.Builder, op OperationSig) {
-	fieldName := toCamelCase(op.Key)
+	fieldName := toCamelCase(op.Name)
 	inputType, outputType := tsIOTypes(op)
 
 	if op.Description != "" || op.Deprecated {

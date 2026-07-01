@@ -52,7 +52,13 @@ type Field struct {
 
 // OperationSig describes one operation for code generation.
 type OperationSig struct {
-	Key         string
+	Key string
+	// Name is the language-neutral base identifier for the generated symbol
+	// (PascalCased for Go, camelCased for TS). It defaults to Key, but an
+	// operation may override it via its x-ob.codegenName extension. The
+	// override renames the emitted symbol only; Key (what bindings and the
+	// wire reference) is never affected.
+	Name        string
 	Description string
 	Deprecated  bool
 	Input       *TypeRef // nil = no input

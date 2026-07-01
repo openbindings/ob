@@ -165,7 +165,7 @@ func pullSourceInto(iface *openbindings.Interface, sourceKey string, derived Der
 	for opKey, freshOp := range derived.Operations {
 		derivedOps[opKey] = true
 		existing, exists := iface.Operations[opKey]
-		if exists && !HasXOB(existing.LosslessFields) {
+		if exists && !IsSourceOwned(existing.LosslessFields) {
 			// A hand-authored operation owns this key; don't clobber it.
 			out.Warnings = append(out.Warnings, fmt.Sprintf(
 				"source %q: derived operation %q collides with a hand-authored operation; left unchanged", sourceKey, opKey))
@@ -175,6 +175,10 @@ func pullSourceInto(iface *openbindings.Interface, sourceKey string, derived Der
 			continue // unchanged source-owned op: no churn, no drift
 		}
 		markSourceOwned(&freshOp.LosslessFields, freshOp, out)
+		if exists {
+			// The source owns spec fields, not the author's codegen-name hint.
+			carryCodegenName(existing, &freshOp, opKey, &out.Warnings)
+		}
 		iface.Operations[opKey] = freshOp
 		if exists {
 			out.OperationsUpdated = append(out.OperationsUpdated, opKey)
@@ -187,7 +191,7 @@ func pullSourceInto(iface *openbindings.Interface, sourceKey string, derived Der
 	for bk, freshBind := range derived.Bindings {
 		derivedBinds[bk] = true
 		existingBind, exists := iface.Bindings[bk]
-		if exists && !HasXOB(existingBind.LosslessFields) {
+		if exists && !IsSourceOwned(existingBind.LosslessFields) {
 			// A hand-authored binding owns this key; don't clobber it.
 			out.Warnings = append(out.Warnings, fmt.Sprintf(
 				"source %q: derived binding %q collides with a hand-authored binding; left unchanged", sourceKey, bk))
@@ -212,7 +216,7 @@ func pullSourceInto(iface *openbindings.Interface, sourceKey string, derived Der
 		if be.Source != sourceKey || derivedBinds[bk] {
 			continue
 		}
-		if !HasXOB(be.LosslessFields) {
+		if !IsSourceOwned(be.LosslessFields) {
 			continue // hand-authored binding: leave it
 		}
 		losingBinding[be.Operation] = true
@@ -232,7 +236,7 @@ func pullSourceInto(iface *openbindings.Interface, sourceKey string, derived Der
 			continue
 		}
 		op, exists := iface.Operations[opKey]
-		if !exists || !HasXOB(op.LosslessFields) {
+		if !exists || !IsSourceOwned(op.LosslessFields) {
 			continue
 		}
 		delete(iface.Operations, opKey)

@@ -121,7 +121,7 @@ func PreviewSourceMerge(src openbindings.Source, srcKey string, iface *openbindi
 			})
 			continue
 		}
-		if !HasXOB(existing.LosslessFields) {
+		if !IsSourceOwned(existing.LosslessFields) {
 			continue // hand-authored, untouched
 		}
 
@@ -155,7 +155,7 @@ func PreviewSourceMerge(src openbindings.Source, srcKey string, iface *openbindi
 			})
 			continue
 		}
-		if !HasXOB(existing.LosslessFields) {
+		if !IsSourceOwned(existing.LosslessFields) {
 			continue
 		}
 

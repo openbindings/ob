@@ -254,7 +254,7 @@ func OBIStatus(input OBIStatusInput) (OBIStatusOutput, error) {
 	// Classify operations by management status.
 	var ops ManagedKeys
 	for key, op := range iface.Operations {
-		if HasXOB(op.LosslessFields) {
+		if IsSourceOwned(op.LosslessFields) {
 			ops.Managed = append(ops.Managed, key)
 		} else {
 			ops.HandAuthored = append(ops.HandAuthored, key)
@@ -266,7 +266,7 @@ func OBIStatus(input OBIStatusInput) (OBIStatusOutput, error) {
 	// Classify bindings by management status.
 	var binds ManagedKeys
 	for key, b := range iface.Bindings {
-		if HasXOB(b.LosslessFields) {
+		if IsSourceOwned(b.LosslessFields) {
 			binds.Managed = append(binds.Managed, key)
 		} else {
 			binds.HandAuthored = append(binds.HandAuthored, key)
@@ -319,7 +319,7 @@ func detectSourceDrift(iface *openbindings.Interface, key, obiDir string, ss *So
 	}
 	var custodial []string
 	for _, b := range iface.Bindings {
-		if b.Source != key || HasXOB(b.LosslessFields) {
+		if b.Source != key || IsSourceOwned(b.LosslessFields) {
 			continue // source-owned bindings are handled by the pull pass above
 		}
 		if !derivedRefs[b.Ref] {

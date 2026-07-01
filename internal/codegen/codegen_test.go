@@ -180,6 +180,142 @@ func TestEmitGoPackageOverride(t *testing.T) {
 	}
 }
 
+// TestCodegenNameOverride verifies that x-ob.codegenName renames the emitted
+// symbol (and its I/O type names) while leaving the operation key untouched, and
+// that an operation without the override keeps the verbose full-key derivation.
+func TestCodegenNameOverride(t *testing.T) {
+	iface := &openbindings.Interface{
+		Name: "binding-invoker",
+		Operations: map[string]openbindings.Operation{
+			// Overridden: verbose key, friendly symbol name, inline input so the
+			// I/O type name follows the override too.
+			"openbindings.binding-invoker.invokeBinding": {
+				Input: openbindings.JSONSchema{
+					"type":       "object",
+					"properties": map[string]any{"format": map[string]any{"type": "string"}},
+				},
+				LosslessFields: openbindings.LosslessFields{
+					Extensions: map[string]json.RawMessage{
+						"x-ob": json.RawMessage(`{"codegenName":"invokeBinding"}`),
+					},
+				},
+			},
+			// No override: keeps the verbose full-key derivation.
+			"openbindings.binding-invoker.listFormats": {
+				Output: openbindings.JSONSchema{"type": "object"},
+			},
+		},
+	}
+
+	result, err := Generate(iface)
+	if err != nil {
+		t.Fatalf("Generate: %v", err)
+	}
+
+	// IR: Name carries the override; Key is always the raw key.
+	for _, op := range result.Operations {
+		switch op.Key {
+		case "openbindings.binding-invoker.invokeBinding":
+			if op.Name != "invokeBinding" {
+				t.Errorf("override op Name = %q, want %q", op.Name, "invokeBinding")
+			}
+		case "openbindings.binding-invoker.listFormats":
+			if op.Name != op.Key {
+				t.Errorf("default op Name = %q, want the key %q", op.Name, op.Key)
+			}
+		}
+	}
+
+	const rawKey = `"openbindings.binding-invoker.invokeBinding"`
+
+	goCode := EmitGo(result, "binvoker")
+	// Friendly member + friendly I/O type from the override.
+	if !strings.Contains(goCode, "InvokeBinding openbindings.OperationSignature[") {
+		t.Error("Go: missing overridden InvokeBinding member")
+	}
+	if !strings.Contains(goCode, "type InvokeBindingInput struct") {
+		t.Error("Go: I/O type name should follow the override (InvokeBindingInput)")
+	}
+	// The key string in the constructor stays raw.
+	if !strings.Contains(goCode, "NewOperationSignature") || !strings.Contains(goCode, rawKey) {
+		t.Errorf("Go: constructor must carry the raw key %s", rawKey)
+	}
+	// The verbose derivation must NOT appear for the overridden op...
+	if strings.Contains(goCode, "OpenbindingsBindingInvokerInvokeBinding") {
+		t.Error("Go: override should replace the verbose OpenbindingsBindingInvokerInvokeBinding")
+	}
+	// ...but the un-overridden op keeps it.
+	if !strings.Contains(goCode, "OpenbindingsBindingInvokerListFormats openbindings.OperationSignature[") {
+		t.Error("Go: un-overridden op should keep the verbose full-key symbol")
+	}
+
+	tsCode := EmitTypeScript(result)
+	if !strings.Contains(tsCode, "invokeBinding: operationSignature<") {
+		t.Error("TS: missing overridden invokeBinding member")
+	}
+	if !strings.Contains(tsCode, "export interface InvokeBindingInput") {
+		t.Error("TS: I/O type name should follow the override (InvokeBindingInput)")
+	}
+	if !strings.Contains(tsCode, rawKey) {
+		t.Errorf("TS: constructor must carry the raw key %s", rawKey)
+	}
+	if strings.Contains(tsCode, "openbindingsBindingInvokerInvokeBinding") {
+		t.Error("TS: override should replace the verbose openbindingsBindingInvokerInvokeBinding")
+	}
+	if !strings.Contains(tsCode, "openbindingsBindingInvokerListFormats: operationSignature<") {
+		t.Error("TS: un-overridden op should keep the verbose full-key symbol")
+	}
+}
+
+// TestGenerateRejectsDuplicateSymbols verifies the guard against two operations
+// generating the same symbol — whether via coincident codegenName overrides or
+// distinct keys that PascalCase to the same identifier.
+func TestGenerateRejectsDuplicateSymbols(t *testing.T) {
+	// Two overrides collide on the same symbol.
+	dupOverride := &openbindings.Interface{
+		Name: "svc",
+		Operations: map[string]openbindings.Operation{
+			"acme.a": {LosslessFields: openbindings.LosslessFields{Extensions: map[string]json.RawMessage{
+				"x-ob": json.RawMessage(`{"codegenName":"doThing"}`)}}},
+			"acme.b": {LosslessFields: openbindings.LosslessFields{Extensions: map[string]json.RawMessage{
+				"x-ob": json.RawMessage(`{"codegenName":"doThing"}`)}}},
+		},
+	}
+	if _, err := Generate(dupOverride); err == nil {
+		t.Error("expected an error when two codegenName overrides collide")
+	}
+
+	// Distinct keys that PascalCase to the same identifier (no overrides).
+	dupDerived := &openbindings.Interface{
+		Name: "svc",
+		Operations: map[string]openbindings.Operation{
+			"get-menu": {},
+			"getMenu":  {},
+		},
+	}
+	if _, err := Generate(dupDerived); err == nil {
+		t.Error("expected an error when two keys derive the same symbol")
+	}
+
+	// Multiple independent collisions are all reported in a single error.
+	multi := &openbindings.Interface{
+		Name: "svc",
+		Operations: map[string]openbindings.Operation{
+			"get-menu": {}, "getMenu": {}, // -> GetMenu
+			"list-x": {}, "listX": {}, // -> ListX
+		},
+	}
+	_, err := Generate(multi)
+	if err == nil {
+		t.Fatal("expected an error for multiple collisions")
+	}
+	for _, want := range []string{"GetMenu", "ListX"} {
+		if !strings.Contains(err.Error(), want) {
+			t.Errorf("aggregated error should name the colliding symbol %q; got: %v", want, err)
+		}
+	}
+}
+
 func TestSchemaConverterRefCycle(t *testing.T) {
 	// Build a schema with a self-referencing $ref (tree node pattern).
 	root := map[string]any{

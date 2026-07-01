@@ -141,6 +141,18 @@ ob codegen interface.json --lang go -o invoker.go --package myapi
 
 Both languages emit the same **operation signatures**: an `OperationSignatures` namespace with one typed `OperationSignature` per operation. Go invokes with the free verb, `openbindings.Invoke(ctx, invoker, obi, myapi.OperationSignatures.GetMenu)`; TypeScript with the invoker method, `invoker.invoke(obi, OperationSignatures.getMenu)` (a method because TypeScript can put type parameters on methods and Go currently cannot). Either way, at runtime the OBI's bindings route each call through the appropriate binding invoker, so your code stays protocol-agnostic across HTTP, gRPC, or whatever the binding uses.
 
+### Symbol names
+
+By default the generated symbol is derived from the full operation key, so a namespaced key like `openbindings.binding-invoker.invokeBinding` emits the verbose `OperationSignatures.OpenbindingsBindingInvokerInvokeBinding`. To emit a friendlier name, set a per-operation override:
+
+```bash
+ob operation codegen-name interface.json openbindings.binding-invoker.invokeBinding invokeBinding
+# -> OperationSignatures.InvokeBinding (Go) / OperationSignatures.invokeBinding (TS)
+ob operation codegen-name interface.json invokeBinding --clear   # revert to the default
+```
+
+The override is stored in the operation's `x-ob.codegenName` metadata and renames the emitted symbol (and its input/output type names) only. The operation key is untouched: bindings and the wire still reference it verbatim. The override survives `ob sync`/`ob source pull` and is stripped by `ob purify` along with the rest of `x-ob`.
+
 You can also point `codegen` at a URL. If it's not an OBI, `ob` tries to synthesize one:
 
 ```bash
@@ -288,6 +300,7 @@ ob source pull interface.json -o dist/interface.json --pure  # publish clean
 | `ob operation add <obi> <name>` | Add a new operation |
 | `ob operation remove <obi> <names...>` | Remove operations and their bindings |
 | `ob operation rename <obi> <old> <new>` | Rename an operation and update all references |
+| `ob operation codegen-name <obi> <operation> [name]` | Set/clear the symbol name `ob codegen` emits for an operation |
 | `ob binding invoke` | Low-level: invoke a resolved binding (delegate plumbing) |
 
 ### Serving

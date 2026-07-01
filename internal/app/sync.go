@@ -12,6 +12,20 @@ import (
 	openbindings "github.com/openbindings/openbindings-go"
 )
 
+// carryCodegenName copies an author-set codegen-name override from an existing
+// operation onto its freshly source-derived replacement. Sync owns the spec
+// fields a source produces, never this hint, so the override must survive
+// regeneration. A no-op when the existing operation carries no override.
+func carryCodegenName(existing openbindings.Operation, fresh *openbindings.Operation, opKey string, warnings *[]string) {
+	cn := GetCodegenName(existing.LosslessFields)
+	if cn == "" {
+		return
+	}
+	if err := SetCodegenName(&fresh.LosslessFields, cn); err != nil {
+		*warnings = append(*warnings, fmt.Sprintf("op %q: preserve codegen name: %v", opKey, err))
+	}
+}
+
 // SyncInput represents input for the sync command.
 type SyncInput struct {
 	OBIPath       string   // path to the OBI file
@@ -280,7 +294,7 @@ func Sync(input SyncInput) (SyncOutput, error) {
 				continue
 			}
 
-			if !HasXOB(existing.LosslessFields) {
+			if !IsSourceOwned(existing.LosslessFields) {
 				// Hand-authored — never touch.
 				continue
 			}
@@ -297,6 +311,7 @@ func Sync(input SyncInput) (SyncOutput, error) {
 					warnings = append(warnings, fmt.Sprintf("op %q: set base: %v", opKey, err))
 					continue
 				}
+				carryCodegenName(existing, &freshOp, opKey, &warnings)
 				iface.Operations[opKey] = freshOp
 				opsUpdated = append(opsUpdated, opKey)
 				continue
@@ -315,6 +330,7 @@ func Sync(input SyncInput) (SyncOutput, error) {
 				warnings = append(warnings, fmt.Sprintf("op %q: set base: %v", opKey, err))
 				continue
 			}
+			carryCodegenName(existing, &mergedOp, opKey, &warnings)
 
 			iface.Operations[opKey] = mergedOp
 			if mr.HasChanges() || len(mr.Conflicts) > 0 {
@@ -352,7 +368,7 @@ func Sync(input SyncInput) (SyncOutput, error) {
 				continue
 			}
 
-			if !HasXOB(existing.LosslessFields) {
+			if !IsSourceOwned(existing.LosslessFields) {
 				continue
 			}
 
