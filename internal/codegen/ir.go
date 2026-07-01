@@ -66,7 +66,6 @@ type CodegenResult struct {
 	Description   string
 	Types         []TypeDef
 	Operations    []OperationSig
-	RawOBI        []byte // minified contract JSON (operations + schemas only)
 }
 
 // ---------- JSON Schema → IR conversion ----------

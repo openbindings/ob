@@ -90,7 +90,7 @@ func emitGoSignatures(b *strings.Builder, r *CodegenResult) {
 	// Package-level namespace value, built through the SDK constructor (the
 	// signature's key field is unexported, so a struct literal won't do).
 	example := toPascalCase(r.Operations[0].Key)
-	doc := fmt.Sprintf("OperationSignatures holds one typed signature per operation declared by the codegen-time OBI. Pass a signature and the runtime interface to openbindings.Invoke; input flows through the handle's Write and output through Single (the typed [I, O] is not a unary in/out shortcut):\n\n\tcall := openbindings.Invoke(ctx, invoker, obi, OperationSignatures.%s)\n\tout, err := openbindings.Single(ctx, call.Outputs())", example)
+	doc := fmt.Sprintf("OperationSignatures holds one typed signature per operation declared by the codegen-time OBI. Pass the runtime interface and a signature to openbindings.Invoke; input flows through the handle's Write and output through Single (the typed [I, O] is not a unary in/out shortcut):\n\n\tcall := openbindings.Invoke(ctx, invoker, obi, OperationSignatures.%s)\n\tout, err := openbindings.Single(ctx, call.Outputs())", example)
 	b.WriteString(goDocComment(doc, ""))
 	b.WriteString("var OperationSignatures = operationSignatures{\n")
 	for _, op := range r.Operations {

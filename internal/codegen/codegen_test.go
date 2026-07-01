@@ -72,61 +72,44 @@ func TestEmitTypeScriptDemo(t *testing.T) {
 
 	code := EmitTypeScript(result)
 
-	// Should import from @openbindings/sdk, including the handle type.
-	if !strings.Contains(code, `from "@openbindings/sdk"`) {
-		t.Error("missing @openbindings/sdk import")
-	}
-	if !strings.Contains(code, "type Invocation,") {
-		t.Error("missing Invocation type import")
+	// Imports the signature constructor from the SDK.
+	if !strings.Contains(code, `import { operationSignature } from "@openbindings/sdk"`) {
+		t.Error("missing operationSignature import from @openbindings/sdk")
 	}
 
-	// Should have typed interfaces.
+	// Shared schema interfaces are still emitted (named schemas reused, not duplicated).
 	if !strings.Contains(code, "export interface MenuItem") {
 		t.Error("missing MenuItem interface")
 	}
 
-	// Should have the typed invoker interface + factory binding iface once.
-	if !strings.Contains(code, "export interface OpenBlendingsInvoker") {
-		t.Error("missing typed invoker interface")
+	// The OperationSignatures namespace: an immutable const of branded signatures.
+	if !strings.Contains(code, "export const OperationSignatures = {") {
+		t.Error("missing OperationSignatures const")
 	}
-	if !strings.Contains(code, "export function createOpenBlendingsInvoker(") {
-		t.Error("missing factory function")
+	if !strings.Contains(code, "} as const;") {
+		t.Error("OperationSignatures should be `as const` (immutable)")
 	}
-	if !strings.Contains(code, "iface: OBInterface = INTERFACE") {
-		t.Error("factory should bind iface at construction, defaulting to the embedded contract")
+	if !strings.Contains(code, "getMenu: operationSignature<") {
+		t.Error("missing typed getMenu signature")
 	}
-
-	// Methods return the cardinality-agnostic handle with per-call opts.
-	if !strings.Contains(code, "getMenu(opts?: InvokerCallOpts): Invocation<") {
-		t.Error("getMenu should return the Invocation handle")
-	}
-	if !strings.Contains(code, "export interface InvokerCallOpts") {
-		t.Error("missing InvokerCallOpts")
+	if !strings.Contains(code, `>("getMenu")`) {
+		t.Error(`getMenu signature should be built with operationSignature(..., "getMenu")`)
 	}
 
-	// No cardinality wrappers: no Promise-returning unary methods, no
-	// *Stream twins, no per-event envelope, no throwing error class.
-	if strings.Contains(code, "Stream(") {
-		t.Error("generated invoker must not emit *Stream twin methods")
-	}
-	if strings.Contains(code, "Promise<") {
-		t.Error("generated invoker must not emit Promise-returning unary wrappers")
-	}
-	if strings.Contains(code, "TypedInvocationOutput") {
-		t.Error("generated invoker must not emit a per-event envelope")
-	}
-	if strings.Contains(code, "class OperationError") {
-		t.Error("generated invoker must not emit OperationError (terminal errors are InvocationError on the handle)")
-	}
-
-	// Should expose the contract for opt-in validation by callers.
-	if !strings.Contains(code, "export const CONTRACT: OBInterface") {
-		t.Error("missing CONTRACT export")
-	}
-
-	// Should have embedded OBI.
-	if !strings.Contains(code, "const INTERFACE: OBInterface") {
-		t.Error("missing embedded interface")
+	// Greenfield strip: none of the removed surface (bound invoker interface,
+	// factory, per-call opts, embedded contract, thrown error class) appears.
+	for _, banned := range []string{
+		"InvokerCallOpts",
+		"OpenBlendingsInvoker",
+		"createOpenBlendingsInvoker",
+		"export const CONTRACT",
+		"const INTERFACE",
+		"Stream(",
+		"class OperationError",
+	} {
+		if strings.Contains(code, banned) {
+			t.Errorf("generated code must not contain %q in the signature model", banned)
+		}
 	}
 }
 
@@ -483,91 +466,6 @@ func TestTsTypeRef_ArrayOfPlainPrimitiveNoParens(t *testing.T) {
 	want := `string[]`
 	if got != want {
 		t.Errorf("tsTypeRef(array of string) = %q, want %q", got, want)
-	}
-}
-
-func TestContractOBIStripsBindings_HTTPSources(t *testing.T) {
-	// HTTP-fetchable OBI: bindings + sources are stripped from the
-	// embedded contract because the runtime client re-fetches the live
-	// OBI from the URL passed to connect().
-	iface := loadTestInterface(t, "../demo/api/openbindings.json")
-	result, err := Generate(iface)
-	if err != nil {
-		t.Fatalf("Generate: %v", err)
-	}
-
-	var contract map[string]any
-	if err := json.Unmarshal(result.RawOBI, &contract); err != nil {
-		t.Fatalf("unmarshal contract: %v", err)
-	}
-
-	if _, ok := contract["bindings"]; ok {
-		t.Error("contract contains bindings (HTTP source — should strip)")
-	}
-	if _, ok := contract["sources"]; ok {
-		t.Error("contract contains sources (HTTP source — should strip)")
-	}
-	if _, ok := contract["transforms"]; ok {
-		t.Error("contract contains transforms (HTTP source — should strip)")
-	}
-	if _, ok := contract["operations"]; !ok {
-		t.Error("contract missing operations")
-	}
-}
-
-func TestContractOBIEmbedsBindings_NonHTTPSources(t *testing.T) {
-	// Non-HTTP-fetchable OBI (workers-rpc): bindings + sources MUST be
-	// embedded because the runtime client has no way to fetch the OBI
-	// from a symbolic URL like workers-rpc://service-name. Without
-	// embedding, dispatch fails with "no binding for operation: X".
-	iface := &openbindings.Interface{
-		OpenBindings: "0.1.0",
-		Name:         "TestRpcService",
-		Operations: map[string]openbindings.Operation{
-			"ping": {
-				Description: "health check",
-			},
-		},
-		Sources: map[string]openbindings.Source{
-			"rpc": {
-				Format:   "workers-rpc@^1.0.0",
-				Location: "workers-rpc://test-service",
-			},
-		},
-		Bindings: map[string]openbindings.BindingEntry{
-			"ping.rpc": {
-				Operation: "ping",
-				Source:    "rpc",
-				Ref:       "ping",
-			},
-		},
-	}
-
-	result, err := Generate(iface)
-	if err != nil {
-		t.Fatalf("Generate: %v", err)
-	}
-
-	var contract map[string]any
-	if err := json.Unmarshal(result.RawOBI, &contract); err != nil {
-		t.Fatalf("unmarshal contract: %v", err)
-	}
-
-	if _, ok := contract["bindings"]; !ok {
-		t.Error("contract missing bindings (workers-rpc source — must embed)")
-	}
-	if _, ok := contract["sources"]; !ok {
-		t.Error("contract missing sources (workers-rpc source — must embed)")
-	}
-
-	// Spot-check that the embedded binding has the right shape.
-	bindings, _ := contract["bindings"].(map[string]any)
-	pingBind, _ := bindings["ping.rpc"].(map[string]any)
-	if pingBind["operation"] != "ping" {
-		t.Errorf("embedded binding has wrong operation: %v", pingBind["operation"])
-	}
-	if pingBind["ref"] != "ping" {
-		t.Errorf("embedded binding has wrong ref: %v", pingBind["ref"])
 	}
 }
 

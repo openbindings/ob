@@ -44,12 +44,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
     cardinality-agnostic handle (`openbindings.Single` for one-shot outputs).
     No per-operation methods, no bound invoker struct, no embedded contract: the
     interface is supplied at call time, and named schemas shared across
-    operations are emitted once. `--lang typescript` still emits the typed
-    invoker (one method per operation returning `Invocation<I, O>` with per-call
-    `InvokerCallOpts`) pending the TypeScript SDK's signature surface: no
-    Promise-returning unary wrappers, no `*Stream` twins, no per-event envelope,
-    no thrown `OperationError` (terminal failures are `InvocationError` on the
-    handle). Emitted headers declare the SDK range they target.
+    operations are emitted once. `--lang typescript` emits the same shape: an
+    `OperationSignatures` const of branded `OperationSignature<I, O>` values
+    (built via `operationSignature`), invoked with the invoker method
+    `invoker.invoke(obi, sig)` and driven with `single(call.outputs)`. Both
+    emitters reuse a schema shared across operations as one type. Emitted headers
+    declare the SDK range they target.
   - The app layer owns CONTEXT_REQUIRED negotiation for its binding-level
     calls: challenges raised before any output are resolved through the
     configured resolver and re-driven with merged context. The CLI's resolver

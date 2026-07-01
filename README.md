@@ -139,7 +139,7 @@ ob codegen interface.json --lang typescript -o invoker.ts
 ob codegen interface.json --lang go -o invoker.go --package myapi
 ```
 
-The Go output is a set of typed **operation signatures**: an `OperationSignatures` namespace with one `OperationSignature[I, O]` per operation, invoked with the free verb, e.g. `openbindings.Invoke(ctx, invoker, obi, myapi.OperationSignatures.GetMenu)`. The TypeScript output is a typed invoker with a method per operation (`invoker.getMenu()`). Either way, at runtime the OBI's bindings route each call through the appropriate binding invoker, so your code stays protocol-agnostic across HTTP, gRPC, or whatever the binding uses.
+Both languages emit the same **operation signatures**: an `OperationSignatures` namespace with one typed `OperationSignature` per operation. Go invokes with the free verb, `openbindings.Invoke(ctx, invoker, obi, myapi.OperationSignatures.GetMenu)`; TypeScript with the invoker method, `invoker.invoke(obi, OperationSignatures.getMenu)` (a method because TypeScript can put type parameters on methods and Go currently cannot). Either way, at runtime the OBI's bindings route each call through the appropriate binding invoker, so your code stays protocol-agnostic across HTTP, gRPC, or whatever the binding uses.
 
 You can also point `codegen` at a URL. If it's not an OBI, `ob` tries to synthesize one:
 
