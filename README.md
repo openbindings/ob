@@ -92,14 +92,14 @@ ob operation invoke interface.json getMenu
 
 `ob` finds the binding for `getMenu`, resolves the source (OpenAPI spec), makes the HTTP call, and returns the result. You never write protocol-specific code.
 
-### 6. Generate a typed invoker
+### 6. Generate typed client code
 
 ```bash
 ob codegen interface.json --lang typescript -o ./src/invoker.ts
 ob codegen interface.json --lang go -o ./generated/invoker.go
 ```
 
-Produces a typed, transport-agnostic invoker with a method for each operation. The invoker uses the OBI's bindings at runtime to route calls through the appropriate protocol.
+Produces typed, transport-agnostic client code: both languages emit an `OperationSignatures` namespace — Go invokes it with the free `openbindings.Invoke`, TypeScript with the invoker's `invoke` method. Either way it uses the OBI's bindings at runtime to route calls through the appropriate protocol.
 
 ### 7. Publish a clean OBI
 
@@ -277,7 +277,7 @@ ob source pull interface.json -o dist/interface.json --pure  # publish clean
 | `ob merge <target> [source]` | Selectively apply changes from one OBI into another |
 | `ob conflicts <obi>` | List merge conflicts between local edits and source changes |
 | `ob conform <contract-interface> <target-obi>` | Scaffold or update operations to fulfill a contract interface |
-| `ob codegen <source> --lang <lang>` | Generate a typed invoker (typescript, go) |
+| `ob codegen <source> --lang <lang>` | Generate typed client code (typescript, go) |
 
 ### Operations
 
