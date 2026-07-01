@@ -78,12 +78,12 @@
     },
     "openbindings.ob.reportEnvironmentStatus.openapi": {
       "operation": "openbindings.ob.reportEnvironmentStatus",
-      "ref": "#/paths/~1status/get",
+      "ref": "#/paths/~1environment/get",
       "source": "openapi"
     },
     "openbindings.ob.reportInterfaceStatus.openapi": {
       "operation": "openbindings.ob.reportInterfaceStatus",
-      "ref": "#/paths/~1interface-status/post",
+      "ref": "#/paths/~1interfaces~1status/post",
       "source": "openapi"
     },
     "openbindings.ob.resolveInterface.openapi": {
@@ -99,7 +99,7 @@
     },
     "openbindings.ob.synthesizeInterface.openapi": {
       "operation": "openbindings.ob.synthesizeInterface",
-      "ref": "#/paths/~1interfaces~1create/post",
+      "ref": "#/paths/~1interfaces~1synthesize/post",
       "source": "openapi"
     },
     "openbindings.ob.validateInterface.openapi": {
@@ -172,7 +172,7 @@
       }
     },
     "openbindings.ob.getDelegateRequirements": {
-      "description": "Return the published interface a delegate must satisfy to provide a capability (invoke → binding-invoker, create → interface-synthesizer, inspect → source-inspector), so a prospective delegate can be checked against the exact contract (e.g. via reportCompatibility). The interfaces are immutable documents bundled with this ob release.",
+      "description": "Return the published interface a delegate must satisfy to provide a capability (invoke → binding-invoker, synthesize → interface-synthesizer, inspect → source-inspector), so a prospective delegate can be checked against the exact contract (e.g. via reportCompatibility). The interfaces are immutable documents bundled with this ob release.",
       "idempotent": true,
       "input": {
         "$ref": "#/schemas/GetDelegateRequirementsInput"
@@ -217,7 +217,7 @@
       }
     },
     "openbindings.ob.listDelegates": {
-      "description": "List the registered delegates with the capabilities and formats each provides. Capabilities (invoke/create/inspect) and formats are discovered from each delegate's OBI.",
+      "description": "List the registered delegates with the capabilities and formats each provides. Capabilities (invoke/synthesize/inspect) and formats are discovered from each delegate's OBI.",
       "idempotent": true,
       "output": {
         "items": {
@@ -463,7 +463,7 @@
           "$ref": "#/schemas/OpenBindingsInterface"
         },
         "source": {
-          "$ref": "#/schemas/CreateInterfaceSource"
+          "$ref": "#/schemas/SynthesizeInterfaceSource"
         }
       },
       "required": [
@@ -996,60 +996,11 @@
       ],
       "type": "object"
     },
-    "CreateInterfaceSource": {
-      "additionalProperties": false,
-      "anyOf": [
-        {
-          "required": [
-            "location"
-          ]
-        },
-        {
-          "required": [
-            "content"
-          ]
-        }
-      ],
-      "description": "A binding source to extract operations from.",
-      "properties": {
-        "content": {
-          "description": "Content provided directly."
-        },
-        "description": {
-          "description": "Human-readable description for this source.",
-          "type": "string"
-        },
-        "embed": {
-          "description": "If true, embed content inline in the output interface.",
-          "type": "boolean"
-        },
-        "format": {
-          "description": "Format token (e.g. openapi@3.1, usage@2.13.1).",
-          "type": "string"
-        },
-        "location": {
-          "description": "Location to fetch content from (path or URL).",
-          "type": "string"
-        },
-        "name": {
-          "description": "Key for this source in the output interface's sources.",
-          "type": "string"
-        },
-        "outputLocation": {
-          "description": "Location to reference in the output interface's source.",
-          "type": "string"
-        }
-      },
-      "required": [
-        "format"
-      ],
-      "type": "object"
-    },
     "DelegateCapability": {
       "description": "A format-handling capability a delegate provides, mapping to the interface it satisfies: invoke (openbindings.binding-invoker), create (openbindings.interface-synthesizer), inspect (openbindings.source-inspector). A delegate offers whichever subset it satisfies.",
       "enum": [
         "invoke",
-        "create",
+        "synthesize",
         "inspect"
       ],
       "type": "string"
@@ -2613,7 +2564,7 @@
         "sources": {
           "description": "Binding sources to extract from.",
           "items": {
-            "$ref": "#/schemas/CreateInterfaceSource"
+            "$ref": "#/schemas/SynthesizeInterfaceSource"
           },
           "type": "array"
         },
@@ -2622,6 +2573,55 @@
           "type": "string"
         }
       },
+      "type": "object"
+    },
+    "SynthesizeInterfaceSource": {
+      "additionalProperties": false,
+      "anyOf": [
+        {
+          "required": [
+            "location"
+          ]
+        },
+        {
+          "required": [
+            "content"
+          ]
+        }
+      ],
+      "description": "A binding source to extract operations from.",
+      "properties": {
+        "content": {
+          "description": "Content provided directly."
+        },
+        "description": {
+          "description": "Human-readable description for this source.",
+          "type": "string"
+        },
+        "embed": {
+          "description": "If true, embed content inline in the output interface.",
+          "type": "boolean"
+        },
+        "format": {
+          "description": "Format token (e.g. openapi@3.1, usage@2.13.1).",
+          "type": "string"
+        },
+        "location": {
+          "description": "Location to fetch content from (path or URL).",
+          "type": "string"
+        },
+        "name": {
+          "description": "Key for this source in the output interface's sources.",
+          "type": "string"
+        },
+        "outputLocation": {
+          "description": "Location to reference in the output interface's source.",
+          "type": "string"
+        }
+      },
+      "required": [
+        "format"
+      ],
       "type": "object"
     },
     "UnbindOperationInput": {

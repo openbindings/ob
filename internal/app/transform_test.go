@@ -35,7 +35,7 @@ func TestApplyTransform_SimpleRename(t *testing.T) {
 	}
 }
 
-func TestApplyTransform_FullCreateInterfaceInput(t *testing.T) {
+func TestApplyTransform_FullSynthesizeInterfaceInput(t *testing.T) {
 	// This is the actual transform expression used in ob.obi.json
 	tor := &openbindings.TransformOrRef{Inline: `{ "flags": { "to": openbindingsVersion, "id": id, "name": name, "version": version, "description": description }, "args": sources.(format & ":" & location & (embed ? "?embed" : "")) }`}
 

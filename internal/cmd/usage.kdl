@@ -77,10 +77,10 @@ cmd "delegate" help="Manage delegates" subcommand_required=true {
     arg "<format-token>" help="Format token to resolve"
   }
   cmd "requirements" help="Print the interface a delegate must satisfy for a capability" opKey="getDelegateRequirements" {
-    arg "<capability>" help="Capability: invoke, create, or inspect"
+    arg "<capability>" help="Capability: invoke, synthesize, or inspect"
   }
   cmd "prefer" help="Set a delegate's selection preference (higher = more preferred)" opKey="setDelegatePreference" {
-    flag "--capability <cap>" help="Scope to a capability: invoke, create, or inspect"
+    flag "--capability <cap>" help="Scope to a capability: invoke, synthesize, or inspect"
     flag "--source-format <format>" help="Scope to a binding-source format (requires --capability)"
     flag "-o --output <path>" help="Write output to file"
     flag "-F --format <format>" help="Output format: json|yaml|text"

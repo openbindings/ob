@@ -13,16 +13,16 @@ import (
 // matching interface, by operation-invoking the delegate's synthesizeInterface /
 // inspectSource against the delegate's own OBI (the same invokeOnInterface core
 // the invoke path uses). Native formats and the no-delegate case fall through
-// to the in-process creator/inspector unchanged.
+// to the in-process synthesizer/inspector unchanged.
 //
 // First cut: routes when the format is explicit and non-native. Auto-detecting
 // a delegate-only format (extending DetectSourceCandidates to try delegate
-// creators, via the existing DelegateClaim framework) is a tracked refinement.
+// synthesizers, via the existing DelegateClaim framework) is a tracked refinement.
 
 // abstract operation names for the delegatable capabilities, namespaced and bare.
 var (
-	synthesizeOpNames  = []string{"openbindings.interface-synthesizer.synthesizeInterface", "synthesizeInterface"}
-	inspectOpNames = []string{"openbindings.source-inspector.inspectSource", "inspectSource"}
+	synthesizeOpNames = []string{"openbindings.interface-synthesizer.synthesizeInterface", "synthesizeInterface"}
+	inspectOpNames    = []string{"openbindings.source-inspector.inspectSource", "inspectSource"}
 )
 
 // delegateOpKey finds the key in a delegate's OBI for an abstract operation,
@@ -46,9 +46,9 @@ func delegateOpKey(iface *openbindings.Interface, names ...string) (string, bool
 }
 
 // synthesizeViaDelegate routes a single-source, non-native synthesizeInterface to a
-// create-capable delegate. routed reports whether a delegate handled it; when
-// false, the caller uses the native creator.
-func synthesizeViaDelegate(ctx context.Context, input *openbindings.CreateInput) (iface *openbindings.Interface, routed bool, err error) {
+// synthesize-capable delegate. routed reports whether a delegate handled it; when
+// false, the caller uses the native synthesizer.
+func synthesizeViaDelegate(ctx context.Context, input *openbindings.SynthesizeInput) (iface *openbindings.Interface, routed bool, err error) {
 	if input == nil || len(input.Sources) != 1 {
 		return nil, false, nil // multi-source/mixed not routed; native handles or errors
 	}

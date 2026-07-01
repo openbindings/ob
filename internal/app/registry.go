@@ -22,16 +22,16 @@ var (
 	defaultInvoker     *openbindings.OperationInvoker
 	defaultInvokerOnce sync.Once
 
-	defaultCreator     openbindings.InterfaceCreator
-	defaultCreatorOnce sync.Once
+	defaultSynthesizer     openbindings.InterfaceSynthesizer
+	defaultSynthesizerOnce sync.Once
 
 	// newInvokerFunc builds the OperationInvoker. Override in tests to
 	// inject a custom set of binding invokers.
 	newInvokerFunc = newDefaultInvoker
 
-	// newCreatorFunc builds the combined InterfaceCreator. Override in tests
-	// to inject a custom set of creators.
-	newCreatorFunc = newDefaultCreator
+	// newSynthesizerFunc builds the combined InterfaceSynthesizer. Override in tests
+	// to inject a custom set of synthesizers.
+	newSynthesizerFunc = newDefaultSynthesizer
 )
 
 func newDefaultInvoker() *openbindings.OperationInvoker {
@@ -69,42 +69,42 @@ func newDefaultInvoker() *openbindings.OperationInvoker {
 	return invoker
 }
 
-func newDefaultCreator() openbindings.InterfaceCreator {
-	return openbindings.CombineCreators(
-		openapi.NewCreator(),
-		asyncapi.NewCreator(),
-		grpc.NewCreator(),
-		connectbinding.NewCreator(),
-		mcp.NewCreator(mcp.WithCreatorClientVersion(OBVersion)),
-		graphqlbinding.NewCreator(),
-		usage.NewCreator(),
-		// workers-rpc creator stub: workers-rpc OBIs are hand-authored
+func newDefaultSynthesizer() openbindings.InterfaceSynthesizer {
+	return openbindings.CombineSynthesizers(
+		openapi.NewSynthesizer(),
+		asyncapi.NewSynthesizer(),
+		grpc.NewSynthesizer(),
+		connectbinding.NewSynthesizer(),
+		mcp.NewSynthesizer(mcp.WithSynthesizerClientVersion(OBVersion)),
+		graphqlbinding.NewSynthesizer(),
+		usage.NewSynthesizer(),
+		// workers-rpc synthesizer stub: workers-rpc OBIs are hand-authored
 		// (the contract is the WorkerEntrypoint TS class on the target
-		// Worker, not a machine-readable spec) so the creator returns
+		// Worker, not a machine-readable spec) so the synthesizer returns
 		// an error directing users to write the OBI manually. The
 		// registration here makes ob recognize the format token without
 		// rejecting it as unknown.
-		workersrpc.NewCreator(),
+		workersrpc.NewSynthesizer(),
 	)
 }
 
-// DefaultCreator returns the singleton combined InterfaceCreator wired with
-// all built-in format creators.
-func DefaultCreator() openbindings.InterfaceCreator {
-	defaultCreatorOnce.Do(func() {
-		defaultCreator = newCreatorFunc()
+// DefaultSynthesizer returns the singleton combined InterfaceSynthesizer wired with
+// all built-in format synthesizers.
+func DefaultSynthesizer() openbindings.InterfaceSynthesizer {
+	defaultSynthesizerOnce.Do(func() {
+		defaultSynthesizer = newSynthesizerFunc()
 	})
-	return defaultCreator
+	return defaultSynthesizer
 }
 
-// CreateInterfaceFromSource routes interface creation to the appropriate
-// creator by format, falling through to a create-capable delegate when the
+// SynthesizeInterfaceFromSource routes interface creation to the appropriate
+// synthesizer by format, falling through to a synthesize-capable delegate when the
 // format is not natively supported.
-func CreateInterfaceFromSource(ctx context.Context, input *openbindings.CreateInput) (*openbindings.Interface, error) {
+func SynthesizeInterfaceFromSource(ctx context.Context, input *openbindings.SynthesizeInput) (*openbindings.Interface, error) {
 	if iface, routed, err := synthesizeViaDelegate(ctx, input); routed {
 		return iface, err
 	}
-	return DefaultCreator().CreateInterface(ctx, input)
+	return DefaultSynthesizer().SynthesizeInterface(ctx, input)
 }
 
 // InspectSource returns bindable targets for a source, delegating to the
@@ -114,10 +114,10 @@ func InspectSource(ctx context.Context, source *openbindings.Source) (*openbindi
 	if ins, routed, err := inspectViaDelegate(ctx, source); routed {
 		return ins, err
 	}
-	creator := DefaultCreator()
-	inspector, ok := creator.(openbindings.SourceInspector)
+	synthesizer := DefaultSynthesizer()
+	inspector, ok := synthesizer.(openbindings.SourceInspector)
 	if !ok {
-		return nil, fmt.Errorf("creator does not support source inspection")
+		return nil, fmt.Errorf("synthesizer does not support source inspection")
 	}
 	return inspector.InspectSource(ctx, source)
 }
@@ -132,14 +132,14 @@ func DefaultInvoker() *openbindings.OperationInvoker {
 	return defaultInvoker
 }
 
-// ResetDefaultInvoker clears the cached invoker and creator so the next
-// call to DefaultInvoker/DefaultCreator re-initialises them. Intended for
+// ResetDefaultInvoker clears the cached invoker and synthesizer so the next
+// call to DefaultInvoker/DefaultSynthesizer re-initialises them. Intended for
 // tests only.
 func ResetDefaultInvoker() {
 	defaultInvokerOnce = sync.Once{}
 	defaultInvoker = nil
-	defaultCreatorOnce = sync.Once{}
-	defaultCreator = nil
+	defaultSynthesizerOnce = sync.Once{}
+	defaultSynthesizer = nil
 }
 
 // OverrideInvokerForTest replaces the default invoker with the given one

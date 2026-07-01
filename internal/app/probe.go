@@ -196,7 +196,7 @@ func probeHTTP(u string, timeout time.Duration) ProbeResult {
 	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
 
-	fetched, err := openbindings.FetchInterface(ctx, u, openbindings.WithCreators(DefaultCreator()))
+	fetched, err := openbindings.FetchInterface(ctx, u, openbindings.WithSynthesizers(DefaultSynthesizer()))
 	if err != nil {
 		return ProbeResult{Status: ProbeStatusBad, Detail: err.Error()}
 	}
@@ -250,7 +250,7 @@ func ResolveOBI(urlOrHost string) (doc []byte, synthesizedFrom string, err error
 	ctx, cancel := context.WithTimeout(context.Background(), delegates.DefaultProbeTimeout)
 	defer cancel()
 
-	fetched, err := openbindings.FetchInterface(ctx, u, openbindings.WithCreators(DefaultCreator()))
+	fetched, err := openbindings.FetchInterface(ctx, u, openbindings.WithSynthesizers(DefaultSynthesizer()))
 	if err != nil {
 		return nil, "", err
 	}
@@ -280,13 +280,13 @@ func normalizeOBIJSON(body []byte) (string, bool) {
 }
 
 // trySynthesizeInterface attempts to create an OBI interface by trying each
-// registered creator against the given location. Returns (result, true) on
+// registered synthesizer against the given location. Returns (result, true) on
 // the first successful synthesis.
 func trySynthesizeInterface(location, originalURL, obiDir string) (ProbeResult, bool) {
-	creator := DefaultCreator()
-	for _, fi := range creator.Formats() {
-		iface, err := creator.CreateInterface(context.Background(), &openbindings.CreateInput{
-			Sources: []openbindings.CreateSource{{Format: fi.Token, Location: location}},
+	synthesizer := DefaultSynthesizer()
+	for _, fi := range synthesizer.Formats() {
+		iface, err := synthesizer.SynthesizeInterface(context.Background(), &openbindings.SynthesizeInput{
+			Sources: []openbindings.SynthesizeSource{{Format: fi.Token, Location: location}},
 		})
 		if err != nil || iface == nil {
 			continue

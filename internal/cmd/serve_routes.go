@@ -29,7 +29,7 @@ func registerBindingRoutes(srv *server.Server, logger *slog.Logger) {
 	mux := srv.Mux()
 	mux.HandleFunc("GET /bindings/invoke", handleBindingInvoke(srv, logger))
 	mux.HandleFunc("POST /bindings/prepare", handleBindingPrepare(logger))
-	mux.HandleFunc("POST /interfaces/create", handleInterfaceCreate)
+	mux.HandleFunc("POST /interfaces/synthesize", handleInterfaceSynthesize)
 	mux.HandleFunc("POST /sources/inspect", handleSourceInspect)
 }
 
@@ -327,21 +327,21 @@ func handleBindingPrepare(logger *slog.Logger) http.HandlerFunc {
 	}
 }
 
-func handleInterfaceCreate(w http.ResponseWriter, r *http.Request) {
+func handleInterfaceSynthesize(w http.ResponseWriter, r *http.Request) {
 	r.Body = http.MaxBytesReader(w, r.Body, maxRequestBodyBytes)
 	var body struct {
-		OpenBindingsVersion string                      `json:"openbindingsVersion,omitempty"`
-		Sources             []app.CreateInterfaceSource `json:"sources,omitempty"`
-		Name                string                      `json:"name,omitempty"`
-		Version             string                      `json:"version,omitempty"`
-		Description         string                      `json:"description,omitempty"`
+		OpenBindingsVersion string                          `json:"openbindingsVersion,omitempty"`
+		Sources             []app.SynthesizeInterfaceSource `json:"sources,omitempty"`
+		Name                string                          `json:"name,omitempty"`
+		Version             string                          `json:"version,omitempty"`
+		Description         string                          `json:"description,omitempty"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
 		writeJSON(w, http.StatusBadRequest, ErrorResponse{Error: "invalid request body"})
 		return
 	}
 
-	iface, err := app.CreateInterface(app.CreateInterfaceInput{
+	iface, err := app.SynthesizeInterface(app.SynthesizeInterfaceInput{
 		OpenBindingsVersion: body.OpenBindingsVersion,
 		Sources:             body.Sources,
 		Name:                body.Name,
@@ -386,7 +386,7 @@ func registerAuthoringRoutes(srv *server.Server) {
 	mux.HandleFunc("POST /conform", handleConform)
 	mux.HandleFunc("POST /codegen", handleCodegen)
 	mux.HandleFunc("POST /merge", handleMerge)
-	mux.HandleFunc("POST /interface-status", handleInterfaceStatus)
+	mux.HandleFunc("POST /interfaces/status", handleInterfaceStatus)
 }
 
 func handleValidate(w http.ResponseWriter, r *http.Request) {

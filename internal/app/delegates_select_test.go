@@ -35,7 +35,7 @@ func TestSelectDelegateFrom(t *testing.T) {
 		}
 	})
 
-	t.Run("capability filter: only the create-capable external handles thrift create", func(t *testing.T) {
+	t.Run("capability filter: only the synthesize-capable external handles thrift synthesize", func(t *testing.T) {
 		got := selectDelegateFrom([]delegateCandidate{self, extInvoke, extCreate}, CapSynthesize, "thrift")
 		if got == nil || got.name != "y" {
 			t.Fatalf("expected the create delegate y for create/thrift, got %+v", got)
@@ -51,7 +51,7 @@ func TestSelectDelegateFrom(t *testing.T) {
 	t.Run("capability present but format absent yields nil", func(t *testing.T) {
 		// extCreate can create, but only thrift — not openapi.
 		if got := selectDelegateFrom([]delegateCandidate{extCreate}, CapSynthesize, "openapi@3.1"); got != nil {
-			t.Fatalf("expected nil (create-capable but wrong format), got %+v", got)
+			t.Fatalf("expected nil (synthesize-capable but wrong format), got %+v", got)
 		}
 	})
 
@@ -89,8 +89,8 @@ func TestSelectDelegateFrom(t *testing.T) {
 			capabilities: []DelegateCapability{CapInvoke},
 			formats:      []DelegateFormatInfo{{Format: "grpc"}},
 			perOffering: []OfferingPreference{
-				{Capability: CapInvoke, Preference: 3},                  // capability-only
-				{Capability: CapInvoke, Format: "grpc", Preference: 9},  // more specific
+				{Capability: CapInvoke, Preference: 3},                 // capability-only
+				{Capability: CapInvoke, Format: "grpc", Preference: 9}, // more specific
 			},
 		}
 		if got := c.effectivePreference(CapInvoke, "grpc"); got != 9 {

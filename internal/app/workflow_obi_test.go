@@ -44,8 +44,8 @@ cmd "help" help="Show help" {
 	writeUsageFile(t, dir, "greet.usage.kdl", greetKDL)
 	writeUsageFile(t, dir, "tools.usage.kdl", toolsKDL)
 
-	iface, err := CreateInterface(CreateInterfaceInput{
-		Sources: []CreateInterfaceSource{
+	iface, err := SynthesizeInterface(SynthesizeInterfaceInput{
+		Sources: []SynthesizeInterfaceSource{
 			{Format: usageFormat, Location: filepath.Join(dir, "greet.usage.kdl")},
 			{Format: usageFormat, Location: filepath.Join(dir, "tools.usage.kdl")},
 		},
@@ -110,8 +110,8 @@ cmd "greet" help="Say hello" {
 `
 	path1 := writeUsageFile(t, dir, "cli.kdl", kdl1)
 
-	iface, err := CreateInterface(CreateInterfaceInput{
-		Sources: []CreateInterfaceSource{
+	iface, err := SynthesizeInterface(SynthesizeInterfaceInput{
+		Sources: []SynthesizeInterfaceSource{
 			{Format: usageFormat, Location: path1},
 		},
 		Name: "app",
@@ -166,8 +166,8 @@ func TestWorkflow_SourceAddThenMergeFromSources(t *testing.T) {
 bin "main"
 cmd "run" help="Run something" {}
 `)
-	iface, err := CreateInterface(CreateInterfaceInput{
-		Sources: []CreateInterfaceSource{
+	iface, err := SynthesizeInterface(SynthesizeInterfaceInput{
+		Sources: []SynthesizeInterfaceSource{
 			{Format: usageFormat, Location: filepath.Join(dir, "main.usage.kdl")},
 		},
 		Name: "svc",
@@ -234,8 +234,8 @@ cmd "greet" help="From spec" {}
 `
 	writeUsageFile(t, dir, "cli.kdl", greetKDL)
 
-	iface, err := CreateInterface(CreateInterfaceInput{
-		Sources: []CreateInterfaceSource{
+	iface, err := SynthesizeInterface(SynthesizeInterfaceInput{
+		Sources: []SynthesizeInterfaceSource{
 			{Format: usageFormat, Location: filepath.Join(dir, "cli.kdl")},
 		},
 		Name: "app",
@@ -310,8 +310,8 @@ bin "b"
 cmd "two" help="Second" {}
 `)
 
-	iface, err := CreateInterface(CreateInterfaceInput{
-		Sources: []CreateInterfaceSource{
+	iface, err := SynthesizeInterface(SynthesizeInterfaceInput{
+		Sources: []SynthesizeInterfaceSource{
 			{Format: usageFormat, Location: filepath.Join(dir, "a.kdl")},
 			{Format: usageFormat, Location: filepath.Join(dir, "b.kdl")},
 		},

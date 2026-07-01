@@ -154,7 +154,7 @@ func SourceAdd(input SourceAddInput) (SourceAddOutput, error) {
 	// Derive the source key.
 	key := input.Key
 	if key == "" {
-		key = DeriveSourceKey(CreateInterfaceSource{
+		key = DeriveSourceKey(SynthesizeInterfaceSource{
 			Format:   input.Format,
 			Location: input.Location,
 		}, 0)

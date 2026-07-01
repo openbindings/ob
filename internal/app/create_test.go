@@ -126,7 +126,7 @@ func TestParseSource_Errors(t *testing.T) {
 }
 
 func TestDeriveSourceKey_ExplicitName(t *testing.T) {
-	src := CreateInterfaceSource{Name: "myKey", Format: "usage@2.0.0", Location: "/foo/bar.kdl"}
+	src := SynthesizeInterfaceSource{Name: "myKey", Format: "usage@2.0.0", Location: "/foo/bar.kdl"}
 	key := DeriveSourceKey(src, 0)
 	if key != "myKey" {
 		t.Errorf("key = %q, want %q", key, "myKey")
@@ -134,7 +134,7 @@ func TestDeriveSourceKey_ExplicitName(t *testing.T) {
 }
 
 func TestDeriveSourceKey_FromFileName(t *testing.T) {
-	src := CreateInterfaceSource{Format: "usage@2.0.0", Location: "/project/cli.usage.kdl"}
+	src := SynthesizeInterfaceSource{Format: "usage@2.0.0", Location: "/project/cli.usage.kdl"}
 	key := DeriveSourceKey(src, 0)
 	if key != "cliUsage" {
 		t.Errorf("key = %q, want %q", key, "cliUsage")
@@ -142,7 +142,7 @@ func TestDeriveSourceKey_FromFileName(t *testing.T) {
 }
 
 func TestDeriveSourceKey_NoStutter(t *testing.T) {
-	src := CreateInterfaceSource{Format: "asyncapi@3.0", Location: "/project/asyncapi.json"}
+	src := SynthesizeInterfaceSource{Format: "asyncapi@3.0", Location: "/project/asyncapi.json"}
 	key := DeriveSourceKey(src, 0)
 	if key != "asyncapi" {
 		t.Errorf("key = %q, want %q", key, "asyncapi")
@@ -150,7 +150,7 @@ func TestDeriveSourceKey_NoStutter(t *testing.T) {
 }
 
 func TestDeriveSourceKey_FallbackIndex(t *testing.T) {
-	src := CreateInterfaceSource{Format: "openapi@3.1", Location: "/project/this-is-a-very-long-filename-that-exceeds-twenty-chars.json"}
+	src := SynthesizeInterfaceSource{Format: "openapi@3.1", Location: "/project/this-is-a-very-long-filename-that-exceeds-twenty-chars.json"}
 	key := DeriveSourceKey(src, 2)
 	if key != "openapi2" {
 		t.Errorf("key = %q, want %q", key, "openapi2")
@@ -235,8 +235,8 @@ func TestReadEmbedContent_FileNotFound(t *testing.T) {
 	}
 }
 
-func TestCreateInterface_InvalidVersion(t *testing.T) {
-	_, err := CreateInterface(CreateInterfaceInput{
+func TestSynthesizeInterface_InvalidVersion(t *testing.T) {
+	_, err := SynthesizeInterface(SynthesizeInterfaceInput{
 		OpenBindingsVersion: "99.99.99",
 	})
 	if err == nil {
@@ -244,8 +244,8 @@ func TestCreateInterface_InvalidVersion(t *testing.T) {
 	}
 }
 
-func TestCreateInterface_NoSources(t *testing.T) {
-	iface, err := CreateInterface(CreateInterfaceInput{
+func TestSynthesizeInterface_NoSources(t *testing.T) {
+	iface, err := SynthesizeInterface(SynthesizeInterfaceInput{
 		Name: "TestInterface",
 	})
 	if err != nil {
@@ -262,8 +262,8 @@ func TestCreateInterface_NoSources(t *testing.T) {
 	}
 }
 
-func TestCreateInterface_Overrides(t *testing.T) {
-	iface, err := CreateInterface(CreateInterfaceInput{
+func TestSynthesizeInterface_Overrides(t *testing.T) {
+	iface, err := SynthesizeInterface(SynthesizeInterfaceInput{
 		Name:        "Overridden",
 		Version:     "1.0.0",
 		Description: "A test interface",
@@ -282,9 +282,9 @@ func TestCreateInterface_Overrides(t *testing.T) {
 	}
 }
 
-func TestCreateInterface_BadSource(t *testing.T) {
-	_, err := CreateInterface(CreateInterfaceInput{
-		Sources: []CreateInterfaceSource{
+func TestSynthesizeInterface_BadSource(t *testing.T) {
+	_, err := SynthesizeInterface(SynthesizeInterfaceInput{
+		Sources: []SynthesizeInterfaceSource{
 			{Format: "usage@2.0.0", Location: "/nonexistent/spec.kdl"},
 		},
 	})

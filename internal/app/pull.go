@@ -292,8 +292,8 @@ func reReadAndDerive(iface *openbindings.Interface, key, obiDir string) (DeriveR
 
 	if needsLiveDiscovery(src.Format) {
 		ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
-		derivedIface, derr := CreateInterfaceFromSource(ctx, &openbindings.CreateInput{
-			Sources: []openbindings.CreateSource{{Format: src.Format, Location: meta.Ref}},
+		derivedIface, derr := SynthesizeInterfaceFromSource(ctx, &openbindings.SynthesizeInput{
+			Sources: []openbindings.SynthesizeSource{{Format: src.Format, Location: meta.Ref}},
 		})
 		cancel()
 		if derr != nil {

@@ -19,8 +19,8 @@ const (
 	DefaultInterfaceName = "My Interface"
 )
 
-// CreateInterfaceSource represents a source for interface creation.
-type CreateInterfaceSource struct {
+// SynthesizeInterfaceSource represents a source for interface creation.
+type SynthesizeInterfaceSource struct {
 	Format         string
 	Location       string
 	Name           string // key in sources
@@ -30,10 +30,10 @@ type CreateInterfaceSource struct {
 	Delegate       string // delegate identifier to store in x-ob
 }
 
-// CreateInterfaceInput represents input for the createInterface operation.
-type CreateInterfaceInput struct {
+// SynthesizeInterfaceInput represents input for the synthesizeInterface operation.
+type SynthesizeInterfaceInput struct {
 	OpenBindingsVersion string
-	Sources             []CreateInterfaceSource
+	Sources             []SynthesizeInterfaceSource
 	Name                string
 	Version             string
 	Description         string
@@ -93,10 +93,10 @@ func RenderInterface(iface *openbindings.Interface) string {
 //	usage@2.13.1:./cli.kdl?name=cli&embed
 //	openapi.json
 //	./api.yaml?name=restApi
-func ParseSource(s string) (CreateInterfaceSource, error) {
+func ParseSource(s string) (SynthesizeInterfaceSource, error) {
 	s = strings.TrimSpace(s)
 	if s == "" {
-		return CreateInterfaceSource{}, fmt.Errorf("empty source")
+		return SynthesizeInterfaceSource{}, fmt.Errorf("empty source")
 	}
 
 	// Split main part from options (delimited by ?)
@@ -107,7 +107,7 @@ func ParseSource(s string) (CreateInterfaceSource, error) {
 		optionsPart = s[idx+1:]
 	}
 
-	var src CreateInterfaceSource
+	var src SynthesizeInterfaceSource
 
 	// Determine if this is format:path or a bare path.
 	// Format tokens contain '@' (e.g. openapi@3.1) or are short names
@@ -129,7 +129,7 @@ func ParseSource(s string) (CreateInterfaceSource, error) {
 	}
 
 	if src.Location == "" {
-		return CreateInterfaceSource{}, fmt.Errorf("source path cannot be empty")
+		return SynthesizeInterfaceSource{}, fmt.Errorf("source path cannot be empty")
 	}
 
 	// Parse options (& delimited)
@@ -157,10 +157,10 @@ func ParseSource(s string) (CreateInterfaceSource, error) {
 				case "description":
 					src.Description = value
 				default:
-					return CreateInterfaceSource{}, fmt.Errorf("unknown source option %q", key)
+					return SynthesizeInterfaceSource{}, fmt.Errorf("unknown source option %q", key)
 				}
 			} else {
-				return CreateInterfaceSource{}, fmt.Errorf("invalid source option %q (expected key=value or 'embed')", opt)
+				return SynthesizeInterfaceSource{}, fmt.Errorf("invalid source option %q (expected key=value or 'embed')", opt)
 			}
 		}
 	}
@@ -172,7 +172,7 @@ func ParseSource(s string) (CreateInterfaceSource, error) {
 // file path. The format is only used as a last-resort fallback when the
 // filename yields nothing useful. Exported so cmd layer can use it for
 // prompt defaults.
-func DeriveSourceKey(src CreateInterfaceSource, index int) string {
+func DeriveSourceKey(src SynthesizeInterfaceSource, index int) string {
 	if src.Name != "" {
 		return src.Name
 	}
@@ -205,8 +205,8 @@ func DeriveSourceKey(src CreateInterfaceSource, index int) string {
 	return fmt.Sprintf("%s%d", formatName, index)
 }
 
-// CreateInterface creates an OpenBindings interface from the given input.
-func CreateInterface(input CreateInterfaceInput) (*openbindings.Interface, error) {
+// SynthesizeInterface creates an OpenBindings interface from the given input.
+func SynthesizeInterface(input SynthesizeInterfaceInput) (*openbindings.Interface, error) {
 	targetVersion := input.OpenBindingsVersion
 	if targetVersion == "" {
 		targetVersion = openbindings.MaxTestedVersion
@@ -247,11 +247,11 @@ func CreateInterface(input CreateInterfaceInput) (*openbindings.Interface, error
 // processSource processes a single source and adds its operations/bindings to the interface.
 // It uses the OperationInvoker to dispatch format-specific conversion, then applies
 // format-agnostic merge logic.
-func processSource(iface *openbindings.Interface, src CreateInterfaceSource, index int) error {
+func processSource(iface *openbindings.Interface, src SynthesizeInterfaceSource, index int) error {
 	sourceKey := DeriveSourceKey(src, index)
 
-	generated, err := CreateInterfaceFromSource(context.Background(), &openbindings.CreateInput{
-		Sources: []openbindings.CreateSource{
+	generated, err := SynthesizeInterfaceFromSource(context.Background(), &openbindings.SynthesizeInput{
+		Sources: []openbindings.SynthesizeSource{
 			{
 				Format:   src.Format,
 				Location: src.Location,
@@ -268,7 +268,7 @@ func processSource(iface *openbindings.Interface, src CreateInterfaceSource, ind
 // mergeGeneratedSource merges a handler-generated Interface into the target,
 // applying format-agnostic merge logic for metadata, operations, sources, and bindings.
 // It writes x-ob metadata on sources and marks generated operations/bindings as managed.
-func mergeGeneratedSource(iface *openbindings.Interface, generated *openbindings.Interface, src CreateInterfaceSource, sourceKey string) error {
+func mergeGeneratedSource(iface *openbindings.Interface, generated *openbindings.Interface, src SynthesizeInterfaceSource, sourceKey string) error {
 	// Merge metadata from first source if not set.
 	if iface.Name == DefaultInterfaceName && generated.Name != "" {
 		iface.Name = generated.Name

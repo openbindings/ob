@@ -10,7 +10,7 @@ import (
 )
 
 // DelegateClaim represents a delegate's claim that it can handle a source.
-// Produced by running CreateInterface and inspecting the result.
+// Produced by running SynthesizeInterface and inspecting the result.
 type DelegateClaim struct {
 	DelegateName   string // human-friendly name (e.g. "ob", "acme-openapi")
 	DelegateID     string // identifier stored in x-ob.delegate: "ob" for builtin, location for external
@@ -19,7 +19,7 @@ type DelegateClaim struct {
 	BindingCount   int
 }
 
-// DetectSourceCandidates tries CreateInterface with every known format token
+// DetectSourceCandidates tries SynthesizeInterface with every known format token
 // to discover which ones can handle the given source file. Each successful
 // format produces a DelegateClaim with the format token it assigned and
 // the operation/binding counts from the interface it built.
@@ -31,9 +31,9 @@ func DetectSourceCandidates(location string) ([]DelegateClaim, error) {
 	}
 
 	var claims []DelegateClaim
-	for _, fi := range DefaultCreator().Formats() {
-		iface, err := CreateInterfaceFromSource(context.Background(), &openbindings.CreateInput{
-			Sources: []openbindings.CreateSource{{Format: fi.Token, Location: location}},
+	for _, fi := range DefaultSynthesizer().Formats() {
+		iface, err := SynthesizeInterfaceFromSource(context.Background(), &openbindings.SynthesizeInput{
+			Sources: []openbindings.SynthesizeSource{{Format: fi.Token, Location: location}},
 		})
 		if err != nil {
 			continue

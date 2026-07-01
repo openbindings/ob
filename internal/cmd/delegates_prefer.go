@@ -21,11 +21,11 @@ handling), and negatives rank a delegate below that baseline.
 With no --capability, sets the delegate-level preference (the default for
 all its offerings). With --capability (optionally scoped to a format via
 --source-format), sets a per-offering override — this is how you route, say,
-create to one delegate and invoke to another.
+synthesize to one delegate and invoke to another.
 
 Examples:
   ob delegate prefer exec:acme 5
-  ob delegate prefer exec:acme 10 --capability create
+  ob delegate prefer exec:acme 10 --capability synthesize
   ob delegate prefer exec:acme 10 --capability invoke --source-format grpc`,
 		Args: cobra.ExactArgs(2),
 		RunE: func(cmd *cobra.Command, args []string) error {
@@ -47,7 +47,7 @@ Examples:
 		},
 	}
 
-	cmd.Flags().StringVar(&capability, "capability", "", "scope to a capability: invoke, create, or inspect")
+	cmd.Flags().StringVar(&capability, "capability", "", "scope to a capability: invoke, synthesize, or inspect")
 	cmd.Flags().StringVar(&sourceFormat, "source-format", "", "scope to a binding-source format (requires --capability)")
 
 	return cmd

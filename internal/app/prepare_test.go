@@ -11,8 +11,8 @@ import (
 func obiFromUsage(t *testing.T, dir, kdl string) string {
 	t.Helper()
 	writeUsageFile(t, dir, "cli.kdl", kdl)
-	iface, err := CreateInterface(CreateInterfaceInput{
-		Sources: []CreateInterfaceSource{{Format: usageFormat, Location: filepath.Join(dir, "cli.kdl")}},
+	iface, err := SynthesizeInterface(SynthesizeInterfaceInput{
+		Sources: []SynthesizeInterfaceSource{{Format: usageFormat, Location: filepath.Join(dir, "cli.kdl")}},
 		Name:    "app",
 	})
 	if err != nil {

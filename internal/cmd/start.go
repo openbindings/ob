@@ -166,7 +166,7 @@ func registerRoutes(srv *server.Server, logger *slog.Logger, port int, oauthSt *
 	mux.HandleFunc("GET /formats", handleFormats)
 	mux.HandleFunc("GET /delegates", handleDelegates)
 
-	mux.HandleFunc("GET /status", handleStatus)
+	mux.HandleFunc("GET /environment", handleEnvironment)
 
 	mux.HandleFunc("GET /contexts", handleContextList)
 	mux.HandleFunc("GET /contexts/{url...}", handleContextGet)
@@ -340,13 +340,13 @@ func handleSpecResource(w http.ResponseWriter, r *http.Request) {
 }
 
 // handleDelegateRequirements serves the interface a delegate must satisfy for a
-// capability (invoke/create/inspect), so a prospective delegate can be checked
+// capability (invoke/synthesize/inspect), so a prospective delegate can be checked
 // against a running ob. The requirement interfaces are immutable bundled
 // documents, served like spec resources.
 func handleDelegateRequirements(w http.ResponseWriter, r *http.Request) {
 	data, err := app.RequirementInterfaceJSON(app.DelegateCapability(r.PathValue("capability")))
 	if err != nil {
-		writeJSON(w, http.StatusNotFound, ErrorResponse{Error: "unknown delegate capability (want invoke, create, or inspect)"})
+		writeJSON(w, http.StatusNotFound, ErrorResponse{Error: "unknown delegate capability (want invoke, synthesize, or inspect)"})
 		return
 	}
 	w.Header().Set("Content-Type", "application/json")
@@ -356,7 +356,7 @@ func handleDelegateRequirements(w http.ResponseWriter, r *http.Request) {
 
 // --- Status ---
 
-func handleStatus(w http.ResponseWriter, r *http.Request) {
+func handleEnvironment(w http.ResponseWriter, r *http.Request) {
 	status, err := app.GetEnvironmentStatus()
 	if err != nil {
 		writeJSON(w, http.StatusInternalServerError, ErrorResponse{Error: err.Error()})

@@ -33,7 +33,7 @@ func (r DelegateAddResult) Render() string {
 	}
 	if len(r.Capabilities) == 0 {
 		sb.WriteString("\n  ")
-		sb.WriteString(s.Warning.Render("! no delegatable capability — its interface satisfies none of invoke/create/inspect"))
+		sb.WriteString(s.Warning.Render("! no delegatable capability — its interface satisfies none of invoke/synthesize/inspect"))
 		return sb.String()
 	}
 

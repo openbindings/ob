@@ -287,7 +287,7 @@ func TestServeAuthRequired(t *testing.T) {
 	ts := testEnv(t)
 	defer ts.Close()
 
-	paths := []string{"/describe", "/formats", "/status"}
+	paths := []string{"/describe", "/formats", "/environment"}
 	for _, path := range paths {
 		t.Run(path, func(t *testing.T) {
 			resp, err := http.Get(ts.URL + path)
@@ -484,7 +484,7 @@ func TestServeExpansionRoutes_Registered(t *testing.T) {
 	ts := testEnv(t)
 	defer ts.Close()
 
-	for _, path := range []string{"/conform", "/codegen", "/merge", "/interface-status"} {
+	for _, path := range []string{"/conform", "/codegen", "/merge", "/interfaces/status"} {
 		resp, err := authedPost(ts.URL+path, "test-token", `not json`)
 		if err != nil {
 			t.Fatalf("%s: %v", path, err)
@@ -679,7 +679,7 @@ func TestServeStatus(t *testing.T) {
 	ts := testEnv(t)
 	defer ts.Close()
 
-	resp, err := authedGet(ts.URL+"/status", "test-token")
+	resp, err := authedGet(ts.URL+"/environment", "test-token")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1251,13 +1251,13 @@ func TestServeBindingPrepare_NullForFormatWithoutPreparer(t *testing.T) {
 	}
 }
 
-// --- /interfaces/create ---
+// --- /interfaces/synthesize ---
 
-func TestServeInterfaceCreate_InvalidBody(t *testing.T) {
+func TestServeInterfaceSynthesize_InvalidBody(t *testing.T) {
 	ts := testEnv(t)
 	defer ts.Close()
 
-	resp, err := authedPost(ts.URL+"/interfaces/create", "test-token", `not json`)
+	resp, err := authedPost(ts.URL+"/interfaces/synthesize", "test-token", `not json`)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1273,7 +1273,7 @@ func TestServeAuthRequired_AllProtectedEndpoints(t *testing.T) {
 	defer ts.Close()
 
 	getPaths := []string{
-		"/describe", "/formats", "/delegates", "/status", "/contexts",
+		"/describe", "/formats", "/delegates", "/environment", "/contexts",
 	}
 	for _, path := range getPaths {
 		t.Run("GET "+path, func(t *testing.T) {
@@ -1290,7 +1290,7 @@ func TestServeAuthRequired_AllProtectedEndpoints(t *testing.T) {
 
 	postPaths := []string{
 		"/resolve", "/validate", "/diff", "/compatibility",
-		"/bindings/prepare", "/interfaces/create",
+		"/bindings/prepare", "/interfaces/synthesize",
 	}
 	for _, path := range postPaths {
 		t.Run("POST "+path, func(t *testing.T) {
@@ -1554,14 +1554,14 @@ func TestSpecHandlerConformance(t *testing.T) {
 		{"GET", "/describe"},
 		{"GET", "/formats"},
 		{"GET", "/delegates"},
-		{"GET", "/status"},
+		{"GET", "/environment"},
 		{"GET", "/contexts"},
 		{"GET", "/contexts/https://example.com"},
 		{"PUT", "/contexts/https://example.com"},
 		{"DELETE", "/contexts/https://example.com"},
 		{"GET", "/bindings/invoke"},
 		{"POST", "/bindings/prepare"},
-		{"POST", "/interfaces/create"},
+		{"POST", "/interfaces/synthesize"},
 		{"POST", "/resolve"},
 		{"POST", "/validate"},
 		{"POST", "/diff"},

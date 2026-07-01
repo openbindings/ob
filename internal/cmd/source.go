@@ -108,7 +108,7 @@ Examples:
 
 			sourceKey := key
 			if sourceKey == "" {
-				derived := app.DeriveSourceKey(app.CreateInterfaceSource{
+				derived := app.DeriveSourceKey(app.SynthesizeInterfaceSource{
 					Format:   src.Format,
 					Location: src.Location,
 				}, 0)

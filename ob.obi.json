@@ -308,7 +308,7 @@
       }
     },
     "openbindings.ob.listDelegates": {
-      "description": "List the registered delegates with the capabilities and formats each provides. Capabilities (invoke/create/inspect) and formats are discovered from each delegate's OBI.",
+      "description": "List the registered delegates with the capabilities and formats each provides. Capabilities (invoke/synthesize/inspect) and formats are discovered from each delegate's OBI.",
       "idempotent": true,
       "output": {
         "type": "array",
@@ -328,7 +328,7 @@
       }
     },
     "openbindings.ob.getDelegateRequirements": {
-      "description": "Return the published interface a delegate must satisfy to provide a capability (invoke \u2192 binding-invoker, create \u2192 interface-synthesizer, inspect \u2192 source-inspector), so a prospective delegate can be checked against the exact contract (e.g. via reportCompatibility). The interfaces are immutable documents bundled with this ob release.",
+      "description": "Return the published interface a delegate must satisfy to provide a capability (invoke \u2192 binding-invoker, synthesize \u2192 interface-synthesizer, inspect \u2192 source-inspector), so a prospective delegate can be checked against the exact contract (e.g. via reportCompatibility). The interfaces are immutable documents bundled with this ob release.",
       "idempotent": true,
       "input": {
         "$ref": "#/schemas/GetDelegateRequirementsInput"
@@ -338,7 +338,7 @@
       }
     },
     "openbindings.ob.setDelegatePreference": {
-      "description": "Set a delegate's selection preference (higher = more preferred; 0 is the baseline, negatives rank below it). With no capability, sets the delegate-level default for all its offerings; with a capability (optionally scoped to a format), sets a per-offering override \u2014 how create can route to one delegate and invoke to another. Selection follows OBI-T-09: effective preference is the per-offering value, else the delegate-level value, else 0.",
+      "description": "Set a delegate's selection preference (higher = more preferred; 0 is the baseline, negatives rank below it). With no capability, sets the delegate-level default for all its offerings; with a capability (optionally scoped to a format), sets a per-offering override \u2014 how synthesize can route to one delegate and invoke to another. Selection follows OBI-T-09: effective preference is the per-offering value, else the delegate-level value, else 0.",
       "input": {
         "$ref": "#/schemas/SetDelegatePreferenceInput"
       },
@@ -669,7 +669,7 @@
       ],
       "additionalProperties": true
     },
-    "CreateInterfaceSource": {
+    "SynthesizeInterfaceSource": {
       "type": "object",
       "description": "A binding source to extract operations from.",
       "properties": {
@@ -728,7 +728,7 @@
         "sources": {
           "type": "array",
           "items": {
-            "$ref": "#/schemas/CreateInterfaceSource"
+            "$ref": "#/schemas/SynthesizeInterfaceSource"
           },
           "description": "Binding sources to extract from."
         },
@@ -827,7 +827,7 @@
           "$ref": "#/schemas/OpenBindingsInterface"
         },
         "source": {
-          "$ref": "#/schemas/CreateInterfaceSource"
+          "$ref": "#/schemas/SynthesizeInterfaceSource"
         }
       },
       "required": [
@@ -2266,7 +2266,7 @@
       "type": "string",
       "enum": [
         "invoke",
-        "create",
+        "synthesize",
         "inspect"
       ],
       "description": "A format-handling capability a delegate provides, mapping to the interface it satisfies: invoke (openbindings.binding-invoker), create (openbindings.interface-synthesizer), inspect (openbindings.source-inspector). A delegate offers whichever subset it satisfies."

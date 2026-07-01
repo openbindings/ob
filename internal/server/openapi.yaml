@@ -88,7 +88,7 @@ paths:
           description: Delegate capability
           schema:
             type: string
-            enum: [invoke, create, inspect]
+            enum: [invoke, synthesize, inspect]
       responses:
         "200":
           description: The interface a delegate must satisfy for the capability
@@ -99,7 +99,7 @@ paths:
         "404":
           description: Unknown delegate capability
 
-  /status:
+  /environment:
     get:
       operationId: reportEnvironmentStatus
       summary: Show environment status
@@ -250,12 +250,12 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
 
-  /interfaces/create:
+  /interfaces/synthesize:
     post:
       operationId: synthesizeInterface
-      summary: Create an OpenBindings interface from binding sources
+      summary: Synthesize an OpenBindings interface from binding sources
       description: >
-        Creates an OpenBindings interface document, optionally from one or more
+        Synthesizes an OpenBindings interface document, optionally from one or more
         binding source artifacts. This is the interface-synthesizer host capability.
       requestBody:
         required: true
@@ -270,7 +270,7 @@ paths:
                 sources:
                   type: array
                   items:
-                    $ref: "#/components/schemas/CreateInterfaceSource"
+                    $ref: "#/components/schemas/SynthesizeInterfaceSource"
                 name:
                   type: string
                   description: Interface name (overrides value derived from sources)
@@ -546,7 +546,7 @@ paths:
               schema:
                 type: object
 
-  /interface-status:
+  /interfaces/status:
     post:
       operationId: reportInterfaceStatus
       summary: Report an interface's sync status against its sources
@@ -895,7 +895,7 @@ components:
         content:
           description: Binding source content directly
 
-    CreateInterfaceSource:
+    SynthesizeInterfaceSource:
       type: object
       required: [format]
       properties:

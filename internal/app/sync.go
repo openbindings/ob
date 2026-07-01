@@ -165,14 +165,14 @@ func Sync(input SyncInput) (SyncOutput, error) {
 		}
 
 		if needsLiveDiscovery(src.Format) {
-			createIn := &openbindings.CreateInput{
-				Sources: []openbindings.CreateSource{{
+			createIn := &openbindings.SynthesizeInput{
+				Sources: []openbindings.SynthesizeSource{{
 					Format:   src.Format,
 					Location: meta.Ref,
 				}},
 			}
 			discoverCtx, discoverCancel := context.WithTimeout(context.Background(), 60*time.Second)
-			derived, discoverErr := CreateInterfaceFromSource(discoverCtx, createIn)
+			derived, discoverErr := SynthesizeInterfaceFromSource(discoverCtx, createIn)
 			discoverCancel()
 			if discoverErr != nil {
 				warnings = append(warnings, fmt.Sprintf("source %q: discover failed: %v", key, discoverErr))
@@ -238,7 +238,7 @@ func Sync(input SyncInput) (SyncOutput, error) {
 	}
 
 	// Phase 2: Three-way merge of operations and bindings.
-	// For each synced source, re-derive via the creator and merge against the OBI.
+	// For each synced source, re-derive via the synthesizer and merge against the OBI.
 	// Hand-authored objects (no x-ob) are never touched.
 	opFilter := toStringSet(input.OperationKeys)
 

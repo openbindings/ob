@@ -281,10 +281,10 @@ func TestMergeOperation_NilBase_PreservesLocalOnlyFields(t *testing.T) {
 	}
 }
 
-// TestCreateInterface_PopulatesBaseForFirstSync is the integration-level
+// TestSynthesizeInterface_PopulatesBaseForFirstSync is the integration-level
 // regression test for the bootstrap-then-edit-then-sync flow. It asserts:
 //
-//  1. After CreateInterface, every managed operation and binding has a
+//  1. After SynthesizeInterface, every managed operation and binding has a
 //     populated x-ob.base (so GetBase returns non-nil).
 //  2. The base equals what ObjectToFieldMap(op) produces, so the very
 //     first ob sync sees an exact three-way merge instead of falling
@@ -294,7 +294,7 @@ func TestMergeOperation_NilBase_PreservesLocalOnlyFields(t *testing.T) {
 // are preserved by the FIRST sync after create — including hand-edits
 // to fields the source also has, which is the case the heuristic can't
 // handle on its own.
-func TestCreateInterface_PopulatesBaseForFirstSync(t *testing.T) {
+func TestSynthesizeInterface_PopulatesBaseForFirstSync(t *testing.T) {
 	dir := t.TempDir()
 
 	kdl := `min_usage_version "2.0.0"
@@ -303,8 +303,8 @@ cmd "greet" help="Say hello" {}
 `
 	writeUsageFile(t, dir, "cli.kdl", kdl)
 
-	iface, err := CreateInterface(CreateInterfaceInput{
-		Sources: []CreateInterfaceSource{
+	iface, err := SynthesizeInterface(SynthesizeInterfaceInput{
+		Sources: []SynthesizeInterfaceSource{
 			{Format: usageFormat, Location: filepath.Join(dir, "cli.kdl")},
 		},
 		Name: "app",
