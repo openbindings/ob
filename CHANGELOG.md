@@ -36,14 +36,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 - **Migrated to the SDK's cardinality-agnostic Invocation handle** (the 0.2
   invoker model: write inputs until done, read outputs until done; one shape
   for unary, streaming, and bidirectional bindings).
-  - `ob codegen` emits typed invokers in the settled shape: one method per
-    operation returning the typed invocation handle (`Invocation<I, O>` in TS,
-    `*openbindings.TypedInvocation[I, O]` in Go) with per-call
-    `InvokerCallOpts` and the runtime interface bound at construction
-    (defaulting to the embedded contract). No Promise-returning unary
-    wrappers, no `*Stream` twins, no per-event envelope, no thrown
-    `OperationError` — terminal failures are `InvocationError` on the handle.
-    Emitted headers declare the SDK range they target.
+  - `ob codegen --lang go` emits **operation signatures**, not a bound invoker:
+    the per-operation input/output structs plus an `OperationSignatures`
+    namespace (one `openbindings.OperationSignature[I, O]` per operation, built
+    via `NewOperationSignature`). Callers invoke with the free verb,
+    `openbindings.Invoke(ctx, invoker, obi, sig, ...)`, and drive the
+    cardinality-agnostic handle (`openbindings.Single` for one-shot outputs).
+    No per-operation methods, no bound invoker struct, no embedded contract: the
+    interface is supplied at call time, and named schemas shared across
+    operations are emitted once. `--lang typescript` still emits the typed
+    invoker (one method per operation returning `Invocation<I, O>` with per-call
+    `InvokerCallOpts`) pending the TypeScript SDK's signature surface: no
+    Promise-returning unary wrappers, no `*Stream` twins, no per-event envelope,
+    no thrown `OperationError` (terminal failures are `InvocationError` on the
+    handle). Emitted headers declare the SDK range they target.
   - The app layer owns CONTEXT_REQUIRED negotiation for its binding-level
     calls: challenges raised before any output are resolved through the
     configured resolver and re-driven with merged context. The CLI's resolver

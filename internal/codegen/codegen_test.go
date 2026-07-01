@@ -144,39 +144,42 @@ func TestEmitGoDemo(t *testing.T) {
 		t.Error("wrong package name")
 	}
 
-	// Should have structs.
+	// Shared schema structs are still emitted (named schemas reused, not duplicated).
 	if !strings.Contains(code, "type MenuItem struct") {
 		t.Error("missing MenuItem struct")
 	}
 
-	// Should have the typed invoker struct binding iface at construction.
-	if !strings.Contains(code, "type OpenBlendingsInvoker struct") {
-		t.Error("missing typed invoker struct")
+	// The OperationSignatures namespace: a named struct type plus the
+	// package-level value built through the SDK constructor.
+	if !strings.Contains(code, "type operationSignatures struct") {
+		t.Error("missing operationSignatures namespace type")
 	}
-	if !strings.Contains(code, "func NewOpenBlendingsInvoker(invoker *openbindings.OperationInvoker, iface *openbindings.Interface)") {
-		t.Error("constructor should bind the interface at construction")
+	if !strings.Contains(code, "var OperationSignatures = operationSignatures{") {
+		t.Error("missing OperationSignatures namespace value")
 	}
-
-	// Methods return the cardinality-agnostic typed handle with per-call opts.
-	if !strings.Contains(code, "func (inv *OpenBlendingsInvoker) GetMenu(ctx context.Context, opts InvokerCallOpts) *openbindings.TypedInvocation[") {
-		t.Error("GetMenu should return the typed invocation handle")
+	if !strings.Contains(code, "GetMenu openbindings.OperationSignature[") {
+		t.Error("missing typed GetMenu signature field")
 	}
-	if !strings.Contains(code, "type InvokerCallOpts struct") {
-		t.Error("missing InvokerCallOpts")
-	}
-
-	// No cardinality wrappers: no unary channel-drain helper, no (*T, error)
-	// returns, no Stream twins.
-	if strings.Contains(code, "invokeUnary") {
-		t.Error("generated invoker must not emit the invokeUnary channel-drain helper")
-	}
-	if strings.Contains(code, "Stream(ctx") {
-		t.Error("generated invoker must not emit *Stream twin methods")
+	if !strings.Contains(code, "openbindings.NewOperationSignature[") || !strings.Contains(code, `]("getMenu")`) {
+		t.Error(`GetMenu signature should be built with NewOperationSignature(..., "getMenu")`)
 	}
 
-	// Should expose the contract for opt-in validation by callers.
-	if !strings.Contains(code, "func OpenBlendingsInvokerContract() *openbindings.Interface") {
-		t.Error("missing contract accessor")
+	// Greenfield strip: none of the removed surface (bound invoker, per-op
+	// methods, per-call opts struct, embedded contract, old args type) appears.
+	for _, banned := range []string{
+		"InvokerCallOpts",
+		"OpenBlendingsInvoker",
+		"func New",
+		"func (inv",
+		"OperationInvocationArgs",
+		"mustParseInterface",
+		"interfaceJSON",
+		"Contract()",
+		"Stream(ctx",
+	} {
+		if strings.Contains(code, banned) {
+			t.Errorf("generated code must not contain %q in the signature model", banned)
+		}
 	}
 }
 

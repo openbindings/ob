@@ -132,14 +132,14 @@ Remove an object's `x-ob` to detach it from sync. The object stays; `ob` just st
 
 ## Code Generation
 
-`ob codegen` generates typed invokers from OBIs:
+`ob codegen` generates typed client code from OBIs:
 
 ```bash
 ob codegen interface.json --lang typescript -o invoker.ts
 ob codegen interface.json --lang go -o invoker.go --package myapi
 ```
 
-The generated invoker has a typed method for each operation. At runtime it uses the OBI's bindings to route calls through the appropriate binding invoker -- your code calls `invoker.getMenu()`, the binding invoker handles HTTP, gRPC, or whatever protocol the binding uses.
+The Go output is a set of typed **operation signatures**: an `OperationSignatures` namespace with one `OperationSignature[I, O]` per operation, invoked with the free verb, e.g. `openbindings.Invoke(ctx, invoker, obi, myapi.OperationSignatures.GetMenu)`. The TypeScript output is a typed invoker with a method per operation (`invoker.getMenu()`). Either way, at runtime the OBI's bindings route each call through the appropriate binding invoker, so your code stays protocol-agnostic across HTTP, gRPC, or whatever the binding uses.
 
 You can also point `codegen` at a URL. If it's not an OBI, `ob` tries to synthesize one:
 

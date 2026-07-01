@@ -200,11 +200,9 @@ func registerTool(
 			}
 		}
 
-		call := invoker.Invoke(ctx, &openbindings.OperationInvocationArgs{
-			Interface: iface,
-			Operation: opKey,
-			Context:   baseContext,
-		})
+		call := openbindings.Invoke(ctx, invoker, iface,
+			openbindings.NewOperationSignature[any, any](opKey),
+			openbindings.WithContext(baseContext))
 		lastData, ierr := drainOperation(ctx, call, input)
 		if ierr != nil {
 			return &mcp.CallToolResult{
@@ -244,11 +242,9 @@ func registerResource(
 		Description: op.Description,
 		MIMEType:    guessMIME(uri),
 	}, func(ctx context.Context, req *mcp.ReadResourceRequest) (*mcp.ReadResourceResult, error) {
-		call := invoker.Invoke(ctx, &openbindings.OperationInvocationArgs{
-			Interface: iface,
-			Operation: opKey,
-			Context:   baseContext,
-		})
+		call := openbindings.Invoke(ctx, invoker, iface,
+			openbindings.NewOperationSignature[any, any](opKey),
+			openbindings.WithContext(baseContext))
 		lastData, ierr := drainOperation(ctx, call, map[string]any{"uri": req.Params.URI})
 		if ierr != nil {
 			return nil, fmt.Errorf("%s: %s", ierr.Code, ierr.Message)
@@ -306,11 +302,9 @@ func registerPrompt(
 			input = m
 		}
 
-		call := invoker.Invoke(ctx, &openbindings.OperationInvocationArgs{
-			Interface: iface,
-			Operation: opKey,
-			Context:   baseContext,
-		})
+		call := openbindings.Invoke(ctx, invoker, iface,
+			openbindings.NewOperationSignature[any, any](opKey),
+			openbindings.WithContext(baseContext))
 		lastData, ierr := drainOperation(ctx, call, input)
 		if ierr != nil {
 			return nil, fmt.Errorf("%s: %s", ierr.Code, ierr.Message)
