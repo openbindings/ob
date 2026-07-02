@@ -104,6 +104,9 @@ func NewRoot() *cobra.Command {
 	inspectCmd := newInspectCmd()
 	inspectCmd.GroupID = "authoring"
 
+	synthesizeCmd := newSynthesizeCmd()
+	synthesizeCmd.GroupID = "authoring"
+
 	sourceCmd := newSourceCmd()
 	sourceCmd.GroupID = "authoring"
 
@@ -161,6 +164,7 @@ func NewRoot() *cobra.Command {
 		newCmd,
 		metaCmd,
 		inspectCmd,
+		synthesizeCmd,
 		sourceCmd,
 		operationCmd,
 		bindingCmd,

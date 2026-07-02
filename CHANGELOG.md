@@ -130,6 +130,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
   (`internal/app/comparison.go` plus a conformance test corpus) that powers
   cross-document compatibility analysis used by registries and authoring
   workflows.
+- **New `ob synthesize` command** — one-shot derivation of an OBI from binding
+  source artifacts (`ob synthesize openapi.json -o api.obi.json`), the CLI
+  realization of the contract's `synthesizeInterface` operation. Sources use
+  the same `[format:]path[?options]` syntax as `ob inspect` / `ob source add`.
+  Every contract operation now has a CLI binding.
+- `usage.kdl` now documents command aliases (`ob op ls`, `ob ctx`, `ob env`,
+  …) and previously undocumented flags (`init --global`, `mcp --token` /
+  `--token-file`, `source add --delegate` / `--yes`, `start --no-tls`). A new
+  conformance test (`TestUsageKDLMatchesCommandTree`) cross-references the
+  cobra tree, `usage.kdl`, and the root contract so the three CLI surfaces
+  can no longer drift apart silently.
 
 ### Fixed
 
