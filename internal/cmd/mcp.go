@@ -141,4 +141,3 @@ func resolveToken(flag, file string) string {
 	}
 	return os.Getenv("OB_TOKEN")
 }
-

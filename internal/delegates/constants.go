@@ -7,9 +7,6 @@ import (
 	openbindings "github.com/openbindings/openbindings-go"
 )
 
-// SourceEnvironment is a delegate from the active environment.
-const SourceEnvironment = "environment"
-
 // URL schemes and prefixes.
 const (
 	// ExecScheme is the prefix for executable command references.

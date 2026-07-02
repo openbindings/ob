@@ -1,35 +1,91 @@
 package app
 
-// defaultDelegates are external delegates registered by default. ob itself is
-// not listed: it is the implicit in-process self-delegate (delegate 0), folded
-// in by isSelf wherever delegates are enumerated.
-var defaultDelegates = []string{"http://localhost:8787"}
+// SelfDelegateLocation is the self-delegate's registration identity: the
+// opaque location ob resolves to itself, in-process. It is the same "ob"
+// identifier recorded in x-ob.delegate.
+const SelfDelegateLocation = "ob"
 
-// DelegateContext contains delegate-related data from the environment config.
-type DelegateContext struct {
-	Delegates []string
-	// Preferences holds per-delegate preference config keyed by location.
-	Preferences map[string]DelegatePreferenceConfig
+// DelegateRecord is one registered delegate as persisted in the environment
+// config. It holds two kinds of data with two owners:
+//
+//   - the snapshot (Name, Operations, ContentHash, Capabilities, Formats) is
+//     the delegate's data, taken when its location was last resolved and
+//     replaced in full whenever it is resolved again;
+//   - the preferences are the registrar's data, and no refresh touches them.
+type DelegateRecord struct {
+	Location string `json:"location"`
+
+	// Snapshot — replaced on (re-)registration.
+	Name         string               `json:"name,omitempty"`
+	Operations   []string             `json:"operations"`
+	ContentHash  string               `json:"contentHash,omitempty"`
+	Capabilities []DelegateCapability `json:"capabilities,omitempty"`
+	Formats      []DelegateFormatInfo `json:"formats,omitempty"`
+
+	// Preferences — the registrar's, survive refresh. Preference is the
+	// delegate-level default (absent = the baseline 0); OperationPreferences
+	// overrides it per operation identifier; FormatPreferences is ob's extra
+	// axis, overriding an operation entry for one binding-source format.
+	Preference           *float64           `json:"preference,omitempty"`
+	OperationPreferences map[string]float64 `json:"operationPreferences,omitempty"`
+	FormatPreferences    []FormatPreference `json:"formatPreferences,omitempty"`
 }
 
-// DelegatePreferenceConfig is the stored preference for a delegate: a
-// delegate-level value (higher = more preferred; absent = baseline 0) plus
-// optional per-(capability[, format]) overrides.
-type DelegatePreferenceConfig struct {
-	Location    string               `json:"location"`
-	Preference  float64              `json:"preference,omitempty"`
-	PerOffering []OfferingPreference `json:"perOffering,omitempty"`
+// DelegateFormatInfo is one format a delegate reported handling.
+type DelegateFormatInfo struct {
+	Format      string `json:"format"`
+	Description string `json:"description,omitempty"`
+}
+
+// FormatPreference is a preference override scoped to (operation, format) —
+// ob's granularity beyond the delegate-manager contract's per-operation index.
+type FormatPreference struct {
+	Operation  string  `json:"operation"`
+	Format     string  `json:"format"`
+	Preference float64 `json:"preference"`
+}
+
+// capabilityOperation maps each of ob's format capabilities to the published
+// operation it delegates. Capability-scoped ergonomics (the --capability flag)
+// are sugar for these operation identifiers.
+var capabilityOperation = map[DelegateCapability]string{
+	CapInvoke:     "openbindings.binding-invoker.invokeBinding",
+	CapSynthesize: "openbindings.interface-synthesizer.synthesizeInterface",
+	CapInspect:    "openbindings.source-inspector.inspectSource",
+}
+
+// CapabilityOperation returns the published operation an ob capability
+// delegates — the target of capability-scoped ergonomics like --capability.
+func CapabilityOperation(cap DelegateCapability) (string, bool) {
+	op, ok := capabilityOperation[cap]
+	return op, ok
+}
+
+// effectiveOperationPreference is the preference to rank this delegate by when
+// resolving an operation: its per-operation entry when set, else its
+// delegate-level value, else the baseline 0.
+func (r *DelegateRecord) effectiveOperationPreference(operation string) float64 {
+	if p, ok := r.OperationPreferences[operation]; ok {
+		return p
+	}
+	if r.Preference != nil {
+		return *r.Preference
+	}
+	return 0
+}
+
+// DelegateContext is the delegate registry loaded from the environment config.
+type DelegateContext struct {
+	Delegates []DelegateRecord
 }
 
 // getDelegateContextFunc is the indirection point for tests so they can
-// substitute an empty delegate context without depending on whatever
-// .openbindings/ config exists in the developer's home directory or in
-// the global fallback. The default implementation walks up from cwd
-// (per FindEnvironment) and falls back to ~/.config/openbindings/.
+// substitute a fixed registry without depending on whatever .openbindings/
+// config exists in the developer's home directory or the global fallback.
 var getDelegateContextFunc = defaultGetDelegateContext
 
-// GetDelegateContext loads the environment config and extracts delegate context.
-// Returns zero values if no environment exists or if loading fails.
+// GetDelegateContext loads the environment config and extracts the delegate
+// registry. Returns an empty registry if no environment exists.
 func GetDelegateContext() DelegateContext {
 	return getDelegateContextFunc()
 }
@@ -43,65 +99,16 @@ func defaultGetDelegateContext() DelegateContext {
 	if err != nil {
 		return DelegateContext{}
 	}
-	prefs := make(map[string]DelegatePreferenceConfig, len(config.DelegatePreferences))
-	for _, p := range config.DelegatePreferences {
-		prefs[p.Location] = p
-	}
-	return DelegateContext{
-		Delegates:   config.Delegates,
-		Preferences: prefs,
-	}
+	return DelegateContext{Delegates: config.Delegates}
 }
 
-// IsDefaultDelegate reports whether a delegate location is in the defaults list.
-func IsDefaultDelegate(location string) bool {
-	for _, d := range defaultDelegates {
-		if d == location {
-			return true
+// findDelegateRecord returns the index of the record registered under
+// location, or -1.
+func findDelegateRecord(config *EnvConfig, location string) int {
+	for i := range config.Delegates {
+		if config.Delegates[i].Location == location {
+			return i
 		}
 	}
-	return false
-}
-
-// migrateDefaultDelegates ensures all default delegates are present unless
-// the user has explicitly removed them. Also prunes removedDefaultDelegates
-// entries that are no longer in the defaults list.
-// Returns true if the config was modified.
-func migrateDefaultDelegates(config *EnvConfig) bool {
-	existing := make(map[string]struct{}, len(config.Delegates))
-	for _, d := range config.Delegates {
-		existing[d] = struct{}{}
-	}
-	removed := make(map[string]struct{}, len(config.RemovedDefaultDelegates))
-	for _, d := range config.RemovedDefaultDelegates {
-		removed[d] = struct{}{}
-	}
-
-	var toAdd []string
-	for _, d := range defaultDelegates {
-		if _, ok := existing[d]; ok {
-			continue
-		}
-		if _, ok := removed[d]; ok {
-			continue
-		}
-		toAdd = append(toAdd, d)
-	}
-
-	var pruned []string
-	for _, d := range config.RemovedDefaultDelegates {
-		if IsDefaultDelegate(d) {
-			pruned = append(pruned, d)
-		}
-	}
-	prunedChanged := len(pruned) != len(config.RemovedDefaultDelegates)
-	if prunedChanged {
-		config.RemovedDefaultDelegates = pruned
-	}
-
-	if len(toAdd) == 0 {
-		return prunedChanged
-	}
-	config.Delegates = append(toAdd, config.Delegates...)
-	return true
+	return -1
 }

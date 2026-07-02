@@ -57,21 +57,25 @@ func synthesizeViaDelegate(ctx context.Context, input *openbindings.SynthesizeIn
 		return nil, false, nil // native
 	}
 	chosen := selectDelegate(CapSynthesize, format)
-	if chosen == nil || chosen.iface == nil {
+	if chosen == nil || chosen.builtin {
 		return nil, false, nil // no delegate; let the native path report the unsupported format
 	}
-	opKey, ok := delegateOpKey(chosen.iface, synthesizeOpNames...)
+	delegateIface, rerr := chosen.resolveInterface()
+	if rerr != nil {
+		return nil, true, rerr // selected but unusable (unreachable or pin mismatch): surface it
+	}
+	opKey, ok := delegateOpKey(delegateIface, synthesizeOpNames...)
 	if !ok {
 		return nil, false, nil
 	}
 
 	out, ierr := invokeDelegateUnary(ctx, chosen, opKey, input)
 	if ierr != nil {
-		return nil, true, fmt.Errorf("delegate %q synthesizeInterface: %w", chosen.name, ierr)
+		return nil, true, fmt.Errorf("delegate %q synthesizeInterface: %w", chosen.name(), ierr)
 	}
 	result, cerr := decodeOutput[openbindings.Interface](out)
 	if cerr != nil {
-		return nil, true, fmt.Errorf("delegate %q returned an invalid interface: %w", chosen.name, cerr)
+		return nil, true, fmt.Errorf("delegate %q returned an invalid interface: %w", chosen.name(), cerr)
 	}
 	return result, true, nil
 }
@@ -83,21 +87,25 @@ func inspectViaDelegate(ctx context.Context, source *openbindings.Source) (ins *
 		return nil, false, nil
 	}
 	chosen := selectDelegate(CapInspect, source.Format)
-	if chosen == nil || chosen.iface == nil {
+	if chosen == nil || chosen.builtin {
 		return nil, false, nil
 	}
-	opKey, ok := delegateOpKey(chosen.iface, inspectOpNames...)
+	delegateIface, rerr := chosen.resolveInterface()
+	if rerr != nil {
+		return nil, true, rerr // selected but unusable (unreachable or pin mismatch): surface it
+	}
+	opKey, ok := delegateOpKey(delegateIface, inspectOpNames...)
 	if !ok {
 		return nil, false, nil
 	}
 
 	out, ierr := invokeDelegateUnary(ctx, chosen, opKey, source)
 	if ierr != nil {
-		return nil, true, fmt.Errorf("delegate %q inspectSource: %w", chosen.name, ierr)
+		return nil, true, fmt.Errorf("delegate %q inspectSource: %w", chosen.name(), ierr)
 	}
 	result, cerr := decodeOutput[openbindings.SourceInspection](out)
 	if cerr != nil {
-		return nil, true, fmt.Errorf("delegate %q returned an invalid inspection: %w", chosen.name, cerr)
+		return nil, true, fmt.Errorf("delegate %q returned an invalid inspection: %w", chosen.name(), cerr)
 	}
 	return result, true, nil
 }

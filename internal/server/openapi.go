@@ -1,8 +1,8 @@
 package server
 
 import (
-	_ "embed"
 	"embed"
+	_ "embed"
 )
 
 //go:embed resources/*

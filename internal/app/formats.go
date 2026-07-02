@@ -49,17 +49,12 @@ func ListFormats() []FormatInfo {
 		formats = append(formats, FormatInfo{Token: tok})
 	}
 
-	delCtx := GetDelegateContext()
-
-	discovered, _ := delegates.Discover(delegates.DiscoverParams{
-		Delegates: delCtx.Delegates,
-	})
-	for _, p := range discovered {
-		delegateFormats, err := delegates.ProbeFormats(p.Location, delegates.DefaultProbeTimeout)
-		if err == nil {
-			for _, f := range delegateFormats {
-				formats = append(formats, FormatInfo{Token: f})
-			}
+	// Delegate formats come from the registry's registration-time snapshots —
+	// the aggregate-across-all composition (native ∪ every delegate), never a
+	// route-to-one, and no live probing.
+	for _, rec := range GetDelegateContext().Delegates {
+		for _, f := range rec.Formats {
+			formats = append(formats, FormatInfo{Token: f.Format, Description: f.Description})
 		}
 	}
 

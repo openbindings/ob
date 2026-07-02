@@ -22,9 +22,9 @@ var requirementsFS embed.FS
 type DelegateCapability string
 
 const (
-	CapInvoke  DelegateCapability = "invoke"  // openbindings.binding-invoker
-	CapSynthesize  DelegateCapability = "synthesize"  // openbindings.interface-synthesizer
-	CapInspect DelegateCapability = "inspect" // openbindings.source-inspector
+	CapInvoke     DelegateCapability = "invoke"     // openbindings.binding-invoker
+	CapSynthesize DelegateCapability = "synthesize" // openbindings.interface-synthesizer
+	CapInspect    DelegateCapability = "inspect"    // openbindings.source-inspector
 )
 
 // DelegateCapabilities is the ordered set of delegatable capabilities.
@@ -32,9 +32,9 @@ var DelegateCapabilities = []DelegateCapability{CapInvoke, CapSynthesize, CapIns
 
 // requirementFiles maps each capability to its embedded requirement interface.
 var requirementFiles = map[DelegateCapability]string{
-	CapInvoke:  "requirements/binding-invoker.json",
-	CapSynthesize:  "requirements/interface-synthesizer.json",
-	CapInspect: "requirements/source-inspector.json",
+	CapInvoke:     "requirements/binding-invoker.json",
+	CapSynthesize: "requirements/interface-synthesizer.json",
+	CapInspect:    "requirements/source-inspector.json",
 }
 
 // RequirementInterfaceJSON returns the raw embedded JSON for a capability's

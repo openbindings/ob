@@ -7,20 +7,46 @@ import (
 
 func newDelegateResolveCmd() *cobra.Command {
 	c := &cobra.Command{
-		Use:   "resolve <format>",
-		Short: "Show which delegate handles a format",
-		Long: `Show which delegate would handle a given binding format based on preferences and available delegates.
-
-Resolves against binding format delegates.
+		Use:   "resolve <operation>",
+		Short: "Resolve an operation to the delegates that carry it",
+		Long: `Resolve an operation to the registered delegates that carry it — those
+whose interface answers to the operation's key or an alias — ordered by
+effective preference, best first. Resolution returns candidates only; what
+to do with them (route to one, aggregate, narrow further) stays with the
+caller. An empty list is an answer, not an error.
 
 Examples:
-  ob delegate resolve usage@2.0.0
-  ob delegate resolve openapi@3.1.0 -o result.json`,
+  ob delegate resolve openbindings.binding-invoker.invokeBinding
+  ob delegate resolve openbindings.key-value-store.get -F json`,
 		Args: cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			result, err := app.DelegateResolve(args[0])
+			result, err := app.ResolveDelegate(args[0])
 			if err != nil {
-				return app.ExitResult{Code: 1, Message: err.Error(), ToStderr: true}
+				return err
+			}
+			format, outputPath := getOutputFlags(cmd)
+			return app.OutputResult(result, format, outputPath)
+		},
+	}
+	return c
+}
+
+func newDelegateResolveFormatCmd() *cobra.Command {
+	c := &cobra.Command{
+		Use:   "resolve-format <format>",
+		Short: "Show which delegate ob's routing would select for a format",
+		Long: `Report which delegate ob's routing would select for a binding format
+token, and the capabilities it offers for it — ob's format-narrowing
+diagnostic, layered on top of the operation-keyed resolve.
+
+Examples:
+  ob delegate resolve-format usage@2.0.0
+  ob delegate resolve-format openapi@3.1.0 -o result.json`,
+		Args: cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			result, err := app.ResolveDelegateForFormat(args[0])
+			if err != nil {
+				return err
 			}
 			format, outputPath := getOutputFlags(cmd)
 			return app.OutputResultText(result, format, outputPath, func() string {

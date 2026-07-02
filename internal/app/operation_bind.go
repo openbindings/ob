@@ -159,15 +159,15 @@ func applyTagChanges(tags, add, remove []string) []string {
 
 // OperationBindInput holds input for attaching a source ref to an operation.
 type OperationBindInput struct {
-	OBIPath        string
-	Op             string
-	Source         string
-	Ref            string
-	Preference     *float64
-	TransformStub  bool
-	InputTransform string
+	OBIPath         string
+	Op              string
+	Source          string
+	Ref             string
+	Preference      *float64
+	TransformStub   bool
+	InputTransform  string
 	OutputTransform string
-	Force          bool // overwrite an existing binding for this (operation, source)
+	Force           bool // overwrite an existing binding for this (operation, source)
 }
 
 // OperationBindOutput represents the result of binding an operation.

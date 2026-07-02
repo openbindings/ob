@@ -180,22 +180,22 @@ ob conform host.json my-service.obi.json --dry-run
 
 ## Delegates
 
-Delegates extend `ob` with binding format support. A delegate is any program that satisfies the `binding-invoker` and/or `interface-synthesizer` interfaces. When `ob` encounters a binding format, it asks its registered delegates which one handles it and routes `invokeBinding` / `synthesizeInterface` calls there. Credentials and context flow through the same `ContextStore` pipeline as in-process execution.
+Delegates extend `ob` with binding format support — `ob`'s application of the OpenBindings [delegate pattern](https://openbindings.com/spec/delegate-pattern), and its realization of the published [delegate-manager](https://openbindings.com/interfaces/delegate-manager) interface. A delegate is any referenceable OpenBindings interface; `ob` routes work to delegates that carry the operations it needs (`invokeBinding`, `synthesizeInterface`, `inspectSource`) and support the format at hand. Credentials and context flow through the same `ContextStore` pipeline as in-process execution.
 
-`ob` itself is a delegate. A fresh `ob init` registers two default delegates: `exec:ob` (this binary, which provides OpenAPI, AsyncAPI, gRPC, Connect, MCP, GraphQL, and usage-spec) and `http://localhost:8787` (a conventional local host). Removing a default with `ob delegate remove` records it under `removedDefaultDelegates` so a later `ob init` doesn't bring it back; re-adding clears that record.
+`ob` itself is the builtin **self-delegate** (location `"ob"`, providing OpenAPI, AsyncAPI, gRPC, Connect, MCP, GraphQL, and usage-spec in-process). A fresh environment has an empty registry: every external delegate is an explicit registration.
 
-### Adding a delegate
+### Registering a delegate
 
-`ob delegate add` accepts three location forms:
+`ob delegate register` (alias: `add`) accepts three location forms:
 
 | Form | Example | Notes |
 |------|---------|-------|
-| `exec:` | `ob delegate add exec:thrift-ob-delegate` | Runs the named binary as a subprocess |
-| Local path | `ob delegate add ./my-delegate` | Auto-prefixed with `exec:` |
-| HTTP(S) | `ob delegate add https://delegate.example.com` | Runs over HTTP for execution |
+| `exec:` | `ob delegate register exec:thrift-ob-delegate` | Runs the named binary as a subprocess |
+| Local path | `ob delegate register ./my-delegate` | Auto-prefixed with `exec:` |
+| HTTP(S) | `ob delegate register https://delegate.example.com` | Runs over HTTP for execution |
 
 ```bash
-ob delegate add exec:thrift-ob-delegate
+ob delegate register exec:thrift-ob-delegate
 ob delegate list
 ob formats        # should now include the formats the delegate handles
 
@@ -205,14 +205,16 @@ ob source pull interface.json
 ob operation invoke interface.json getUser
 ```
 
-For `exec:` and local-path delegates, `ob` invokes `<delegate> --openbindings` at registration time to read its OBI and probe `listFormats`, so `ob formats` immediately reflects what it handles. HTTP delegates are not probed today — they participate in invocation but you'll need to know which formats they handle. How much of an operation's cardinality crosses a delegate boundary depends on the delegate's transport: a delegate that exposes `invokeBinding` over the frame protocol (an `asyncapi` source at an http(s) URL) carries every cardinality — including server-streaming and bidirectional — while a `usage`/CLI delegate is bounded by its one-shot input (no client-streaming or bidi). `ob` prefers the frame transport when a delegate advertises both. Use `ob delegate prefer <location> <n>` to bias selection when several delegates handle the same format.
+Registration resolves the location to the delegate's OBI (via `--openbindings` for exec:, well-known discovery for http) and records a **snapshot**: the operations it carries, a content digest pinning the resolved document, and the capabilities and formats `ob` derives for routing. **Registration fails when the location cannot be resolved** — a delegate is its interface. When a delegate changes, re-register it: the snapshot refreshes, your preferences persist, and until then invocation detects the drift (digest mismatch) and asks for an explicit re-registration rather than silently running a document you never saw.
+
+How much of an operation's cardinality crosses a delegate boundary depends on the delegate's transport: a delegate that exposes `invokeBinding` over the frame protocol (an `asyncapi` source at an http(s) URL) carries every cardinality — including server-streaming and bidirectional — while a `usage`/CLI delegate is bounded by its one-shot input (no client-streaming or bidi). `ob` prefers the frame transport when a delegate advertises both. Use `ob delegate prefer <location> <n>` to bias selection when several delegates handle the same format (scope with `--operation`/`--capability` and `--source-format`; `--clear` removes an entry), and `ob delegate resolve <operation>` to see which delegates carry an operation, best first.
 
 ### Building a delegate
 
 The simplest path: scaffold the binding-invoker interface into a new OBI and implement the operations.
 
 ```bash
-ob delegate requirements binding-invoker   # print the exact contract to satisfy
+ob delegate requirements invoke > binding-invoker.json   # the exact contract to satisfy
 ob conform binding-invoker.json my-delegate.obi.json --yes
 ```
 
@@ -313,9 +315,11 @@ ob source pull interface.json -o dist/interface.json --pure # publish clean
 
 | Command | Description |
 |---------|-------------|
-| `ob delegate add/list/remove <location>` | Register, list, or remove a delegate |
-| `ob delegate prefer <location> <n>` | Set a delegate's selection preference (higher = more preferred) |
-| `ob delegate resolve <format>` | Show which delegate handles a format |
+| `ob delegate register/unregister <location>` | Register or unregister a delegate (aliases: `add`, `remove`) |
+| `ob delegate list` | List the registry: every delegate, its operations snapshot, pin, and preferences |
+| `ob delegate resolve <operation>` | Resolve an operation to the delegates that carry it, best first |
+| `ob delegate resolve-format <format>` | Show which delegate ob's routing would select for a format |
+| `ob delegate prefer <location> [n]` | Set or clear (`--clear`) a delegate's preference, optionally per-operation |
 | `ob delegate requirements <capability>` | Print the interface a delegate must satisfy for a capability |
 | `ob formats` | List all format tokens this `ob` instance handles |
 

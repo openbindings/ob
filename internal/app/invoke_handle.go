@@ -74,14 +74,18 @@ func InvokeBindingHandle(ctx context.Context, input InvokeOperationInput) openbi
 // follow-up; see delegate-model-design.md §11b).
 func resolveDelegateInvoker(format string) (openbindings.BindingInvoker, error) {
 	chosen := selectDelegate(CapInvoke, format)
-	if chosen == nil || chosen.iface == nil {
+	if chosen == nil || chosen.builtin {
 		return nil, fmt.Errorf("no invoker or delegate handles format %q", format)
+	}
+	iface, err := chosen.resolveInterface()
+	if err != nil {
+		return nil, err
 	}
 	return DelegateBindingInvoker(delegates.Resolved{
 		Format:   format,
-		Delegate: chosen.name,
-		Location: chosen.location,
-		OBI:      &delegates.ResolvedOBI{Interface: *chosen.iface},
+		Delegate: chosen.name(),
+		Location: chosen.location(),
+		OBI:      &delegates.ResolvedOBI{Interface: *iface},
 	})
 }
 

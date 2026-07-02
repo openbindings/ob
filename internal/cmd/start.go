@@ -307,12 +307,8 @@ func handleFormats(w http.ResponseWriter, r *http.Request) {
 }
 
 func handleDelegates(w http.ResponseWriter, r *http.Request) {
-	output := app.BuildDelegateListOutput(app.DelegateListParams{})
-	if output.Error != nil {
-		writeJSON(w, http.StatusInternalServerError, ErrorResponse{Error: output.Error.Message})
-		return
-	}
-	writeJSON(w, http.StatusOK, output.Delegates)
+	// The contract's listDelegates output: {"delegates": [...]}.
+	writeJSON(w, http.StatusOK, app.ListDelegates())
 }
 
 // --- Spec Resources ---

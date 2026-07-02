@@ -6,123 +6,60 @@ import (
 	"github.com/openbindings/ob/internal/delegates"
 )
 
-// delegateCandidate is a delegate considered for a (capability, format) task —
-// the self-delegate or a registered external, with the capabilities and formats
-// it provides and its effective preference.
+// Routing is ob's application policy layered on the delegate registry: given a
+// (capability, format) task, select ONE delegate to route to. Candidates come
+// from the registration-time records — no live probing — and the selected
+// external's interface is resolved lazily, verified against its snapshot pin.
+
+// delegateCandidate is a delegate considered for a (capability, format) task:
+// the self-delegate or a registered external, in registry-record shape.
 type delegateCandidate struct {
-	name         string
-	location     string
-	builtin      bool
-	capabilities []DelegateCapability
-	formats      []DelegateFormatInfo
-	// iface is the delegate's resolved OBI, used to operation-invoke it. Nil for
-	// the self-delegate (which runs in-process, not over a transport).
+	record  DelegateRecord
+	builtin bool
+	// iface is the delegate's resolved-and-pin-verified OBI, populated by
+	// resolveInterface for externals. Nil for the self-delegate, which runs
+	// in-process rather than over a transport.
 	iface *openbindings.Interface
-	// preference is the delegate-level preference (higher = more preferred;
-	// 0 = the baseline, which absent also maps to). It is the default for every
-	// offering, overridable per (capability[, format]) by perOffering.
-	preference float64
-	// perOffering overrides the delegate-level preference for a specific
-	// capability (and optionally format), mirroring binding-vs-source preference.
-	perOffering []OfferingPreference
 }
 
-// OfferingPreference overrides a delegate's preference for one offering — a
-// capability, optionally scoped to a format. Higher = more preferred.
-type OfferingPreference struct {
-	Capability DelegateCapability `json:"capability"`
-	Format     string             `json:"format,omitempty"`
-	Preference float64            `json:"preference"`
+func (c *delegateCandidate) name() string     { return c.record.Name }
+func (c *delegateCandidate) location() string { return c.record.Location }
+
+// resolveInterface resolves the candidate's interface for use, verifying it
+// against the registration snapshot's content digest (match and invoke the
+// same document). The result is cached on the candidate.
+func (c *delegateCandidate) resolveInterface() (*openbindings.Interface, error) {
+	if c.builtin {
+		return nil, nil // the self-delegate runs in-process
+	}
+	if c.iface != nil {
+		return c.iface, nil
+	}
+	iface, err := resolvePinnedDelegateInterface(c.record)
+	if err != nil {
+		return nil, err
+	}
+	c.iface = iface
+	return iface, nil
 }
 
 // effectivePreference is the preference to rank this candidate by for a
-// (capability, format) task: the most specific matching per-offering override
-// (capability+format beats capability-only), else the delegate-level value,
-// else the baseline 0.
+// (capability, format) task: the most specific matching entry wins — the
+// (operation, format) entry, else the operation entry, else the
+// delegate-level value, else the baseline 0. The capability names the
+// operation ob delegates for it (capabilityOperation).
 func (c *delegateCandidate) effectivePreference(cap DelegateCapability, format string) float64 {
-	pref := c.preference
-	matchedSpecific := false
-	matched := false
-	for _, o := range c.perOffering {
-		if o.Capability != cap {
-			continue
-		}
-		specific := o.Format != ""
-		if specific && !delegates.SupportsFormat(o.Format, format) {
-			continue
-		}
-		if !matched || (specific && !matchedSpecific) {
-			pref = o.Preference
-			matched = true
-			matchedSpecific = specific
+	operation := capabilityOperation[cap]
+	for _, fp := range c.record.FormatPreferences {
+		if fp.Operation == operation && delegates.SupportsFormat(fp.Format, format) {
+			return fp.Preference
 		}
 	}
-	return pref
-}
-
-// selfDelegateCandidate is ob's own native handling as a routing candidate:
-// all three capabilities, native formats, no transport (iface nil → in-process).
-func selfDelegateCandidate() delegateCandidate {
-	var formats []DelegateFormatInfo
-	for _, tok := range getNativeTokens() {
-		formats = append(formats, DelegateFormatInfo{Format: tok})
-	}
-	return delegateCandidate{
-		name:         "ob",
-		builtin:      true,
-		capabilities: []DelegateCapability{CapInvoke, CapSynthesize, CapInspect},
-		formats:      formats,
-	}
-}
-
-// gatherDelegates builds the candidate set for routing: the in-process
-// self-delegate (delegate 0) plus each reachable registered delegate,
-// introspected for its capabilities and formats. Unreachable delegates are
-// skipped — they cannot serve a task. Introspection is live per call for now;
-// the config-record cache (with stored preference) is the optimization that
-// follows.
-func gatherDelegates() []delegateCandidate {
-	candidates := []delegateCandidate{selfDelegateCandidate()}
-	delCtx := GetDelegateContext()
-	for _, loc := range delCtx.Delegates {
-		if isSelf(loc) {
-			continue // folded into the self-delegate
-		}
-		iface, err := resolveDelegateInterface(loc)
-		if err != nil {
-			continue // unreachable
-		}
-		c := delegateCandidate{
-			name:         delegates.NameFromLocation(loc),
-			location:     loc,
-			iface:        iface,
-			capabilities: delegateCapabilities(iface),
-		}
-		if iface.Name != "" {
-			c.name = iface.Name
-		}
-		if fmts, ferr := delegates.ProbeFormats(loc, delegates.DefaultProbeTimeout); ferr == nil {
-			for _, f := range fmts {
-				c.formats = append(c.formats, DelegateFormatInfo{Format: f})
-			}
-		}
-		if pref, ok := delCtx.Preferences[loc]; ok {
-			c.preference = pref.Preference
-			c.perOffering = pref.PerOffering
-		}
-		candidates = append(candidates, c)
-	}
-	return candidates
-}
-
-// selectDelegate picks the delegate that should handle (capability, format)
-// across the gathered candidate set, or nil when none qualifies.
-func selectDelegate(cap DelegateCapability, format string) *delegateCandidate {
-	return selectDelegateFrom(gatherDelegates(), cap, format)
+	return c.record.effectiveOperationPreference(operation)
 }
 
 func (c *delegateCandidate) provides(cap DelegateCapability) bool {
-	for _, have := range c.capabilities {
+	for _, have := range c.record.Capabilities {
 		if have == cap {
 			return true
 		}
@@ -131,7 +68,7 @@ func (c *delegateCandidate) provides(cap DelegateCapability) bool {
 }
 
 func (c *delegateCandidate) handles(format string) bool {
-	for _, f := range c.formats {
+	for _, f := range c.record.Formats {
 		if delegates.SupportsFormat(f.Format, format) {
 			return true
 		}
@@ -139,11 +76,31 @@ func (c *delegateCandidate) handles(format string) bool {
 	return false
 }
 
+// gatherDelegates builds the routing candidate set from the registry records:
+// the in-process self-delegate first, then each registered delegate in
+// registration order. Snapshots serve matching; interfaces resolve at use.
+func gatherDelegates() []delegateCandidate {
+	candidates := []delegateCandidate{{record: selfDelegateRecord(), builtin: true}}
+	for _, rec := range GetDelegateContext().Delegates {
+		if isSelf(rec.Location) {
+			continue // folded into the self-delegate
+		}
+		candidates = append(candidates, delegateCandidate{record: rec})
+	}
+	return candidates
+}
+
+// selectDelegate picks the delegate that should handle (capability, format)
+// across the registry, or nil when none qualifies.
+func selectDelegate(cap DelegateCapability, format string) *delegateCandidate {
+	return selectDelegateFrom(gatherDelegates(), cap, format)
+}
+
 // selectDelegateFrom picks the delegate that should handle (capability, format)
 // per OBI-T-09 applied to delegates: a candidate must provide the capability
-// AND handle the format; among those, higher effective preference wins, and
-// ties go to the builtin self-delegate first, then to input (registration)
-// order. Returns nil when no candidate qualifies.
+// AND handle the format (ob's narrowing); among those, higher effective
+// preference wins, and ties go to the builtin self-delegate first, then to
+// registration order. Returns nil when no candidate qualifies.
 func selectDelegateFrom(candidates []delegateCandidate, cap DelegateCapability, format string) *delegateCandidate {
 	var best *delegateCandidate
 	var bestPref float64
@@ -164,18 +121,4 @@ func selectDelegateFrom(candidates []delegateCandidate, cap DelegateCapability, 
 		best, bestPref = c, pref
 	}
 	return best
-}
-
-// ranksAbove reports whether candidate a should outrank the current best b by
-// delegate-level preference (used where there is no capability context, e.g.
-// resolveDelegate): higher preference first; on equal preference the builtin
-// self-delegate wins; otherwise keep the earlier candidate.
-func ranksAbove(a, b *delegateCandidate) bool {
-	if a.preference != b.preference {
-		return a.preference > b.preference
-	}
-	if a.builtin != b.builtin {
-		return a.builtin
-	}
-	return false
 }

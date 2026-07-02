@@ -2,22 +2,30 @@ package app
 
 import "testing"
 
+func prefOf(v float64) *float64 { return &v }
+
 func TestSelectDelegateFrom(t *testing.T) {
-	self := delegateCandidate{
-		name: "ob", builtin: true,
-		capabilities: []DelegateCapability{CapInvoke, CapSynthesize, CapInspect},
-		formats:      []DelegateFormatInfo{{Format: "openapi@3.1"}, {Format: "grpc"}},
+	cand := func(rec DelegateRecord, builtin bool) delegateCandidate {
+		return delegateCandidate{record: rec, builtin: builtin}
 	}
-	extInvoke := delegateCandidate{
-		name: "x", location: "exec:x",
-		capabilities: []DelegateCapability{CapInvoke},
-		formats:      []DelegateFormatInfo{{Format: "grpc"}},
-	}
-	extCreate := delegateCandidate{
-		name: "y", location: "exec:y",
-		capabilities: []DelegateCapability{CapSynthesize},
-		formats:      []DelegateFormatInfo{{Format: "thrift"}},
-	}
+	self := cand(DelegateRecord{
+		Location: SelfDelegateLocation, Name: "ob",
+		Capabilities: []DelegateCapability{CapInvoke, CapSynthesize, CapInspect},
+		Formats:      []DelegateFormatInfo{{Format: "openapi@3.1"}, {Format: "grpc"}},
+	}, true)
+	extInvoke := cand(DelegateRecord{
+		Location: "exec:x", Name: "x",
+		Capabilities: []DelegateCapability{CapInvoke},
+		Formats:      []DelegateFormatInfo{{Format: "grpc"}},
+	}, false)
+	extSynth := cand(DelegateRecord{
+		Location: "exec:y", Name: "y",
+		Capabilities: []DelegateCapability{CapSynthesize},
+		Formats:      []DelegateFormatInfo{{Format: "thrift"}},
+	}, false)
+
+	invokeOp := capabilityOperation[CapInvoke]
+	synthOp := capabilityOperation[CapSynthesize]
 
 	t.Run("native format goes to self even when an external also handles it", func(t *testing.T) {
 		got := selectDelegateFrom([]delegateCandidate{self, extInvoke}, CapInvoke, "grpc")
@@ -28,7 +36,7 @@ func TestSelectDelegateFrom(t *testing.T) {
 
 	t.Run("higher preference beats the builtin tie-break", func(t *testing.T) {
 		preferred := extInvoke
-		preferred.preference = 5 // user prefers the external for invoke
+		preferred.record.Preference = prefOf(5) // user prefers the external for invoke
 		got := selectDelegateFrom([]delegateCandidate{self, preferred}, CapInvoke, "grpc")
 		if got == nil || got.builtin {
 			t.Fatalf("expected the higher-preference external, got %+v", got)
@@ -36,9 +44,9 @@ func TestSelectDelegateFrom(t *testing.T) {
 	})
 
 	t.Run("capability filter: only the synthesize-capable external handles thrift synthesize", func(t *testing.T) {
-		got := selectDelegateFrom([]delegateCandidate{self, extInvoke, extCreate}, CapSynthesize, "thrift")
-		if got == nil || got.name != "y" {
-			t.Fatalf("expected the create delegate y for create/thrift, got %+v", got)
+		got := selectDelegateFrom([]delegateCandidate{self, extInvoke, extSynth}, CapSynthesize, "thrift")
+		if got == nil || got.name() != "y" {
+			t.Fatalf("expected the synthesize delegate y for synthesize/thrift, got %+v", got)
 		}
 	})
 
@@ -49,58 +57,52 @@ func TestSelectDelegateFrom(t *testing.T) {
 	})
 
 	t.Run("capability present but format absent yields nil", func(t *testing.T) {
-		// extCreate can create, but only thrift — not openapi.
-		if got := selectDelegateFrom([]delegateCandidate{extCreate}, CapSynthesize, "openapi@3.1"); got != nil {
+		// extSynth can synthesize, but only thrift — not openapi.
+		if got := selectDelegateFrom([]delegateCandidate{extSynth}, CapSynthesize, "openapi@3.1"); got != nil {
 			t.Fatalf("expected nil (synthesize-capable but wrong format), got %+v", got)
 		}
 	})
 
-	t.Run("per-offering preference: X for create, Y for invoke", func(t *testing.T) {
-		// One delegate does both create and invoke for grpc, with per-offering
-		// preferences that route create to X and invoke to Y.
-		x := delegateCandidate{
-			name: "x", location: "exec:x",
-			capabilities: []DelegateCapability{CapSynthesize, CapInvoke},
-			formats:      []DelegateFormatInfo{{Format: "grpc"}},
-			perOffering: []OfferingPreference{
-				{Capability: CapSynthesize, Preference: 10}, // prefer X for create
-			},
-		}
-		y := delegateCandidate{
-			name: "y", location: "exec:y",
-			capabilities: []DelegateCapability{CapSynthesize, CapInvoke},
-			formats:      []DelegateFormatInfo{{Format: "grpc"}},
-			perOffering: []OfferingPreference{
-				{Capability: CapInvoke, Preference: 10}, // prefer Y for invoke
-			},
-		}
+	t.Run("per-operation preference: X for synthesize, Y for invoke", func(t *testing.T) {
+		// Both delegates synthesize and invoke grpc; the operation-scoped
+		// preference index routes synthesize to X and invoke to Y.
+		x := cand(DelegateRecord{
+			Location: "exec:x", Name: "x",
+			Capabilities:         []DelegateCapability{CapSynthesize, CapInvoke},
+			Formats:              []DelegateFormatInfo{{Format: "grpc"}},
+			OperationPreferences: map[string]float64{synthOp: 10},
+		}, false)
+		y := cand(DelegateRecord{
+			Location: "exec:y", Name: "y",
+			Capabilities:         []DelegateCapability{CapSynthesize, CapInvoke},
+			Formats:              []DelegateFormatInfo{{Format: "grpc"}},
+			OperationPreferences: map[string]float64{invokeOp: 10},
+		}, false)
 		set := []delegateCandidate{x, y}
-		if got := selectDelegateFrom(set, CapSynthesize, "grpc"); got == nil || got.name != "x" {
-			t.Errorf("create/grpc should route to X, got %+v", got)
+		if got := selectDelegateFrom(set, CapSynthesize, "grpc"); got == nil || got.name() != "x" {
+			t.Errorf("synthesize/grpc should route to X, got %+v", got)
 		}
-		if got := selectDelegateFrom(set, CapInvoke, "grpc"); got == nil || got.name != "y" {
+		if got := selectDelegateFrom(set, CapInvoke, "grpc"); got == nil || got.name() != "y" {
 			t.Errorf("invoke/grpc should route to Y, got %+v", got)
 		}
 	})
 
-	t.Run("format-specific override beats capability-only", func(t *testing.T) {
-		c := delegateCandidate{
-			name: "z", location: "exec:z", preference: 1,
-			capabilities: []DelegateCapability{CapInvoke},
-			formats:      []DelegateFormatInfo{{Format: "grpc"}},
-			perOffering: []OfferingPreference{
-				{Capability: CapInvoke, Preference: 3},                 // capability-only
-				{Capability: CapInvoke, Format: "grpc", Preference: 9}, // more specific
-			},
-		}
+	t.Run("format-scoped entry beats operation entry beats delegate-level", func(t *testing.T) {
+		c := cand(DelegateRecord{
+			Location: "exec:z", Name: "z", Preference: prefOf(1),
+			Capabilities:         []DelegateCapability{CapInvoke},
+			Formats:              []DelegateFormatInfo{{Format: "grpc"}},
+			OperationPreferences: map[string]float64{invokeOp: 3},
+			FormatPreferences:    []FormatPreference{{Operation: invokeOp, Format: "grpc", Preference: 9}},
+		}, false)
 		if got := c.effectivePreference(CapInvoke, "grpc"); got != 9 {
-			t.Errorf("expected the format-specific override (9), got %v", got)
+			t.Errorf("expected the format-scoped entry (9), got %v", got)
 		}
 		if got := c.effectivePreference(CapInvoke, "openapi"); got != 3 {
-			t.Errorf("expected the capability-only override (3) for a non-grpc format, got %v", got)
+			t.Errorf("expected the operation entry (3) for a non-grpc format, got %v", got)
 		}
 		if got := c.effectivePreference(CapSynthesize, "grpc"); got != 1 {
-			t.Errorf("expected the delegate-level preference (1) when no offering matches, got %v", got)
+			t.Errorf("expected the delegate-level preference (1) when no entry matches, got %v", got)
 		}
 	})
 }

@@ -69,13 +69,17 @@ paths:
       summary: List delegates
       responses:
         "200":
-          description: Delegate list
+          description: The delegate registry — every registered delegate, the self-delegate included
           content:
             application/json:
               schema:
-                type: array
-                items:
-                  $ref: "#/components/schemas/Delegate"
+                type: object
+                properties:
+                  delegates:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/Delegate"
+                required: [delegates]
 
   /delegate-requirements/{capability}:
     get:
@@ -790,13 +794,42 @@ components:
 
     Delegate:
       type: object
+      description: A registered delegate — the snapshot of what it carries plus ob's derived routing data and its selection preferences.
       properties:
-        url:
+        name:
           type: string
-        formats:
+        location:
+          type: string
+        operations:
           type: array
           items:
             type: string
+        contentHash:
+          type: string
+        capabilities:
+          type: array
+          items:
+            type: string
+            enum: [invoke, synthesize, inspect]
+        formats:
+          type: array
+          items:
+            type: object
+            properties:
+              format:
+                type: string
+              description:
+                type: string
+            required: [format]
+        preference:
+          type: number
+        operationPreferences:
+          type: object
+          additionalProperties:
+            type: number
+        builtin:
+          type: boolean
+      required: [location, operations]
 
     ValidationReport:
       type: object

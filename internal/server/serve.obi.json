@@ -217,13 +217,26 @@
       }
     },
     "openbindings.ob.listDelegates": {
-      "description": "List the registered delegates with the capabilities and formats each provides. Capabilities (invoke/synthesize/inspect) and formats are discovered from each delegate's OBI.",
+      "aliases": [
+        "openbindings.delegate-manager.listDelegates"
+      ],
+      "description": "List every registered delegate — the self-delegate included — with the operations each carried when last resolved, the capabilities and formats ob derived for routing, and its selection preferences.",
       "idempotent": true,
       "output": {
-        "items": {
-          "$ref": "#/schemas/DelegateSummary"
+        "additionalProperties": false,
+        "properties": {
+          "delegates": {
+            "description": "The registered delegates.",
+            "items": {
+              "$ref": "#/schemas/DelegateSummary"
+            },
+            "type": "array"
+          }
         },
-        "type": "array"
+        "required": [
+          "delegates"
+        ],
+        "type": "object"
       }
     },
     "openbindings.ob.listFormats": {
@@ -352,41 +365,6 @@
     }
   },
   "schemas": {
-    "AddDelegateResult": {
-      "additionalProperties": false,
-      "description": "What ob discovered when registering the delegate. Registration succeeds even when the delegate is unreachable or offers nothing delegatable; reachable is then false and capabilities/formats are empty.",
-      "properties": {
-        "capabilities": {
-          "items": {
-            "$ref": "#/schemas/DelegateCapability"
-          },
-          "type": "array"
-        },
-        "formats": {
-          "items": {
-            "$ref": "#/schemas/DelegateFormatInfo"
-          },
-          "type": "array"
-        },
-        "location": {
-          "description": "The registered delegate location.",
-          "type": "string"
-        },
-        "name": {
-          "description": "Display name resolved from the delegate's OBI, or derived from its location.",
-          "type": "string"
-        },
-        "reachable": {
-          "description": "Whether ob could resolve the delegate's OBI at registration.",
-          "type": "boolean"
-        }
-      },
-      "required": [
-        "location",
-        "reachable"
-      ],
-      "type": "object"
-    },
     "AddOperationAliasInput": {
       "additionalProperties": false,
       "properties": {
@@ -997,7 +975,7 @@
       "type": "object"
     },
     "DelegateCapability": {
-      "description": "A format-handling capability a delegate provides, mapping to the interface it satisfies: invoke (openbindings.binding-invoker), create (openbindings.interface-synthesizer), inspect (openbindings.source-inspector). A delegate offers whichever subset it satisfies.",
+      "description": "One of ob's three format-handling needs, mapping to the published interface a delegate satisfies for it: invoke (binding-invoker), synthesize (interface-synthesizer), inspect (source-inspector). A capability is ob's shorthand for the operation it delegates; a delegate offers whichever subset it satisfies.",
       "enum": [
         "invoke",
         "synthesize",
@@ -1037,36 +1015,61 @@
     },
     "DelegateSummary": {
       "additionalProperties": false,
-      "description": "A registered delegate and what it provides, discovered from its OBI.",
+      "description": "A registered delegate: its identity, the snapshot of what it carries, ob's derived routing data, and its selection preferences.",
       "properties": {
         "builtin": {
-          "description": "True for ob's own native handling — the implicit self-delegate, delegate 0.",
+          "description": "True for ob's own native handling — the self-delegate.",
           "type": "boolean"
         },
         "capabilities": {
-          "description": "The format-handling capabilities the delegate offers.",
+          "description": "Which of ob's format capabilities the delegate satisfies, checked by conformance at registration.",
           "items": {
             "$ref": "#/schemas/DelegateCapability"
           },
           "type": "array"
         },
+        "contentHash": {
+          "description": "Digest of the delegate's interface document as last resolved (sha256: over its RFC 8785 canonical form). Pins the snapshot; opaque — compare for equality, don't recompute.",
+          "type": "string"
+        },
         "formats": {
-          "description": "The formats the delegate handles.",
+          "description": "The formats the delegate reported handling when last resolved.",
           "items": {
             "$ref": "#/schemas/DelegateFormatInfo"
           },
           "type": "array"
         },
         "location": {
-          "description": "The delegate's location (exec: or http(s) URL); absent for the builtin self-delegate.",
+          "description": "The reference the delegate is registered under (exec: or http(s) URL). The self-delegate's location is \"ob\".",
           "type": "string"
         },
         "name": {
           "description": "Display name: the delegate OBI's name, or one derived from its location.",
           "type": "string"
+        },
+        "operationPreferences": {
+          "additionalProperties": {
+            "type": "number"
+          },
+          "description": "Per-operation preference overrides, keyed by operation identifier. The override replaces the delegate-level preference when resolving that operation.",
+          "type": "object"
+        },
+        "operations": {
+          "description": "Every operation identifier the delegate answers to — the keys and aliases its interface declared when last resolved. A snapshot: re-registering the location refreshes it.",
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "preference": {
+          "description": "Delegate-level selection preference — the default for every operation it carries. Higher is more preferred; absent is the baseline.",
+          "type": "number"
         }
       },
-      "required": [],
+      "required": [
+        "location",
+        "operations"
+      ],
       "type": "object"
     },
     "DemoInput": {
@@ -1866,12 +1869,16 @@
       ],
       "type": "object"
     },
-    "RemoveDelegateResult": {
+    "RegisterDelegateInput": {
       "additionalProperties": false,
       "properties": {
         "location": {
-          "description": "The unregistered delegate location.",
+          "description": "Delegate location: the exec: or http(s) URL of the delegate's OpenBindings interface. Also the delegate's registration identity.",
           "type": "string"
+        },
+        "preference": {
+          "description": "Initial delegate-level selection preference (higher = more preferred). May be changed later with setDelegatePreference.",
+          "type": "number"
         }
       },
       "required": [
@@ -1966,7 +1973,7 @@
       ],
       "type": "object"
     },
-    "ResolveDelegateInput": {
+    "ResolveDelegateForFormatInput": {
       "additionalProperties": false,
       "properties": {
         "format": {
@@ -1979,7 +1986,7 @@
       ],
       "type": "object"
     },
-    "ResolveDelegateResult": {
+    "ResolveDelegateForFormatResult": {
       "additionalProperties": false,
       "properties": {
         "builtin": {
@@ -2002,12 +2009,46 @@
           "type": "string"
         },
         "name": {
-          "description": "Display name of the delegate that handles it.",
+          "description": "Display name of the delegate ob's routing would select.",
           "type": "string"
         }
       },
       "required": [
         "format"
+      ],
+      "type": "object"
+    },
+    "ResolveDelegateInput": {
+      "additionalProperties": false,
+      "properties": {
+        "operation": {
+          "description": "The operation identifier a delegate is needed for.",
+          "type": "string"
+        }
+      },
+      "required": [
+        "operation"
+      ],
+      "type": "object"
+    },
+    "ResolveDelegateResult": {
+      "additionalProperties": false,
+      "properties": {
+        "candidates": {
+          "description": "Registered delegates that carry the operation, ordered by effective preference, best first. Empty when none carry it.",
+          "items": {
+            "$ref": "#/schemas/DelegateSummary"
+          },
+          "type": "array"
+        },
+        "operation": {
+          "description": "The requested operation identifier, echoed back.",
+          "type": "string"
+        }
+      },
+      "required": [
+        "operation",
+        "candidates"
       ],
       "type": "object"
     },
@@ -2073,42 +2114,24 @@
     "SetDelegatePreferenceInput": {
       "additionalProperties": false,
       "properties": {
-        "capability": {
-          "$ref": "#/schemas/DelegateCapability"
-        },
         "format": {
-          "description": "Optional binding-source format scope for the override (requires capability).",
+          "description": "Optional binding-source format scope for an operation entry (requires operation) — ob's extra granularity beyond the delegate-manager contract.",
           "type": "string"
         },
         "location": {
-          "description": "The delegate's location.",
+          "description": "The reference the delegate is registered under.",
+          "type": "string"
+        },
+        "operation": {
+          "description": "When present, the preference applies only to resolving this operation; otherwise it is the delegate-level default.",
           "type": "string"
         },
         "preference": {
-          "description": "Preference value; higher is more preferred, 0 is the baseline, negatives rank below it.",
-          "type": "number"
-        }
-      },
-      "required": [
-        "location",
-        "preference"
-      ],
-      "type": "object"
-    },
-    "SetDelegatePreferenceResult": {
-      "additionalProperties": false,
-      "properties": {
-        "capability": {
-          "$ref": "#/schemas/DelegateCapability"
-        },
-        "format": {
-          "type": "string"
-        },
-        "location": {
-          "type": "string"
-        },
-        "preference": {
-          "type": "number"
+          "description": "The new preference value; higher is more preferred, 0 is the baseline, negatives rank below it. Null clears: with an operation, it removes that operation's override; without one, it resets the delegate-level preference to the baseline.",
+          "type": [
+            "number",
+            "null"
+          ]
         }
       },
       "required": [

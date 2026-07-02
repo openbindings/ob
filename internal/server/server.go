@@ -588,7 +588,7 @@ func loadOrCreateCA(certPath, keyPath string, logger *slog.Logger) (*x509.Certif
 func loadOrMintLeaf(certPath, keyPath string, caCert *x509.Certificate, caKey *ecdsa.PrivateKey) (tls.Certificate, error) {
 	if existing, err := tls.LoadX509KeyPair(certPath, keyPath); err == nil {
 		if leaf, parseErr := x509.ParseCertificate(existing.Certificate[0]); parseErr == nil {
-			if time.Now().Before(leaf.NotAfter.Add(-24*time.Hour)) {
+			if time.Now().Before(leaf.NotAfter.Add(-24 * time.Hour)) {
 				return existing, nil
 			}
 		}

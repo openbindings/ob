@@ -528,7 +528,7 @@ func InvokeOperationWithContext(ctx context.Context, input InvokeOperationInput)
 	chosen := selectDelegate(CapInvoke, input.Source.Format)
 
 	var output InvokeOperationOutput
-	if chosen == nil || chosen.iface == nil {
+	if chosen == nil || chosen.builtin {
 		// Self-delegate or nothing: invoke in-process when ob supports the
 		// format natively, else there is nowhere to route.
 		if BuiltinSupportsFormat(input.Source.Format) {
@@ -542,11 +542,19 @@ func InvokeOperationWithContext(ctx context.Context, input InvokeOperationInput)
 			}
 		}
 	} else {
+		// Resolve the chosen delegate's interface at use, verified against its
+		// registration pin (match and invoke the same document).
+		iface, rerr := chosen.resolveInterface()
+		if rerr != nil {
+			return InvokeOperationOutput{
+				Error: &Error{Code: "delegate_resolution_failed", Message: rerr.Error()},
+			}
+		}
 		output = invokeViaExternalDelegate(ctx, delegates.Resolved{
 			Format:   input.Source.Format,
-			Delegate: chosen.name,
-			Location: chosen.location,
-			OBI:      &delegates.ResolvedOBI{Interface: *chosen.iface},
+			Delegate: chosen.name(),
+			Location: chosen.location(),
+			OBI:      &delegates.ResolvedOBI{Interface: *iface},
 		}, input)
 	}
 

@@ -8,9 +8,9 @@ import (
 
 // EnvConfig represents environment-level configuration stored in .openbindings/config.json.
 type EnvConfig struct {
-	Delegates               []string                   `json:"delegates,omitempty"`
-	RemovedDefaultDelegates []string                   `json:"removedDefaultDelegates,omitempty"`
-	DelegatePreferences     []DelegatePreferenceConfig `json:"delegatePreferences,omitempty"`
+	// Delegates is the delegate registry: one record per registered delegate,
+	// in registration order. The self-delegate is builtin, never persisted.
+	Delegates []DelegateRecord `json:"delegates,omitempty"`
 }
 
 // InitResult is returned by Init.
@@ -100,8 +100,7 @@ func LoadEnvConfig(envPath string) (*EnvConfig, error) {
 	data, err := os.ReadFile(configPath)
 	if err != nil {
 		if os.IsNotExist(err) {
-			config := &EnvConfig{Delegates: append([]string(nil), defaultDelegates...)}
-			return config, nil
+			return &EnvConfig{}, nil
 		}
 		return nil, err
 	}
@@ -110,11 +109,6 @@ func LoadEnvConfig(envPath string) (*EnvConfig, error) {
 	if err := json.Unmarshal(data, &config); err != nil {
 		return nil, err
 	}
-
-	if migrateDefaultDelegates(&config) {
-		_ = SaveEnvConfig(envPath, &config)
-	}
-
 	return &config, nil
 }
 
@@ -204,8 +198,7 @@ func createDefaultEnvironment(envDir string) error {
 		return err
 	}
 
-	config := EnvConfig{
-		Delegates: append([]string(nil), defaultDelegates...),
-	}
-	return SaveEnvConfig(envDir, &config)
+	// A fresh environment has an empty registry: the self-delegate is builtin,
+	// and every external delegate is an explicit, resolvable registration.
+	return SaveEnvConfig(envDir, &EnvConfig{})
 }

@@ -31,13 +31,10 @@ func TestInit(t *testing.T) {
 	if err != nil {
 		t.Fatalf("failed to load env config: %v", err)
 	}
-	if len(config.Delegates) != len(defaultDelegates) {
-		t.Errorf("expected %d delegates, got %d", len(defaultDelegates), len(config.Delegates))
-	}
-	for i, d := range defaultDelegates {
-		if config.Delegates[i] != d {
-			t.Errorf("delegate[%d] = %q, want %q", i, config.Delegates[i], d)
-		}
+	// A fresh environment has an empty registry: the self-delegate is builtin,
+	// and every external delegate is an explicit, resolvable registration.
+	if len(config.Delegates) != 0 {
+		t.Errorf("expected an empty delegate registry, got %d", len(config.Delegates))
 	}
 }
 
@@ -88,13 +85,16 @@ func TestLoadSaveEnvConfig(t *testing.T) {
 	if err != nil {
 		t.Fatalf("LoadEnvConfig() failed: %v", err)
 	}
-	if len(config.Delegates) != len(defaultDelegates) {
-		t.Errorf("expected %d default delegates, got %d", len(defaultDelegates), len(config.Delegates))
+	if len(config.Delegates) != 0 {
+		t.Errorf("expected an empty registry when no config exists, got %d", len(config.Delegates))
 	}
 
-	config.Delegates = append(config.Delegates, "exec:my-tool")
-	err = SaveEnvConfig(tmpDir, config)
-	if err != nil {
+	config.Delegates = append(config.Delegates, DelegateRecord{
+		Location:   "exec:my-tool",
+		Name:       "my-tool",
+		Operations: []string{"acme.tool.doThing"},
+	})
+	if err := SaveEnvConfig(tmpDir, config); err != nil {
 		t.Fatalf("SaveEnvConfig() failed: %v", err)
 	}
 
@@ -102,30 +102,10 @@ func TestLoadSaveEnvConfig(t *testing.T) {
 	if err != nil {
 		t.Fatalf("LoadEnvConfig() failed: %v", err)
 	}
-	if len(loaded.Delegates) != len(defaultDelegates)+1 {
-		t.Errorf("expected %d delegates after add, got %d", len(defaultDelegates)+1, len(loaded.Delegates))
+	if len(loaded.Delegates) != 1 || loaded.Delegates[0].Location != "exec:my-tool" {
+		t.Errorf("expected the saved record to round-trip, got %+v", loaded.Delegates)
 	}
-}
-
-func TestMigrateDefaultDelegates(t *testing.T) {
-	config := &EnvConfig{}
-	changed := migrateDefaultDelegates(config)
-	if !changed {
-		t.Error("expected migration to modify empty config")
-	}
-	if len(config.Delegates) != len(defaultDelegates) {
-		t.Errorf("expected %d delegates, got %d", len(defaultDelegates), len(config.Delegates))
-	}
-
-	config.RemovedDefaultDelegates = []string{"exec:ob"}
-	config.Delegates = nil
-	changed = migrateDefaultDelegates(config)
-	if !changed {
-		t.Error("expected migration with removal")
-	}
-	for _, d := range config.Delegates {
-		if d == "exec:ob" {
-			t.Error("removed delegate should not be re-added")
-		}
+	if !carriesOperation(loaded.Delegates[0].Operations, "acme.tool.doThing") {
+		t.Errorf("record operations should round-trip, got %v", loaded.Delegates[0].Operations)
 	}
 }

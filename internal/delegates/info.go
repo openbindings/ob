@@ -1,4 +1,4 @@
-// Package delegates - info.go contains delegate info types and helpers.
+// Package delegates - info.go: delegate location classification and naming.
 package delegates
 
 import (
@@ -8,13 +8,6 @@ import (
 
 	"github.com/openbindings/ob/internal/execref"
 )
-
-// Info represents a discovered binding format delegate.
-type Info struct {
-	Name     string `json:"name"`
-	Location string `json:"location,omitempty"` // how to reach the delegate (path, URL, or cmd ref)
-	Source   string `json:"source"`             // environment
-}
 
 // IsHTTPURL returns true if the string is an HTTP or HTTPS URL.
 func IsHTTPURL(s string) bool {
@@ -34,7 +27,7 @@ func IsLocalPath(addr string) bool {
 	return strings.HasPrefix(addr, "/") || strings.HasPrefix(addr, "./") || strings.HasPrefix(addr, "../") || filepath.IsAbs(addr)
 }
 
-// NameFromLocation derives a delegate name from a location.
+// NameFromLocation derives a delegate display name from a location.
 func NameFromLocation(loc string) string {
 	// Command reference (exec:...)
 	if execref.IsExec(loc) {

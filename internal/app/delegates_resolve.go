@@ -5,10 +5,11 @@ import (
 	"strings"
 )
 
-// DelegateResolveResult is returned by DelegateResolve (ResolveDelegateResult in
-// the contract): which delegate handles a format, and the capabilities it
-// offers for it.
-type DelegateResolveResult struct {
+// ResolveDelegateForFormatResult is resolveDelegateForFormat's output: which
+// delegate ob's routing would select for a format token, and the capabilities
+// it offers for it. This is ob's format-narrowing diagnostic, layered on top
+// of the operation-keyed resolveDelegate.
+type ResolveDelegateForFormatResult struct {
 	Format       string               `json:"format"`
 	Name         string               `json:"name,omitempty"`
 	Location     string               `json:"location,omitempty"`
@@ -17,7 +18,7 @@ type DelegateResolveResult struct {
 }
 
 // Render returns a human-readable summary.
-func (r DelegateResolveResult) Render() string {
+func (r ResolveDelegateForFormatResult) Render() string {
 	var sb strings.Builder
 	fmt.Fprintf(&sb, "Format: %s\n", r.Format)
 	fmt.Fprintf(&sb, "Delegate: %s", r.Name)
@@ -36,11 +37,10 @@ func (r DelegateResolveResult) Render() string {
 	return sb.String()
 }
 
-// DelegateResolve reports which delegate handles a given format and the
-// capabilities it offers for it, via the unified delegate selection (the
-// self-delegate is delegate 0). This is the diagnostic view of routing: the
-// highest-ranked delegate that handles the format wins.
-func DelegateResolve(format string) (*DelegateResolveResult, error) {
+// ResolveDelegateForFormat reports which delegate ob's routing would select
+// for a format: the highest-ranked candidate (by delegate-level preference;
+// ties favor the self-delegate, then registration order) that handles it.
+func ResolveDelegateForFormat(format string) (*ResolveDelegateForFormatResult, error) {
 	if strings.TrimSpace(format) == "" {
 		return nil, usageExit("delegate resolve <format>")
 	}
@@ -52,7 +52,7 @@ func DelegateResolve(format string) (*DelegateResolveResult, error) {
 		if !c.handles(format) {
 			continue
 		}
-		if best == nil || ranksAbove(c, best) {
+		if best == nil || delegateLevelPreference(c) > delegateLevelPreference(best) {
 			best = c
 		}
 	}
@@ -60,11 +60,21 @@ func DelegateResolve(format string) (*DelegateResolveResult, error) {
 		return nil, exitText(1, fmt.Sprintf("no delegate handles format %q", format), true)
 	}
 
-	return &DelegateResolveResult{
+	return &ResolveDelegateForFormatResult{
 		Format:       format,
-		Name:         best.name,
-		Location:     best.location,
+		Name:         best.name(),
+		Location:     best.location(),
 		Builtin:      best.builtin,
-		Capabilities: best.capabilities,
+		Capabilities: best.record.Capabilities,
 	}, nil
+}
+
+// delegateLevelPreference is the candidate's delegate-level preference (the
+// baseline 0 when unset) — the ranking used where there is no operation
+// context.
+func delegateLevelPreference(c *delegateCandidate) float64 {
+	if c.record.Preference != nil {
+		return *c.record.Preference
+	}
+	return 0
 }

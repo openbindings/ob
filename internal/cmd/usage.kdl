@@ -57,21 +57,27 @@ cmd "context" help="Manage binding context (credentials, headers, environment)" 
 }
 
 cmd "delegate" help="Manage delegates" subcommand_required=true {
+  cmd "register" help="Register a delegate" opKey="registerDelegate" {
+    flag "--preference <num>" help="Initial delegate-level selection preference (higher = more preferred)"
+    flag "-o --output <path>" help="Write output to file"
+    flag "-F --format <format>" help="Output format: json|yaml|text"
+    arg "<location>" help="Delegate location (e.g., exec:my-cli, https://api.example.com)"
+  }
+  cmd "unregister" help="Unregister a delegate" opKey="unregisterDelegate" {
+    flag "-o --output <path>" help="Write output to file"
+    flag "-F --format <format>" help="Output format: json|yaml|text"
+    arg "<location>" help="Delegate location"
+  }
   cmd "list" help="List delegates" opKey="listDelegates" {
     flag "-o --output <path>" help="Write output to file"
     flag "-F --format <format>" help="Output format: json|yaml|text"
   }
-  cmd "add" help="Add a delegate" opKey="addDelegate" {
+  cmd "resolve" help="Resolve an operation to the delegates that carry it" opKey="resolveDelegate" {
     flag "-o --output <path>" help="Write output to file"
     flag "-F --format <format>" help="Output format: json|yaml|text"
-    arg "<url>" help="Delegate URL (e.g., exec:my-cli, https://api.example.com)"
+    arg "<operation>" help="Operation identifier to resolve"
   }
-  cmd "remove" help="Remove a delegate" opKey="removeDelegate" {
-    flag "-o --output <path>" help="Write output to file"
-    flag "-F --format <format>" help="Output format: json|yaml|text"
-    arg "<url>" help="Delegate URL"
-  }
-  cmd "resolve" help="Show which delegate handles a format" opKey="resolveDelegate" {
+  cmd "resolve-format" help="Show which delegate ob's routing would select for a format" opKey="resolveDelegateForFormat" {
     flag "-o --output <path>" help="Write output to file"
     flag "-F --format <format>" help="Output format: json|yaml|text"
     arg "<format-token>" help="Format token to resolve"
@@ -79,13 +85,15 @@ cmd "delegate" help="Manage delegates" subcommand_required=true {
   cmd "requirements" help="Print the interface a delegate must satisfy for a capability" opKey="getDelegateRequirements" {
     arg "<capability>" help="Capability: invoke, synthesize, or inspect"
   }
-  cmd "prefer" help="Set a delegate's selection preference (higher = more preferred)" opKey="setDelegatePreference" {
-    flag "--capability <cap>" help="Scope to a capability: invoke, synthesize, or inspect"
-    flag "--source-format <format>" help="Scope to a binding-source format (requires --capability)"
+  cmd "prefer" help="Set or clear a delegate's selection preference (higher = more preferred)" opKey="setDelegatePreference" {
+    flag "--operation <op>" help="Scope to one operation identifier"
+    flag "--capability <cap>" help="Shorthand for the operation of an ob capability: invoke, synthesize, or inspect"
+    flag "--source-format <format>" help="Scope an operation entry to a binding-source format (requires --operation or --capability)"
+    flag "--clear" help="Remove the targeted preference entry instead of setting it"
     flag "-o --output <path>" help="Write output to file"
     flag "-F --format <format>" help="Output format: json|yaml|text"
     arg "<location>" help="Delegate location"
-    arg "<preference>" help="Preference value (higher = more preferred)"
+    arg "[preference]" help="Preference value (omit with --clear)"
   }
 }
 

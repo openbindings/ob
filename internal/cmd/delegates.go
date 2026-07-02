@@ -7,18 +7,21 @@ func newDelegateCmd() *cobra.Command {
 		Use:     "delegate",
 		Aliases: []string{"delegates"},
 		Short:   "Manage delegates",
-		Long: `Manage delegates registered in the environment.
+		Long: `Manage the delegate registry.
 
-A delegate is any software that implements an OpenBindings interface contract
-to receive delegated work. ob currently delegates binding format handling;
-delegates are discovered by probing the interface contracts they satisfy.`,
+A delegate is any referenceable OpenBindings interface ob may route
+operations to. Registration snapshots what a delegate carries and pins the
+resolved document; resolution matches the operations ob needs against those
+snapshots; preference orders the candidates. ob itself is the builtin
+self-delegate.`,
 	}
 
 	c.AddCommand(
+		newDelegateRegisterCmd(),
+		newDelegateUnregisterCmd(),
 		newDelegateListCmd(),
-		newDelegateAddCmd(),
-		newDelegateRemoveCmd(),
 		newDelegateResolveCmd(),
+		newDelegateResolveFormatCmd(),
 		newDelegateRequirementsCmd(),
 		newDelegatePreferCmd(),
 	)
