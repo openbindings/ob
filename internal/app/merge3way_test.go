@@ -284,7 +284,7 @@ func TestMergeOperation_NilBase_PreservesLocalOnlyFields(t *testing.T) {
 // TestSynthesizeInterface_PopulatesBaseForFirstSync is the integration-level
 // regression test for the bootstrap-then-edit-then-sync flow. It asserts:
 //
-//  1. After SynthesizeInterface, every managed operation and binding has a
+//  1. After SynthesizeInterface, every source-owned operation and binding has a
 //     populated x-ob.base (so GetBase returns non-nil).
 //  2. The base equals what ObjectToFieldMap(op) produces, so the very
 //     first ob sync sees an exact three-way merge instead of falling
@@ -313,7 +313,7 @@ cmd "greet" help="Say hello" {}
 		t.Fatalf("create: %v", err)
 	}
 
-	// Every managed operation has a non-nil base after create.
+	// Every source-owned operation has a non-nil base after synthesis.
 	for opKey, op := range iface.Operations {
 		if !HasXOB(op.LosslessFields) {
 			t.Errorf("operation %q: expected x-ob marker after create", opKey)
@@ -339,7 +339,7 @@ cmd "greet" help="Say hello" {}
 		}
 	}
 
-	// Every managed binding has a non-nil base after create.
+	// Every source-owned binding has a non-nil base after synthesis.
 	for bindKey, b := range iface.Bindings {
 		if !HasXOB(b.LosslessFields) {
 			t.Errorf("binding %q: expected x-ob marker after create", bindKey)

@@ -20,14 +20,17 @@ type OBIStatusInput struct {
 	Interface *openbindings.Interface
 }
 
-// SourceStatus represents the sync status of a single source.
+// SourceStatus represents the sync status of a single source. Tracked reports
+// whether ob tracks the source via x-ob provenance metadata (written by
+// `source add` / synthesize); untracked sources are hand-authored and pull
+// skips them.
 type SourceStatus struct {
 	Key        string `json:"key"`
 	Format     string `json:"format"`
 	Ref        string `json:"ref,omitempty"`
 	Resolve    string `json:"resolve,omitempty"`
 	InSync     bool   `json:"inSync"`
-	Managed    bool   `json:"managed"`
+	Tracked    bool   `json:"tracked"`
 	LastSynced string `json:"lastSynced,omitempty"`
 	OBVersion  string `json:"obVersion,omitempty"`
 	Error      string `json:"error,omitempty"`
@@ -50,24 +53,24 @@ type OBIStatusOutput struct {
 	Version    string         `json:"version,omitempty"`
 	OBIVersion string         `json:"obiVersion"`
 	Sources    []SourceStatus `json:"sources"`
-	Operations ManagedKeys    `json:"operations"`
-	Bindings   ManagedKeys    `json:"bindings"`
+	Operations ProvenanceKeys `json:"operations"`
+	Bindings   ProvenanceKeys `json:"bindings"`
 }
 
-// HasDrift reports whether any managed source is out of sync (the source would
+// HasDrift reports whether any tracked source is out of sync (the source would
 // add/update/remove objects, or a hand-authored binding has custodial drift).
 func (o OBIStatusOutput) HasDrift() bool {
 	for _, src := range o.Sources {
-		if src.Managed && !src.InSync {
+		if src.Tracked && !src.InSync {
 			return true
 		}
 	}
 	return false
 }
 
-// ManagedKeys lists keys split by management status. Counts are len(Managed) + len(HandAuthored).
-type ManagedKeys struct {
-	Managed      []string `json:"managed,omitempty"`
+// ProvenanceKeys lists keys split by provenance. Counts are len(SourceOwned) + len(HandAuthored).
+type ProvenanceKeys struct {
+	SourceOwned  []string `json:"sourceOwned,omitempty"`
 	HandAuthored []string `json:"handAuthored,omitempty"`
 }
 
@@ -102,14 +105,14 @@ func (o OBIStatusOutput) Render() string {
 		}
 		if src.Error != "" {
 			sb.WriteString(s.Warning.Render("error: " + src.Error))
-		} else if !src.Managed {
+		} else if !src.Tracked {
 			sb.WriteString(s.Dim.Render("hand-authored"))
 		} else if src.InSync {
 			sb.WriteString(s.Success.Render("in sync"))
 		} else {
 			sb.WriteString(s.Warning.Render("out of sync"))
 		}
-		if src.Managed && src.LastSynced != "" {
+		if src.Tracked && src.LastSynced != "" {
 			sb.WriteString(s.Dim.Render(fmt.Sprintf(" (synced %s", formatTimeAgo(src.LastSynced))))
 			if src.OBVersion != "" {
 				sb.WriteString(s.Dim.Render(", ob " + src.OBVersion))
@@ -119,21 +122,21 @@ func (o OBIStatusOutput) Render() string {
 		sb.WriteString("\n")
 
 		// Show diff details for out-of-sync sources.
-		if !src.InSync && src.Managed {
+		if !src.InSync && src.Tracked {
 			renderSourceDiff(&sb, s, src)
 		}
 	}
 
 	// Operations.
-	renderManagedSection(&sb, s, "Operations", o.Operations)
+	renderProvenanceSection(&sb, s, "Operations", o.Operations)
 
 	// Bindings.
-	renderManagedSection(&sb, s, "Bindings", o.Bindings)
+	renderProvenanceSection(&sb, s, "Bindings", o.Bindings)
 
 	// Sync summary.
 	outOfSync := 0
 	for _, src := range o.Sources {
-		if src.Managed && !src.InSync {
+		if src.Tracked && !src.InSync {
 			outOfSync++
 		}
 	}
@@ -147,7 +150,7 @@ func (o OBIStatusOutput) Render() string {
 	return sb.String()
 }
 
-// renderSourceDiff appends per-source diff details (what ob sync would change).
+// renderSourceDiff appends per-source diff details (what ob source pull would change).
 func renderSourceDiff(sb *strings.Builder, s styles, src SourceStatus) {
 	lines := make([]string, 0, 7)
 	if len(src.OperationsAdded) > 0 {
@@ -177,17 +180,17 @@ func renderSourceDiff(sb *strings.Builder, s styles, src SourceStatus) {
 	}
 }
 
-// renderManagedSection appends a labeled section showing managed vs hand-authored keys.
-func renderManagedSection(sb *strings.Builder, s styles, label string, mk ManagedKeys) {
-	total := len(mk.Managed) + len(mk.HandAuthored)
+// renderProvenanceSection appends a labeled section showing source-owned vs hand-authored keys.
+func renderProvenanceSection(sb *strings.Builder, s styles, label string, pk ProvenanceKeys) {
+	total := len(pk.SourceOwned) + len(pk.HandAuthored)
 	sb.WriteString(fmt.Sprintf("\n%s (%d)", label, total))
 	if total > 0 {
 		parts := make([]string, 0, 2)
-		if len(mk.Managed) > 0 {
-			parts = append(parts, fmt.Sprintf("%d managed", len(mk.Managed)))
+		if len(pk.SourceOwned) > 0 {
+			parts = append(parts, fmt.Sprintf("%d source-owned", len(pk.SourceOwned)))
 		}
-		if len(mk.HandAuthored) > 0 {
-			parts = append(parts, fmt.Sprintf("%d hand-authored", len(mk.HandAuthored)))
+		if len(pk.HandAuthored) > 0 {
+			parts = append(parts, fmt.Sprintf("%d hand-authored", len(pk.HandAuthored)))
 		}
 		sb.WriteString(s.Dim.Render("  — " + strings.Join(parts, ", ")))
 	}
@@ -207,8 +210,9 @@ func OBIStatus(input OBIStatusInput) (OBIStatusOutput, error) {
 		obiDir = filepath.Dir(input.OBIPath)
 	}
 
-	// Collect source statuses.
-	var sources []SourceStatus
+	// Collect source statuses. Initialized non-nil so the wire output is
+	// always an array (the InterfaceStatus schema requires it), never null.
+	sources := []SourceStatus{}
 
 	var srcKeys []string
 	for k := range iface.Sources {
@@ -239,7 +243,7 @@ func OBIStatus(input OBIStatusInput) (OBIStatusOutput, error) {
 			continue
 		}
 
-		ss.Managed = true
+		ss.Tracked = true
 		ss.Ref = meta.Ref
 		ss.Resolve = meta.Resolve
 		ss.LastSynced = meta.LastSynced
@@ -251,28 +255,28 @@ func OBIStatus(input OBIStatusInput) (OBIStatusOutput, error) {
 		sources = append(sources, ss)
 	}
 
-	// Classify operations by management status.
-	var ops ManagedKeys
+	// Classify operations by provenance.
+	var ops ProvenanceKeys
 	for key, op := range iface.Operations {
 		if IsSourceOwned(op.LosslessFields) {
-			ops.Managed = append(ops.Managed, key)
+			ops.SourceOwned = append(ops.SourceOwned, key)
 		} else {
 			ops.HandAuthored = append(ops.HandAuthored, key)
 		}
 	}
-	sort.Strings(ops.Managed)
+	sort.Strings(ops.SourceOwned)
 	sort.Strings(ops.HandAuthored)
 
-	// Classify bindings by management status.
-	var binds ManagedKeys
+	// Classify bindings by provenance.
+	var binds ProvenanceKeys
 	for key, b := range iface.Bindings {
 		if IsSourceOwned(b.LosslessFields) {
-			binds.Managed = append(binds.Managed, key)
+			binds.SourceOwned = append(binds.SourceOwned, key)
 		} else {
 			binds.HandAuthored = append(binds.HandAuthored, key)
 		}
 	}
-	sort.Strings(binds.Managed)
+	sort.Strings(binds.SourceOwned)
 	sort.Strings(binds.HandAuthored)
 
 	return OBIStatusOutput{

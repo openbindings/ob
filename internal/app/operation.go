@@ -8,6 +8,18 @@ import (
 	"github.com/openbindings/openbindings-go"
 )
 
+// toStringSet builds a set from a slice, or returns nil if the slice is empty.
+func toStringSet(keys []string) map[string]struct{} {
+	if len(keys) == 0 {
+		return nil
+	}
+	m := make(map[string]struct{}, len(keys))
+	for _, k := range keys {
+		m[k] = struct{}{}
+	}
+	return m
+}
+
 // --- List ---
 
 // OperationListOutput is the listOperations wire output: a bare array of

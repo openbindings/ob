@@ -655,11 +655,11 @@ func pickBindArgs(obiPath, op, source, ref string) (string, string, string, erro
 		if err != nil {
 			return "", "", "", err
 		}
-		if len(srcs.Sources) == 0 {
+		if len(srcs) == 0 {
 			return "", "", "", fmt.Errorf("no sources registered; add one with 'ob source add'")
 		}
-		opts := make([]huh.Option[string], len(srcs.Sources))
-		for i, e := range srcs.Sources {
+		opts := make([]huh.Option[string], len(srcs))
+		for i, e := range srcs {
 			opts[i] = huh.NewOption(e.Key, e.Key)
 		}
 		if err := huh.NewForm(huh.NewGroup(

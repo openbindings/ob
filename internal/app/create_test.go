@@ -157,15 +157,6 @@ func TestDeriveSourceKey_FallbackIndex(t *testing.T) {
 	}
 }
 
-func TestRenderInterface(t *testing.T) {
-	t.Run("nil interface", func(t *testing.T) {
-		r := RenderInterface(nil)
-		if r == "" {
-			t.Error("expected non-empty render")
-		}
-	})
-}
-
 func TestReadEmbedContent_JSON(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "test.json")

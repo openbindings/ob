@@ -111,8 +111,17 @@ func TestSourceList_Empty(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	if len(result.Sources) != 0 {
-		t.Errorf("expected 0 sources, got %d", len(result.Sources))
+	if len(result) != 0 {
+		t.Errorf("expected 0 sources, got %d", len(result))
+	}
+
+	// Wire shape: a sourceless interface lists as [], never null.
+	data, err := json.Marshal(result)
+	if err != nil {
+		t.Fatalf("marshal: %v", err)
+	}
+	if string(data) != "[]" {
+		t.Errorf("expected empty list to marshal as [], got %s", data)
 	}
 }
 
@@ -141,16 +150,16 @@ func TestSourceList_WithSources(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	if len(result.Sources) != 2 {
-		t.Errorf("expected 2 sources, got %d", len(result.Sources))
+	if len(result) != 2 {
+		t.Errorf("expected 2 sources, got %d", len(result))
 	}
 
 	// Verify sorted by key.
-	if result.Sources[0].Key != "cliSpec" {
-		t.Errorf("expected first source 'cliSpec', got %q", result.Sources[0].Key)
+	if result[0].Key != "cliSpec" {
+		t.Errorf("expected first source 'cliSpec', got %q", result[0].Key)
 	}
-	if result.Sources[1].Key != "restApi" {
-		t.Errorf("expected second source 'restApi', got %q", result.Sources[1].Key)
+	if result[1].Key != "restApi" {
+		t.Errorf("expected second source 'restApi', got %q", result[1].Key)
 	}
 }
 
@@ -329,10 +338,8 @@ func TestSourceAdd_RelativePath(t *testing.T) {
 
 func TestSourceList_RenderOutput(t *testing.T) {
 	output := SourceListOutput{
-		Sources: []SourceEntry{
-			{Key: "cliSpec", Source: openbindings.Source{Format: "usage@2.0.0", Location: "cli.kdl"}},
-			{Key: "restApi", Source: openbindings.Source{Format: "openapi@3.1", Location: "api.yaml"}},
-		},
+		{Key: "cliSpec", Source: openbindings.Source{Format: "usage@2.0.0", Location: "cli.kdl"}},
+		{Key: "restApi", Source: openbindings.Source{Format: "openapi@3.1", Location: "api.yaml"}},
 	}
 
 	rendered := output.Render()

@@ -176,7 +176,7 @@ func PreviewSourceMerge(src openbindings.Source, srcKey string, iface *openbindi
 	return MergePreview{Entries: entries}, nil
 }
 
-// PreviewAllSourceMerges runs PreviewSourceMerge for every managed source in the OBI.
+// PreviewAllSourceMerges runs PreviewSourceMerge for every tracked source in the OBI.
 func PreviewAllSourceMerges(iface *openbindings.Interface, obiPath string) map[string]MergePreview {
 	obiDir := filepath.Dir(obiPath)
 	previews := make(map[string]MergePreview)

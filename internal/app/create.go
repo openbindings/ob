@@ -43,44 +43,6 @@ type SynthesizeInterfaceInput struct {
 	Description         string                      `json:"description,omitempty"`
 }
 
-// RenderInterface returns a human-friendly summary of a created interface.
-func RenderInterface(iface *openbindings.Interface) string {
-	s := Styles
-	var sb strings.Builder
-
-	if iface == nil {
-		return s.Dim.Render("No interface created")
-	}
-
-	sb.WriteString(s.Header.Render("Created OpenBindings Interface"))
-	sb.WriteString("\n\n")
-
-	if iface.Name != "" {
-		sb.WriteString(s.Dim.Render("Name: "))
-		sb.WriteString(iface.Name)
-		sb.WriteString("\n")
-	}
-
-	if iface.Version != "" {
-		sb.WriteString(s.Dim.Render("Version: "))
-		sb.WriteString(iface.Version)
-		sb.WriteString("\n")
-	}
-
-	sb.WriteString(s.Dim.Render("Operations: "))
-	sb.WriteString(fmt.Sprintf("%d", len(iface.Operations)))
-	sb.WriteString("\n")
-
-	sb.WriteString(s.Dim.Render("Sources: "))
-	sb.WriteString(fmt.Sprintf("%d", len(iface.Sources)))
-	sb.WriteString("\n")
-
-	sb.WriteString(s.Dim.Render("Bindings: "))
-	sb.WriteString(fmt.Sprintf("%d", len(iface.Bindings)))
-
-	return sb.String()
-}
-
 // ParseSource parses a source string in one of two forms:
 //
 //	format:path[?option&option...]   — explicit format
@@ -94,7 +56,7 @@ func RenderInterface(iface *openbindings.Interface) string {
 //
 // Examples:
 //
-//	usage@2.13.1:./cli.kdl?name=cli&embed
+//	usage@2.0.0:./cli.kdl?name=cli&embed
 //	openapi.json
 //	./api.yaml?name=restApi
 func ParseSource(s string) (SynthesizeInterfaceSource, error) {
@@ -272,7 +234,8 @@ func processSource(iface *openbindings.Interface, src SynthesizeInterfaceSource,
 
 // mergeGeneratedSource merges a handler-generated Interface into the target,
 // applying format-agnostic merge logic for metadata, operations, sources, and bindings.
-// It writes x-ob metadata on sources and marks generated operations/bindings as managed.
+// It writes x-ob metadata on sources and marks generated operations/bindings as
+// source-owned.
 func mergeGeneratedSource(iface *openbindings.Interface, generated *openbindings.Interface, src SynthesizeInterfaceSource, sourceKey string) error {
 	// Merge metadata from first source if not set.
 	if iface.Name == DefaultInterfaceName && generated.Name != "" {
@@ -285,13 +248,13 @@ func mergeGeneratedSource(iface *openbindings.Interface, generated *openbindings
 		iface.Version = generated.Version
 	}
 
-	// Add operations, marking each as managed and recording the source
-	// fields as the initial three-way-merge base. Storing the base at
-	// create time means the very first `ob sync` already has a real
-	// base to merge against, so hand-authored local-only fields
-	// (satisfies, aliases, deprecated, tags) are preserved correctly
-	// instead of falling through to the legacy heuristic in
-	// MergeOperation.
+	// Add operations, marking each as source-owned and recording the
+	// source fields as the initial three-way-merge base. Storing the base
+	// at synthesis time means the very first `ob merge --from-sources`
+	// already has a real base to merge against, so hand-authored
+	// local-only fields (satisfies, aliases, deprecated, tags) are
+	// preserved correctly instead of falling through to the legacy
+	// heuristic in MergeOperation.
 	//
 	// First source to define an operation wins for the definition
 	// (kind, schemas, description). Subsequent sources only contribute
@@ -384,7 +347,7 @@ func mergeGeneratedSource(iface *openbindings.Interface, generated *openbindings
 
 	iface.Sources[sourceKey] = bsrc
 
-	// Add bindings, remapping source key. Each is marked managed and
+	// Add bindings, remapping source key. Each is marked source-owned and
 	// gets its initial base recorded in x-ob (same reason as the
 	// operations loop above).
 	if iface.Bindings == nil {

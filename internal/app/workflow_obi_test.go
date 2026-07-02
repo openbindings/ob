@@ -99,7 +99,7 @@ cmd "help" help="Show help" {
 	}
 }
 
-func TestWorkflow_EditSourceThenSync(t *testing.T) {
+func TestWorkflow_EditSourceThenPull(t *testing.T) {
 	dir := t.TempDir()
 
 	kdl1 := `min_usage_version "2.0.0"
@@ -135,12 +135,12 @@ cmd "greet" help="Say hello to someone" {
 		t.Fatalf("edit source: %v", err)
 	}
 
-	result, err := Sync(SyncInput{OBIPath: obiPath})
+	result, err := SourcePull(SourcePullInput{OBIPath: obiPath})
 	if err != nil {
-		t.Fatalf("sync: %v", err)
+		t.Fatalf("pull: %v", err)
 	}
 	if len(result.Sources) != 1 {
-		t.Errorf("expected 1 source synced, got %d", len(result.Sources))
+		t.Errorf("expected 1 source pulled, got %d", len(result.Sources))
 	}
 	if len(result.OperationsUpdated) < 1 {
 		t.Errorf("expected at least 1 operation updated, got %v", result.OperationsUpdated)
@@ -225,7 +225,7 @@ cmd "logs" help="Show logs" {
 	}
 }
 
-func TestWorkflow_HandAuthoredOperationPreservedAfterSync(t *testing.T) {
+func TestWorkflow_HandAuthoredOperationPreservedAfterPull(t *testing.T) {
 	dir := t.TempDir()
 
 	greetKDL := `min_usage_version "2.0.0"
@@ -274,9 +274,9 @@ cmd "greet" help="Updated from spec" {}
 		t.Fatalf("edit source: %v", err)
 	}
 
-	_, err = Sync(SyncInput{OBIPath: obiPath})
+	_, err = SourcePull(SourcePullInput{OBIPath: obiPath})
 	if err != nil {
-		t.Fatalf("sync: %v", err)
+		t.Fatalf("pull: %v", err)
 	}
 
 	loaded, err := loadInterfaceFile(obiPath)
@@ -288,13 +288,13 @@ cmd "greet" help="Updated from spec" {}
 	}
 	custom, ok := loaded.Operations["customOp"]
 	if !ok {
-		t.Fatal("hand-authored operation customOp missing after sync")
+		t.Fatal("hand-authored operation customOp missing after pull")
 	}
 	if custom.Description != "Hand-authored operation" {
 		t.Errorf("customOp description = %q", custom.Description)
 	}
 	if HasXOB(custom.LosslessFields) {
-		t.Error("hand-authored operation should not have x-ob after sync")
+		t.Error("hand-authored operation should not have x-ob after pull")
 	}
 }
 
@@ -330,12 +330,12 @@ cmd "two" help="Second" {}
 	if err != nil {
 		t.Fatalf("source list: %v", err)
 	}
-	if len(listOut.Sources) != 2 {
-		t.Errorf("expected 2 sources, got %d", len(listOut.Sources))
+	if len(listOut) != 2 {
+		t.Errorf("expected 2 sources, got %d", len(listOut))
 	}
 
 	var removeKey string
-	for _, e := range listOut.Sources {
+	for _, e := range listOut {
 		if e.Source.Format == usageFormat {
 			removeKey = e.Key
 			break
@@ -357,7 +357,7 @@ cmd "two" help="Second" {}
 	if err != nil {
 		t.Fatalf("source list after remove: %v", err)
 	}
-	if len(listOut2.Sources) != 1 {
-		t.Errorf("expected 1 source after remove, got %d", len(listOut2.Sources))
+	if len(listOut2) != 1 {
+		t.Errorf("expected 1 source after remove, got %d", len(listOut2))
 	}
 }

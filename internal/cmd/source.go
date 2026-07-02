@@ -77,7 +77,7 @@ Examples:
   ob source add my.obi.json ./api.yaml --key restApi
   ob source add my.obi.json openapi@3.1:./api.yaml
   ob source add my.obi.json openapi.json --delegate ob
-  ob source add my.obi.json usage@2.13.1:./cli.kdl --resolve content
+  ob source add my.obi.json usage@2.0.0:./cli.kdl --resolve content
   ob source add my.obi.json openapi@3.1:./api.yaml --uri https://cdn.example.com/api.yaml`,
 		Args: cobra.ExactArgs(2),
 		RunE: func(cmd *cobra.Command, args []string) error {
@@ -330,8 +330,11 @@ func newSourceRemoveCmd() *cobra.Command {
 		Short:   "Remove a source reference from an OBI",
 		Long: `Remove a binding source reference from an OpenBindings interface document.
 
-This removes only the source entry. Operations and bindings that reference
-this source are preserved — the user decides what to do with them.`,
+The source entry and the bindings that reference it are removed. Operations
+are always preserved — ones left with no bindings at all are listed in a
+warning so you can decide whether to keep, rebind, or remove them.
+
+Removing a source that is not registered succeeds with nothing removed.`,
 		Args: cobra.ExactArgs(2),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			result, err := app.SourceRemove(args[0], args[1])

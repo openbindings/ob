@@ -20,7 +20,7 @@ func newNewCmd() *cobra.Command {
 		Use:   "new <path>",
 		Short: "Create an empty OpenBindings interface document",
 		Long: `Create an empty OpenBindings interface document — only the core fields
-(openbindings, name, version) and an empty operations map.
+(openbindings, name, version, description) and an empty operations map.
 
 This is the authorship entry point. Populate the new interface with
 'ob operation add' (hand-authored ops), 'ob source add' + 'ob source pull'

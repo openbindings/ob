@@ -75,7 +75,7 @@
       }
     },
     "openbindings.ob.removeSource": {
-      "description": "Remove a source reference from an interface and return the modified interface.",
+      "description": "Remove a source reference and the bindings that reference it from an interface; operations are always preserved. Returns the modified interface.",
       "input": {
         "$ref": "#/schemas/SourceKeyInput"
       },
@@ -396,7 +396,7 @@
       }
     },
     "openbindings.ob.reportInterfaceStatus": {
-      "description": "Report an interface's status against its sources: per-source sync state (in-sync, managed, what a sync would change) and the managed-vs-hand-authored breakdown of its operations and bindings. Read-only \u2014 distinct from pullSource (which re-derives and writes) and from compareInterfaces with fromSources (which reports raw differences).",
+      "description": "Report an interface's status against its sources: per-source sync state (in-sync, tracked, what a pull would change) and the source-owned vs hand-authored breakdown of its operations and bindings. Read-only \u2014 distinct from pullSource (which re-derives and writes) and from compareInterfaces with fromSources (which reports raw differences).",
       "idempotent": true,
       "input": {
         "$ref": "#/schemas/InterfaceStatusInput"
@@ -552,6 +552,7 @@
     },
     "openbindings.ob.newInterface": {
       "description": "Create an empty interface document (core fields + empty operations map) and return it.",
+      "idempotent": true,
       "input": {
         "$ref": "#/schemas/NewInterfaceInput"
       },
@@ -2393,11 +2394,11 @@
       ],
       "additionalProperties": false
     },
-    "ManagedKeys": {
+    "ProvenanceKeys": {
       "type": "object",
-      "description": "Keys split by provenance: managed (derived from a source by pullSource) vs hand-authored.",
+      "description": "Keys split by provenance: source-owned (derived from a source by pullSource) vs hand-authored.",
       "properties": {
-        "managed": {
+        "sourceOwned": {
           "type": "array",
           "items": {
             "type": "string"
@@ -2495,8 +2496,9 @@
           "type": "boolean",
           "description": "Whether the source would change nothing and has no custodial drift."
         },
-        "managed": {
-          "type": "boolean"
+        "tracked": {
+          "type": "boolean",
+          "description": "Whether ob tracks this source via x-ob provenance metadata (written by addSource or synthesizeInterface). Untracked sources are hand-authored; pull skips them."
         },
         "lastSynced": {
           "type": "string"
@@ -2555,13 +2557,13 @@
         "key",
         "format",
         "inSync",
-        "managed"
+        "tracked"
       ],
       "additionalProperties": false
     },
     "InterfaceStatus": {
       "type": "object",
-      "description": "An interface's read-only status against its sources: per-source sync state plus the managed-vs-hand-authored breakdown of its operations and bindings.",
+      "description": "An interface's read-only status against its sources: per-source sync state plus the source-owned vs hand-authored breakdown of its operations and bindings.",
       "properties": {
         "name": {
           "type": "string"
@@ -2580,10 +2582,10 @@
           }
         },
         "operations": {
-          "$ref": "#/schemas/ManagedKeys"
+          "$ref": "#/schemas/ProvenanceKeys"
         },
         "bindings": {
-          "$ref": "#/schemas/ManagedKeys"
+          "$ref": "#/schemas/ProvenanceKeys"
         }
       },
       "required": [

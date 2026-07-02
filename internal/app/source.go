@@ -60,10 +60,9 @@ func (o SourceAddOutput) Render() string {
 	return sb.String()
 }
 
-// SourceListOutput represents the result of listing sources.
-type SourceListOutput struct {
-	Sources []SourceEntry `json:"sources"`
-}
+// SourceListOutput is the listSources wire output: a bare array of entries per
+// the contract's output schema (never null — a sourceless interface lists as []).
+type SourceListOutput []SourceEntry
 
 // SourceEntry is a single source in the list: the source as stored in the
 // interface, tagged with its key.
@@ -75,13 +74,13 @@ type SourceEntry struct {
 // Render returns a human-friendly representation.
 func (o SourceListOutput) Render() string {
 	s := Styles
-	if len(o.Sources) == 0 {
+	if len(o) == 0 {
 		return s.Dim.Render("No sources registered")
 	}
 	var sb strings.Builder
 	sb.WriteString(s.Header.Render("Sources"))
 	sb.WriteString("\n")
-	for _, src := range o.Sources {
+	for _, src := range o {
 		sb.WriteString("\n  ")
 		sb.WriteString(s.Key.Render(src.Key))
 		sb.WriteString(s.Dim.Render("  "))
@@ -236,10 +235,10 @@ func SourceAdd(input SourceAddInput) (SourceAddOutput, error) {
 func SourceList(obiPath string) (SourceListOutput, error) {
 	iface, err := loadInterfaceFile(obiPath)
 	if err != nil {
-		return SourceListOutput{}, fmt.Errorf("load OBI: %w", err)
+		return nil, fmt.Errorf("load OBI: %w", err)
 	}
 
-	var entries []SourceEntry
+	entries := SourceListOutput{}
 	for key, src := range iface.Sources {
 		entries = append(entries, SourceEntry{Key: key, Source: src})
 	}
@@ -247,7 +246,7 @@ func SourceList(obiPath string) (SourceListOutput, error) {
 	// Sort by key for deterministic output.
 	sortSourceEntries(entries)
 
-	return SourceListOutput{Sources: entries}, nil
+	return entries, nil
 }
 
 // SourceRemove removes a source reference and its bindings from an OBI file.

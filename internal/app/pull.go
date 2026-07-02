@@ -12,6 +12,20 @@ import (
 	openbindings "github.com/openbindings/openbindings-go"
 )
 
+// carryCodegenName copies an author-set codegen-name override from an existing
+// operation onto its freshly source-derived replacement. Pull owns the spec
+// fields a source produces, never this hint, so the override must survive
+// regeneration. A no-op when the existing operation carries no override.
+func carryCodegenName(existing openbindings.Operation, fresh *openbindings.Operation, opKey string, warnings *[]string) {
+	cn := GetCodegenName(existing.LosslessFields)
+	if cn == "" {
+		return
+	}
+	if err := SetCodegenName(&fresh.LosslessFields, cn); err != nil {
+		*warnings = append(*warnings, fmt.Sprintf("op %q: preserve codegen name: %v", opKey, err))
+	}
+}
+
 // SourcePullInput represents input for the `source pull` command.
 type SourcePullInput struct {
 	OBIPath    string   // path to the OBI file
@@ -67,6 +81,23 @@ func (o SourcePullOutput) Render() string {
 		sb.WriteString(s.Warning.Render("  warning: " + w))
 	}
 	return sb.String()
+}
+
+// renderKeyGroup appends a labeled section for updated/added keys to sb.
+func renderKeyGroup(sb *strings.Builder, s styles, label string, updated, added []string) {
+	if len(updated) == 0 && len(added) == 0 {
+		return
+	}
+	sb.WriteString("\n")
+	sb.WriteString(s.Dim.Render("  " + label + ": "))
+	parts := make([]string, 0, 2)
+	if len(updated) > 0 {
+		parts = append(parts, fmt.Sprintf("%d updated (%s)", len(updated), strings.Join(updated, ", ")))
+	}
+	if len(added) > 0 {
+		parts = append(parts, fmt.Sprintf("%d added (%s)", len(added), strings.Join(added, ", ")))
+	}
+	sb.WriteString(strings.Join(parts, ", "))
 }
 
 // SourceRefs returns the sorted, unique bindable refs a registered source
@@ -245,9 +276,9 @@ func pullSourceInto(iface *openbindings.Interface, sourceKey string, derived Der
 }
 
 // markSourceOwned records the source-derived snapshot as the object's x-ob base.
-// Its presence is the "source-owned" (managed) marker that pull, prune, and
-// status key on, and it is the base a later `merge --from-sources` reconciles
-// against. obj is the value being stored (op or binding).
+// Its presence is the "source-owned" marker that pull, prune, and status key
+// on, and it is the base a later `merge --from-sources` reconciles against.
+// obj is the value being stored (op or binding).
 func markSourceOwned(lossless *openbindings.LosslessFields, obj any, out *SourcePullOutput) {
 	fields, err := ObjectToFieldMap(obj)
 	if err != nil {
@@ -273,13 +304,10 @@ func sameContent(a, b any) bool {
 	return string(aj) == string(bj)
 }
 
-// reReadAndDerive re-reads a managed source, updates its x-ob metadata in the
+// reReadAndDerive re-reads a tracked source, updates its x-ob metadata in the
 // interface, and returns the operations/bindings it now derives. ok is false
 // (with a possible warning) when the source is hand-authored (no x-ob) or
 // cannot be read or derived.
-//
-// NOTE: this supersedes the inline per-source loop in sync.go; that loop is
-// removed when `sync` is retired (P2).
 func reReadAndDerive(iface *openbindings.Interface, key, obiDir string) (DeriveResult, bool, string) {
 	src := iface.Sources[key]
 	meta, err := GetSourceMeta(src)
@@ -340,4 +368,36 @@ func reReadAndDerive(iface *openbindings.Interface, key, obiDir string) (DeriveR
 		return DeriveResult{}, false, fmt.Sprintf("source %q: derive failed: %v", key, derr)
 	}
 	return derived, true, ""
+}
+
+// resolveTargetKeys returns the sorted list of source keys to pull.
+// If sourceKeys is empty, returns all source keys. If specified, validates they exist.
+func resolveTargetKeys(iface *openbindings.Interface, sourceKeys []string) ([]string, error) {
+	if len(sourceKeys) == 0 {
+		// All sources.
+		var keys []string
+		for k := range iface.Sources {
+			keys = append(keys, k)
+		}
+		sort.Strings(keys)
+		return keys, nil
+	}
+
+	// Validate requested keys exist.
+	for _, k := range sourceKeys {
+		if _, exists := iface.Sources[k]; !exists {
+			return nil, fmt.Errorf("source %q not found", k)
+		}
+	}
+	sorted := make([]string, len(sourceKeys))
+	copy(sorted, sourceKeys)
+	sort.Strings(sorted)
+	return sorted, nil
+}
+
+// needsLiveDiscovery reports whether a format derives by connecting to a live
+// endpoint (server reflection / tool listing) rather than reading a file.
+func needsLiveDiscovery(format string) bool {
+	name := strings.ToLower(strings.SplitN(format, "@", 2)[0])
+	return name == "mcp" || name == "grpc"
 }

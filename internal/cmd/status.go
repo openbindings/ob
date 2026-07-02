@@ -14,7 +14,7 @@ func newStatusCmd() *cobra.Command {
 		Long: `Report an OpenBindings interface's status against its registered sources:
 a per-source drift report (operations and bindings the sources would add,
 update, or remove, plus custodial drift on hand-authored bindings whose
-target is gone) with managed vs hand-authored breakdowns.
+target is gone) with source-owned vs hand-authored breakdowns.
 
 This is read-only — it never modifies the OBI. It is the preview of what
 'ob source pull' would apply.

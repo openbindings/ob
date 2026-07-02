@@ -11,9 +11,9 @@ import (
 	openbindings "github.com/openbindings/openbindings-go"
 )
 
-// A managed interface carrying x-ob at all four structural levels the stripper
+// A source-owned interface carrying x-ob at all four structural levels the stripper
 // touches: document root, each source, each operation, each binding.
-const managedFixture = `{
+const sourceOwnedFixture = `{
   "openbindings": "0.2.0",
   "name": "fixture",
   "version": "0.1.0",
@@ -34,7 +34,7 @@ const managedFixture = `{
 // (app.StripAllXOB) produces. If jsonata-go or the graph drifts, this fails.
 func TestPurifyGraphMatchesStripAllXOB(t *testing.T) {
 	var doc any
-	if err := json.Unmarshal([]byte(managedFixture), &doc); err != nil {
+	if err := json.Unmarshal([]byte(sourceOwnedFixture), &doc); err != nil {
 		t.Fatal(err)
 	}
 	result := app.InvokeOperationWithContext(context.Background(), app.InvokeOperationInput{
@@ -47,7 +47,7 @@ func TestPurifyGraphMatchesStripAllXOB(t *testing.T) {
 	}
 
 	var iface openbindings.Interface
-	if err := json.Unmarshal([]byte(managedFixture), &iface); err != nil {
+	if err := json.Unmarshal([]byte(sourceOwnedFixture), &iface); err != nil {
 		t.Fatal(err)
 	}
 	app.StripAllXOB(&iface)

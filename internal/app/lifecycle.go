@@ -42,9 +42,9 @@ func (o NewInterfaceOutput) Render() string {
 }
 
 // NewInterface creates an empty OpenBindings interface document — only the core
-// fields (openbindings, name, version) and an empty operations map. It is the
-// authorship entry point; populate it with `operation add` / `source add` /
-// `source pull` / `operation bind`.
+// fields (openbindings, name, version, description) and an empty operations
+// map. It is the authorship entry point; populate it with `operation add` /
+// `source add` / `source pull` / `operation bind`.
 func NewInterface(input NewInterfaceInput) (NewInterfaceOutput, error) {
 	if input.Path == "" {
 		return NewInterfaceOutput{}, fmt.Errorf("output path is required")

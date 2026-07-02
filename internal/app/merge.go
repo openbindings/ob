@@ -479,7 +479,7 @@ func applyMerge(target, source *openbindings.Interface, entries []MergeEntry, co
 
 		case MergeUnbind:
 			// Remove binding entries for this operation, but keep the operation.
-			// (Unbind entries are filtered out earlier when bindings aren't managed.)
+			// (Unbind entries are filtered out earlier when bindings aren't source-owned.)
 			for k, b := range target.Bindings {
 				if b.Operation == e.Operation {
 					delete(target.Bindings, k)

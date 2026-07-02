@@ -28,7 +28,7 @@ func TestOperationSetCodegenName_HandAuthored(t *testing.T) {
 	}
 }
 
-func TestOperationSetCodegenName_ManagedPreservesBaseAndStaysManaged(t *testing.T) {
+func TestOperationSetCodegenName_SourceOwnedPreservesBaseAndStaysSourceOwned(t *testing.T) {
 	dir := t.TempDir()
 	obiPath := writeInterface(t, dir, "t.obi.json", minimalInterface(map[string]any{
 		"getA": map[string]any{
@@ -45,7 +45,7 @@ func TestOperationSetCodegenName_ManagedPreservesBaseAndStaysManaged(t *testing.
 	lf := iface.Operations["getA"].LosslessFields
 	// Setting the hint must NOT detach a source-owned operation...
 	if !HasXOB(lf) {
-		t.Error("managed op should remain managed after a codegen-name change")
+		t.Error("source-owned op should remain source-owned after a codegen-name change")
 	}
 	// ...must preserve the merge base...
 	if base, _ := GetBase(lf); base == nil {
@@ -77,7 +77,7 @@ func TestOperationSetCodegenName_ClearRemovesEmptyXOB(t *testing.T) {
 		t.Error("codegen name should be cleared")
 	}
 	// A hand-authored op should not be left carrying a bare x-ob: {} marker,
-	// which would misreport it as sync-managed.
+	// which would misreport it as source-owned.
 	if HasXOB(lf) {
 		t.Error("clearing the only x-ob field should remove x-ob entirely")
 	}

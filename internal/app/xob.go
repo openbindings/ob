@@ -81,9 +81,9 @@ func HasXOB(lf openbindings.LosslessFields) bool {
 }
 
 // IsSourceOwned reports whether an operation or binding is owned by a source
-// (produced by `ob create`/`ob source pull`/`ob sync`), and therefore may be
-// overwritten by a future pull. This is the "managed, not hand-authored" signal
-// the pull/sync guards and edit gates key on.
+// (produced by `ob synthesize`/`ob source pull`), and therefore may be
+// overwritten by a future pull. This is the "source-owned, not hand-authored"
+// signal the pull guards and edit gates key on.
 //
 // Source ownership is carried by the x-ob *base snapshot* (or a bare legacy
 // `x-ob: {}` marker), NOT by the mere presence of x-ob. An operation whose only
@@ -96,7 +96,7 @@ func IsSourceOwned(lf openbindings.LosslessFields) bool {
 	}
 	xob, err := getOpBindingXOB(lf)
 	if err != nil {
-		return true // malformed x-ob: treat as managed (conservative)
+		return true // malformed x-ob: treat as source-owned (conservative)
 	}
 	if xob.CodegenName != "" && xob.Base == nil {
 		return false // codegen-name-only: authoring intent, not source ownership
@@ -104,7 +104,7 @@ func IsSourceOwned(lf openbindings.LosslessFields) bool {
 	return true
 }
 
-// SetXOB writes an empty x-ob: {} onto a LosslessFields object, marking it as managed.
+// SetXOB writes an empty x-ob: {} onto a LosslessFields object, marking it as source-owned.
 func SetXOB(lf *openbindings.LosslessFields) {
 	if lf.Extensions == nil {
 		lf.Extensions = map[string]json.RawMessage{}
@@ -112,15 +112,16 @@ func SetXOB(lf *openbindings.LosslessFields) {
 	lf.Extensions[xobKey] = json.RawMessage(`{}`)
 }
 
-// OpBindingXOB is the x-ob metadata stored on managed operations and bindings.
-// It holds the base snapshot from the last sync for three-way merge, plus any
-// author-set codegen name override (operations only).
+// OpBindingXOB is the x-ob metadata stored on source-owned operations and
+// bindings. It holds the base snapshot from the last pull for three-way merge,
+// plus any author-set codegen name override (operations only).
 type OpBindingXOB struct {
 	Base map[string]json.RawMessage `json:"base,omitempty"`
 	// CodegenName overrides the symbol name emitted by `ob codegen` for this
-	// operation. It is authoring intent, orthogonal to sync: sync owns the
-	// spec fields derived from a source, never this hint, so the merge paths
-	// carry it forward. Bindings never set it (codegen is per-operation).
+	// operation. It is authoring intent, orthogonal to source ownership: the
+	// source owns the spec fields it derives, never this hint, so the pull and
+	// merge paths carry it forward. Bindings never set it (codegen is
+	// per-operation).
 	CodegenName string `json:"codegenName,omitempty"`
 }
 
@@ -144,7 +145,7 @@ func getOpBindingXOB(lf openbindings.LosslessFields) (OpBindingXOB, error) {
 // setOpBindingXOB writes the x-ob struct onto an operation/binding. When the
 // struct is empty (no base, no codegen name) the x-ob key is removed entirely
 // rather than left as a bare {} — a lingering empty marker would misreport a
-// hand-authored object as sync-managed.
+// hand-authored object as source-owned.
 func setOpBindingXOB(lf *openbindings.LosslessFields, xob OpBindingXOB) error {
 	if xob.Base == nil && xob.CodegenName == "" {
 		if lf.Extensions != nil {
@@ -163,7 +164,7 @@ func setOpBindingXOB(lf *openbindings.LosslessFields, xob OpBindingXOB) error {
 	return nil
 }
 
-// GetBase extracts the base snapshot from a managed object's x-ob metadata.
+// GetBase extracts the base snapshot from a source-owned object's x-ob metadata.
 // Returns nil (no error) if x-ob exists but has no base (e.g. legacy x-ob: {}).
 func GetBase(lf openbindings.LosslessFields) (map[string]json.RawMessage, error) {
 	xob, err := getOpBindingXOB(lf)
@@ -173,8 +174,8 @@ func GetBase(lf openbindings.LosslessFields) (map[string]json.RawMessage, error)
 	return xob.Base, nil
 }
 
-// SetBase stores a base snapshot in a managed object's x-ob metadata,
-// preserving any existing codegen-name override (sync must not clobber it).
+// SetBase stores a base snapshot in a source-owned object's x-ob metadata,
+// preserving any existing codegen-name override (a pull must not clobber it).
 func SetBase(lf *openbindings.LosslessFields, base map[string]json.RawMessage) error {
 	xob, err := getOpBindingXOB(*lf)
 	if err != nil {
