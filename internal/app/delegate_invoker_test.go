@@ -8,6 +8,8 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -294,5 +296,109 @@ func TestDelegateBindingInvoker_NoInvokeOperation(t *testing.T) {
 	}
 	if !strings.Contains(err.Error(), "invokeBinding") {
 		t.Errorf("error should name the missing operation, got: %v", err)
+	}
+}
+
+// TestDelegateCLIInvoker_ExecChainRoundTrip drives the invoke capability's
+// exec path as one live chain: DelegateBindingInvoker resolves the op by
+// full key + alias, delegateCLIInvoker applies the binding's machine-lane
+// inputTransform (verbatim what boundgen emits — pinned against the real
+// bound OBI by TestGenerateBoundCLI_AttachesWireInputTransforms), the usage
+// invoker builds argv from the embedded spec, and a real subprocess receives
+// `binding invoke --input <json>` and answers on stdout.
+func TestDelegateCLIInvoker_ExecChainRoundTrip(t *testing.T) {
+	dir := t.TempDir()
+	cliPath := filepath.Join(dir, "fixture-cli")
+	script := `#!/bin/sh
+if [ "$1" = "binding" ] && [ "$2" = "invoke" ] && [ "$3" = "--input" ]; then
+  printf '{"output":{"received":%s}}\n' "$4"
+  exit 0
+fi
+echo "unexpected argv: $*" >&2
+exit 1
+`
+	if err := os.WriteFile(cliPath, []byte(script), 0o755); err != nil {
+		t.Fatal(err)
+	}
+
+	usageSpec := "min_usage_version \"2.0.0\"\nname \"fixture\"\nbin \"" + cliPath + "\"\n" +
+		"cmd \"binding\" subcommand_required=#true {\n" +
+		"  cmd \"invoke\" opKey=\"invokeBinding\" {\n" +
+		"    flag \"--input <json>\"\n  }\n}\n"
+
+	resolved := delegates.Resolved{
+		Format:   "thrift@1.0",
+		Delegate: "exec:fixture",
+		Location: "exec:" + cliPath,
+		OBI: &delegates.ResolvedOBI{Interface: openbindings.Interface{
+			OpenBindings: "0.2.0",
+			Operations: map[string]openbindings.Operation{
+				"openbindings.ob.invokeBinding": {Aliases: []string{"openbindings.binding-invoker.invokeBinding"}},
+			},
+			Sources: map[string]openbindings.Source{
+				"usage": {Format: "usage@2.0.0", Content: usageSpec},
+			},
+			Bindings: map[string]openbindings.BindingEntry{
+				"openbindings.ob.invokeBinding.usage": {
+					Operation:      "openbindings.ob.invokeBinding",
+					Source:         "usage",
+					Ref:            "binding invoke",
+					InputTransform: &openbindings.TransformOrRef{Inline: `{ "input": $string($$) }`},
+				},
+			},
+		}},
+	}
+
+	invoker, err := DelegateBindingInvoker(resolved)
+	if err != nil {
+		t.Fatalf("DelegateBindingInvoker: %v", err)
+	}
+	if _, ok := invoker.(*delegateCLIInvoker); !ok {
+		t.Fatalf("expected the CLI invoker, got %T", invoker)
+	}
+
+	ctx := t.Context()
+	inv := invoker.InvokeBinding(ctx, &openbindings.BindingInvocationArgs{
+		Source: openbindings.InvocationSource{Format: "thrift@1.0", Location: "service.thrift"},
+		Ref:    "Service/method",
+	})
+	if werr := inv.Write(ctx, map[string]any{"limit": 10}); werr != nil {
+		t.Fatalf("write: %v", werr)
+	}
+	if cerr := inv.Close(); cerr != nil {
+		t.Fatalf("close: %v", cerr)
+	}
+
+	out := inv.Outputs()
+	v, rerr := out.Read(ctx)
+	if rerr != nil {
+		t.Fatalf("read: %v", rerr)
+	}
+
+	// The fixture echoes the --input payload it received: the JSON-serialized
+	// InvokeOperationInput the transform produced. Its round-tripping proves
+	// every link — transform, argv build, exec, stdout parse — held.
+	top, ok := v.(map[string]any)
+	if !ok {
+		t.Fatalf("output = %#v, want an object", v)
+	}
+	received, ok := top["output"].(map[string]any)["received"].(map[string]any)
+	if !ok {
+		t.Fatalf("no received payload in %#v", v)
+	}
+	if received["ref"] != "Service/method" {
+		t.Errorf("ref = %v, want Service/method", received["ref"])
+	}
+	src, _ := received["source"].(map[string]any)
+	if src["format"] != "thrift@1.0" || src["location"] != "service.thrift" {
+		t.Errorf("source = %#v, want thrift@1.0 / service.thrift", src)
+	}
+	input, _ := received["input"].(map[string]any)
+	if input["limit"] != float64(10) {
+		t.Errorf("input = %#v, want {limit: 10}", input)
+	}
+
+	if _, rerr := out.Read(ctx); !errors.Is(rerr, io.EOF) {
+		t.Fatalf("expected EOF, got %v", rerr)
 	}
 }
