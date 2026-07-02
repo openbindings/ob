@@ -143,3 +143,52 @@ func TestOperationUnbind_NotFound(t *testing.T) {
 		t.Fatal("expected error: no such binding")
 	}
 }
+
+// TestOperationDetach_SurgicalBaseRemoval: detaching an operation whose x-ob
+// carries a real base snapshot removes the x-ob key entirely (no
+// {"base":null} or bare {} residue, which would misreport it as
+// source-owned), while an author-set codegenName override keeps the x-ob
+// alive with exactly that field.
+func TestOperationDetach_SurgicalBaseRemoval(t *testing.T) {
+	dir := t.TempDir()
+
+	// Base only: x-ob disappears wholesale.
+	obiPath := writeInterface(t, dir, "base-only.obi.json", minimalInterface(map[string]any{
+		"getA": map[string]any{
+			"description": "d",
+			"x-ob":        map[string]any{"base": map[string]any{"description": "d"}},
+		},
+	}))
+	if _, err := OperationDetach(obiPath, "getA"); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	iface, _ := loadInterfaceFile(obiPath)
+	if HasXOB(iface.Operations["getA"].LosslessFields) {
+		t.Error("base-only op should carry no x-ob at all after detach")
+	}
+
+	// Base + codegenName: ownership goes, the override stays.
+	obiPath = writeInterface(t, dir, "base-and-name.obi.json", minimalInterface(map[string]any{
+		"getB": map[string]any{
+			"description": "d",
+			"x-ob": map[string]any{
+				"base":        map[string]any{"description": "d"},
+				"codegenName": "fetchB",
+			},
+		},
+	}))
+	if _, err := OperationDetach(obiPath, "getB"); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	iface, _ = loadInterfaceFile(obiPath)
+	lf := iface.Operations["getB"].LosslessFields
+	if IsSourceOwned(lf) {
+		t.Error("getB should be hand-authored after detach")
+	}
+	if got := GetCodegenName(lf); got != "fetchB" {
+		t.Errorf("codegenName override should survive detach, got %q", got)
+	}
+	if base, _ := GetBase(lf); base != nil {
+		t.Error("base snapshot should be gone after detach")
+	}
+}

@@ -9,18 +9,25 @@ import (
 	openbindings "github.com/openbindings/openbindings-go"
 )
 
-// clearXOB strips a LosslessFields object's source provenance, converting a
-// source-owned (managed) object into a hand-authored one. An author-set
-// codegenName override is preserved: it is authoring intent, not sync
-// ownership, and should survive detach.
-func clearXOB(lf *openbindings.LosslessFields) {
-	name := GetCodegenName(*lf)
-	if lf.Extensions != nil {
-		delete(lf.Extensions, xobKey)
+// clearSourceOwnership converts a source-owned object into a hand-authored
+// one by dropping the x-ob base snapshot — the field that IS ownership —
+// and nothing else. Author-set metadata (codegenName) is untouched by
+// construction, and any future OpBindingXOB field survives by default: add
+// handling here only for fields that are provenance. When nothing remains,
+// setOpBindingXOB removes the x-ob key entirely (a bare {} would misreport
+// the object as source-owned).
+func clearSourceOwnership(lf *openbindings.LosslessFields) error {
+	xob, err := getOpBindingXOB(*lf)
+	if err != nil {
+		// Malformed x-ob cannot be surgically edited; shed it wholesale so a
+		// corrupt marker cannot keep an object source-owned after detach.
+		if lf.Extensions != nil {
+			delete(lf.Extensions, xobKey)
+		}
+		return nil
 	}
-	if name != "" {
-		_ = SetCodegenName(lf, name)
-	}
+	xob.Base = nil
+	return setOpBindingXOB(lf, xob)
 }
 
 // --- Detach ---
@@ -50,7 +57,9 @@ func OperationDetach(obiPath, op string) (OperationDetachOutput, error) {
 	if !IsSourceOwned(operation.LosslessFields) {
 		return OperationDetachOutput{}, fmt.Errorf("operation %q is already hand-authored (not source-owned)", key)
 	}
-	clearXOB(&operation.LosslessFields)
+	if err := clearSourceOwnership(&operation.LosslessFields); err != nil {
+		return OperationDetachOutput{}, fmt.Errorf("clear source ownership: %w", err)
+	}
 	iface.Operations[key] = operation
 	if err := WriteInterfaceFile(obiPath, iface); err != nil {
 		return OperationDetachOutput{}, fmt.Errorf("write OBI: %w", err)
@@ -104,7 +113,9 @@ func OperationSet(input OperationSetInput) (OperationSetOutput, error) {
 				"operation %q is source-owned; an edit would be overwritten by the next 'ob source pull'.\n"+
 					"Pass --own to take ownership (detach) before editing, or edit the source instead", key)
 		}
-		clearXOB(&op.LosslessFields)
+		if err := clearSourceOwnership(&op.LosslessFields); err != nil {
+			return OperationSetOutput{}, fmt.Errorf("clear source ownership: %w", err)
+		}
 	}
 
 	if input.Description != nil {
