@@ -591,6 +591,12 @@ func resolveJSONPointer(root map[string]any, ref string) (any, bool) {
 	return cur, true
 }
 
+// typeFindingKind classifies a change to a schema's "type". The
+// integer/number pair keeps its direction-nuanced kinds; growing or shrinking
+// a type set is widened/narrowed; any other change — including an outright
+// scalar swap like string→integer — is type.changed, breaking in both
+// directions. Type present on only one side stays unflagged (an untyped
+// schema is a deliberate accept-anything, common at intermediate levels).
 func typeFindingKind(left, right any) string {
 	ls, lok := left.(string)
 	rs, rok := right.(string)
@@ -601,20 +607,51 @@ func typeFindingKind(left, right any) string {
 		case ls == "number" && rs == "integer":
 			return "type.number_to_integer"
 		default:
-			return ""
+			return "type.changed"
 		}
 	}
-	la, lok := stringArray(left)
-	ra, rok := stringArray(right)
+	la, lok := typeSet(left)
+	ra, rok := typeSet(right)
 	if lok && rok {
-		if len(ra) < len(la) {
+		switch {
+		case typeSubset(ra, la) && typeSubset(la, ra):
+			return "" // same set, different order or form — not a change
+		case typeSubset(ra, la):
 			return "type.set.narrowed"
-		}
-		if len(ra) > len(la) {
+		case typeSubset(la, ra):
 			return "type.set.widened"
+		default:
+			return "type.changed"
 		}
 	}
 	return ""
+}
+
+// typeSet normalizes a schema "type" value — a scalar or an array of strings —
+// to a set. ok is false when the value is absent or not a type value.
+func typeSet(v any) (map[string]bool, bool) {
+	if s, ok := v.(string); ok {
+		return map[string]bool{s: true}, true
+	}
+	arr, ok := stringArray(v)
+	if !ok {
+		return nil, false
+	}
+	set := make(map[string]bool, len(arr))
+	for _, s := range arr {
+		set[s] = true
+	}
+	return set, true
+}
+
+// typeSubset reports whether every member of a is in b.
+func typeSubset(a, b map[string]bool) bool {
+	for k := range a {
+		if !b[k] {
+			return false
+		}
+	}
+	return true
 }
 
 func enumFindings(ptr, direction string, left, right any) []Finding {
@@ -728,6 +765,11 @@ func projectedCategory(kind, direction string) ([]string, string) {
 		return []string{"structural"}, "error"
 	case "unverified.regex_containment", "unverified.external_ref":
 		return []string{"non_breaking"}, "warn"
+	case "type.changed":
+		// A type swap breaks both directions: the candidate rejects inputs the
+		// contract defines AND returns outputs the contract consumer does not
+		// expect.
+		return []string{"breaking"}, "error"
 	case "required.added", "object.additional_properties.disabled", "numeric.minimum.tightened", "type.number_to_integer", "type.set.narrowed":
 		if direction == "input" {
 			return []string{"breaking"}, "error"

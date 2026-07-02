@@ -1,0 +1,141 @@
+{
+  "version": "ob-comparison-fixture/v1",
+  "description": "Input schema swaps a property type outright (string to integer); breaking in both directions, so the verdict is incompatible.",
+  "left": {
+    "openbindings": "0.2.0",
+    "operations": {
+      "greet": {
+        "input": {
+          "type": "object",
+          "properties": {
+            "name": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "name"
+          ]
+        }
+      }
+    }
+  },
+  "right": {
+    "openbindings": "0.2.0",
+    "operations": {
+      "greet": {
+        "input": {
+          "type": "object",
+          "properties": {
+            "name": {
+              "type": "integer"
+            }
+          },
+          "required": [
+            "name"
+          ]
+        }
+      }
+    }
+  },
+  "mode": "subsume",
+  "options": {
+    "profile": "OB-2020-12"
+  },
+  "expected": {
+    "bindings": [],
+    "format_version": "ob-comparison-report/v1",
+    "generated_at": "<generated_at>",
+    "inputs": {
+      "left": {
+        "content_sha256": "116f06b6410630d28582e9a9c60293c76ae8f2352c9e6f2330bd41916dfdedc4",
+        "label": "left",
+        "source": "file",
+        "uri": "<input.left.uri>"
+      },
+      "right": {
+        "content_sha256": "edab948917437eb123d7da075427d155577ab74f39f3f8cbcd9c1098778a97b6",
+        "label": "right",
+        "source": "file",
+        "uri": "<input.right.uri>"
+      }
+    },
+    "metadata": [],
+    "mode": "subsume",
+    "operations": [
+      {
+        "findings": [
+          {
+            "after": "integer",
+            "before": "string",
+            "category": [
+              "breaking"
+            ],
+            "kind": "type.changed",
+            "location": {
+              "pointer": "/operations/greet/input/properties/name/type",
+              "side": "right"
+            },
+            "severity": "error"
+          }
+        ],
+        "input": {
+          "direction": "input",
+          "reasons": [
+            {
+              "kind": "type.changed",
+              "pointer": "/operations/greet/input/properties/name/type",
+              "side": "right"
+            }
+          ],
+          "verdict": "incompatible"
+        },
+        "left": {
+          "key": "greet",
+          "pointer": "/operations/greet"
+        },
+        "match": {
+          "left": "greet",
+          "right": "greet",
+          "strategy": "direct"
+        },
+        "right": {
+          "key": "greet",
+          "pointer": "/operations/greet"
+        },
+        "status": "paired"
+      }
+    ],
+    "profile": "OB-2020-12@<corpus-sha>",
+    "schemas": [],
+    "security": [],
+    "sources": [],
+    "summary": {
+      "categories": {
+        "breaking": 1,
+        "compliance": 0,
+        "non_breaking": 0,
+        "structural": 0
+      },
+      "counts": {
+        "type.changed": 1
+      },
+      "coverage": {
+        "only_left": 0,
+        "only_right": 0,
+        "paired": 1,
+        "paired_via": {
+          "alias": 0,
+          "direct": 1
+        },
+        "total_operations": 1
+      },
+      "verdict": "incompatible"
+    },
+    "suppressed": [],
+    "tool": {
+      "name": "ob",
+      "version": "<tool.version>"
+    },
+    "transforms": []
+  }
+}

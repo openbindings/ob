@@ -7,7 +7,6 @@ import (
 	"strings"
 
 	openbindings "github.com/openbindings/openbindings-go"
-	"github.com/openbindings/openbindings-go/schemaprofile"
 )
 
 // ConformInput specifies the interface to satisfy and the target OBI to
@@ -153,10 +152,22 @@ func Conform(input ConformInput, confirm func(op string, action string) bool) Co
 		targetIface.Operations = make(map[string]openbindings.Operation)
 	}
 
-	// Compare contract operations against the target. Correspondence is by the
-	// spec's key+alias resolution (OBI-T-12): the contract is the "target" in
-	// compat terms (what we need to fulfill), our OBI is the "candidate".
-	reports := compareOps(contractIface, targetIface)
+	// Compare contract operations against the target via the v1 comparison
+	// engine — the same pairing (OBI-T-12 key+alias resolution) and schema
+	// verdicts `ob compat` reports, so conform and compat can never disagree.
+	// The contract rides the left side (what must be satisfied), the target
+	// OBI the right.
+	deltas := compareOperationDeltas(
+		resolvedComparisonInput{iface: contractIface},
+		resolvedComparisonInput{iface: targetIface},
+		"subsume",
+	)
+	deltaByContractOp := map[string]OperationDelta{}
+	for _, d := range deltas {
+		if d.Left != nil {
+			deltaByContractOp[d.Left.Key] = d
+		}
+	}
 
 	modified := false
 
@@ -170,16 +181,8 @@ func Conform(input ConformInput, confirm func(op string, action string) bool) Co
 	for _, opName := range contractOpKeys {
 		contractOp := contractIface.Operations[opName]
 
-		// Find the matching report.
-		var report *OperationReport
-		for i := range reports {
-			if reports[i].Operation == opName {
-				report = &reports[i]
-				break
-			}
-		}
-
-		if report == nil || !report.Matched {
+		delta, ok := deltaByContractOp[opName]
+		if !ok || delta.Status != "paired" {
 			// Operation not found in target — scaffold it.
 			shouldScaffold := input.Yes || confirm(opName, "scaffold")
 			if !shouldScaffold {
@@ -202,7 +205,7 @@ func Conform(input ConformInput, confirm func(op string, action string) bool) Co
 			continue
 		}
 
-		if report.Compatible {
+		if !deltaNeedsWork(delta) {
 			// Already conformant.
 			output.Actions = append(output.Actions, ConformAction{
 				Operation: opName,
@@ -211,8 +214,8 @@ func Conform(input ConformInput, confirm func(op string, action string) bool) Co
 			continue
 		}
 
-		// Matched but incompatible — offer to replace.
-		details := strings.Join(report.Details, "; ")
+		// Paired but not affirmatively compatible — offer to replace.
+		details := deltaDetails(delta)
 		shouldReplace := input.Yes || confirm(opName, fmt.Sprintf("replace (%s)", details))
 		if !shouldReplace {
 			output.Actions = append(output.Actions, ConformAction{
@@ -224,12 +227,10 @@ func Conform(input ConformInput, confirm func(op string, action string) bool) Co
 		}
 
 		if !input.DryRun {
-			// Find the actual operation key in the target (might differ via alias matching).
-			targetOpKey := findTargetOpKey(opName, contractOp, targetIface)
-			if targetOpKey != "" {
-				replaceOperationSchemas(targetIface, targetOpKey, opName, contractOp, contractIface)
-				modified = true
-			}
+			// The engine's pairing names the target key that satisfies this
+			// contract operation (it differs when matched via alias).
+			replaceOperationSchemas(targetIface, delta.Right.Key, opName, contractOp, contractIface)
+			modified = true
 		}
 		output.Actions = append(output.Actions, ConformAction{
 			Operation: opName,
@@ -315,34 +316,6 @@ func replaceOperationSchemas(target *openbindings.Interface, opKey string, contr
 	target.Operations[opKey] = op
 }
 
-// findTargetOpKey finds the key in the target's operations map that
-// corresponds to the given contract operation, by the spec's key+alias
-// resolution (OBI-T-12).
-func findTargetOpKey(contractOpName string, contractOp openbindings.Operation, target *openbindings.Interface) string {
-	// Direct key match.
-	if _, ok := target.Operations[contractOpName]; ok {
-		return contractOpName
-	}
-
-	// The contract operation's aliases against target keys.
-	for _, alias := range contractOp.Aliases {
-		if _, ok := target.Operations[alias]; ok {
-			return alias
-		}
-	}
-
-	// Target operations carrying the contract name as an alias.
-	for k, op := range target.Operations {
-		for _, alias := range op.Aliases {
-			if alias == contractOpName {
-				return k
-			}
-		}
-	}
-
-	return contractOpName // fallback
-}
-
 // copySchema copies a JSON Schema from the contract interface to the target,
 // including any $ref'd schemas from the contract's schemas pool.
 func copySchema(schema openbindings.JSONSchema, contractIface, target *openbindings.Interface) openbindings.JSONSchema {
@@ -417,185 +390,39 @@ func copyNestedRefs(schema openbindings.JSONSchema, contractIface, target *openb
 	}
 }
 
-// --- operation-level compatibility engine ---
-//
-// conform decides scaffold/replace/compatible per contract operation by
-// checking the target's matched operation slot-by-slot. This engine implements
-// the spec's slot semantics (compatible / incompatible / unspecified) over
-// normalized schemas; the full report convention lives in comparison.go.
+// --- conform's compatibility gate over the v1 comparison engine ---
 
-// SlotStatus represents the compatibility status of a single schema slot
-// per the spec: compatible, incompatible, or unspecified.
-type SlotStatus string
-
-const (
-	SlotCompatible   SlotStatus = "compatible"
-	SlotIncompatible SlotStatus = "incompatible"
-	SlotUnspecified  SlotStatus = "unspecified"
-)
-
-// OperationReport reports compatibility for a single operation, including
-// per-slot status as required by the spec.
-type OperationReport struct {
-	Operation string `json:"operation"`
-
-	// Matched is true if a matching operation exists in the candidate.
-	Matched bool `json:"matched"`
-
-	// Per-slot status: compatible, incompatible, or unspecified.
-	Input  SlotStatus `json:"input,omitempty"`
-	Output SlotStatus `json:"output,omitempty"`
-
-	// Details provides human-readable context for incompatible or error slots.
-	// Distinguishes schema incompatibility from normalization/analysis failures.
-	Details []string `json:"details,omitempty"`
-
-	// Compatible is true when the operation fully passes all applicable checks.
-	Compatible bool `json:"compatible"`
+// slotNeedsWork reports whether a slot verdict fails to affirm compatibility.
+// incompatible is real drift; unverified (e.g. regex containment, external
+// $ref) and indeterminate (comparison impossible) also count — conform
+// reporting "compatible" on a slot it could not verify would be a silent lie.
+func slotNeedsWork(sc *SchemaCompatibility) bool {
+	return sc != nil && verdictRank(sc.Verdict) >= verdictRank("unverified")
 }
 
-// compareOps checks each target operation against the candidate per the spec.
-func compareOps(target, candidate *openbindings.Interface) []OperationReport {
-	// Sort operation keys for deterministic output.
-	opKeys := make([]string, 0, len(target.Operations))
-	for k := range target.Operations {
-		opKeys = append(opKeys, k)
-	}
-	sort.Strings(opKeys)
+// deltaNeedsWork reports whether a paired operation needs a schema replace.
+func deltaNeedsWork(d OperationDelta) bool {
+	return slotNeedsWork(d.Input) || slotNeedsWork(d.Output)
+}
 
-	tgtRoot := buildNormalizerRoot(target)
-	candRoot := buildNormalizerRoot(candidate)
-
-	var reports []OperationReport
-	for _, opName := range opKeys {
-		tgtOp := target.Operations[opName]
-
-		// Operation matching per spec (OBI-T-12): key/alias resolution.
-		candOp, matched := matchOperation(opName, tgtOp, candidate)
-
-		if !matched {
-			reports = append(reports, OperationReport{
-				Operation:  opName,
-				Matched:    false,
-				Compatible: false,
-			})
+// deltaDetails renders the not-affirmed slots of a paired delta for the
+// replace prompt and action details, e.g.
+// "input incompatible: schema.required.added /operations/set/input/required".
+func deltaDetails(d OperationDelta) string {
+	var parts []string
+	for _, sc := range []*SchemaCompatibility{d.Input, d.Output} {
+		if !slotNeedsWork(sc) {
 			continue
 		}
-
-		report := buildOperationReport(opName, tgtOp, candOp, tgtRoot, candRoot)
-		reports = append(reports, report)
-	}
-
-	return reports
-}
-
-// matchOperation finds the candidate operation corresponding to a target
-// operation by the spec's key+alias resolution (OBI-T-12): the key and aliases
-// form one flat namespace, and a name matches if it equals the candidate's key
-// or appears in its aliases (in either direction). Correspondence to a shared
-// contract is declared purely by aliases (spec OBI-T-12).
-func matchOperation(name string, tgtOp openbindings.Operation, candidate *openbindings.Interface) (openbindings.Operation, bool) {
-	// Direct key match.
-	if op, ok := candidate.Operations[name]; ok {
-		return op, true
-	}
-
-	// Check target aliases against candidate keys.
-	for _, alias := range tgtOp.Aliases {
-		if op, ok := candidate.Operations[alias]; ok {
-			return op, true
+		detail := sc.Direction + " " + sc.Verdict
+		var reasons []string
+		for _, r := range sc.Reasons {
+			reasons = append(reasons, r.Kind+" "+r.Pointer)
 		}
-	}
-
-	// Check candidate aliases against target key.
-	for _, candOp := range candidate.Operations {
-		for _, alias := range candOp.Aliases {
-			if alias == name {
-				return candOp, true
-			}
+		if len(reasons) > 0 {
+			detail += ": " + strings.Join(reasons, ", ")
 		}
+		parts = append(parts, detail)
 	}
-
-	return openbindings.Operation{}, false
-}
-
-// buildOperationReport compares schemas for a matched operation pair.
-func buildOperationReport(
-	name string,
-	tgtOp, candOp openbindings.Operation,
-	tgtRoot, candRoot map[string]any,
-) OperationReport {
-	report := OperationReport{
-		Operation: name,
-		Matched:   true,
-	}
-
-	tgtNorm := &schemaprofile.Normalizer{Root: tgtRoot}
-	candNorm := &schemaprofile.Normalizer{Root: candRoot}
-
-	var details []string
-
-	var detail string
-	report.Input, detail = slotCompat("input", tgtOp.Input, candOp.Input, tgtNorm, candNorm, true)
-	if detail != "" {
-		details = append(details, detail)
-	}
-	report.Output, detail = slotCompat("output", tgtOp.Output, candOp.Output, tgtNorm, candNorm, false)
-	if detail != "" {
-		details = append(details, detail)
-	}
-
-	report.Details = details
-
-	report.Compatible =
-		report.Input != SlotIncompatible &&
-			report.Output != SlotIncompatible
-
-	return report
-}
-
-// slotCompat evaluates a single schema slot (input, output, or payload).
-// Returns the status and, for incompatible slots, a human-readable detail
-// that distinguishes normalization failures from genuine schema mismatches.
-func slotCompat(
-	slotName string,
-	tgtSchema, candSchema map[string]any,
-	tgtNorm, candNorm *schemaprofile.Normalizer,
-	isInput bool,
-) (SlotStatus, string) {
-	// Unspecified if either side omits the schema.
-	if tgtSchema == nil || candSchema == nil {
-		return SlotUnspecified, ""
-	}
-
-	// Normalize both schemas (resolves $ref, strips annotations, flattens allOf).
-	tgtNormalized, err := tgtNorm.Normalize(tgtSchema)
-	if err != nil {
-		return SlotIncompatible, fmt.Sprintf("%s: target schema could not be normalized: %v", slotName, err)
-	}
-	candNormalized, err := candNorm.Normalize(candSchema)
-	if err != nil {
-		return SlotIncompatible, fmt.Sprintf("%s: candidate schema could not be normalized: %v", slotName, err)
-	}
-
-	// Compare with a fresh normalizer (schemas are already normalized,
-	// $refs resolved — empty root is fine).
-	n := &schemaprofile.Normalizer{Root: map[string]any{}}
-	var ok bool
-	var reason string
-	if isInput {
-		ok, reason, err = n.InputCompatible(tgtNormalized, candNormalized)
-	} else {
-		ok, reason, err = n.OutputCompatible(tgtNormalized, candNormalized)
-	}
-	if err != nil {
-		return SlotIncompatible, fmt.Sprintf("%s: compatibility check error: %v", slotName, err)
-	}
-	if !ok {
-		if reason != "" {
-			return SlotIncompatible, fmt.Sprintf("%s: incompatible: %s", slotName, reason)
-		}
-		return SlotIncompatible, fmt.Sprintf("%s: incompatible", slotName)
-	}
-	return SlotCompatible, ""
+	return strings.Join(parts, "; ")
 }

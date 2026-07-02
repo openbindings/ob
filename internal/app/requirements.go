@@ -79,17 +79,24 @@ func delegateCapabilities(delegate *openbindings.Interface) []DelegateCapability
 }
 
 // satisfiesInterface reports whether the candidate conforms to every operation
-// the requirement interface declares (each matched and compatible). This is the
-// same key+alias resolution and schema check `ob compat` uses (OBI-T-12).
+// the requirement interface declares (each paired and affirmatively
+// compatible). This runs the v1 comparison engine — the same pairing
+// (OBI-T-12 key+alias resolution) and schema verdicts `ob compat` reports.
 func satisfiesInterface(candidate, requirement *openbindings.Interface) bool {
-	reports := compareOps(requirement, candidate)
-	if len(reports) == 0 {
-		return false
-	}
-	for _, r := range reports {
-		if !r.Matched || !r.Compatible {
+	deltas := compareOperationDeltas(
+		resolvedComparisonInput{iface: requirement},
+		resolvedComparisonInput{iface: candidate},
+		"subsume",
+	)
+	satisfied := false
+	for _, d := range deltas {
+		if d.Left == nil {
+			continue // only_right: candidate operations beyond the requirement are fine
+		}
+		if d.Status != "paired" || deltaNeedsWork(d) {
 			return false
 		}
+		satisfied = true
 	}
-	return true
+	return satisfied
 }

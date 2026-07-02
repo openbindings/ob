@@ -31,6 +31,7 @@ The first tranche covers high-risk direction-sensitive and undecidable cases:
 - required properties across input/output variance
 - additionalProperties input rejection
 - number/integer narrowing across input/output variance
+- outright scalar type swap as breaking in both directions
 - numeric bound tightening in output
 - enum value addition in output
 - regex containment as `unverified`
