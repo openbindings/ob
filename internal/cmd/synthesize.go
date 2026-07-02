@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"encoding/json"
 	"fmt"
 
 	"github.com/openbindings/ob/internal/app"
@@ -13,6 +14,7 @@ func newSynthesizeCmd() *cobra.Command {
 		version     string
 		description string
 		obVersion   string
+		inputJSON   string
 	)
 
 	cmd := &cobra.Command{
@@ -33,30 +35,46 @@ synthesize is the one-shot derivation. It is also the operation a
 synthesize-capable delegate performs for formats ob does not natively
 support.
 
+Machine callers pass the operation's wire input wholesale instead:
+--input takes a SynthesizeInterfaceInput as a JSON string (exclusive with
+source arguments and metadata flags; formats must be explicit).
+
 Examples:
   ob synthesize openapi.json -o api.obi.json
   ob synthesize usage@2.0.0:./cli.kdl?name=cli --name "Acme CLI"
-  ob synthesize api.yaml?embed --name "Acme API" --version 1.0.0`,
+  ob synthesize api.yaml?embed --name "Acme API" --version 1.0.0
+  ob synthesize --input '{"sources":[{"format":"openapi@3.1","location":"api.yaml"}]}'`,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			input := app.SynthesizeInterfaceInput{
-				OpenBindingsVersion: obVersion,
-				Name:                name,
-				Version:             version,
-				Description:         description,
-			}
-			for _, s := range args {
-				src, err := app.ParseSource(s)
-				if err != nil {
-					return app.ExitResult{Code: 2, Message: fmt.Sprintf("source %q: %v", s, err), ToStderr: true}
+			var input app.SynthesizeInterfaceInput
+
+			if inputJSON != "" {
+				if len(args) > 0 || name != "" || version != "" || description != "" || obVersion != "" {
+					return app.ExitResult{Code: 2, Message: "--input is exclusive with source arguments and metadata flags", ToStderr: true}
 				}
-				if src.Format == "" {
-					detected, derr := app.DetectSourceFormat(src.Location)
-					if derr != nil {
-						return app.ExitResult{Code: 2, Message: derr.Error(), ToStderr: true}
+				if err := json.Unmarshal([]byte(inputJSON), &input); err != nil {
+					return app.ExitResult{Code: 2, Message: fmt.Sprintf("parse --input: %v", err), ToStderr: true}
+				}
+			} else {
+				input = app.SynthesizeInterfaceInput{
+					OpenBindingsVersion: obVersion,
+					Name:                name,
+					Version:             version,
+					Description:         description,
+				}
+				for _, s := range args {
+					src, err := app.ParseSource(s)
+					if err != nil {
+						return app.ExitResult{Code: 2, Message: fmt.Sprintf("source %q: %v", s, err), ToStderr: true}
 					}
-					src.Format = detected
+					if src.Format == "" {
+						detected, derr := app.DetectSourceFormat(src.Location)
+						if derr != nil {
+							return app.ExitResult{Code: 2, Message: derr.Error(), ToStderr: true}
+						}
+						src.Format = detected
+					}
+					input.Sources = append(input.Sources, src)
 				}
-				input.Sources = append(input.Sources, src)
 			}
 
 			iface, err := app.SynthesizeInterface(input)
@@ -65,6 +83,10 @@ Examples:
 			}
 
 			format, outputPath := getOutputFlags(cmd)
+			if inputJSON != "" && format == "" {
+				// Machine lane: wire input in, wire-shaped output out.
+				format = "json"
+			}
 			return app.OutputResult(iface, format, outputPath)
 		},
 	}
@@ -73,6 +95,7 @@ Examples:
 	cmd.Flags().StringVar(&version, "version", "", "interface version")
 	cmd.Flags().StringVar(&description, "description", "", "interface description")
 	cmd.Flags().StringVar(&obVersion, "openbindings", "", "target OpenBindings spec version (default: latest tested)")
+	cmd.Flags().StringVar(&inputJSON, "input", "", "SynthesizeInterfaceInput as a JSON string (machine lane)")
 
 	return cmd
 }

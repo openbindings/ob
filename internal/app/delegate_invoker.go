@@ -44,10 +44,20 @@ func DelegateBindingInvoker(resolved delegates.Resolved) (openbindings.BindingIn
 	}
 	iface := &resolved.OBI.Interface
 
+	// Resolve the delegate's own key for the invoke operation by key or alias
+	// (OBI-T-12): a delegate may name it bare ("invokeBinding"), under its own
+	// namespace with the published alias (ob's bound OBI:
+	// "openbindings.ob.invokeBinding"), or any key aliased to the
+	// binding-invoker interface.
+	invokeKey, ok := delegateOpKey(iface, invokeOpNames...)
+	if !ok {
+		return nil, fmt.Errorf("delegate %q does not carry an invokeBinding operation (by key or alias)", resolved.Delegate)
+	}
+
 	var frameBinding, cliBinding *openbindings.BindingEntry
 	for _, key := range sortedBindingKeys(iface) {
 		b := iface.Bindings[key]
-		if b.Operation != "invokeBinding" {
+		if b.Operation != invokeKey {
 			continue
 		}
 		source, ok := iface.Sources[b.Source]

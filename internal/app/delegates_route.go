@@ -23,6 +23,7 @@ import (
 var (
 	synthesizeOpNames = []string{"openbindings.interface-synthesizer.synthesizeInterface", "synthesizeInterface"}
 	inspectOpNames    = []string{"openbindings.source-inspector.inspectSource", "inspectSource"}
+	invokeOpNames     = []string{"openbindings.binding-invoker.invokeBinding", "invokeBinding"}
 )
 
 // delegateOpKey finds the key in a delegate's OBI for an abstract operation,

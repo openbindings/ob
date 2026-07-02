@@ -1,6 +1,7 @@
 package app
 
 import (
+	"encoding/json"
 	"strings"
 	"testing"
 
@@ -137,5 +138,59 @@ func TestGenerateBoundCLI_BindsOpsByShortName(t *testing.T) {
 	}
 	if src.Content == nil || src.Location != "" {
 		t.Errorf("expected embedded usage content and no location, got content=%v location=%q", src.Content != nil, src.Location)
+	}
+}
+
+// TestGenerateBoundCLI_AttachesWireInputTransforms: commands declaring
+// wireInput in usage.kdl carry a machine-lane inputTransform that JSON-
+// serializes the operation's wire input into the named flag, so generic
+// operation-invocation of the bound CLI OBI produces argv the CLI parses.
+func TestGenerateBoundCLI_AttachesWireInputTransforms(t *testing.T) {
+	bound, err := GenerateBoundCLI("../../ob.obi.json", "../cmd/usage.kdl", "usage@"+usage.MaxTestedVersion)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	wire := map[string]any{
+		"source": map[string]any{"format": "openapi@3.1", "location": "api.yaml"},
+		"ref":    "#/x",
+	}
+	for _, short := range []string{"invokeBinding", "prepareBinding", "synthesizeInterface", "inspectSource"} {
+		key := "openbindings.ob." + short + ".usage"
+		b, ok := bound.Bindings[key]
+		if !ok {
+			t.Errorf("%s: binding missing", key)
+			continue
+		}
+		if b.InputTransform == nil {
+			t.Errorf("%s: expected a machine-lane inputTransform", key)
+			continue
+		}
+		out, terr := ApplyTransform(bound.Transforms, b.InputTransform, wire)
+		if terr != nil {
+			t.Errorf("%s: transform failed: %v", key, terr)
+			continue
+		}
+		m, ok := out.(map[string]any)
+		if !ok {
+			t.Errorf("%s: transform produced %T, want an object", key, out)
+			continue
+		}
+		s, ok := m["input"].(string)
+		if !ok || len(m) != 1 {
+			t.Errorf("%s: expected exactly {input: <json string>}, got %#v", key, m)
+			continue
+		}
+		var roundTrip map[string]any
+		if uerr := json.Unmarshal([]byte(s), &roundTrip); uerr != nil {
+			t.Errorf("%s: --input payload is not JSON: %v", key, uerr)
+			continue
+		}
+		if roundTrip["ref"] != "#/x" {
+			t.Errorf("%s: payload did not round-trip: %#v", key, roundTrip)
+		}
+	}
+	// Ops without wireInput stay on plain field-name mapping.
+	if b := bound.Bindings["openbindings.ob.describe.usage"]; b.InputTransform != nil {
+		t.Error("describe: unexpected inputTransform on a non-machine-lane binding")
 	}
 }

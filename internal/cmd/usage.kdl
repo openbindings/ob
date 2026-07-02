@@ -134,17 +134,19 @@ cmd "meta" help="Manage interface-level metadata" subcommand_required=true {
   }
 }
 
-cmd "inspect" help="Inspect a binding source and list its bindable targets" opKey="inspectSource" {
+cmd "inspect" help="Inspect a binding source and list its bindable targets" opKey="inspectSource" wireInput="input" {
+  flag "--input <json>" help="InspectSourceInput as a JSON string (machine lane; exclusive with <source>)"
   flag "-o --output <path>" help="Write output to file"
   flag "-F --format <format>" help="Output format: json|yaml|text"
-  arg "<source>" help="Binding source as [format:]path[?options] (e.g., openapi.json)"
+  arg "[source]" help="Binding source as [format:]path[?options] (e.g., openapi.json)"
 }
 
-cmd "synthesize" help="Synthesize an interface from binding sources" opKey="synthesizeInterface" {
+cmd "synthesize" help="Synthesize an interface from binding sources" opKey="synthesizeInterface" wireInput="input" {
   flag "--name <name>" help="Interface name"
   flag "--version <version>" help="Interface version"
   flag "--description <desc>" help="Interface description"
   flag "--openbindings <version>" help="Target OpenBindings spec version (default: latest tested)"
+  flag "--input <json>" help="SynthesizeInterfaceInput as a JSON string (machine lane; exclusive with sources and metadata flags)"
   flag "-o --output <path>" help="Write output to file"
   flag "-F --format <format>" help="Output format: json|yaml|text"
   arg "[source]..." help="Binding sources as [format:]path[?options] (none: empty interface)"
@@ -312,12 +314,12 @@ cmd "operation" help="Manage and invoke operations on an OBI" subcommand_require
 }
 
 cmd "binding" help="Low-level binding operations" subcommand_required=true {
-  cmd "invoke" help="Invoke a resolved binding (machine-to-machine)" opKey="invokeBinding" {
+  cmd "invoke" help="Invoke a resolved binding (machine-to-machine)" opKey="invokeBinding" wireInput="input" {
     flag "--input <json>" help="BindingInvocationInput as a JSON string"
     flag "-o --output <path>" help="Write output to file"
     flag "-F --format <format>" help="Output format: json|yaml|text"
   }
-  cmd "prepare" help="Preflight a resolved binding (machine-to-machine)" opKey="prepareBinding" {
+  cmd "prepare" help="Preflight a resolved binding (machine-to-machine)" opKey="prepareBinding" wireInput="input" {
     flag "--input <json>" help="BindingInvocationInput as a JSON string"
     flag "-o --output <path>" help="Write output to file"
     flag "-F --format <format>" help="Output format: json|yaml|text"

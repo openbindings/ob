@@ -2,6 +2,8 @@ package cmd
 
 import (
 	"context"
+	"encoding/json"
+	"fmt"
 
 	"github.com/openbindings/ob/internal/app"
 	openbindings "github.com/openbindings/openbindings-go"
@@ -9,8 +11,10 @@ import (
 )
 
 func newInspectCmd() *cobra.Command {
+	var inputJSON string
+
 	cmd := &cobra.Command{
-		Use:   "inspect <source>",
+		Use:   "inspect [source]",
 		Short: "Inspect a binding source and list its bindable targets",
 		Long: `Inspect a binding source artifact and report the bindable targets it
 contains, without creating an interface. Use it to preview the operations
@@ -18,28 +22,53 @@ that "ob source pull" would derive from a spec.
 
 Source format: [format:]path[?option...]  (same form as "ob source add")
 
+Machine callers pass the operation's wire input wholesale instead:
+--input takes an InspectSourceInput as a JSON string (exclusive with the
+<source> argument; the source's format must be explicit).
+
 Examples:
   ob inspect openapi.json
   ob inspect usage@2.13.1:./cli.kdl
-  ob inspect https://api.example.com/openapi.json`,
-		Args: cobra.ExactArgs(1),
+  ob inspect https://api.example.com/openapi.json
+  ob inspect --input '{"source":{"format":"openapi@3.1","location":"api.yaml"}}'`,
+		Args: cobra.MaximumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			parsed, err := app.ParseSource(args[0])
-			if err != nil {
-				return app.ExitResult{Code: 2, Message: err.Error(), ToStderr: true}
-			}
-			if parsed.Format == "" {
-				detected, derr := app.DetectSourceFormat(parsed.Location)
-				if derr != nil {
-					return app.ExitResult{Code: 2, Message: derr.Error(), ToStderr: true}
-				}
-				parsed.Format = detected
-			}
+			var source *openbindings.Source
 
-			source := &openbindings.Source{
-				Format:      parsed.Format,
-				Location:    parsed.Location,
-				Description: parsed.Description,
+			switch {
+			case inputJSON != "":
+				if len(args) > 0 {
+					return app.ExitResult{Code: 2, Message: "--input is exclusive with the <source> argument", ToStderr: true}
+				}
+				var wire struct {
+					Source *openbindings.Source `json:"source"`
+				}
+				if err := json.Unmarshal([]byte(inputJSON), &wire); err != nil {
+					return app.ExitResult{Code: 2, Message: fmt.Sprintf("parse --input: %v", err), ToStderr: true}
+				}
+				if wire.Source == nil {
+					return app.ExitResult{Code: 2, Message: "--input: source is required", ToStderr: true}
+				}
+				source = wire.Source
+			case len(args) == 1:
+				parsed, err := app.ParseSource(args[0])
+				if err != nil {
+					return app.ExitResult{Code: 2, Message: err.Error(), ToStderr: true}
+				}
+				if parsed.Format == "" {
+					detected, derr := app.DetectSourceFormat(parsed.Location)
+					if derr != nil {
+						return app.ExitResult{Code: 2, Message: derr.Error(), ToStderr: true}
+					}
+					parsed.Format = detected
+				}
+				source = &openbindings.Source{
+					Format:      parsed.Format,
+					Location:    parsed.Location,
+					Description: parsed.Description,
+				}
+			default:
+				return app.ExitResult{Code: 2, Message: "provide a <source> argument or --input", ToStderr: true}
 			}
 
 			inspection, err := app.InspectSource(context.Background(), source)
@@ -48,10 +77,17 @@ Examples:
 			}
 
 			format, outputPath := getOutputFlags(cmd)
+			if inputJSON != "" && format == "" {
+				// Machine lane: wire input in, wire-shaped output out.
+				format = "json"
+			}
 			return app.OutputResultText(inspection, format, outputPath, func() string {
 				return app.RenderSourceInspection(source.Format, source.Location, inspection)
 			})
 		},
 	}
+
+	cmd.Flags().StringVar(&inputJSON, "input", "", "InspectSourceInput as a JSON string (machine lane)")
+
 	return cmd
 }

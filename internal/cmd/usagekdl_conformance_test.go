@@ -31,6 +31,10 @@ import (
 //   - opKey drift: kdl opKey missing from the contract (orphan), duplicated,
 //     a kdl leaf with no opKey, or a contract op no kdl command binds
 //     (phantom — the syncInterface bug class)
+//   - wireInput coherence: a wireInput prop (machine lane: the operation's
+//     whole wire input rides the named flag as JSON; boundgen emits the
+//     matching inputTransform) must name a value-taking flag declared on
+//     the same command
 //
 // Excluded: cobra builtins (help, completion) and the root meta-flags
 // (--openbindings, --usage-spec), which are CLI plumbing, not operations.
@@ -137,6 +141,18 @@ func TestUsageKDLMatchesCommandTree(t *testing.T) {
 		if kc.args != cc.args {
 			addf("command %q: arg arity mismatch (kdl %s, cobra Use %s)", path, kc.args, cc.args)
 		}
+
+		// wireInput coherence.
+		if kc.wireInput != "" {
+			if kc.opKey == "" {
+				addf("command %q: wireInput without an opKey (nothing to transform)", path)
+			}
+			if f, ok := kc.flags[kc.wireInput]; !ok {
+				addf("command %q: wireInput %q names no flag on the command", path, kc.wireInput)
+			} else if !f.takesValue {
+				addf("command %q: wireInput flag --%s must take a value", path, kc.wireInput)
+			}
+		}
 	}
 
 	// Phantom ops: contract operations no CLI command binds.
@@ -173,6 +189,7 @@ type cliCommand struct {
 	flags              map[string]flagInfo
 	args               arity
 	opKey              string
+	wireInput          string
 	subcommands        []string
 	subcommandRequired bool
 }
@@ -183,6 +200,7 @@ func collectKDLCommands(spec *usage.Spec) map[string]cliCommand {
 		c := cliCommand{
 			flags:              map[string]flagInfo{},
 			opKey:              cmd.Node.Props["opKey"].String(),
+			wireInput:          cmd.Node.Props["wireInput"].String(),
 			subcommandRequired: cmd.SubcommandRequired,
 		}
 		for _, sub := range cmd.Commands {

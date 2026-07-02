@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	openbindings "github.com/openbindings/openbindings-go"
+	"github.com/openbindings/openbindings-go/formats/usage"
 )
 
 // GenerateBoundCLI builds the bound CLI realization of ob's interface: the
@@ -49,6 +50,28 @@ func GenerateBoundCLI(contractPath, usagePath, usageFormat string) (*openbinding
 		return nil, fmt.Errorf("embed usage source: %w", err)
 	}
 
+	// Machine-lane transforms. A usage.kdl command may declare
+	// wireInput="<flag>", meaning the command carries the operation's whole
+	// wire input as one JSON string in that flag (the `binding invoke --input`
+	// pattern). For those bindings we attach an inputTransform that JSON-
+	// serializes the operation input into the flag, so generic operation-
+	// invocation — in particular a registrar operation-invoking ob as an exec
+	// delegate — produces argv the CLI actually parses. Ops without wireInput
+	// rely on the usage transport's field-name mapping, which only carries
+	// flat, scalar-shaped inputs.
+	spec, err := usage.ParseKDL(usageData)
+	if err != nil {
+		return nil, fmt.Errorf("parse usage spec: %w", err)
+	}
+	wireInputByShort := map[string]string{}
+	spec.Walk(func(_ []string, cmd usage.Command) {
+		opKey := cmd.Node.Props["opKey"].String()
+		flag := cmd.Node.Props["wireInput"].String()
+		if opKey != "" && flag != "" {
+			wireInputByShort[opKey] = flag
+		}
+	})
+
 	bound := &openbindings.Interface{
 		OpenBindings: contract.OpenBindings,
 		Name:         contract.Name,
@@ -71,11 +94,20 @@ func GenerateBoundCLI(contractPath, usagePath, usageFormat string) (*openbinding
 			unbound = append(unbound, key)
 			continue
 		}
-		bound.Bindings[key+".usage"] = openbindings.BindingEntry{
+		be := openbindings.BindingEntry{
 			Operation: key,
 			Source:    "usage",
 			Ref:       ref,
 		}
+		if flag, ok := wireInputByShort[short]; ok {
+			// $$ (the root of the operation input), not $: inside an object
+			// constructor the context is a sequence, and $string would
+			// serialize a one-element array.
+			be.InputTransform = &openbindings.TransformOrRef{
+				Inline: fmt.Sprintf("{ %q: $string($$) }", flag),
+			}
+		}
+		bound.Bindings[key+".usage"] = be
 	}
 	// Operations with no CLI command (e.g. nothing in usage.kdl) stay unbound;
 	// that's expected, not an error.

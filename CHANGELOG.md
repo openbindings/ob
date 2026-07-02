@@ -141,9 +141,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
   conformance test (`TestUsageKDLMatchesCommandTree`) cross-references the
   cobra tree, `usage.kdl`, and the root contract so the three CLI surfaces
   can no longer drift apart silently.
+- **The bound CLI OBI is now operation-invocable for the delegate
+  capabilities** (machine lane). Structured wire inputs cannot ride the usage
+  transport's field-name→flag mapping, so commands realizing structured ops
+  declare `wireInput="input"` in `usage.kdl` and `ob --openbindings` now
+  attaches a generated `inputTransform` that JSON-serializes the operation's
+  wire input into `--input`. `ob synthesize` and `ob inspect` gained `--input`
+  (SynthesizeInterfaceInput / InspectSourceInput as a JSON string, exclusive
+  with the human lane) and default to wire-shaped JSON output on that lane;
+  `ob binding invoke` / `ob binding prepare` were already machine-shaped.
+  Registering `exec:ob` as a delegate now works end-to-end for synthesize,
+  inspect, and invoke.
 
 ### Fixed
 
+- Delegate invoke-binding selection matched only the bare `invokeBinding`
+  operation key, so it never found the operation in ob's own bound OBI
+  (full contract keys) or in delegates using the own-key + published-alias
+  convention (OBI-T-12). It now resolves the delegate's key by key or alias,
+  like the synthesize/inspect router already did.
+- `synthesizeInterface` silently dropped `content`-provided sources (the wire
+  schema's alternative to `location`) on every machine path, including
+  `POST /interfaces/synthesize`: the app-layer input struct had no content
+  field. Content sources now synthesize and embed correctly.
 - `ob codegen` previously generated client code that called `c.Execute(...)`
   in Go and `this.client.execute(...)` in TypeScript. After the spec 0.2.0
   rename those SDK methods became `Invoke` / `invoke`, and the generated

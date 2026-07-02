@@ -234,3 +234,65 @@ func TestResolveFrameEndpoint(t *testing.T) {
 		t.Error("expected an error for an unknown operation ref")
 	}
 }
+
+// TestDelegateBindingInvoker_MatchesKeyOrAlias covers the OBI-T-12 matching
+// rules: a delegate may carry invokeBinding under its own namespaced key with
+// the published alias (ob's bound CLI OBI does), or under any key aliased to
+// the binding-invoker interface — not just the bare short-name.
+func TestDelegateBindingInvoker_MatchesKeyOrAlias(t *testing.T) {
+	cases := []struct {
+		name string
+		key  string
+	}{
+		{"full contract key with alias", "openbindings.ob.invokeBinding"},
+		{"custom key with alias", "acme.tool.callBinding"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			resolved := delegates.Resolved{
+				Format:   "thrift@1.0",
+				Delegate: "exec:acme",
+				Location: "exec:acme",
+				OBI: &delegates.ResolvedOBI{Interface: openbindings.Interface{
+					OpenBindings: "0.2.0",
+					Operations: map[string]openbindings.Operation{
+						tc.key: {Aliases: []string{"openbindings.binding-invoker.invokeBinding"}},
+					},
+					Sources: map[string]openbindings.Source{
+						"usage": {Format: "usage@2.0.0", Content: "cmd \"binding\" { cmd \"invoke\" { } }"},
+					},
+					Bindings: map[string]openbindings.BindingEntry{
+						tc.key + ".usage": {Operation: tc.key, Source: "usage", Ref: "binding invoke"},
+					},
+				}},
+			}
+			invoker, err := DelegateBindingInvoker(resolved)
+			if err != nil {
+				t.Fatalf("DelegateBindingInvoker: %v", err)
+			}
+			if _, ok := invoker.(*delegateCLIInvoker); !ok {
+				t.Fatalf("expected the CLI invoker, got %T", invoker)
+			}
+		})
+	}
+}
+
+// TestDelegateBindingInvoker_NoInvokeOperation: an OBI that does not carry
+// the invoke operation at all (by key or alias) errors before binding
+// selection, with a message naming the missing operation.
+func TestDelegateBindingInvoker_NoInvokeOperation(t *testing.T) {
+	resolved := delegates.Resolved{
+		Delegate: "exec:acme",
+		OBI: &delegates.ResolvedOBI{Interface: openbindings.Interface{
+			OpenBindings: "0.2.0",
+			Operations:   map[string]openbindings.Operation{"somethingElse": {}},
+		}},
+	}
+	_, err := DelegateBindingInvoker(resolved)
+	if err == nil {
+		t.Fatal("expected an error for a delegate without an invokeBinding operation")
+	}
+	if !strings.Contains(err.Error(), "invokeBinding") {
+		t.Errorf("error should name the missing operation, got: %v", err)
+	}
+}

@@ -20,23 +20,27 @@ const (
 )
 
 // SynthesizeInterfaceSource represents a source for interface creation.
+// The json tags realize the wire contract's SynthesizeInterfaceSource schema
+// (interface-synthesizer requirement), so machine callers — the serve route,
+// `ob synthesize --input`, delegate invocations — decode without an adapter.
 type SynthesizeInterfaceSource struct {
-	Format         string
-	Location       string
-	Name           string // key in sources
-	OutputLocation string
-	Description    string
-	Embed          bool
-	Delegate       string // delegate identifier to store in x-ob
+	Format         string `json:"format"`
+	Location       string `json:"location,omitempty"`
+	Name           string `json:"name,omitempty"` // key in sources
+	Content        any    `json:"content,omitempty"`
+	OutputLocation string `json:"outputLocation,omitempty"`
+	Description    string `json:"description,omitempty"`
+	Embed          bool   `json:"embed,omitempty"`
+	Delegate       string `json:"-"` // delegate identifier to store in x-ob; not part of the wire contract
 }
 
 // SynthesizeInterfaceInput represents input for the synthesizeInterface operation.
 type SynthesizeInterfaceInput struct {
-	OpenBindingsVersion string
-	Sources             []SynthesizeInterfaceSource
-	Name                string
-	Version             string
-	Description         string
+	OpenBindingsVersion string                      `json:"openbindingsVersion,omitempty"`
+	Sources             []SynthesizeInterfaceSource `json:"sources,omitempty"`
+	Name                string                      `json:"name,omitempty"`
+	Version             string                      `json:"version,omitempty"`
+	Description         string                      `json:"description,omitempty"`
 }
 
 // RenderInterface returns a human-friendly summary of a created interface.
@@ -255,6 +259,7 @@ func processSource(iface *openbindings.Interface, src SynthesizeInterfaceSource,
 			{
 				Format:   src.Format,
 				Location: src.Location,
+				Content:  src.Content,
 			},
 		},
 	})
@@ -325,7 +330,7 @@ func mergeGeneratedSource(iface *openbindings.Interface, generated *openbindings
 
 	// Determine resolve mode and build x-ob metadata.
 	var resolveMode string
-	if src.Embed {
+	if src.Embed || src.Content != nil {
 		resolveMode = ResolveModeContent
 	} else {
 		resolveMode = ResolveModeLocation
@@ -342,14 +347,19 @@ func mergeGeneratedSource(iface *openbindings.Interface, generated *openbindings
 		meta.URI = src.OutputLocation
 	}
 
-	if src.Embed {
+	switch {
+	case src.Content != nil:
+		// Content provided directly on the wire (SynthesizeInterfaceSource
+		// content, the schema's alternative to location): carry it inline.
+		bsrc.Content = src.Content
+	case src.Embed:
 		// Read and embed content.
 		content, err := readEmbedContent(src.Location)
 		if err != nil {
 			return fmt.Errorf("embed content: %w", err)
 		}
 		bsrc.Content = content
-	} else {
+	default:
 		// Use outputLocation if provided, otherwise input location.
 		if src.OutputLocation != "" {
 			bsrc.Location = src.OutputLocation
