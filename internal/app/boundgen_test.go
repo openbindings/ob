@@ -12,12 +12,13 @@ import (
 // OBI (internal/app/ob.obi.json) must conform to the unbound contract
 // (../../ob.obi.json). If it fails, regenerate with `go generate ./internal/app`.
 func TestBoundCLIConformsToContract(t *testing.T) {
-	report := CompatibilityCheck(CompatInput{Target: "../../ob.obi.json", Candidate: "ob.obi.json"})
+	report := ComparisonCheck(ComparisonInput{Left: "../../ob.obi.json", Right: "ob.obi.json"})
 	if report.Error != nil {
 		t.Fatalf("compat error: %s", report.Error.Message)
 	}
-	if !report.Compatible {
-		t.Fatalf("internal/app/ob.obi.json no longer conforms to the contract — run `go generate ./internal/app`")
+	if report.Summary.Verdict != "compatible" {
+		t.Fatalf("internal/app/ob.obi.json no longer conforms to the contract (verdict %s) — run `go generate ./internal/app`",
+			report.Summary.Verdict)
 	}
 }
 
@@ -28,14 +29,14 @@ func TestBoundCLIConformsToContract(t *testing.T) {
 // fails on any drift — a divergent schema, or an operation serve exposes that
 // the contract doesn't define. If it fails, run `go generate ./internal/app`.
 func TestBoundServeConformsToContract(t *testing.T) {
-	report := CompatibilityCheck(CompatInput{Target: "../server/serve.obi.json", Candidate: "../../ob.obi.json"})
+	report := ComparisonCheck(ComparisonInput{Left: "../server/serve.obi.json", Right: "../../ob.obi.json"})
 	if report.Error != nil {
 		t.Fatalf("compat error: %s", report.Error.Message)
 	}
-	if !report.Compatible {
+	if report.Summary.Verdict != "compatible" {
 		t.Fatalf("internal/server/serve.obi.json no longer conforms to the contract "+
-			"(%d/%d ops compatible) — run `go generate ./internal/app`",
-			report.Coverage.Compatible, report.Coverage.Total)
+			"(verdict %s, %d/%d ops paired) — run `go generate ./internal/app`",
+			report.Summary.Verdict, report.Summary.Coverage.Paired, report.Summary.Coverage.TotalOperations)
 	}
 }
 

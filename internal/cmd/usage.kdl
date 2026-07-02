@@ -356,7 +356,7 @@ cmd "merge" help="Selectively apply changes from one OBI into another" opKey="me
 
 cmd "validate" help="Validate an OpenBindings interface document" opKey="validateInterface" {
   flag "-q --quiet" help="Exit code only, no output"
-  flag "--strict" help="Reject unknown fields and require supported version"
+  flag "--strict" help="Additionally reject unknown (non-x-) fields"
   flag "-o --output <path>" help="Write output to file"
   flag "-F --format <format>" help="Output format: json|yaml|text"
   arg "<locator>" help="File path, HTTP(S) URL, or exec: locator"
@@ -370,7 +370,7 @@ cmd "compat" help="Check interface conformance between two interfaces" opKey="re
   arg "<candidate>" help="Candidate interface (locator)"
 }
 
-cmd "conform" help="Scaffold a target OBI so it satisfies a reference interface" opKey="conform" {
+cmd "conform" help="Scaffold or update operations so the target satisfies another interface" opKey="conform" {
   flag "-y --yes" help="Auto-accept all scaffolding and replacements"
   flag "--dry-run" help="Preview changes without modifying files"
   flag "-o --output <path>" help="Write output to file"

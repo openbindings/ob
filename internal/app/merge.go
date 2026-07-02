@@ -67,14 +67,17 @@ type MergeInput struct {
 	PromptFunc MergePromptFunc
 }
 
-// MergeOutput is the result of a merge operation.
+// MergeOutput is the result of a merge operation. On the wire it realizes the
+// contract's MergeResult: the merged document rides the `interface` key (set
+// when the target came in as an inline document; the CLI writes a file
+// instead).
 type MergeOutput struct {
 	Entries  []MergeEntry            `json:"entries"`
 	Applied  int                     `json:"applied"`
 	Skipped  int                     `json:"skipped"`
 	Warnings []string                `json:"warnings,omitempty"`
 	DryRun   bool                    `json:"dryRun,omitempty"`
-	Result   *openbindings.Interface `json:"result,omitempty"`
+	Result   *openbindings.Interface `json:"interface,omitempty"`
 }
 
 // Render returns a human-friendly representation.
@@ -292,6 +295,11 @@ func Merge(input MergeInput) (MergeOutput, error) {
 	}
 
 	sort.Strings(warnings)
+
+	// Wire shape: entries is always an array, never null.
+	if entries == nil {
+		entries = []MergeEntry{}
+	}
 
 	out := MergeOutput{
 		Entries:  entries,

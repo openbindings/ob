@@ -5,6 +5,8 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+
+	openbindings "github.com/openbindings/openbindings-go"
 )
 
 // writeInterface writes a minimal OpenBindings interface JSON to a temp file.
@@ -30,10 +32,24 @@ func minimalInterface(ops map[string]any) map[string]any {
 	}
 }
 
-func TestCompatibilityCheck_IdenticalInterfaces(t *testing.T) {
-	dir := t.TempDir()
+// ifaceFromMap builds an in-memory interface from a raw map via JSON round-trip.
+func ifaceFromMap(t *testing.T, m map[string]any) *openbindings.Interface {
+	t.Helper()
+	data, err := json.Marshal(m)
+	if err != nil {
+		t.Fatalf("marshal: %v", err)
+	}
+	var iface openbindings.Interface
+	if err := json.Unmarshal(data, &iface); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+	return &iface
+}
 
-	iface := minimalInterface(map[string]any{
+// --- operation-level compatibility engine (conform's scaffold/replace gate) ---
+
+func TestCompareOps_IdenticalInterfaces(t *testing.T) {
+	m := minimalInterface(map[string]any{
 		"greet": map[string]any{
 			"input": map[string]any{
 				"type": "object",
@@ -51,22 +67,12 @@ func TestCompatibilityCheck_IdenticalInterfaces(t *testing.T) {
 		},
 	})
 
-	target := writeInterface(t, dir, "target.json", iface)
-	candidate := writeInterface(t, dir, "candidate.json", iface)
+	reports := compareOps(ifaceFromMap(t, m), ifaceFromMap(t, m))
 
-	report := CompatibilityCheck(CompatInput{Target: target, Candidate: candidate})
-
-	if report.Error != nil {
-		t.Fatalf("unexpected error: %v", report.Error.Message)
+	if len(reports) != 1 {
+		t.Fatalf("expected 1 operation, got %d", len(reports))
 	}
-	if !report.Compatible {
-		t.Errorf("expected compatible, got incompatible")
-	}
-	if len(report.Operations) != 1 {
-		t.Fatalf("expected 1 operation, got %d", len(report.Operations))
-	}
-
-	op := report.Operations[0]
+	op := reports[0]
 	if op.Operation != "greet" {
 		t.Errorf("expected operation 'greet', got %q", op.Operation)
 	}
@@ -84,40 +90,19 @@ func TestCompatibilityCheck_IdenticalInterfaces(t *testing.T) {
 	}
 }
 
-func TestCompatibilityCheck_MissingOperation(t *testing.T) {
-	dir := t.TempDir()
-
-	target := writeInterface(t, dir, "target.json", minimalInterface(map[string]any{
-		"greet": map[string]any{
-			"input": map[string]any{"type": "object"},
-		},
-		"farewell": map[string]any{
-			"input": map[string]any{"type": "object"},
-		},
+func TestCompareOps_MissingOperation(t *testing.T) {
+	target := ifaceFromMap(t, minimalInterface(map[string]any{
+		"greet":    map[string]any{"input": map[string]any{"type": "object"}},
+		"farewell": map[string]any{"input": map[string]any{"type": "object"}},
+	}))
+	candidate := ifaceFromMap(t, minimalInterface(map[string]any{
+		"greet": map[string]any{"input": map[string]any{"type": "object"}},
 	}))
 
-	candidate := writeInterface(t, dir, "candidate.json", minimalInterface(map[string]any{
-		"greet": map[string]any{
-			"input": map[string]any{"type": "object"},
-		},
-	}))
+	reports := compareOps(target, candidate)
 
-	report := CompatibilityCheck(CompatInput{Target: target, Candidate: candidate})
-
-	if report.Error != nil {
-		t.Fatalf("unexpected error: %v", report.Error.Message)
-	}
-	if report.Compatible {
-		t.Error("expected incompatible (missing operation)")
-	}
-	// 1 of 2 matched and compatible → partial conformance.
-	if report.Conformance != ConformancePartial {
-		t.Errorf("expected conformance=partial, got %q", report.Conformance)
-	}
-
-	// Find the missing operation.
 	var found bool
-	for _, op := range report.Operations {
+	for _, op := range reports {
 		if op.Operation == "farewell" {
 			found = true
 			if op.Matched {
@@ -133,124 +118,9 @@ func TestCompatibilityCheck_MissingOperation(t *testing.T) {
 	}
 }
 
-func TestCompatibilityCheck_PartialConformance(t *testing.T) {
-	dir := t.TempDir()
-
-	// Target has 3 operations; candidate only provides 2 (both compatible).
-	target := writeInterface(t, dir, "target.json", minimalInterface(map[string]any{
-		"greet": map[string]any{
-			"input": map[string]any{"type": "object"},
-		},
-		"farewell": map[string]any{
-			"input": map[string]any{"type": "object"},
-		},
-		"wave": map[string]any{
-			"input": map[string]any{"type": "object"},
-		},
-	}))
-
-	candidate := writeInterface(t, dir, "candidate.json", minimalInterface(map[string]any{
-		"greet": map[string]any{
-			"input": map[string]any{"type": "object"},
-		},
-		"farewell": map[string]any{
-			"input": map[string]any{"type": "object"},
-		},
-	}))
-
-	report := CompatibilityCheck(CompatInput{Target: target, Candidate: candidate})
-
-	if report.Error != nil {
-		t.Fatalf("unexpected error: %v", report.Error.Message)
-	}
-	if report.Compatible {
-		t.Error("expected not fully compatible (missing 1 operation)")
-	}
-	if report.Conformance != ConformancePartial {
-		t.Errorf("expected conformance=partial, got %q", report.Conformance)
-	}
-	if report.Coverage.Total != 3 {
-		t.Errorf("expected total=3, got %d", report.Coverage.Total)
-	}
-	if report.Coverage.Matched != 2 {
-		t.Errorf("expected matched=2, got %d", report.Coverage.Matched)
-	}
-	if report.Coverage.Compatible != 2 {
-		t.Errorf("expected compatible=2, got %d", report.Coverage.Compatible)
-	}
-	if report.Coverage.Incompatible != 0 {
-		t.Errorf("expected incompatible=0, got %d", report.Coverage.Incompatible)
-	}
-}
-
-func TestCompatibilityCheck_FullConformance(t *testing.T) {
-	dir := t.TempDir()
-
-	iface := minimalInterface(map[string]any{
-		"greet": map[string]any{
-			"input": map[string]any{"type": "object"},
-		},
-	})
-
-	target := writeInterface(t, dir, "target.json", iface)
-	candidate := writeInterface(t, dir, "candidate.json", iface)
-
-	report := CompatibilityCheck(CompatInput{Target: target, Candidate: candidate})
-
-	if report.Conformance != ConformanceFull {
-		t.Errorf("expected conformance=full, got %q", report.Conformance)
-	}
-	if !report.Compatible {
-		t.Error("expected compatible=true for full conformance")
-	}
-}
-
-func TestCompatibilityCheck_NoneConformance(t *testing.T) {
-	dir := t.TempDir()
-
-	// Target requires "name" (string), candidate has "name" (integer) → incompatible match.
-	target := writeInterface(t, dir, "target.json", minimalInterface(map[string]any{
-		"greet": map[string]any{
-			"input": map[string]any{
-				"type": "object",
-				"properties": map[string]any{
-					"name": map[string]any{"type": "string"},
-				},
-				"required": []any{"name"},
-			},
-		},
-	}))
-
-	candidate := writeInterface(t, dir, "candidate.json", minimalInterface(map[string]any{
-		"greet": map[string]any{
-			"input": map[string]any{
-				"type": "object",
-				"properties": map[string]any{
-					"name": map[string]any{"type": "integer"},
-				},
-				"required": []any{"name"},
-			},
-		},
-	}))
-
-	report := CompatibilityCheck(CompatInput{Target: target, Candidate: candidate})
-
-	if report.Conformance != ConformanceNone {
-		t.Errorf("expected conformance=none, got %q", report.Conformance)
-	}
-	if report.Compatible {
-		t.Error("expected compatible=false")
-	}
-	if report.Coverage.Incompatible != 1 {
-		t.Errorf("expected incompatible=1, got %d", report.Coverage.Incompatible)
-	}
-}
-
-func TestCompatibilityCheck_IncompatibleInputSchema(t *testing.T) {
-	dir := t.TempDir()
-
+func TestCompareOps_IncompatibleInputSchema(t *testing.T) {
 	// Target requires "name" (string), candidate requires "name" (integer).
-	target := writeInterface(t, dir, "target.json", minimalInterface(map[string]any{
+	target := ifaceFromMap(t, minimalInterface(map[string]any{
 		"greet": map[string]any{
 			"input": map[string]any{
 				"type": "object",
@@ -261,8 +131,7 @@ func TestCompatibilityCheck_IncompatibleInputSchema(t *testing.T) {
 			},
 		},
 	}))
-
-	candidate := writeInterface(t, dir, "candidate.json", minimalInterface(map[string]any{
+	candidate := ifaceFromMap(t, minimalInterface(map[string]any{
 		"greet": map[string]any{
 			"input": map[string]any{
 				"type": "object",
@@ -274,43 +143,28 @@ func TestCompatibilityCheck_IncompatibleInputSchema(t *testing.T) {
 		},
 	}))
 
-	report := CompatibilityCheck(CompatInput{Target: target, Candidate: candidate})
+	reports := compareOps(target, candidate)
 
-	if report.Compatible {
-		t.Error("expected incompatible (type mismatch in input)")
-	}
-
-	op := report.Operations[0]
+	op := reports[0]
 	if op.Input != SlotIncompatible {
 		t.Errorf("expected input=incompatible, got %q", op.Input)
+	}
+	if op.Compatible {
+		t.Error("expected operation to be incompatible (type mismatch in input)")
 	}
 	if len(op.Details) == 0 {
 		t.Error("expected details about input incompatibility")
 	}
 }
 
-func TestCompatibilityCheck_UnspecifiedSlots(t *testing.T) {
-	dir := t.TempDir()
+func TestCompareOps_UnspecifiedSlots(t *testing.T) {
+	// Operation with no input or output schemas — both slots unspecified, and
+	// unspecified is compatible.
+	m := minimalInterface(map[string]any{"ping": map[string]any{}})
 
-	// Method with no input or output schemas — both slots should be unspecified.
-	target := writeInterface(t, dir, "target.json", minimalInterface(map[string]any{
-		"ping": map[string]any{},
-	}))
+	reports := compareOps(ifaceFromMap(t, m), ifaceFromMap(t, m))
 
-	candidate := writeInterface(t, dir, "candidate.json", minimalInterface(map[string]any{
-		"ping": map[string]any{},
-	}))
-
-	report := CompatibilityCheck(CompatInput{Target: target, Candidate: candidate})
-
-	if report.Error != nil {
-		t.Fatalf("unexpected error: %v", report.Error.Message)
-	}
-	if !report.Compatible {
-		t.Error("expected compatible (all slots unspecified)")
-	}
-
-	op := report.Operations[0]
+	op := reports[0]
 	if op.Input != SlotUnspecified {
 		t.Errorf("expected input=unspecified, got %q", op.Input)
 	}
@@ -322,58 +176,9 @@ func TestCompatibilityCheck_UnspecifiedSlots(t *testing.T) {
 	}
 }
 
-func TestCompatibilityCheck_ResolveError(t *testing.T) {
-	report := CompatibilityCheck(CompatInput{
-		Target:    "/nonexistent/target.json",
-		Candidate: "/nonexistent/candidate.json",
-	})
-
-	if report.Error == nil {
-		t.Fatal("expected resolve error")
-	}
-	if report.Error.Code != "resolve_error" {
-		t.Errorf("expected code 'resolve_error', got %q", report.Error.Code)
-	}
-}
-
-func TestCompatibilityCheck_JSONOutput(t *testing.T) {
-	dir := t.TempDir()
-
-	iface := minimalInterface(map[string]any{
-		"greet": map[string]any{
-			"input": map[string]any{"type": "object"},
-		},
-	})
-
-	target := writeInterface(t, dir, "target.json", iface)
-	candidate := writeInterface(t, dir, "candidate.json", iface)
-
-	report := CompatibilityCheck(CompatInput{Target: target, Candidate: candidate})
-
-	// Verify the report serializes to valid JSON.
-	data, err := json.Marshal(report)
-	if err != nil {
-		t.Fatalf("failed to marshal report: %v", err)
-	}
-
-	// Verify it round-trips.
-	var decoded CompatibilityReport
-	if err := json.Unmarshal(data, &decoded); err != nil {
-		t.Fatalf("failed to unmarshal report: %v", err)
-	}
-	if decoded.Compatible != report.Compatible {
-		t.Error("round-trip changed Compatible field")
-	}
-	if len(decoded.Operations) != len(report.Operations) {
-		t.Error("round-trip changed Operations count")
-	}
-}
-
-func TestCompatibilityCheck_NormalizationErrorSurfaced(t *testing.T) {
-	dir := t.TempDir()
-
+func TestCompareOps_NormalizationErrorSurfaced(t *testing.T) {
 	// Target uses an outside-profile keyword (pattern).
-	target := writeInterface(t, dir, "target.json", minimalInterface(map[string]any{
+	target := ifaceFromMap(t, minimalInterface(map[string]any{
 		"greet": map[string]any{
 			"input": map[string]any{
 				"type":    "object",
@@ -381,18 +186,15 @@ func TestCompatibilityCheck_NormalizationErrorSurfaced(t *testing.T) {
 			},
 		},
 	}))
-
-	candidate := writeInterface(t, dir, "candidate.json", minimalInterface(map[string]any{
+	candidate := ifaceFromMap(t, minimalInterface(map[string]any{
 		"greet": map[string]any{
-			"input": map[string]any{
-				"type": "object",
-			},
+			"input": map[string]any{"type": "object"},
 		},
 	}))
 
-	report := CompatibilityCheck(CompatInput{Target: target, Candidate: candidate})
+	reports := compareOps(target, candidate)
 
-	op := report.Operations[0]
+	op := reports[0]
 	if op.Input != SlotIncompatible {
 		t.Errorf("expected input=incompatible for outside-profile keyword, got %q", op.Input)
 	}
@@ -411,14 +213,11 @@ func TestCompatibilityCheck_NormalizationErrorSurfaced(t *testing.T) {
 	}
 }
 
-// TestCompatibilityCheck_AliasMatch verifies that a candidate operation under
-// a different key corresponds to a target operation by carrying the target's
+// TestCompareOps_AliasMatch verifies that a candidate operation under a
+// different key corresponds to a target operation by carrying the target's
 // name as an alias (the spec's correspondence mechanism, OBI-T-12).
-func TestCompatibilityCheck_AliasMatch(t *testing.T) {
-	dir := t.TempDir()
-
-	// Target interface has operation "listPets".
-	target := writeInterface(t, dir, "target.json", minimalInterface(map[string]any{
+func TestCompareOps_AliasMatch(t *testing.T) {
+	target := ifaceFromMap(t, minimalInterface(map[string]any{
 		"listPets": map[string]any{
 			"input": map[string]any{
 				"type": "object",
@@ -428,9 +227,8 @@ func TestCompatibilityCheck_AliasMatch(t *testing.T) {
 			},
 		},
 	}))
-
 	// Candidate uses a DIFFERENT key but aliases the target's operation name.
-	candidateMap := map[string]any{
+	candidate := ifaceFromMap(t, map[string]any{
 		"openbindings": "0.1.0",
 		"name":         "candidate",
 		"operations": map[string]any{
@@ -444,19 +242,14 @@ func TestCompatibilityCheck_AliasMatch(t *testing.T) {
 				},
 			},
 		},
-	}
-	candidate := writeInterface(t, dir, "candidate.json", candidateMap)
+	})
 
-	report := CompatibilityCheck(CompatInput{Target: target, Candidate: candidate})
+	reports := compareOps(target, candidate)
 
-	if report.Error != nil {
-		t.Fatalf("unexpected error: %v", report.Error.Message)
+	if len(reports) != 1 {
+		t.Fatalf("expected 1 operation, got %d", len(reports))
 	}
-	if len(report.Operations) != 1 {
-		t.Fatalf("expected 1 operation, got %d", len(report.Operations))
-	}
-
-	op := report.Operations[0]
+	op := reports[0]
 	if !op.Matched {
 		t.Error("expected listPets to match via the candidate's alias, but it was not matched")
 	}
@@ -465,32 +258,79 @@ func TestCompatibilityCheck_AliasMatch(t *testing.T) {
 	}
 }
 
-// TestCompatibilityCheck_DirectKeyMatch verifies that a candidate sharing the
-// target's operation key matches directly.
-func TestCompatibilityCheck_DirectKeyMatch(t *testing.T) {
-	dir := t.TempDir()
-
-	target := writeInterface(t, dir, "target.json", minimalInterface(map[string]any{
+// TestCompareOps_DirectKeyMatch verifies that a candidate sharing the target's
+// operation key matches directly.
+func TestCompareOps_DirectKeyMatch(t *testing.T) {
+	target := ifaceFromMap(t, minimalInterface(map[string]any{
+		"listPets": map[string]any{},
+	}))
+	candidate := ifaceFromMap(t, minimalInterface(map[string]any{
 		"listPets": map[string]any{},
 	}))
 
-	candidateMap := map[string]any{
-		"openbindings": "0.1.0",
-		"name":         "candidate",
-		"operations": map[string]any{
-			"listPets": map[string]any{},
-		},
-	}
-	candidate := writeInterface(t, dir, "candidate.json", candidateMap)
+	reports := compareOps(target, candidate)
 
-	report := CompatibilityCheck(CompatInput{Target: target, Candidate: candidate})
+	if !reports[0].Matched {
+		t.Error("expected listPets to match by direct key")
+	}
+}
+
+// --- reportCompatibility wire lane (v1 report over inline documents) ---
+
+// TestComparisonCheck_DocIn drives the served operation's lane: inline
+// documents instead of locators, straight into the v1 report.
+func TestComparisonCheck_DocIn(t *testing.T) {
+	m := minimalInterface(map[string]any{
+		"greet": map[string]any{"input": map[string]any{"type": "object"}},
+	})
+
+	report := ComparisonCheck(ComparisonInput{
+		LeftInterface:  ifaceFromMap(t, m),
+		RightInterface: ifaceFromMap(t, m),
+	})
 
 	if report.Error != nil {
 		t.Fatalf("unexpected error: %v", report.Error.Message)
 	}
-	op := report.Operations[0]
-	if !op.Matched {
-		t.Error("expected listPets to match by direct key")
+	if report.FormatVersion != "ob-comparison-report/v1" {
+		t.Errorf("format_version = %q", report.FormatVersion)
+	}
+	if report.Summary.Verdict != "compatible" {
+		t.Errorf("verdict = %q, want compatible", report.Summary.Verdict)
+	}
+	if len(report.Operations) != 1 {
+		t.Fatalf("expected 1 operation delta, got %d", len(report.Operations))
+	}
+
+	// A missing operation on the right must break the verdict.
+	report = ComparisonCheck(ComparisonInput{
+		LeftInterface: ifaceFromMap(t, minimalInterface(map[string]any{
+			"greet":    map[string]any{},
+			"farewell": map[string]any{},
+		})),
+		RightInterface: ifaceFromMap(t, minimalInterface(map[string]any{
+			"greet": map[string]any{},
+		})),
+	})
+	if report.Summary.Verdict == "compatible" {
+		t.Error("expected verdict != compatible when an operation is missing")
+	}
+}
+
+func TestComparisonCheck_ResolveError(t *testing.T) {
+	report := ComparisonCheck(ComparisonInput{
+		Left:  "/nonexistent/target.json",
+		Right: "/nonexistent/candidate.json",
+	})
+
+	if report.Error == nil {
+		t.Fatal("expected resolve error")
+	}
+	if report.Error.Code != "resolve_error" {
+		t.Errorf("expected code 'resolve_error', got %q", report.Error.Code)
+	}
+	if report.Summary.Verdict != "indeterminate" {
+		t.Errorf("verdict = %q, want indeterminate", report.Summary.Verdict)
 	}
 }
 

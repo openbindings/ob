@@ -16,8 +16,8 @@ produce a conformance report.
 
 Each argument is a locator: a local file path, HTTP(S) URL, or exec: reference.
 
-For each operation in the left contract, the report checks whether the right
-implementation is compatible per the OpenBindings comparison convention:
+For each operation in the target interface, the report checks whether the
+candidate is compatible per the OpenBindings comparison convention:
 
   • Method input:  candidate must accept everything the target defines
   • Method output: candidate must only return what the target defines
@@ -55,7 +55,7 @@ Examples:
 		},
 	}
 
-	cmd.Flags().BoolVarP(&quiet, "quiet", "q", false, "suppress output, exit code only")
+	cmd.Flags().BoolVarP(&quiet, "quiet", "q", false, "exit code only, no output")
 
 	return cmd
 }

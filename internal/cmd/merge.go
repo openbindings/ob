@@ -42,7 +42,8 @@ Two modes:
 
 When run interactively (TTY detected), each change is presented for
 accept/reject. Use --all to apply all changes in batch mode, or
---yes to auto-accept all prompts.
+--yes to auto-accept all prompts. Without a TTY and without --all or
+--yes, changes are only reported, not applied.
 
 Use --op to cherry-pick specific operations, or --exclude-op to skip them:
 
@@ -56,9 +57,8 @@ Merge rules:
   - Unbound operations: untouched
 
 Exit codes:
-  0  Changes applied (or nothing to do)
-  1  Conflicts or errors during merge
-  2  Usage error`,
+  0  Merge completed (changes applied, skipped, or nothing to do)
+  2  Usage or merge error`,
 		Args: cobra.RangeArgs(1, 2),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if err := validateSourceModeArgs(args, fromSources, onlySource); err != nil {

@@ -19,7 +19,7 @@ type ValidateInput struct {
 
 // ValidationReport is the result of validating an OpenBindings interface.
 type ValidationReport struct {
-	Locator  string   `json:"locator"`
+	Locator  string   `json:"locator,omitempty"`
 	Valid    bool     `json:"valid"`
 	Version  string   `json:"version,omitempty"`
 	Problems []string `json:"problems,omitempty"`

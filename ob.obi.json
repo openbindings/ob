@@ -146,7 +146,7 @@
       }
     },
     "openbindings.ob.validateInterface": {
-      "description": "Validate an OpenBindings interface document against the specification. Reports whether it is valid, the declared spec version, and any problems. With strict mode, rejects unknown fields and requires a supported version.",
+      "description": "Validate an OpenBindings interface document against the specification. Reports whether it is valid, the declared spec version, and any problems. A document declaring a spec version newer than the tool supports is refused in every mode (OBI-T-04); strict mode additionally rejects unknown (non-x-) fields.",
       "idempotent": true,
       "input": {
         "$ref": "#/schemas/ValidateInterfaceInput"
@@ -166,7 +166,7 @@
       }
     },
     "openbindings.ob.reportCompatibility": {
-      "description": "Report whether a candidate interface conforms to a target interface and produce a report: per-operation input/output slot status, overall conformance level, and coverage. A report, not a binary verdict.",
+      "description": "Report whether a candidate interface conforms to a target interface, as an ob-comparison-report/v1 document: paired operations with directional schema verdicts and findings, a summary verdict, coverage, and category counts. A report, not a binary verdict. The target rides the report's left side, the candidate its right.",
       "idempotent": true,
       "input": {
         "$ref": "#/schemas/ReportCompatibilityInput"
@@ -1068,6 +1068,10 @@
           "items": {
             "type": "string"
           }
+        },
+        "dryRun": {
+          "type": "boolean",
+          "description": "Whether this was a preview run (changes reported, not applied)."
         }
       },
       "required": [
@@ -1083,7 +1087,7 @@
         },
         "strict": {
           "type": "boolean",
-          "description": "Reject unknown fields and require a supported spec version."
+          "description": "Additionally reject unknown (non-x-) fields. A spec version newer than the tool supports is refused in every mode."
         }
       },
       "required": [
@@ -1272,101 +1276,184 @@
     },
     "CompatibilityReport": {
       "type": "object",
+      "description": "An ob-comparison-report/v1 document. The target interface rides the report's left side, the candidate its right; operations are paired by key+alias resolution (OBI-T-12) and judged directionally. A report, not a binary verdict: the summary verdict is compatible, incompatible, or indeterminate. Reserved section arrays (schemas, metadata, sources, bindings, transforms, security) accompany operations.",
       "properties": {
-        "compatible": {
-          "type": "boolean"
-        },
-        "conformance": {
+        "format_version": {
           "type": "string",
-          "enum": [
-            "full",
-            "partial",
-            "none"
-          ]
+          "description": "Report convention identifier (ob-comparison-report/v1)."
         },
-        "coverage": {
-          "$ref": "#/schemas/CoverageInfo"
+        "profile": {
+          "type": "string",
+          "description": "Schema comparison profile and hash (e.g. OB-2020-12@local)."
+        },
+        "mode": {
+          "type": "string",
+          "description": "Comparison mode (e.g. subsume)."
+        },
+        "tool": {
+          "type": "object",
+          "properties": {
+            "name": {
+              "type": "string"
+            },
+            "version": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "name",
+            "version"
+          ],
+          "additionalProperties": false
+        },
+        "generated_at": {
+          "type": "string"
+        },
+        "inputs": {
+          "type": "object",
+          "description": "Provenance descriptors for the two compared documents.",
+          "properties": {
+            "left": {
+              "$ref": "#/schemas/ComparisonInputDescriptor"
+            },
+            "right": {
+              "$ref": "#/schemas/ComparisonInputDescriptor"
+            }
+          },
+          "required": [
+            "left",
+            "right"
+          ],
+          "additionalProperties": false
+        },
+        "summary": {
+          "type": "object",
+          "properties": {
+            "verdict": {
+              "type": "string",
+              "enum": [
+                "compatible",
+                "incompatible",
+                "indeterminate"
+              ]
+            },
+            "coverage": {
+              "type": "object",
+              "properties": {
+                "total_operations": {
+                  "type": "integer"
+                },
+                "paired": {
+                  "type": "integer"
+                },
+                "only_left": {
+                  "type": "integer"
+                },
+                "only_right": {
+                  "type": "integer"
+                },
+                "paired_via": {
+                  "type": "object",
+                  "properties": {
+                    "direct": {
+                      "type": "integer"
+                    },
+                    "alias": {
+                      "type": "integer"
+                    }
+                  },
+                  "additionalProperties": false
+                }
+              },
+              "additionalProperties": false
+            },
+            "counts": {
+              "type": "object",
+              "description": "Finding counts keyed by finding kind.",
+              "additionalProperties": {
+                "type": "integer"
+              }
+            },
+            "categories": {
+              "type": "object",
+              "properties": {
+                "breaking": {
+                  "type": "integer"
+                },
+                "non_breaking": {
+                  "type": "integer"
+                },
+                "compliance": {
+                  "type": "integer"
+                },
+                "structural": {
+                  "type": "integer"
+                }
+              },
+              "additionalProperties": false
+            }
+          },
+          "required": [
+            "verdict"
+          ],
+          "additionalProperties": true
         },
         "operations": {
           "type": "array",
+          "description": "Per-operation deltas: pairing status (paired, only_left, only_right), directional input/output schema verdicts, and findings.",
           "items": {
-            "$ref": "#/schemas/OperationCompatibility"
+            "type": "object"
+          }
+        },
+        "suppressed": {
+          "type": "array",
+          "description": "Findings suppressed by suppression rules, with the rule that matched.",
+          "items": {
+            "type": "object"
           }
         }
       },
       "required": [
-        "compatible",
-        "conformance",
-        "coverage"
+        "format_version",
+        "profile",
+        "mode",
+        "tool",
+        "generated_at",
+        "inputs",
+        "summary",
+        "operations"
       ],
       "additionalProperties": true
     },
-    "CoverageInfo": {
+    "ComparisonInputDescriptor": {
       "type": "object",
+      "description": "Provenance of one compared document: where it came from and its canonical content hash.",
       "properties": {
-        "matched": {
-          "type": "integer"
+        "source": {
+          "type": "string",
+          "description": "Locator kind (e.g. file, http, exec); empty for inline documents."
         },
-        "compatible": {
-          "type": "integer"
-        },
-        "incompatible": {
-          "type": "integer"
-        },
-        "total": {
-          "type": "integer"
-        }
-      },
-      "required": [
-        "matched",
-        "compatible",
-        "incompatible",
-        "total"
-      ],
-      "additionalProperties": false
-    },
-    "OperationCompatibility": {
-      "type": "object",
-      "description": "Compatibility for a single operation, with per-slot status.",
-      "properties": {
-        "operation": {
+        "uri": {
           "type": "string"
         },
-        "matched": {
-          "type": "boolean",
-          "description": "Whether a matching operation exists in the candidate."
+        "content_sha256": {
+          "type": "string"
         },
-        "compatible": {
-          "type": "boolean"
-        },
-        "input": {
-          "$ref": "#/schemas/SlotStatus"
-        },
-        "output": {
-          "$ref": "#/schemas/SlotStatus"
-        },
-        "details": {
-          "type": "array",
-          "items": {
-            "type": "string"
-          }
+        "label": {
+          "type": "string",
+          "enum": [
+            "left",
+            "right"
+          ]
         }
       },
       "required": [
-        "operation",
-        "matched",
-        "compatible"
+        "source",
+        "uri",
+        "content_sha256",
+        "label"
       ],
       "additionalProperties": false
-    },
-    "SlotStatus": {
-      "type": "string",
-      "enum": [
-        "compatible",
-        "incompatible",
-        "unspecified"
-      ],
-      "description": "Compatibility status of an input or output slot."
     },
     "InvokeSource": {
       "type": "object",
@@ -2176,9 +2263,14 @@
     },
     "ConformResult": {
       "type": "object",
+      "description": "The conformed target document plus a report of each change made or proposed.",
       "properties": {
         "interface": {
           "$ref": "#/schemas/OpenBindingsInterface"
+        },
+        "interfaceName": {
+          "type": "string",
+          "description": "Display name of the reference interface being conformed to."
         },
         "actions": {
           "type": "array",
@@ -2196,7 +2288,7 @@
         "actions",
         "modified"
       ],
-      "additionalProperties": false
+      "additionalProperties": true
     },
     "ConformAction": {
       "type": "object",

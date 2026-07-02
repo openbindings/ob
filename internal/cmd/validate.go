@@ -55,7 +55,7 @@ Examples:
 		},
 	}
 
-	cmd.Flags().BoolVarP(&quiet, "quiet", "q", false, "suppress output, exit code only")
+	cmd.Flags().BoolVarP(&quiet, "quiet", "q", false, "exit code only, no output")
 	cmd.Flags().BoolVar(&strict, "strict", false, "reject unknown (non-x-) fields")
 
 	return cmd

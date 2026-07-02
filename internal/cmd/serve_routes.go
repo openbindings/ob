@@ -456,9 +456,11 @@ func handleCompat(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	report := app.CompatibilityCheck(app.CompatInput{
-		TargetInterface:    body.Target,
-		CandidateInterface: body.Candidate,
+	// Target maps to the report's left side, candidate to its right, matching
+	// the CLI's `ob compat <target> <candidate>`.
+	report := app.ComparisonCheck(app.ComparisonInput{
+		LeftInterface:  body.Target,
+		RightInterface: body.Candidate,
 	})
 	writeJSON(w, http.StatusOK, report)
 }

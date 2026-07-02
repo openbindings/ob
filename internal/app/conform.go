@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	openbindings "github.com/openbindings/openbindings-go"
+	"github.com/openbindings/openbindings-go/schemaprofile"
 )
 
 // ConformInput specifies the interface to satisfy and the target OBI to
@@ -36,14 +37,17 @@ type ConformAction struct {
 	Details   string `json:"details,omitempty"`
 }
 
-// ConformOutput is the result of a conform operation.
+// ConformOutput is the result of a conform operation. On the wire it realizes
+// the contract's ConformResult: the conformed document rides the `interface`
+// key (set when the target came in as an inline document); the locator/path
+// fields are CLI-lane context, omitted on the served operation.
 type ConformOutput struct {
-	Interface        string                  `json:"interface"`
-	InterfaceLocator string                  `json:"interfaceLocator"`
-	TargetPath       string                  `json:"targetPath"`
+	InterfaceName    string                  `json:"interfaceName,omitempty"`
+	InterfaceLocator string                  `json:"interfaceLocator,omitempty"`
+	TargetPath       string                  `json:"targetPath,omitempty"`
 	Actions          []ConformAction         `json:"actions"`
 	Modified         bool                    `json:"modified"`
-	Result           *openbindings.Interface `json:"result,omitempty"`
+	Result           *openbindings.Interface `json:"interface,omitempty"`
 	Error            *Error                  `json:"error,omitempty"`
 }
 
@@ -55,7 +59,7 @@ func (o ConformOutput) Render() string {
 	sb.WriteString(s.Header.Render("Conform Report"))
 	sb.WriteString("\n")
 	sb.WriteString(s.Dim.Render("  interface: "))
-	sb.WriteString(o.Interface)
+	sb.WriteString(o.InterfaceName)
 	sb.WriteString("\n")
 	sb.WriteString(s.Dim.Render("  target:    "))
 	sb.WriteString(o.TargetPath)
@@ -112,6 +116,7 @@ func Conform(input ConformInput, confirm func(op string, action string) bool) Co
 	output := ConformOutput{
 		InterfaceLocator: input.InterfaceLocator,
 		TargetPath:       input.TargetPath,
+		Actions:          []ConformAction{},
 	}
 
 	// Load the interface to satisfy (inline document wins over the locator).
@@ -138,9 +143,9 @@ func Conform(input ConformInput, confirm func(op string, action string) bool) Co
 
 	// Display label for the contract being conformed to.
 	if contractIface.Name != "" {
-		output.Interface = contractIface.Name
+		output.InterfaceName = contractIface.Name
 	} else {
-		output.Interface = input.InterfaceLocator
+		output.InterfaceName = input.InterfaceLocator
 	}
 
 	// Ensure operations map exists.
@@ -410,4 +415,187 @@ func copyNestedRefs(schema openbindings.JSONSchema, contractIface, target *openb
 			}
 		}
 	}
+}
+
+// --- operation-level compatibility engine ---
+//
+// conform decides scaffold/replace/compatible per contract operation by
+// checking the target's matched operation slot-by-slot. This engine implements
+// the spec's slot semantics (compatible / incompatible / unspecified) over
+// normalized schemas; the full report convention lives in comparison.go.
+
+// SlotStatus represents the compatibility status of a single schema slot
+// per the spec: compatible, incompatible, or unspecified.
+type SlotStatus string
+
+const (
+	SlotCompatible   SlotStatus = "compatible"
+	SlotIncompatible SlotStatus = "incompatible"
+	SlotUnspecified  SlotStatus = "unspecified"
+)
+
+// OperationReport reports compatibility for a single operation, including
+// per-slot status as required by the spec.
+type OperationReport struct {
+	Operation string `json:"operation"`
+
+	// Matched is true if a matching operation exists in the candidate.
+	Matched bool `json:"matched"`
+
+	// Per-slot status: compatible, incompatible, or unspecified.
+	Input  SlotStatus `json:"input,omitempty"`
+	Output SlotStatus `json:"output,omitempty"`
+
+	// Details provides human-readable context for incompatible or error slots.
+	// Distinguishes schema incompatibility from normalization/analysis failures.
+	Details []string `json:"details,omitempty"`
+
+	// Compatible is true when the operation fully passes all applicable checks.
+	Compatible bool `json:"compatible"`
+}
+
+// compareOps checks each target operation against the candidate per the spec.
+func compareOps(target, candidate *openbindings.Interface) []OperationReport {
+	// Sort operation keys for deterministic output.
+	opKeys := make([]string, 0, len(target.Operations))
+	for k := range target.Operations {
+		opKeys = append(opKeys, k)
+	}
+	sort.Strings(opKeys)
+
+	tgtRoot := buildNormalizerRoot(target)
+	candRoot := buildNormalizerRoot(candidate)
+
+	var reports []OperationReport
+	for _, opName := range opKeys {
+		tgtOp := target.Operations[opName]
+
+		// Operation matching per spec (OBI-T-12): key/alias resolution.
+		candOp, matched := matchOperation(opName, tgtOp, candidate)
+
+		if !matched {
+			reports = append(reports, OperationReport{
+				Operation:  opName,
+				Matched:    false,
+				Compatible: false,
+			})
+			continue
+		}
+
+		report := buildOperationReport(opName, tgtOp, candOp, tgtRoot, candRoot)
+		reports = append(reports, report)
+	}
+
+	return reports
+}
+
+// matchOperation finds the candidate operation corresponding to a target
+// operation by the spec's key+alias resolution (OBI-T-12): the key and aliases
+// form one flat namespace, and a name matches if it equals the candidate's key
+// or appears in its aliases (in either direction). Correspondence to a shared
+// contract is declared purely by aliases (spec OBI-T-12).
+func matchOperation(name string, tgtOp openbindings.Operation, candidate *openbindings.Interface) (openbindings.Operation, bool) {
+	// Direct key match.
+	if op, ok := candidate.Operations[name]; ok {
+		return op, true
+	}
+
+	// Check target aliases against candidate keys.
+	for _, alias := range tgtOp.Aliases {
+		if op, ok := candidate.Operations[alias]; ok {
+			return op, true
+		}
+	}
+
+	// Check candidate aliases against target key.
+	for _, candOp := range candidate.Operations {
+		for _, alias := range candOp.Aliases {
+			if alias == name {
+				return candOp, true
+			}
+		}
+	}
+
+	return openbindings.Operation{}, false
+}
+
+// buildOperationReport compares schemas for a matched operation pair.
+func buildOperationReport(
+	name string,
+	tgtOp, candOp openbindings.Operation,
+	tgtRoot, candRoot map[string]any,
+) OperationReport {
+	report := OperationReport{
+		Operation: name,
+		Matched:   true,
+	}
+
+	tgtNorm := &schemaprofile.Normalizer{Root: tgtRoot}
+	candNorm := &schemaprofile.Normalizer{Root: candRoot}
+
+	var details []string
+
+	var detail string
+	report.Input, detail = slotCompat("input", tgtOp.Input, candOp.Input, tgtNorm, candNorm, true)
+	if detail != "" {
+		details = append(details, detail)
+	}
+	report.Output, detail = slotCompat("output", tgtOp.Output, candOp.Output, tgtNorm, candNorm, false)
+	if detail != "" {
+		details = append(details, detail)
+	}
+
+	report.Details = details
+
+	report.Compatible =
+		report.Input != SlotIncompatible &&
+			report.Output != SlotIncompatible
+
+	return report
+}
+
+// slotCompat evaluates a single schema slot (input, output, or payload).
+// Returns the status and, for incompatible slots, a human-readable detail
+// that distinguishes normalization failures from genuine schema mismatches.
+func slotCompat(
+	slotName string,
+	tgtSchema, candSchema map[string]any,
+	tgtNorm, candNorm *schemaprofile.Normalizer,
+	isInput bool,
+) (SlotStatus, string) {
+	// Unspecified if either side omits the schema.
+	if tgtSchema == nil || candSchema == nil {
+		return SlotUnspecified, ""
+	}
+
+	// Normalize both schemas (resolves $ref, strips annotations, flattens allOf).
+	tgtNormalized, err := tgtNorm.Normalize(tgtSchema)
+	if err != nil {
+		return SlotIncompatible, fmt.Sprintf("%s: target schema could not be normalized: %v", slotName, err)
+	}
+	candNormalized, err := candNorm.Normalize(candSchema)
+	if err != nil {
+		return SlotIncompatible, fmt.Sprintf("%s: candidate schema could not be normalized: %v", slotName, err)
+	}
+
+	// Compare with a fresh normalizer (schemas are already normalized,
+	// $refs resolved — empty root is fine).
+	n := &schemaprofile.Normalizer{Root: map[string]any{}}
+	var ok bool
+	var reason string
+	if isInput {
+		ok, reason, err = n.InputCompatible(tgtNormalized, candNormalized)
+	} else {
+		ok, reason, err = n.OutputCompatible(tgtNormalized, candNormalized)
+	}
+	if err != nil {
+		return SlotIncompatible, fmt.Sprintf("%s: compatibility check error: %v", slotName, err)
+	}
+	if !ok {
+		if reason != "" {
+			return SlotIncompatible, fmt.Sprintf("%s: incompatible: %s", slotName, reason)
+		}
+		return SlotIncompatible, fmt.Sprintf("%s: incompatible", slotName)
+	}
+	return SlotCompatible, ""
 }

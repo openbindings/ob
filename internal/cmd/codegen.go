@@ -2,7 +2,6 @@ package cmd
 
 import (
 	"fmt"
-	"os"
 
 	"github.com/openbindings/ob/internal/app"
 	"github.com/openbindings/ob/internal/codegen"
@@ -71,7 +70,7 @@ Examples:
 
 			// Write output.
 			if output != "" {
-				if err := os.WriteFile(output, []byte(code), 0644); err != nil {
+				if err := app.AtomicWriteFile(output, []byte(code), app.FilePerm); err != nil {
 					return app.ExitResult{Code: 1, Message: fmt.Sprintf("write output: %v", err), ToStderr: true}
 				}
 				fmt.Fprintf(cmd.ErrOrStderr(), "Wrote %s\n", output)

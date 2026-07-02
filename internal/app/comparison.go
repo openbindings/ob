@@ -17,14 +17,18 @@ const comparisonReportVersion = "ob-comparison-report/v1"
 const comparisonProfile = "OB-2020-12"
 
 type ComparisonInput struct {
-	Left         string
-	Right        string
-	Mode         string
-	Profile      string
-	GeneratedAt  string
-	ToolVersion  string
-	ProfileHash  string
-	Suppressions []SuppressionRule
+	// Left/Right are locators (CLI). LeftInterface/RightInterface, when set,
+	// are inline documents (the served operation) and take precedence.
+	Left           string
+	Right          string
+	LeftInterface  *openbindings.Interface
+	RightInterface *openbindings.Interface
+	Mode           string
+	Profile        string
+	GeneratedAt    string
+	ToolVersion    string
+	ProfileHash    string
+	Suppressions   []SuppressionRule
 }
 
 type ComparisonReport struct {
@@ -158,13 +162,21 @@ type resolvedComparisonInput struct {
 
 // ComparisonCheck emits the v1 comparison convention report used by ob compat.
 func ComparisonCheck(input ComparisonInput) ComparisonReport {
-	left, err := resolveInterface(input.Left)
-	if err != nil {
-		return comparisonErrorReport(input, fmt.Sprintf("left: %v", err))
+	left := input.LeftInterface
+	if left == nil {
+		var err error
+		left, err = resolveInterface(input.Left)
+		if err != nil {
+			return comparisonErrorReport(input, fmt.Sprintf("left: %v", err))
+		}
 	}
-	right, err := resolveInterface(input.Right)
-	if err != nil {
-		return comparisonErrorReport(input, fmt.Sprintf("right: %v", err))
+	right := input.RightInterface
+	if right == nil {
+		var err error
+		right, err = resolveInterface(input.Right)
+		if err != nil {
+			return comparisonErrorReport(input, fmt.Sprintf("right: %v", err))
+		}
 	}
 
 	return CompareInterfaces(CompareInterfacesInput{
@@ -285,7 +297,7 @@ func compareOperationDeltas(left, right resolvedComparisonInput, mode string) []
 	usedRight := map[string]bool{}
 	leftRoot := schemaRoot(left.iface)
 	rightRoot := schemaRoot(right.iface)
-	var deltas []OperationDelta
+	deltas := []OperationDelta{} // wire shape: always an array, never null
 
 	for _, key := range leftKeys {
 		leftOp := left.iface.Operations[key]

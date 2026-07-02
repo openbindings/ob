@@ -124,7 +124,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 - CORS middleware now responds to Chrome's Private Network Access preflight
   (`Access-Control-Allow-Private-Network: true`), fixing the
   CSP-shaped error Chrome produced when HTTP pages fetched `http://localhost`.
-- `ob info` output now includes the spec version range this CLI supports,
+- `ob describe` output now includes the spec version range this CLI supports,
   sourced from the Go SDK's `MinSupportedVersion` / `MaxTestedVersion`.
 - `ob compat` now drives a structural OBI comparison feature
   (`internal/app/comparison.go` plus a conformance test corpus) that powers

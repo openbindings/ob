@@ -89,7 +89,7 @@ func BuiltinSupportsFormat(format string) bool {
 
 func uniqueSortedFormats(in []FormatInfo) []FormatInfo {
 	if len(in) == 0 {
-		return nil
+		return []FormatInfo{} // wire shape: always an array, never null
 	}
 	seen := make(map[string]FormatInfo, len(in))
 	for _, f := range in {
