@@ -305,7 +305,7 @@ cmd "operation" help="Manage and invoke operations on an OBI" subcommand_require
   }
   cmd "remove" help="Remove operations and their bindings from an OBI" opKey="removeOperation" {
     alias "rm"
-    flag "--force" help="Remove managed operations without warning"
+    flag "--force" help="Remove source-owned operations without warning"
     flag "-o --output <path>" help="Write output to file"
     flag "-F --format <format>" help="Output format: json|yaml|text"
     arg "<obi-path>" help="Path to the OBI file"

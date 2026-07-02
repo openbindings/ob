@@ -114,7 +114,7 @@ func inspectViaDelegate(ctx context.Context, source *openbindings.Source) (ins *
 // invokeDelegateUnary operation-invokes a delegate's operation against its OBI
 // and reduces the (unary) result to a single output value.
 func invokeDelegateUnary(ctx context.Context, chosen *delegateCandidate, opKey string, input any) (any, error) {
-	ch, err := invokeOnInterface(ctx, chosen.iface, opKey, "", input, "")
+	ch, _, err := invokeOnInterface(ctx, chosen.iface, opKey, "", input, "")
 	if err != nil {
 		return nil, err
 	}

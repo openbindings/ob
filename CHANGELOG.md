@@ -153,8 +153,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
   Registering `exec:ob` as a delegate now works end-to-end for synthesize,
   inspect, and invoke.
 
+- **Operation-family outputs are now wire-shaped.** `ob op list -F json` and
+  `ob op alias list -F json` emit the contract's bare arrays (previously
+  wrapped in an `{"operations": …}` envelope, and `null` when empty);
+  `ob op prepare -F json` emits the requirement details or `null` directly
+  (previously wrapped in `{"details": …}`), matching `ob binding prepare`.
+  Scoped alias listings emit `"aliases": []`, never `null`. Pre-1.0 breaking
+  change for scripts parsing the old envelopes.
+- Operation-family text now says **source-owned** (matching the contract and
+  `op set`/`op detach`) where it previously said "managed", and no longer
+  references the retired `ob sync` command.
+
 ### Fixed
 
+- `ob op invoke -v` now prints the resolved binding key on stderr — what its
+  help always claimed — instead of echoing back the operation key you typed
+  (or nothing in `--binding` mode).
 - Delegate invoke-binding selection matched only the bare `invokeBinding`
   operation key, so it never found the operation in ob's own bound OBI
   (full contract keys) or in delegates using the own-key + published-alias

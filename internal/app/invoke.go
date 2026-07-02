@@ -301,10 +301,13 @@ func statusFromError(err *openbindings.InvocationError) int {
 // Exactly one of opKey or bindingKey must be non-empty:
 //   - opKey: selects the most-preferred binding for that operation.
 //   - bindingKey: looks up the binding directly (operation is read from the entry).
-func InvokeOBIOperation(ctx context.Context, obiPath string, opKey string, bindingKey string, input any) (<-chan InvocationOutput, error) {
+//
+// The string result is the key of the binding the invocation resolved to —
+// the selection outcome a caller can surface (e.g. `ob op invoke -v`).
+func InvokeOBIOperation(ctx context.Context, obiPath string, opKey string, bindingKey string, input any) (<-chan InvocationOutput, string, error) {
 	iface, err := resolveInterface(obiPath)
 	if err != nil {
-		return nil, fmt.Errorf("load OBI %q: %w", obiPath, err)
+		return nil, "", fmt.Errorf("load OBI %q: %w", obiPath, err)
 	}
 	return invokeOnInterface(ctx, iface, opKey, bindingKey, input, filepath.Dir(obiPath))
 }
@@ -314,10 +317,10 @@ func InvokeOBIOperation(ctx context.Context, obiPath string, opKey string, bindi
 // obiDir. It is the core shared by file-backed invocation (InvokeOBIOperation)
 // and delegate invocation: ob operation-invokes a delegate's operation against
 // the delegate's own resolved OBI through this same path.
-func invokeOnInterface(ctx context.Context, iface *openbindings.Interface, opKey, bindingKey string, input any, obiDir string) (<-chan InvocationOutput, error) {
+func invokeOnInterface(ctx context.Context, iface *openbindings.Interface, opKey, bindingKey string, input any, obiDir string) (<-chan InvocationOutput, string, error) {
 	resolved, err := resolveBindingAndSource(iface, opKey, bindingKey, input)
 	if err != nil {
-		return nil, err
+		return nil, "", err
 	}
 
 	es := resolveSourceLocation(resolved.source, obiDir)
@@ -333,7 +336,7 @@ func invokeOnInterface(ctx context.Context, iface *openbindings.Interface, opKey
 	if BuiltinSupportsFormat(es.Format) {
 		src, sErr := SubscribeOperationWithContext(ctx, lowLevel)
 		if sErr == nil {
-			return transformEventStream(src, iface, resolved), nil
+			return transformEventStream(src, iface, resolved), resolved.bindingKey, nil
 		}
 	}
 
@@ -357,7 +360,7 @@ func invokeOnInterface(ctx context.Context, iface *openbindings.Interface, opKey
 		ch <- InvocationOutput{Output: result.Output}
 	}
 	close(ch)
-	return ch, nil
+	return ch, resolved.bindingKey, nil
 }
 
 // PrepareOperation is the operation-level preflight: it resolves an operation
@@ -389,24 +392,21 @@ func PrepareOperation(ctx context.Context, obiPath string, opKey string, binding
 	})
 }
 
-// PrepareOperationOutput wraps a prepareOperation result for CLI rendering.
-// A nil Details means no requirements could be determined without invoking.
-type PrepareOperationOutput struct {
-	Details *openbindings.ContextRequiredDetails `json:"details"`
-}
-
-// Render returns a human-friendly representation.
-func (o PrepareOperationOutput) Render() string {
+// RenderContextRequirements renders prepareOperation/prepareBinding details
+// for humans. Nil means no requirements could be determined without invoking
+// (the always-conformant answer). The wire shape is the details themselves
+// (or null) per the contract's oneOf — no envelope.
+func RenderContextRequirements(details *openbindings.ContextRequiredDetails) string {
 	s := Styles
-	if o.Details == nil {
+	if details == nil {
 		return s.Dim.Render("No context requirements (none determinable without invoking)")
 	}
 	var sb strings.Builder
 	sb.WriteString(s.Header.Render("Context required"))
 	sb.WriteString("\n  ")
 	sb.WriteString(s.Dim.Render("target: "))
-	sb.WriteString(s.Key.Render(o.Details.Target))
-	for i, alt := range o.Details.Alternatives {
+	sb.WriteString(s.Key.Render(details.Target))
+	for i, alt := range details.Alternatives {
 		sb.WriteString("\n\n  ")
 		sb.WriteString(s.Dim.Render(fmt.Sprintf("alternative %d (all required):", i+1)))
 		for _, req := range alt.Requirements {

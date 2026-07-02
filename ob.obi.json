@@ -106,7 +106,7 @@
       }
     },
     "openbindings.ob.renameOperation": {
-      "description": "Rename an operation and update every reference to it (bindings, aliases) across the interface. Returns the modified interface.",
+      "description": "Rename an operation and update every reference to it across the interface — binding operation fields and binding keys following the <operation>.<source> convention. Returns the modified interface.",
       "input": {
         "$ref": "#/schemas/RenameOperationInput"
       },
@@ -524,7 +524,7 @@
       }
     },
     "openbindings.ob.setOperationCodegenName": {
-      "description": "Set (or clear) the symbol name 'ob codegen' emits for an operation, stored in the operation's x-ob.codegenName metadata, and return the modified interface. The operation key is unchanged; the override survives sync and is stripped by purify.",
+      "description": "Set (or clear) the symbol name 'ob codegen' emits for an operation, stored in the operation's x-ob.codegenName metadata, and return the modified interface. The operation key is unchanged; the override survives source pull and is stripped by purify.",
       "input": {
         "$ref": "#/schemas/SetOperationCodegenNameInput"
       },
@@ -968,7 +968,7 @@
         },
         "force": {
           "type": "boolean",
-          "description": "Remove managed operations without warning."
+          "description": "Remove source-owned operations without warning."
         }
       },
       "required": [

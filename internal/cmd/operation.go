@@ -101,13 +101,13 @@ Examples:
 			ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt)
 			defer stop()
 
-			ch, err := app.InvokeOBIOperation(ctx, obiFile, operationKey, bindingKey, input)
+			ch, selectedBinding, err := app.InvokeOBIOperation(ctx, obiFile, operationKey, bindingKey, input)
 			if err != nil {
 				return app.ExitResult{Code: 1, Message: fmt.Sprintf("invoke %s in %s: %v", operationKey, obiFile, err), ToStderr: true}
 			}
 
 			if verbose {
-				fmt.Fprintf(os.Stderr, "operation: %s\n", operationKey)
+				fmt.Fprintf(os.Stderr, "binding: %s\n", selectedBinding)
 			}
 
 			start := time.Now()
@@ -180,8 +180,12 @@ Examples:
 				return app.ExitResult{Code: 1, Message: fmt.Sprintf("prepare %s in %s: %v", operationKey, obiFile, err), ToStderr: true}
 			}
 
+			// Wire shape per the contract: the details themselves, or null —
+			// no envelope (matching `ob binding prepare`).
 			format, outputPath := getOutputFlags(cmd)
-			return app.OutputResult(app.PrepareOperationOutput{Details: details}, format, outputPath)
+			return app.OutputResultText(details, format, outputPath, func() string {
+				return app.RenderContextRequirements(details)
+			})
 		},
 	}
 
@@ -199,7 +203,9 @@ func newOperationListCmd() *cobra.Command {
 		Short:   "List operations on an OBI",
 		Long: `List all operations defined in an OpenBindings interface document.
 
-Shows each operation's key, tags, managed status, and binding count.
+Shows each operation's key, tags, ownership (source-owned operations are
+re-derived by 'ob source pull'; the rest are hand-authored), and binding
+count.
 
 Examples:
   ob operation list interface.json
@@ -631,11 +637,11 @@ func pickBindArgs(obiPath, op, source, ref string) (string, string, string, erro
 		if err != nil {
 			return "", "", "", err
 		}
-		if len(ops.Operations) == 0 {
+		if len(ops) == 0 {
 			return "", "", "", fmt.Errorf("no operations to bind; add one with 'ob operation add'")
 		}
-		opts := make([]huh.Option[string], len(ops.Operations))
-		for i, e := range ops.Operations {
+		opts := make([]huh.Option[string], len(ops))
+		for i, e := range ops {
 			opts[i] = huh.NewOption(e.Key, e.Key)
 		}
 		if err := huh.NewForm(huh.NewGroup(
@@ -697,8 +703,8 @@ friendlier name (e.g. "invokeBinding" becomes InvokeBinding in Go, invokeBinding
 in TS) without changing the operation key itself — bindings and the wire still
 reference the key verbatim.
 
-The override is stored in the operation's x-ob metadata. It survives 'ob sync'
-and 'ob source pull', and is stripped by 'ob purify' along with the rest of x-ob.
+The override is stored in the operation's x-ob metadata. It survives
+'ob source pull', and is stripped by 'ob purify' along with the rest of x-ob.
 
 Examples:
   ob op codegen-name interface.json openbindings.binding-invoker.invokeBinding invokeBinding
@@ -765,9 +771,9 @@ func newOperationRemoveCmd() *cobra.Command {
 
 All bindings that reference the removed operations are also deleted.
 
-For managed operations (those with x-ob metadata from sync), a warning
-is shown because the next 'ob source pull' will re-derive them. Use --force to
-suppress the warning, or 'ob source remove' to stop syncing from the
+For source-owned operations (derived from a registered source), a warning
+is shown because the next 'ob source pull' will re-derive them. Use --force
+to suppress the warning, or 'ob source remove' to stop deriving from the
 source entirely.
 
 Examples:
@@ -779,9 +785,9 @@ Examples:
 			obiPath := args[0]
 			keys := args[1:]
 
-			// Warn about managed operations unless --force.
+			// Warn about source-owned operations unless --force.
 			if !force {
-				if warning := checkManagedOps(obiPath, keys); warning != "" {
+				if warning := checkSourceOwnedOps(obiPath, keys); warning != "" {
 					return app.ExitResult{Code: 1, Message: warning, ToStderr: true}
 				}
 			}
@@ -795,29 +801,30 @@ Examples:
 		},
 	}
 
-	cmd.Flags().BoolVar(&force, "force", false, "remove managed operations without warning")
+	cmd.Flags().BoolVar(&force, "force", false, "remove source-owned operations without warning")
 
 	return cmd
 }
 
-// checkManagedOps loads the OBI and returns a warning string if any of the
-// given operation keys are managed (have x-ob metadata). Returns "" if none are managed.
-func checkManagedOps(obiPath string, keys []string) string {
+// checkSourceOwnedOps loads the OBI and returns a warning string if any of
+// the given operation keys are source-owned (derived from a registered
+// source). Returns "" if none are.
+func checkSourceOwnedOps(obiPath string, keys []string) string {
 	result, err := app.OperationList(obiPath, "")
 	if err != nil {
 		return "" // let the actual remove call surface the error
 	}
 
-	managed := map[string]bool{}
-	for _, op := range result.Operations {
+	sourceOwned := map[string]bool{}
+	for _, op := range result {
 		if app.IsSourceOwned(op.Operation.LosslessFields) {
-			managed[op.Key] = true
+			sourceOwned[op.Key] = true
 		}
 	}
 
 	var warn []string
 	for _, key := range keys {
-		if managed[key] {
+		if sourceOwned[key] {
 			warn = append(warn, key)
 		}
 	}
@@ -826,9 +833,9 @@ func checkManagedOps(obiPath string, keys []string) string {
 		return ""
 	}
 
-	return "managed operations (will be re-derived by 'ob source pull'): " +
+	return "source-owned operations (the next 'ob source pull' will re-derive them): " +
 		joinKeys(warn) +
-		"\nuse --force to remove anyway, or 'ob source remove' to stop syncing"
+		"\nuse --force to remove anyway, or 'ob source remove' to stop deriving from the source"
 }
 
 func joinKeys(keys []string) string {

@@ -18,8 +18,8 @@ func TestOperationList_Empty(t *testing.T) {
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	if len(result.Operations) != 0 {
-		t.Errorf("expected 0 operations, got %d", len(result.Operations))
+	if len(result) != 0 {
+		t.Errorf("expected 0 operations, got %d", len(result))
 	}
 }
 
@@ -34,16 +34,16 @@ func TestOperationList_WithOperations(t *testing.T) {
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	if len(result.Operations) != 2 {
-		t.Fatalf("expected 2 operations, got %d", len(result.Operations))
+	if len(result) != 2 {
+		t.Fatalf("expected 2 operations, got %d", len(result))
 	}
 
 	// Verify sorted by key.
-	if result.Operations[0].Key != "hello" {
-		t.Errorf("expected first op 'hello', got %q", result.Operations[0].Key)
+	if result[0].Key != "hello" {
+		t.Errorf("expected first op 'hello', got %q", result[0].Key)
 	}
-	if result.Operations[1].Key != "info" {
-		t.Errorf("expected second op 'info', got %q", result.Operations[1].Key)
+	if result[1].Key != "info" {
+		t.Errorf("expected second op 'info', got %q", result[1].Key)
 	}
 }
 
@@ -59,8 +59,8 @@ func TestOperationList_TagFilter(t *testing.T) {
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	if len(result.Operations) != 2 {
-		t.Fatalf("expected 2 operations with tag 'admin', got %d", len(result.Operations))
+	if len(result) != 2 {
+		t.Fatalf("expected 2 operations with tag 'admin', got %d", len(result))
 	}
 }
 
@@ -82,16 +82,14 @@ func TestOperationList_BindingCount(t *testing.T) {
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	if len(result.Operations[0].Bindings) != 2 {
-		t.Errorf("expected 2 bindings, got %d", len(result.Operations[0].Bindings))
+	if len(result[0].Bindings) != 2 {
+		t.Errorf("expected 2 bindings, got %d", len(result[0].Bindings))
 	}
 }
 
 func TestOperationList_Render(t *testing.T) {
 	output := OperationListOutput{
-		Operations: []OperationEntry{
-			{Key: "hello", Operation: openbindings.Operation{Description: "Say hello", Tags: []string{"greet"}}, Bindings: []string{"hello.openapi"}},
-		},
+		{Key: "hello", Operation: openbindings.Operation{Description: "Say hello", Tags: []string{"greet"}}, Bindings: []string{"hello.openapi"}},
 	}
 	rendered := output.Render()
 	if rendered == "" {
@@ -472,8 +470,8 @@ func TestOperationAliasList_All(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 	// Only operations with aliases appear in the satisfaction map.
-	if len(result.Operations) != 1 || result.Operations[0].Key != "acme.fetch" {
-		t.Errorf("expected only acme.fetch, got %+v", result.Operations)
+	if len(result) != 1 || result[0].Key != "acme.fetch" {
+		t.Errorf("expected only acme.fetch, got %+v", result)
 	}
 }
 
@@ -488,8 +486,8 @@ func TestOperationAliasList_Scoped(t *testing.T) {
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	if len(result.Operations) != 1 || result.Operations[0].Key != "acme.plain" {
-		t.Errorf("expected acme.plain listed, got %+v", result.Operations)
+	if len(result) != 1 || result[0].Key != "acme.plain" {
+		t.Errorf("expected acme.plain listed, got %+v", result)
 	}
 }
 

@@ -103,7 +103,7 @@ func TestContextGitHub_OperationInvokerDriven(t *testing.T) {
 	}
 	t.Cleanup(func() { _ = DeleteContextCredentials("https://api.github.com") })
 
-	ch, err := InvokeOBIOperation(context.Background(), obiPath, "getAuthenticatedUser", "", nil)
+	ch, _, err := InvokeOBIOperation(context.Background(), obiPath, "getAuthenticatedUser", "", nil)
 	if err != nil {
 		t.Fatalf("InvokeOBIOperation failed: %v", err)
 	}

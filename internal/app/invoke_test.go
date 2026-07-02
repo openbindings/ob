@@ -115,7 +115,7 @@ func writeOBIFile(t *testing.T, dir string, iface map[string]any) string {
 }
 
 func TestInvokeOBIOperation_FileNotFound(t *testing.T) {
-	_, err := InvokeOBIOperation(context.Background(), "/nonexistent/file.json", "test", "", nil)
+	_, _, err := InvokeOBIOperation(context.Background(), "/nonexistent/file.json", "test", "", nil)
 	if err == nil {
 		t.Fatal("expected error for missing file")
 	}
@@ -131,7 +131,7 @@ func TestInvokeOBIOperation_OperationNotFound(t *testing.T) {
 		},
 	})
 
-	_, err := InvokeOBIOperation(context.Background(), obi, "deletePets", "", nil)
+	_, _, err := InvokeOBIOperation(context.Background(), obi, "deletePets", "", nil)
 	if err == nil {
 		t.Fatal("expected error for missing operation")
 	}
@@ -147,7 +147,7 @@ func TestInvokeOBIOperation_NoBinding(t *testing.T) {
 		},
 	})
 
-	_, err := InvokeOBIOperation(context.Background(), obi, "listPets", "", nil)
+	_, _, err := InvokeOBIOperation(context.Background(), obi, "listPets", "", nil)
 	if err == nil {
 		t.Fatal("expected error for missing binding")
 	}
@@ -169,7 +169,7 @@ func TestInvokeOBIOperation_MissingSource(t *testing.T) {
 		},
 	})
 
-	_, err := InvokeOBIOperation(context.Background(), obi, "listPets", "", nil)
+	_, _, err := InvokeOBIOperation(context.Background(), obi, "listPets", "", nil)
 	if err == nil {
 		t.Fatal("expected error for missing source")
 	}
@@ -200,7 +200,7 @@ func TestInvokeOBIOperation_BindingKeyResolvesOperation(t *testing.T) {
 
 	// Provide only the binding key (no operation key).
 	// The operation should be resolved from the binding entry.
-	ch, err := InvokeOBIOperation(context.Background(), obi, "", "listPets.usage1", nil)
+	ch, _, err := InvokeOBIOperation(context.Background(), obi, "", "listPets.usage1", nil)
 	// We expect it to proceed past operation/binding resolution. It will fail
 	// at the handler level (no actual cli.kdl file), which is fine — we're
 	// testing that the binding-based path resolves the operation correctly.
@@ -227,7 +227,7 @@ func TestInvokeOBIOperation_BindingKeyNotFound(t *testing.T) {
 		},
 	})
 
-	_, err := InvokeOBIOperation(context.Background(), obi, "", "nonexistent.binding", nil)
+	_, _, err := InvokeOBIOperation(context.Background(), obi, "", "nonexistent.binding", nil)
 	if err == nil {
 		t.Fatal("expected error for nonexistent binding key")
 	}
@@ -257,7 +257,7 @@ func TestInvokeOBIOperation_InputTransformError(t *testing.T) {
 		},
 	})
 
-	_, err := InvokeOBIOperation(context.Background(), obi, "listPets", "", map[string]any{"limit": 10})
+	_, _, err := InvokeOBIOperation(context.Background(), obi, "listPets", "", map[string]any{"limit": 10})
 	if err == nil {
 		t.Fatal("expected error for bad input transform")
 	}

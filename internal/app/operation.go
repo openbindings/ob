@@ -10,10 +10,10 @@ import (
 
 // --- List ---
 
-// OperationListOutput represents the result of listing operations.
-type OperationListOutput struct {
-	Operations []OperationEntry `json:"operations"`
-}
+// OperationListOutput is the listOperations wire output: a bare array of
+// entries per the contract's output schema (never null — an empty interface
+// lists as []).
+type OperationListOutput []OperationEntry
 
 // OperationEntry is a single operation in the list: the operation as stored in
 // the interface, tagged with its key and the bindings that realize it.
@@ -26,13 +26,13 @@ type OperationEntry struct {
 // Render returns a human-friendly representation.
 func (o OperationListOutput) Render() string {
 	s := Styles
-	if len(o.Operations) == 0 {
+	if len(o) == 0 {
 		return s.Dim.Render("No operations defined")
 	}
 	var sb strings.Builder
-	sb.WriteString(s.Header.Render(fmt.Sprintf("Operations (%d)", len(o.Operations))))
+	sb.WriteString(s.Header.Render(fmt.Sprintf("Operations (%d)", len(o))))
 	sb.WriteString("\n")
-	for _, op := range o.Operations {
+	for _, op := range o {
 		sb.WriteString("\n  ")
 		sb.WriteString(s.Key.Render(op.Key))
 		if len(op.Operation.Tags) > 0 {
@@ -41,7 +41,7 @@ func (o OperationListOutput) Render() string {
 			sb.WriteString(s.Dim.Render("]"))
 		}
 		if IsSourceOwned(op.Operation.LosslessFields) {
-			sb.WriteString(s.Dim.Render("  managed"))
+			sb.WriteString(s.Dim.Render("  source-owned"))
 		}
 		if len(op.Bindings) > 0 {
 			sb.WriteString(s.Dim.Render(fmt.Sprintf("  %d binding(s)", len(op.Bindings))))
@@ -58,7 +58,7 @@ func (o OperationListOutput) Render() string {
 func OperationList(obiPath string, tagFilter string) (OperationListOutput, error) {
 	iface, err := loadInterfaceFile(obiPath)
 	if err != nil {
-		return OperationListOutput{}, fmt.Errorf("load OBI: %w", err)
+		return nil, fmt.Errorf("load OBI: %w", err)
 	}
 
 	// Collect the binding keys that realize each operation.
@@ -70,7 +70,7 @@ func OperationList(obiPath string, tagFilter string) (OperationListOutput, error
 		sort.Strings(keys)
 	}
 
-	var entries []OperationEntry
+	entries := OperationListOutput{}
 	for key, op := range iface.Operations {
 		// Apply tag filter.
 		if tagFilter != "" && !containsTag(op.Tags, tagFilter) {
@@ -87,7 +87,7 @@ func OperationList(obiPath string, tagFilter string) (OperationListOutput, error
 		return entries[i].Key < entries[j].Key
 	})
 
-	return OperationListOutput{Operations: entries}, nil
+	return entries, nil
 }
 
 // containsTag checks if a tag list contains the given tag.
@@ -488,20 +488,20 @@ type OperationAliasListEntry struct {
 	Aliases []string `json:"aliases"`
 }
 
-// OperationAliasListOutput is the satisfaction map.
-type OperationAliasListOutput struct {
-	Operations []OperationAliasListEntry `json:"operations"`
-}
+// OperationAliasListOutput is the satisfaction map — the listOperationAliases
+// wire output: a bare array of entries per the contract's output schema
+// (never null).
+type OperationAliasListOutput []OperationAliasListEntry
 
 // Render returns a human-friendly representation.
 func (o OperationAliasListOutput) Render() string {
 	s := Styles
-	if len(o.Operations) == 0 {
+	if len(o) == 0 {
 		return s.Dim.Render("No satisfaction aliases")
 	}
 	var sb strings.Builder
 	sb.WriteString(s.Header.Render("Satisfies"))
-	for _, e := range o.Operations {
+	for _, e := range o {
 		sb.WriteString("\n\n  ")
 		sb.WriteString(s.Key.Render(e.Key))
 		if len(e.Aliases) == 0 {
@@ -523,16 +523,20 @@ func (o OperationAliasListOutput) Render() string {
 func OperationAliasList(obiPath, op string) (OperationAliasListOutput, error) {
 	iface, err := loadInterfaceFile(obiPath)
 	if err != nil {
-		return OperationAliasListOutput{}, fmt.Errorf("load OBI: %w", err)
+		return nil, fmt.Errorf("load OBI: %w", err)
 	}
 
-	var entries []OperationAliasListEntry
+	entries := OperationAliasListOutput{}
 	if op != "" {
 		key, operation, found := openbindings.ResolveOperation(iface, op)
 		if !found {
-			return OperationAliasListOutput{}, fmt.Errorf("operation %q not found", op)
+			return nil, fmt.Errorf("operation %q not found", op)
 		}
-		entries = append(entries, OperationAliasListEntry{Key: key, Aliases: operation.Aliases})
+		aliases := operation.Aliases
+		if aliases == nil {
+			aliases = []string{} // contract requires an array, never null
+		}
+		entries = append(entries, OperationAliasListEntry{Key: key, Aliases: aliases})
 	} else {
 		for key, operation := range iface.Operations {
 			if len(operation.Aliases) == 0 {
@@ -543,5 +547,5 @@ func OperationAliasList(obiPath, op string) (OperationAliasListOutput, error) {
 		sort.Slice(entries, func(i, j int) bool { return entries[i].Key < entries[j].Key })
 	}
 
-	return OperationAliasListOutput{Operations: entries}, nil
+	return entries, nil
 }

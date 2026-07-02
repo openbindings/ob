@@ -1916,7 +1916,7 @@
       "additionalProperties": false,
       "properties": {
         "force": {
-          "description": "Remove managed operations without warning.",
+          "description": "Remove source-owned operations without warning.",
           "type": "boolean"
         },
         "interface": {
