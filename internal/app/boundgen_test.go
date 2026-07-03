@@ -190,8 +190,34 @@ func TestGenerateBoundCLI_AttachesWireInputTransforms(t *testing.T) {
 			t.Errorf("%s: payload did not round-trip: %#v", key, roundTrip)
 		}
 	}
-	// Ops without wireInput stay on plain field-name mapping.
-	if b := bound.Bindings["openbindings.ob.describe.usage"]; b.InputTransform != nil {
-		t.Error("describe: unexpected inputTransform on a non-machine-lane binding")
+	// Ops without wireInput get the -F json forcing transform (exec-lane
+	// output conformance): nil input becomes {format: json}, object input is
+	// merged with it.
+	b := bound.Bindings["openbindings.ob.describe.usage"]
+	if b.InputTransform == nil {
+		t.Fatal("describe: expected the -F json forcing inputTransform")
+	}
+	out, terr := ApplyTransform(bound.Transforms, b.InputTransform, nil)
+	if terr != nil {
+		t.Fatalf("describe: transform on nil input failed: %v", terr)
+	}
+	if m, ok := out.(map[string]any); !ok || m["format"] != "json" || len(m) != 1 {
+		t.Errorf("describe: nil input should become {format: json}, got %#v", out)
+	}
+	b = bound.Bindings["openbindings.ob.resolveDelegate.usage"]
+	if b.InputTransform == nil {
+		t.Fatal("resolveDelegate: expected the -F json forcing inputTransform")
+	}
+	out, terr = ApplyTransform(bound.Transforms, b.InputTransform, map[string]any{"operation": "x"})
+	if terr != nil {
+		t.Fatalf("resolveDelegate: transform failed: %v", terr)
+	}
+	if m, ok := out.(map[string]any); !ok || m["format"] != "json" || m["operation"] != "x" {
+		t.Errorf("resolveDelegate: expected merged {operation, format}, got %#v", out)
+	}
+	// Ops whose own input carries a `format` field are skipped (root-flag
+	// shadowing is theirs to solve individually).
+	if b := bound.Bindings["openbindings.ob.resolveDelegateForFormat.usage"]; b.InputTransform != nil {
+		t.Error("resolveDelegateForFormat: -F json forcing must not clobber the op's own format field")
 	}
 }

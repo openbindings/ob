@@ -64,11 +64,21 @@ func GenerateBoundCLI(contractPath, usagePath, usageFormat string) (*openbinding
 		return nil, fmt.Errorf("parse usage spec: %w", err)
 	}
 	wireInputByShort := map[string]string{}
+	formatFlagByShort := map[string]bool{}
 	spec.Walk(func(_ []string, cmd usage.Command) {
 		opKey := cmd.Node.Props["opKey"].String()
-		flag := cmd.Node.Props["wireInput"].String()
-		if opKey != "" && flag != "" {
+		if opKey == "" {
+			return
+		}
+		if flag := cmd.Node.Props["wireInput"].String(); flag != "" {
 			wireInputByShort[opKey] = flag
+		}
+		for _, f := range cmd.Flags {
+			for _, long := range f.ParseUsage().Long {
+				if long == "format" {
+					formatFlagByShort[opKey] = true
+				}
+			}
 		}
 	})
 
@@ -106,6 +116,17 @@ func GenerateBoundCLI(contractPath, usagePath, usageFormat string) (*openbinding
 			be.InputTransform = &openbindings.TransformOrRef{
 				Inline: fmt.Sprintf("{ %q: $string($$) }", flag),
 			}
+		} else if formatFlagByShort[short] && !inputHasFormatField(contract, op) {
+			// Exec-lane output conformance: the CLI renders text by default,
+			// and the usage transport wraps non-JSON stdout as {stdout: ...} —
+			// which fails the operation's output schema (OBI-T-08). Forcing
+			// the machine format makes commands whose -F json lane is
+			// wire-true emit contract-shaped output. Skipped when the
+			// operation's own input carries a `format` field (root-flag
+			// shadowing; those ops are handled individually).
+			be.InputTransform = &openbindings.TransformOrRef{
+				Inline: `$merge([$type($$) = "object" ? $$ : {}, {"format": "json"}])`,
+			}
 		}
 		bound.Bindings[key+".usage"] = be
 	}
@@ -114,6 +135,28 @@ func GenerateBoundCLI(contractPath, usagePath, usageFormat string) (*openbinding
 	_ = unbound
 
 	return bound, nil
+}
+
+// inputHasFormatField reports whether an operation's input schema defines a
+// `format` property (resolving a top-level #/schemas/ ref). Such a field maps
+// to the CLI's root -F/--format flag under the usage transport's field-name
+// mapping, so the -F json forcing transform must not clobber it.
+func inputHasFormatField(contract *openbindings.Interface, op openbindings.Operation) bool {
+	schema := map[string]any(op.Input)
+	if schema == nil {
+		return false
+	}
+	if ref, ok := schema["$ref"].(string); ok && strings.HasPrefix(ref, "#/schemas/") {
+		name := strings.TrimPrefix(ref, "#/schemas/")
+		resolved, ok := contract.Schemas[name]
+		if !ok {
+			return false
+		}
+		schema = map[string]any(resolved)
+	}
+	props, _ := schema["properties"].(map[string]any)
+	_, has := props["format"]
+	return has
 }
 
 // GenerateBoundServe builds the bound serve realization (serve.obi.json): the

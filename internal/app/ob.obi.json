@@ -1,21 +1,25 @@
 {
   "bindings": {
     "openbindings.ob.addOperation.usage": {
+      "inputTransform": "$merge([$type($$) = \"object\" ? $$ : {}, {\"format\": \"json\"}])",
       "operation": "openbindings.ob.addOperation",
       "ref": "operation add",
       "source": "usage"
     },
     "openbindings.ob.addOperationAlias.usage": {
+      "inputTransform": "$merge([$type($$) = \"object\" ? $$ : {}, {\"format\": \"json\"}])",
       "operation": "openbindings.ob.addOperationAlias",
       "ref": "operation alias add",
       "source": "usage"
     },
     "openbindings.ob.addSource.usage": {
+      "inputTransform": "$merge([$type($$) = \"object\" ? $$ : {}, {\"format\": \"json\"}])",
       "operation": "openbindings.ob.addSource",
       "ref": "source add",
       "source": "usage"
     },
     "openbindings.ob.bindOperation.usage": {
+      "inputTransform": "$merge([$type($$) = \"object\" ? $$ : {}, {\"format\": \"json\"}])",
       "operation": "openbindings.ob.bindOperation",
       "ref": "operation bind",
       "source": "usage"
@@ -26,11 +30,13 @@
       "source": "usage"
     },
     "openbindings.ob.compareInterfaces.usage": {
+      "inputTransform": "$merge([$type($$) = \"object\" ? $$ : {}, {\"format\": \"json\"}])",
       "operation": "openbindings.ob.compareInterfaces",
       "ref": "diff",
       "source": "usage"
     },
     "openbindings.ob.conform.usage": {
+      "inputTransform": "$merge([$type($$) = \"object\" ? $$ : {}, {\"format\": \"json\"}])",
       "operation": "openbindings.ob.conform",
       "ref": "conform",
       "source": "usage"
@@ -41,16 +47,19 @@
       "source": "usage"
     },
     "openbindings.ob.describe.usage": {
+      "inputTransform": "$merge([$type($$) = \"object\" ? $$ : {}, {\"format\": \"json\"}])",
       "operation": "openbindings.ob.describe",
       "ref": "describe",
       "source": "usage"
     },
     "openbindings.ob.detachOperation.usage": {
+      "inputTransform": "$merge([$type($$) = \"object\" ? $$ : {}, {\"format\": \"json\"}])",
       "operation": "openbindings.ob.detachOperation",
       "ref": "operation detach",
       "source": "usage"
     },
     "openbindings.ob.getContext.usage": {
+      "inputTransform": "$merge([$type($$) = \"object\" ? $$ : {}, {\"format\": \"json\"}])",
       "operation": "openbindings.ob.getContext",
       "ref": "context get",
       "source": "usage"
@@ -61,6 +70,7 @@
       "source": "usage"
     },
     "openbindings.ob.initializeEnvironment.usage": {
+      "inputTransform": "$merge([$type($$) = \"object\" ? $$ : {}, {\"format\": \"json\"}])",
       "operation": "openbindings.ob.initializeEnvironment",
       "ref": "init",
       "source": "usage"
@@ -83,41 +93,49 @@
       "source": "usage"
     },
     "openbindings.ob.listContexts.usage": {
+      "inputTransform": "$merge([$type($$) = \"object\" ? $$ : {}, {\"format\": \"json\"}])",
       "operation": "openbindings.ob.listContexts",
       "ref": "context list",
       "source": "usage"
     },
     "openbindings.ob.listDelegates.usage": {
+      "inputTransform": "$merge([$type($$) = \"object\" ? $$ : {}, {\"format\": \"json\"}])",
       "operation": "openbindings.ob.listDelegates",
       "ref": "delegate list",
       "source": "usage"
     },
     "openbindings.ob.listFormats.usage": {
+      "inputTransform": "$merge([$type($$) = \"object\" ? $$ : {}, {\"format\": \"json\"}])",
       "operation": "openbindings.ob.listFormats",
       "ref": "formats",
       "source": "usage"
     },
     "openbindings.ob.listOperationAliases.usage": {
+      "inputTransform": "$merge([$type($$) = \"object\" ? $$ : {}, {\"format\": \"json\"}])",
       "operation": "openbindings.ob.listOperationAliases",
       "ref": "operation alias list",
       "source": "usage"
     },
     "openbindings.ob.listOperations.usage": {
+      "inputTransform": "$merge([$type($$) = \"object\" ? $$ : {}, {\"format\": \"json\"}])",
       "operation": "openbindings.ob.listOperations",
       "ref": "operation list",
       "source": "usage"
     },
     "openbindings.ob.listSources.usage": {
+      "inputTransform": "$merge([$type($$) = \"object\" ? $$ : {}, {\"format\": \"json\"}])",
       "operation": "openbindings.ob.listSources",
       "ref": "source list",
       "source": "usage"
     },
     "openbindings.ob.mergeInterfaces.usage": {
+      "inputTransform": "$merge([$type($$) = \"object\" ? $$ : {}, {\"format\": \"json\"}])",
       "operation": "openbindings.ob.mergeInterfaces",
       "ref": "merge",
       "source": "usage"
     },
     "openbindings.ob.newInterface.usage": {
+      "inputTransform": "$merge([$type($$) = \"object\" ? $$ : {}, {\"format\": \"json\"}])",
       "operation": "openbindings.ob.newInterface",
       "ref": "new",
       "source": "usage"
@@ -129,21 +147,25 @@
       "source": "usage"
     },
     "openbindings.ob.prepareOperation.usage": {
+      "inputTransform": "$merge([$type($$) = \"object\" ? $$ : {}, {\"format\": \"json\"}])",
       "operation": "openbindings.ob.prepareOperation",
       "ref": "operation prepare",
       "source": "usage"
     },
     "openbindings.ob.pullSource.usage": {
+      "inputTransform": "$merge([$type($$) = \"object\" ? $$ : {}, {\"format\": \"json\"}])",
       "operation": "openbindings.ob.pullSource",
       "ref": "source pull",
       "source": "usage"
     },
     "openbindings.ob.purifyInterface.usage": {
+      "inputTransform": "$merge([$type($$) = \"object\" ? $$ : {}, {\"format\": \"json\"}])",
       "operation": "openbindings.ob.purifyInterface",
       "ref": "purify",
       "source": "usage"
     },
     "openbindings.ob.registerDelegate.usage": {
+      "inputTransform": "$merge([$type($$) = \"object\" ? $$ : {}, {\"format\": \"json\"}])",
       "operation": "openbindings.ob.registerDelegate",
       "ref": "delegate register",
       "source": "usage"
@@ -154,41 +176,49 @@
       "source": "usage"
     },
     "openbindings.ob.removeOperation.usage": {
+      "inputTransform": "$merge([$type($$) = \"object\" ? $$ : {}, {\"format\": \"json\"}])",
       "operation": "openbindings.ob.removeOperation",
       "ref": "operation remove",
       "source": "usage"
     },
     "openbindings.ob.removeOperationAlias.usage": {
+      "inputTransform": "$merge([$type($$) = \"object\" ? $$ : {}, {\"format\": \"json\"}])",
       "operation": "openbindings.ob.removeOperationAlias",
       "ref": "operation alias remove",
       "source": "usage"
     },
     "openbindings.ob.removeSource.usage": {
+      "inputTransform": "$merge([$type($$) = \"object\" ? $$ : {}, {\"format\": \"json\"}])",
       "operation": "openbindings.ob.removeSource",
       "ref": "source remove",
       "source": "usage"
     },
     "openbindings.ob.renameOperation.usage": {
+      "inputTransform": "$merge([$type($$) = \"object\" ? $$ : {}, {\"format\": \"json\"}])",
       "operation": "openbindings.ob.renameOperation",
       "ref": "operation rename",
       "source": "usage"
     },
     "openbindings.ob.reportCompatibility.usage": {
+      "inputTransform": "$merge([$type($$) = \"object\" ? $$ : {}, {\"format\": \"json\"}])",
       "operation": "openbindings.ob.reportCompatibility",
       "ref": "compat",
       "source": "usage"
     },
     "openbindings.ob.reportEnvironmentStatus.usage": {
+      "inputTransform": "$merge([$type($$) = \"object\" ? $$ : {}, {\"format\": \"json\"}])",
       "operation": "openbindings.ob.reportEnvironmentStatus",
       "ref": "environment",
       "source": "usage"
     },
     "openbindings.ob.reportInterfaceStatus.usage": {
+      "inputTransform": "$merge([$type($$) = \"object\" ? $$ : {}, {\"format\": \"json\"}])",
       "operation": "openbindings.ob.reportInterfaceStatus",
       "ref": "status",
       "source": "usage"
     },
     "openbindings.ob.resolveDelegate.usage": {
+      "inputTransform": "$merge([$type($$) = \"object\" ? $$ : {}, {\"format\": \"json\"}])",
       "operation": "openbindings.ob.resolveDelegate",
       "ref": "delegate resolve",
       "source": "usage"
@@ -214,16 +244,19 @@
       "source": "usage"
     },
     "openbindings.ob.setMetadata.usage": {
+      "inputTransform": "$merge([$type($$) = \"object\" ? $$ : {}, {\"format\": \"json\"}])",
       "operation": "openbindings.ob.setMetadata",
       "ref": "meta set",
       "source": "usage"
     },
     "openbindings.ob.setOperation.usage": {
+      "inputTransform": "$merge([$type($$) = \"object\" ? $$ : {}, {\"format\": \"json\"}])",
       "operation": "openbindings.ob.setOperation",
       "ref": "operation set",
       "source": "usage"
     },
     "openbindings.ob.setOperationCodegenName.usage": {
+      "inputTransform": "$merge([$type($$) = \"object\" ? $$ : {}, {\"format\": \"json\"}])",
       "operation": "openbindings.ob.setOperationCodegenName",
       "ref": "operation codegen-name",
       "source": "usage"
@@ -245,16 +278,19 @@
       "source": "usage"
     },
     "openbindings.ob.unbindOperation.usage": {
+      "inputTransform": "$merge([$type($$) = \"object\" ? $$ : {}, {\"format\": \"json\"}])",
       "operation": "openbindings.ob.unbindOperation",
       "ref": "operation unbind",
       "source": "usage"
     },
     "openbindings.ob.unregisterDelegate.usage": {
+      "inputTransform": "$merge([$type($$) = \"object\" ? $$ : {}, {\"format\": \"json\"}])",
       "operation": "openbindings.ob.unregisterDelegate",
       "ref": "delegate unregister",
       "source": "usage"
     },
     "openbindings.ob.validateInterface.usage": {
+      "inputTransform": "$merge([$type($$) = \"object\" ? $$ : {}, {\"format\": \"json\"}])",
       "operation": "openbindings.ob.validateInterface",
       "ref": "validate",
       "source": "usage"
