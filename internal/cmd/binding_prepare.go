@@ -14,7 +14,7 @@ func newBindingPrepareCmd() *cobra.Command {
 
 	c := &cobra.Command{
 		Use:   "prepare",
-		Short: "Preflight a resolved binding",
+		Short: "Preflight a resolved binding (machine-to-machine)",
 		Long: `Preflight a resolved binding (machine-facing).
 
 Reads BindingInvocationInput from the --input flag (JSON string) and reports the

@@ -316,13 +316,9 @@ cmd "operation" help="Manage and invoke operations on an OBI" subcommand_require
 cmd "binding" help="Low-level binding operations" subcommand_required=true {
   cmd "invoke" help="Invoke a resolved binding (machine-to-machine)" opKey="invokeBinding" wireInput="input" {
     flag "--input <json>" help="BindingInvocationInput as a JSON string"
-    flag "-o --output <path>" help="Write output to file"
-    flag "-F --format <format>" help="Output format: json|yaml|text"
   }
   cmd "prepare" help="Preflight a resolved binding (machine-to-machine)" opKey="prepareBinding" wireInput="input" {
     flag "--input <json>" help="BindingInvocationInput as a JSON string"
-    flag "-o --output <path>" help="Write output to file"
-    flag "-F --format <format>" help="Output format: json|yaml|text"
   }
 }
 

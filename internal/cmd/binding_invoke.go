@@ -14,12 +14,14 @@ func newBindingInvokeCmd() *cobra.Command {
 
 	c := &cobra.Command{
 		Use:   "invoke",
-		Short: "Invoke a resolved binding",
+		Short: "Invoke a resolved binding (machine-to-machine)",
 		Long: `Invoke a resolved binding (machine-facing).
 
 Reads BindingInvocationInput from the --input flag (JSON string), invokes the
 binding using ob's native format support and available delegates (excluding
-itself to prevent recursion), and writes the invocation result as JSON to stdout.
+itself to prevent recursion), and writes the result envelope ({"output": ...}
+or {"error": ...}) as one JSON line to stdout. Always JSON — this is the
+exec-lane realization of the binding-invoker contract, not a human view.
 
 This command satisfies the invokeBinding operation from the
 binding-invoker interface.`,
