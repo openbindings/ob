@@ -238,6 +238,14 @@ func probeHTTP(u string, timeout time.Duration) ProbeResult {
 // Returns the OBI document bytes (validated JSON) and, when the interface was
 // synthesized from a raw spec, the format token it was synthesized from
 // (e.g. "openapi@3.1"); synthesizedFrom is empty for native OBIs.
+// ResolveInterfaceOutput is resolveInterface's wire output: the resolved
+// document plus the binding-format token it was synthesized from (empty for
+// native OBIs), realizing the contract's ResolveInterfaceOutput schema.
+type ResolveInterfaceOutput struct {
+	Interface       *openbindings.Interface `json:"interface"`
+	SynthesizedFrom string                  `json:"synthesizedFrom,omitempty"`
+}
+
 func ResolveOBI(urlOrHost string) (doc []byte, synthesizedFrom string, err error) {
 	u := NormalizeURL(urlOrHost)
 	if u == "" {

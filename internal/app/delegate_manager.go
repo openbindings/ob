@@ -427,10 +427,10 @@ func carriesOperation(operations []string, operation string) bool {
 // it resets the delegate-level value to the unset baseline. Format scopes an
 // operation entry to one binding-source format (ob's extra granularity).
 type SetDelegatePreferenceInput struct {
-	Location   string
-	Preference *float64
-	Operation  string
-	Format     string
+	Location   string   `json:"location"`
+	Preference *float64 `json:"preference"`
+	Operation  string   `json:"operation,omitempty"`
+	Format     string   `json:"format,omitempty"`
 }
 
 // SetDelegatePreference sets or clears a registered delegate's selection

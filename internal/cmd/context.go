@@ -3,6 +3,7 @@ package cmd
 import (
 	"bufio"
 	"encoding/base64"
+	"encoding/json"
 	"fmt"
 	"os"
 	"strings"
@@ -68,7 +69,7 @@ func newContextListCmd() *cobra.Command {
 
 func newContextGetCmd() *cobra.Command {
 	return &cobra.Command{
-		Use:   "get <url>",
+		Use:   "get <key>",
 		Short: "Get context for a target URL (text masks secrets; JSON is the raw payload)",
 		Long: `Get the stored context for a target URL.
 
@@ -104,10 +105,11 @@ func newContextSetCmd() *cobra.Command {
 		envVars     []string
 		metaEntries []string
 		fromCurl    string
+		inputJSON   string
 	)
 
 	cmd := &cobra.Command{
-		Use:   "set <url>",
+		Use:   "set [key]",
 		Short: "Set context fields for a target URL",
 		Long: `Set fields on a URL-keyed context. Creates the context if it doesn't exist.
 
@@ -124,6 +126,11 @@ a config file and can be specified multiple times.
 
 Use --from-curl to import credentials from a curl command.
 
+Machine callers pass the operation's wire input wholesale instead: --input
+takes a SetContextInput ({"key": ..., "value": {...}}) as a JSON string and
+REPLACES the whole context (the key-value-store set contract), exclusive
+with the key argument and all field flags.
+
 Examples:
   ob context set https://api.github.com --bearer-token ghp_xxx
   ob context set https://api.github.com --bearer-token -
@@ -132,8 +139,14 @@ Examples:
   ob context set https://api.example.com --header "Accept: application/json"
   ob context set exec:kubectl --env KUBECONFIG=/home/me/.kube/prod
   ob context set https://api.github.com --from-curl 'curl -H "Authorization: Bearer ghp_xxx" https://api.github.com'`,
-		Args: cobra.ExactArgs(1),
+		Args: cobra.MaximumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
+			if inputJSON != "" {
+				return runContextSetWire(cmd, args, inputJSON)
+			}
+			if len(args) != 1 {
+				return app.ExitResult{Code: 2, Message: "provide a <key> argument or --input", ToStderr: true}
+			}
 			targetURL := args[0]
 
 			if fromCurl != "" {
@@ -211,13 +224,43 @@ Examples:
 	cmd.Flags().StringArrayVar(&envVars, "env", nil, "add env var as \"VAR=value\" (repeatable)")
 	cmd.Flags().StringArrayVar(&metaEntries, "meta", nil, "add metadata as \"key=value\" (repeatable)")
 	cmd.Flags().StringVar(&fromCurl, "from-curl", "", "import context from a curl command string")
+	cmd.Flags().StringVar(&inputJSON, "input", "", "SetContextInput as a JSON string (machine lane)")
 
 	return cmd
 }
 
+// runContextSetWire is the machine lane: the setContext wire input wholesale,
+// full-replacement semantics per the key-value-store set contract. The
+// operation declares no output; the lane prints null.
+func runContextSetWire(cmd *cobra.Command, args []string, inputJSON string) error {
+	if len(args) > 0 {
+		return app.ExitResult{Code: 2, Message: "--input is exclusive with the <key> argument", ToStderr: true}
+	}
+	if cmd.Flags().Changed("bearer-token") || cmd.Flags().Changed("api-key") || cmd.Flags().Changed("basic") ||
+		cmd.Flags().Changed("header") || cmd.Flags().Changed("cookie") || cmd.Flags().Changed("env") ||
+		cmd.Flags().Changed("meta") || cmd.Flags().Changed("from-curl") {
+		return app.ExitResult{Code: 2, Message: "--input is exclusive with the field flags", ToStderr: true}
+	}
+	var wire struct {
+		Key   string         `json:"key"`
+		Value map[string]any `json:"value"`
+	}
+	if err := json.Unmarshal([]byte(inputJSON), &wire); err != nil {
+		return app.ExitResult{Code: 2, Message: fmt.Sprintf("parse --input: %v", err), ToStderr: true}
+	}
+	if wire.Key == "" {
+		return app.ExitResult{Code: 2, Message: "--input: key is required", ToStderr: true}
+	}
+	if err := app.SaveUnifiedContext(wire.Key, wire.Value); err != nil {
+		return app.ExitResult{Code: 1, Message: err.Error(), ToStderr: true}
+	}
+	fmt.Println("null")
+	return nil
+}
+
 func newContextRemoveCmd() *cobra.Command {
 	return &cobra.Command{
-		Use:     "remove <url>",
+		Use:     "remove <key>",
 		Aliases: []string{"rm"},
 		Short:   "Remove context for a target URL",
 		Args:    cobra.ExactArgs(1),
@@ -226,8 +269,12 @@ func newContextRemoveCmd() *cobra.Command {
 			if err := app.DeleteContext(targetURL); err != nil {
 				return app.ExitResult{Code: 1, Message: err.Error(), ToStderr: true}
 			}
-			fmt.Fprintf(os.Stderr, "Context for %q removed.\n", targetURL)
-			return nil
+			// The contract declares no output; -F json prints null (the wire
+			// lane), the text lane prints the confirmation.
+			format, outputPath := getOutputFlags(cmd)
+			return app.OutputResultText(nil, format, outputPath, func() string {
+				return fmt.Sprintf("Context for %q removed.", targetURL)
+			})
 		},
 	}
 }

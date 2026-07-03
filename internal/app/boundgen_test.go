@@ -215,9 +215,18 @@ func TestGenerateBoundCLI_AttachesWireInputTransforms(t *testing.T) {
 	if m, ok := out.(map[string]any); !ok || m["format"] != "json" || m["operation"] != "x" {
 		t.Errorf("resolveDelegate: expected merged {operation, format}, got %#v", out)
 	}
-	// Ops whose own input carries a `format` field are skipped (root-flag
-	// shadowing is theirs to solve individually).
-	if b := bound.Bindings["openbindings.ob.resolveDelegateForFormat.usage"]; b.InputTransform != nil {
-		t.Error("resolveDelegateForFormat: -F json forcing must not clobber the op's own format field")
+	// Ops whose own input carries a `format` field ride the wireInput machine
+	// lane instead (root-flag shadowing makes flat mapping impossible), so
+	// their transform is the {input: $string($$)} packer, not the -F forcing.
+	b = bound.Bindings["openbindings.ob.resolveDelegateForFormat.usage"]
+	if b.InputTransform == nil {
+		t.Fatal("resolveDelegateForFormat: expected the wireInput machine-lane transform")
+	}
+	out, terr = ApplyTransform(bound.Transforms, b.InputTransform, map[string]any{"format": "usage@2.0.0"})
+	if terr != nil {
+		t.Fatalf("resolveDelegateForFormat: transform failed: %v", terr)
+	}
+	if m, ok := out.(map[string]any); !ok || m["input"] == nil || m["format"] != nil {
+		t.Errorf("resolveDelegateForFormat: expected the {input: <json>} machine lane, got %#v", out)
 	}
 }

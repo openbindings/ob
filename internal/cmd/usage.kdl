@@ -24,7 +24,8 @@ cmd "status" help="Report an OBI's drift against its sources (read-only)" opKey=
 
 cmd "resolve" help="Resolve an OpenBindings interface from a URL or host" opKey="resolveInterface" {
   flag "-o --output <path>" help="Write output to file (default: derived from host)"
-  arg "<url-or-host>" help="Base URL or host (e.g. localhost:8080)"
+  flag "-F --format <format>" help="Output format: json|yaml|text (json = wire lane: print the ResolveInterfaceOutput envelope, write no file)"
+  arg "<address>" help="Base URL or host (e.g. localhost:8080)"
 }
 
 cmd "describe" help="Show ob identity and metadata" opKey="describe" {
@@ -42,9 +43,9 @@ cmd "context" help="Manage binding context (credentials, headers, environment)" 
   cmd "get" help="Get context for a target URL (text masks secrets; JSON is the raw payload)" opKey="getContext" {
     flag "-o --output <path>" help="Write output to file"
     flag "-F --format <format>" help="Output format: json|yaml|text"
-    arg "<url>" help="Target URL"
+    arg "<key>" help="Context key (the target URL)"
   }
-  cmd "set" help="Set context fields for a target URL" opKey="setContext" {
+  cmd "set" help="Set context fields for a target URL" opKey="setContext" wireInput="input" {
     flag "--bearer-token <token>" help="Bearer token (- for stdin)"
     flag "--api-key <key>" help="API key (- for stdin)"
     flag "--basic" help="Set basic auth (prompts for username and password)"
@@ -53,11 +54,14 @@ cmd "context" help="Manage binding context (credentials, headers, environment)" 
     flag "--env <env>" help="Add env var as \"VAR=value\" (repeatable)"
     flag "--meta <meta>" help="Add metadata as \"key=value\" (repeatable)"
     flag "--from-curl <curl>" help="Import context from a curl command string"
-    arg "<url>" help="Target URL"
+    flag "--input <json>" help="SetContextInput as a JSON string (machine lane; full replacement, exclusive with the key argument and field flags)"
+    arg "[key]" help="Context key (the target URL)"
   }
   cmd "remove" help="Remove context for a target URL" opKey="removeContext" {
     alias "rm"
-    arg "<url>" help="Target URL"
+    flag "-o --output <path>" help="Write output to file"
+    flag "-F --format <format>" help="Output format: json|yaml|text"
+    arg "<key>" help="Context key (the target URL)"
   }
 }
 
@@ -86,22 +90,24 @@ cmd "delegate" help="Manage delegates" subcommand_required=true {
     flag "-F --format <format>" help="Output format: json|yaml|text"
     arg "<operation>" help="Operation identifier to resolve"
   }
-  cmd "resolve-format" help="Show which delegate ob's routing would select for a format" opKey="resolveDelegateForFormat" {
+  cmd "resolve-format" help="Show which delegate ob's routing would select for a format" opKey="resolveDelegateForFormat" wireInput="input" {
+    flag "--input <json>" help="ResolveDelegateForFormatInput as a JSON string (machine lane; exclusive with <format>)"
     flag "-o --output <path>" help="Write output to file"
     flag "-F --format <format>" help="Output format: json|yaml|text"
-    arg "<format-token>" help="Format token to resolve"
+    arg "[format-token]" help="Format token to resolve"
   }
   cmd "requirements" help="Print the interface a delegate must satisfy for a capability" opKey="getDelegateRequirements" {
     arg "<capability>" help="Capability: invoke, synthesize, or inspect"
   }
-  cmd "prefer" help="Set or clear a delegate's selection preference (higher = more preferred)" opKey="setDelegatePreference" {
+  cmd "prefer" help="Set or clear a delegate's selection preference (higher = more preferred)" opKey="setDelegatePreference" wireInput="input" {
     flag "--operation <op>" help="Scope to one operation identifier"
     flag "--capability <cap>" help="Shorthand for the operation of an ob capability: invoke, synthesize, or inspect"
     flag "--source-format <format>" help="Scope an operation entry to a binding-source format (requires --operation or --capability)"
     flag "--clear" help="Remove the targeted preference entry instead of setting it"
+    flag "--input <json>" help="SetDelegatePreferenceInput as a JSON string (machine lane; exclusive with arguments and scope flags)"
     flag "-o --output <path>" help="Write output to file"
     flag "-F --format <format>" help="Output format: json|yaml|text"
-    arg "<location>" help="Delegate location"
+    arg "[location]" help="Delegate location"
     arg "[preference]" help="Preference value (omit with --clear)"
   }
 }

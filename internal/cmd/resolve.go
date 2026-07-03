@@ -1,46 +1,64 @@
 package cmd
 
 import (
+	"encoding/json"
 	"fmt"
 	"net/url"
 	"strings"
 
 	"github.com/openbindings/ob/internal/app"
+	openbindings "github.com/openbindings/openbindings-go"
 	"github.com/spf13/cobra"
 )
 
 func newResolveCmd() *cobra.Command {
 	cmd := &cobra.Command{
-		Use:   "resolve <url-or-host>",
+		Use:   "resolve <address>",
 		Short: "Resolve an OpenBindings interface from a URL or host",
 		Long: `Resolve an OpenBindings interface document from a server.
 
-The argument can be a full URL or a host (e.g. localhost:8080).
+The address can be a full URL or a host (e.g. localhost:8080).
 If no scheme is given, http is used. If the direct URL does not
 return an OBI, the tool tries /.well-known/openbindings, and failing
 that, synthesizes an interface from the raw spec it finds.
 
-Use -o/--output to set the output file. If omitted, the filename
-is derived from the host (e.g. localhost:8080 → localhost_8080.obi.json).
+By default the resolved document is written to a file: use -o/--output to
+set it, or the filename is derived from the host (e.g. localhost:8080 →
+localhost_8080.obi.json).
+
+With -F json (the wire lane), no interface file is written: the
+ResolveInterfaceOutput envelope ({"interface": ..., "synthesizedFrom":
+...}) is printed instead, and -o writes that envelope.
 
 Examples:
   ob resolve localhost:8080
   ob resolve localhost:8080 -o blend.obi.json
   ob resolve https://api.example.com
-  ob resolve https://api.example.com -o myapi.obi.json`,
+  ob resolve https://api.example.com -F json`,
 		Args: cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			urlOrHost := strings.TrimSpace(args[0])
-			_, outputPath := getOutputFlags(cmd)
-			if outputPath == "" {
-				outputPath = defaultResolveOutputPath(urlOrHost)
-			}
+			address := strings.TrimSpace(args[0])
+			format, outputPath := getOutputFlags(cmd)
 
-			doc, synthesizedFrom, err := app.ResolveOBI(urlOrHost)
+			doc, synthesizedFrom, err := app.ResolveOBI(address)
 			if err != nil {
 				return app.ExitResult{Code: 1, Message: err.Error(), ToStderr: true}
 			}
 
+			if format != "" && format != "text" {
+				// Wire lane: emit the ResolveInterfaceOutput envelope instead
+				// of writing an interface file.
+				var iface openbindings.Interface
+				if err := json.Unmarshal(doc, &iface); err != nil {
+					return app.ExitResult{Code: 1, Message: fmt.Sprintf("parse resolved interface: %v", err), ToStderr: true}
+				}
+				out := app.ResolveInterfaceOutput{Interface: &iface, SynthesizedFrom: synthesizedFrom}
+				return app.OutputResult(out, format, outputPath)
+			}
+
+			if outputPath == "" {
+				outputPath = defaultResolveOutputPath(address)
+			}
 			if err := app.AtomicWriteFile(outputPath, doc, app.FilePerm); err != nil {
 				return app.ExitResult{Code: 1, Message: err.Error(), ToStderr: true}
 			}
