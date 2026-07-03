@@ -69,7 +69,7 @@ func newContextListCmd() *cobra.Command {
 
 func newContextGetCmd() *cobra.Command {
 	return &cobra.Command{
-		Use:   "get <key>",
+		Use:   "get <url>",
 		Short: "Get context for a target URL (text masks secrets; JSON is the raw payload)",
 		Long: `Get the stored context for a target URL.
 
@@ -109,7 +109,7 @@ func newContextSetCmd() *cobra.Command {
 	)
 
 	cmd := &cobra.Command{
-		Use:   "set [key]",
+		Use:   "set [url]",
 		Short: "Set context fields for a target URL",
 		Long: `Set fields on a URL-keyed context. Creates the context if it doesn't exist.
 
@@ -145,7 +145,7 @@ Examples:
 				return runContextSetWire(cmd, args, inputJSON)
 			}
 			if len(args) != 1 {
-				return app.ExitResult{Code: 2, Message: "provide a <key> argument or --input", ToStderr: true}
+				return app.ExitResult{Code: 2, Message: "provide a <url> argument or --input", ToStderr: true}
 			}
 			targetURL := args[0]
 
@@ -234,7 +234,7 @@ Examples:
 // operation declares no output; the lane prints null.
 func runContextSetWire(cmd *cobra.Command, args []string, inputJSON string) error {
 	if len(args) > 0 {
-		return app.ExitResult{Code: 2, Message: "--input is exclusive with the <key> argument", ToStderr: true}
+		return app.ExitResult{Code: 2, Message: "--input is exclusive with the <url> argument", ToStderr: true}
 	}
 	if cmd.Flags().Changed("bearer-token") || cmd.Flags().Changed("api-key") || cmd.Flags().Changed("basic") ||
 		cmd.Flags().Changed("header") || cmd.Flags().Changed("cookie") || cmd.Flags().Changed("env") ||
@@ -260,7 +260,7 @@ func runContextSetWire(cmd *cobra.Command, args []string, inputJSON string) erro
 
 func newContextRemoveCmd() *cobra.Command {
 	return &cobra.Command{
-		Use:     "remove <key>",
+		Use:     "remove <url>",
 		Aliases: []string{"rm"},
 		Short:   "Remove context for a target URL",
 		Args:    cobra.ExactArgs(1),

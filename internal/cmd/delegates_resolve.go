@@ -1,9 +1,6 @@
 package cmd
 
 import (
-	"encoding/json"
-	"fmt"
-
 	"github.com/openbindings/ob/internal/app"
 	"github.com/spf13/cobra"
 )
@@ -35,61 +32,27 @@ Examples:
 }
 
 func newDelegateResolveFormatCmd() *cobra.Command {
-	var inputJSON string
-
 	c := &cobra.Command{
-		Use:   "resolve-format [format-token]",
+		Use:   "resolve-format <format-token>",
 		Short: "Show which delegate ob's routing would select for a format",
 		Long: `Report which delegate ob's routing would select for a binding format
 token, and the capabilities it offers for it — ob's format-narrowing
 diagnostic, layered on top of the operation-keyed resolve.
 
-Machine callers pass the operation's wire input wholesale instead: --input
-takes a ResolveDelegateForFormatInput ({"format": ...}) as a JSON string,
-exclusive with the <format> argument. (The wire input's format field cannot
-ride the flat field mapping — it collides with the root --format flag.)
-
 Examples:
   ob delegate resolve-format usage@2.0.0
   ob delegate resolve-format openapi@3.1.0 -o result.json`,
-		Args: cobra.MaximumNArgs(1),
+		Args: cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			formatToken := ""
-			switch {
-			case inputJSON != "":
-				if len(args) > 0 {
-					return app.ExitResult{Code: 2, Message: "--input is exclusive with the <format> argument", ToStderr: true}
-				}
-				var wire struct {
-					Format string `json:"format"`
-				}
-				if err := json.Unmarshal([]byte(inputJSON), &wire); err != nil {
-					return app.ExitResult{Code: 2, Message: fmt.Sprintf("parse --input: %v", err), ToStderr: true}
-				}
-				if wire.Format == "" {
-					return app.ExitResult{Code: 2, Message: "--input: format is required", ToStderr: true}
-				}
-				formatToken = wire.Format
-			case len(args) == 1:
-				formatToken = args[0]
-			default:
-				return app.ExitResult{Code: 2, Message: "provide a <format> argument or --input", ToStderr: true}
-			}
-
-			result, err := app.ResolveDelegateForFormat(formatToken)
+			result, err := app.ResolveDelegateForFormat(args[0])
 			if err != nil {
 				return err
 			}
 			format, outputPath := getOutputFlags(cmd)
-			if inputJSON != "" && format == "" {
-				// Machine lane: wire input in, wire-shaped output out.
-				format = "json"
-			}
 			return app.OutputResultText(result, format, outputPath, func() string {
 				return result.Render()
 			})
 		},
 	}
-	c.Flags().StringVar(&inputJSON, "input", "", "ResolveDelegateForFormatInput as a JSON string (machine lane)")
 	return c
 }

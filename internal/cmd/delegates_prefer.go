@@ -1,8 +1,6 @@
 package cmd
 
 import (
-	"encoding/json"
-	"fmt"
 	"strconv"
 	"strings"
 
@@ -13,10 +11,9 @@ import (
 func newDelegatePreferCmd() *cobra.Command {
 	var operation, capability, sourceFormat string
 	var clear bool
-	var inputJSON string
 
 	cmd := &cobra.Command{
-		Use:   "prefer [location] [preference]",
+		Use:   "prefer <location> [preference]",
 		Short: "Set or clear a delegate's selection preference (higher = more preferred)",
 		Long: `Set or clear a delegate's selection preference. Higher is more preferred;
 the baseline is 0 (where an unset delegate sits, alongside ob's own native
@@ -31,47 +28,14 @@ one binding-source format. --clear removes the targeted entry instead.
 Preference orders the candidates 'ob delegate resolve' returns; which
 candidate is used stays with the caller.
 
-Machine callers pass the operation's wire input wholesale instead: --input
-takes a SetDelegatePreferenceInput ({"location": ..., "preference": <num|
-null>, "operation": ..., "format": ...}) as a JSON string, exclusive with
-the positional arguments and scope flags. (The wire input's format field
-cannot ride the flat field mapping — it collides with the root --format
-flag.)
-
 Examples:
   ob delegate prefer exec:acme 5
   ob delegate prefer exec:acme 10 --capability synthesize
   ob delegate prefer exec:acme 10 --operation openbindings.key-value-store.get
   ob delegate prefer exec:acme 10 --capability invoke --source-format grpc
   ob delegate prefer exec:acme --clear --capability synthesize`,
-		Args: cobra.RangeArgs(0, 2),
+		Args: cobra.RangeArgs(1, 2),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			if inputJSON != "" {
-				if len(args) > 0 || operation != "" || capability != "" || sourceFormat != "" || clear {
-					return app.ExitResult{Code: 2, Message: "--input is exclusive with the positional arguments and scope flags", ToStderr: true}
-				}
-				var wire app.SetDelegatePreferenceInput
-				if err := json.Unmarshal([]byte(inputJSON), &wire); err != nil {
-					return app.ExitResult{Code: 2, Message: fmt.Sprintf("parse --input: %v", err), ToStderr: true}
-				}
-				if wire.Location == "" {
-					return app.ExitResult{Code: 2, Message: "--input: location is required", ToStderr: true}
-				}
-				result, err := app.SetDelegatePreference(wire)
-				if err != nil {
-					return err
-				}
-				format, outputPath := getOutputFlags(cmd)
-				if format == "" {
-					// Machine lane: wire input in, wire-shaped output out.
-					format = "json"
-				}
-				return app.OutputResult(result, format, outputPath)
-			}
-			if len(args) == 0 {
-				return app.ExitResult{Code: 2, Message: "provide a <location> argument or --input", ToStderr: true}
-			}
-
 			var pref *float64
 			switch {
 			case clear && len(args) == 2:
@@ -118,7 +82,6 @@ Examples:
 	cmd.Flags().StringVar(&capability, "capability", "", "shorthand for the operation of an ob capability: invoke, synthesize, or inspect")
 	cmd.Flags().StringVar(&sourceFormat, "source-format", "", "scope an operation entry to a binding-source format (requires --operation or --capability)")
 	cmd.Flags().BoolVar(&clear, "clear", false, "remove the targeted preference entry instead of setting it")
-	cmd.Flags().StringVar(&inputJSON, "input", "", "SetDelegatePreferenceInput as a JSON string (machine lane)")
 
 	return cmd
 }

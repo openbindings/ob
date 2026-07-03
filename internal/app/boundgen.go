@@ -63,6 +63,24 @@ func GenerateBoundCLI(contractPath, usagePath, usageFormat string) (*openbinding
 	if err != nil {
 		return nil, fmt.Errorf("parse usage spec: %w", err)
 	}
+	// Per-operation adaptation transforms: where a wire input field cannot
+	// ride the transport's field-name mapping as-is (a name the CLI spells
+	// differently, or one shadowed by a root flag like -F/--format), the
+	// BINDING adapts the wire shape to the CLI's natural surface. This table
+	// lives here — not in usage.kdl — so the usage doc stays a pure
+	// description of the CLI. All transforms also force the machine format
+	// (-F json), replacing the generic forcing below for these ops.
+	adaptationByShort := map[string]string{
+		// resolveDelegateForFormat: wire `format` → the <format-token> arg
+		// (the bare name would map to the root --format flag).
+		"resolveDelegateForFormat": `{"format-token": $$.format, "format": "json"}`,
+		// setDelegatePreference: wire `format` → --source-format, same shadow.
+		"setDelegatePreference": `$merge([$sift($$, function($v, $k) { $k != "format" }), $exists($$.format) ? {"source-format": $$.format} : {}, {"format": "json"}])`,
+		// getContext/removeContext: the wire key is the CLI's <url> argument.
+		"getContext":    `{"url": $$.key, "format": "json"}`,
+		"removeContext": `{"url": $$.key, "format": "json"}`,
+	}
+
 	wireInputByShort := map[string]string{}
 	formatFlagByShort := map[string]bool{}
 	spec.Walk(func(_ []string, cmd usage.Command) {
@@ -109,7 +127,9 @@ func GenerateBoundCLI(contractPath, usagePath, usageFormat string) (*openbinding
 			Source:    "usage",
 			Ref:       ref,
 		}
-		if flag, ok := wireInputByShort[short]; ok {
+		if adaptation, ok := adaptationByShort[short]; ok {
+			be.InputTransform = &openbindings.TransformOrRef{Inline: adaptation}
+		} else if flag, ok := wireInputByShort[short]; ok {
 			// $$ (the root of the operation input), not $: inside an object
 			// constructor the context is a sequence, and $string would
 			// serialize a one-element array.

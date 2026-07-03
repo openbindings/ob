@@ -215,18 +215,43 @@ func TestGenerateBoundCLI_AttachesWireInputTransforms(t *testing.T) {
 	if m, ok := out.(map[string]any); !ok || m["format"] != "json" || m["operation"] != "x" {
 		t.Errorf("resolveDelegate: expected merged {operation, format}, got %#v", out)
 	}
-	// Ops whose own input carries a `format` field ride the wireInput machine
-	// lane instead (root-flag shadowing makes flat mapping impossible), so
-	// their transform is the {input: $string($$)} packer, not the -F forcing.
+	// Ops whose wire field names the CLI spells differently (or that a root
+	// flag shadows) carry an adaptation transform: the BINDING adapts the
+	// wire shape to the CLI's natural surface, leaving the CLI untouched.
 	b = bound.Bindings["openbindings.ob.resolveDelegateForFormat.usage"]
 	if b.InputTransform == nil {
-		t.Fatal("resolveDelegateForFormat: expected the wireInput machine-lane transform")
+		t.Fatal("resolveDelegateForFormat: expected an adaptation transform")
 	}
 	out, terr = ApplyTransform(bound.Transforms, b.InputTransform, map[string]any{"format": "usage@2.0.0"})
 	if terr != nil {
 		t.Fatalf("resolveDelegateForFormat: transform failed: %v", terr)
 	}
-	if m, ok := out.(map[string]any); !ok || m["input"] == nil || m["format"] != nil {
-		t.Errorf("resolveDelegateForFormat: expected the {input: <json>} machine lane, got %#v", out)
+	if m, ok := out.(map[string]any); !ok || m["format-token"] != "usage@2.0.0" || m["format"] != "json" {
+		t.Errorf("resolveDelegateForFormat: expected {format-token, format: json}, got %#v", out)
+	}
+	// setDelegatePreference: format scopes to --source-format; other fields
+	// pass through untouched.
+	b = bound.Bindings["openbindings.ob.setDelegatePreference.usage"]
+	if b.InputTransform == nil {
+		t.Fatal("setDelegatePreference: expected an adaptation transform")
+	}
+	out, terr = ApplyTransform(bound.Transforms, b.InputTransform, map[string]any{
+		"location": "exec:x", "preference": 5, "operation": "op.key", "format": "grpc",
+	})
+	if terr != nil {
+		t.Fatalf("setDelegatePreference: transform failed: %v", terr)
+	}
+	if m, ok := out.(map[string]any); !ok || m["source-format"] != "grpc" || m["location"] != "exec:x" ||
+		m["operation"] != "op.key" || m["format"] != "json" {
+		t.Errorf("setDelegatePreference: unexpected adaptation output %#v", out)
+	}
+	// getContext: the wire key rides the CLI's natural <url> argument.
+	b = bound.Bindings["openbindings.ob.getContext.usage"]
+	out, terr = ApplyTransform(bound.Transforms, b.InputTransform, map[string]any{"key": "https://x"})
+	if terr != nil {
+		t.Fatalf("getContext: transform failed: %v", terr)
+	}
+	if m, ok := out.(map[string]any); !ok || m["url"] != "https://x" {
+		t.Errorf("getContext: expected {url, format}, got %#v", out)
 	}
 }
