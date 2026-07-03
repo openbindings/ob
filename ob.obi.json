@@ -375,6 +375,7 @@
       "aliases": [
         "openbindings.delegate-manager.setDelegatePreference"
       ],
+      "idempotent": true,
       "input": {
         "$ref": "#/schemas/SetDelegatePreferenceInput"
       },
