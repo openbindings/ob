@@ -240,7 +240,7 @@
       ]
     },
     "openbindings.ob.getContext": {
-      "description": "Get the stored context for a key. Returns the unified context payload (credentials, headers, cookies, environment, metadata in a single opaque map), or null when no context exists for the key.",
+      "description": "Get the stored context for a key. Returns the unified context payload (credentials, headers, cookies, environment, metadata in a single opaque map), or null when no context matches. Lookup on URL keys is hierarchical, like invocation-time matching: the exact key wins, then the store walks up the URL path to the most specific stored prefix. Exact keys behave as a plain key-value get, so the key-value-store alias holds.",
       "idempotent": true,
       "input": {
         "$ref": "#/schemas/ContextKeyInput"
@@ -383,13 +383,16 @@
       }
     },
     "openbindings.ob.initializeEnvironment": {
-      "description": "Initialize an OpenBindings environment (the .openbindings/ directory) and return its status.",
+      "description": "Initialize an OpenBindings environment (a local .openbindings/ directory, or the global one with global) and return the created environment's status.",
+      "input": {
+        "$ref": "#/schemas/InitializeEnvironmentInput"
+      },
       "output": {
         "$ref": "#/schemas/EnvironmentStatus"
       }
     },
     "openbindings.ob.reportEnvironmentStatus": {
-      "description": "Report a snapshot of the active OpenBindings environment (the .openbindings/ directory): whether it is local or global, its path, and counts of the delegates and contexts it holds.",
+      "description": "Report a snapshot of the active OpenBindings environment (the .openbindings/ directory): whether it is local or global, its path, the number of delegates it holds, and the number of contexts in the user's context store (contexts are user-scoped, not per-environment).",
       "idempotent": true,
       "output": {
         "$ref": "#/schemas/EnvironmentStatus"
@@ -663,6 +666,10 @@
         "synthesizedFrom": {
           "type": "string",
           "description": "The binding-format token the interface was synthesized from (e.g. openapi@3.1) when the target was not already an OBI; absent for native OBIs."
+        },
+        "resolvedUrl": {
+          "type": "string",
+          "description": "The URL the interface document (or the source spec it was synthesized from) was ultimately fetched from."
         }
       },
       "required": [
@@ -2101,6 +2108,16 @@
       ],
       "additionalProperties": false
     },
+    "InitializeEnvironmentInput": {
+      "type": "object",
+      "properties": {
+        "global": {
+          "type": "boolean",
+          "description": "Initialize the global environment (the openbindings directory under the user config dir) instead of a local .openbindings/ directory."
+        }
+      },
+      "additionalProperties": false
+    },
     "EnvironmentStatus": {
       "type": "object",
       "properties": {
@@ -2118,7 +2135,7 @@
         },
         "contextCount": {
           "type": "integer",
-          "description": "Number of stored contexts in this environment."
+          "description": "Number of contexts in the user's context store (user-scoped, not per-environment)."
         }
       },
       "required": [

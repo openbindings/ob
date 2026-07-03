@@ -69,8 +69,17 @@ func newContextListCmd() *cobra.Command {
 func newContextGetCmd() *cobra.Command {
 	return &cobra.Command{
 		Use:   "get <url>",
-		Short: "Get context details for a target URL (text format masks secrets; JSON returns the raw payload)",
-		Args:  cobra.ExactArgs(1),
+		Short: "Get context for a target URL (text masks secrets; JSON is the raw payload)",
+		Long: `Get the stored context for a target URL.
+
+Resolution is hierarchical for URL keys, like invocation-time matching: the
+exact URL wins, then the store walks up the URL path to the most specific
+stored prefix (e.g. https://api.example.com/v1/spec.json falls back to
+https://api.example.com). Exact keys behave as a plain key-value get.
+
+Text output masks secret values. JSON output (-F json) returns the raw
+payload, credentials included.`,
+		Args: cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			targetURL := args[0]
 			ctx, err := app.GetContext(targetURL)
@@ -131,28 +140,14 @@ Examples:
 				return handleFromCurl(targetURL, fromCurl)
 			}
 
-			cfg, err := app.LoadContextConfig(targetURL)
-			if err != nil {
-				return app.ExitResult{Code: 1, Message: err.Error(), ToStderr: true}
-			}
-
-			cred, err := app.LoadContextCredentials(targetURL)
-			if err != nil {
-				return app.ExitResult{Code: 1, Message: err.Error(), ToStderr: true}
-			}
-
-			credChanged := false
+			var update app.ContextUpdate
 
 			if cmd.Flags().Changed("bearer-token") {
 				val, err := resolveSecretValue(bearerToken, "Bearer token")
 				if err != nil {
 					return app.ExitResult{Code: 1, Message: err.Error(), ToStderr: true}
 				}
-				if cred == nil {
-					cred = map[string]any{}
-				}
-				cred["bearerToken"] = val
-				credChanged = true
+				update.Credentials = map[string]any{"bearerToken": val}
 			}
 
 			if cmd.Flags().Changed("api-key") {
@@ -160,11 +155,10 @@ Examples:
 				if err != nil {
 					return app.ExitResult{Code: 1, Message: err.Error(), ToStderr: true}
 				}
-				if cred == nil {
-					cred = map[string]any{}
+				if update.Credentials == nil {
+					update.Credentials = map[string]any{}
 				}
-				cred["apiKey"] = val
-				credChanged = true
+				update.Credentials["apiKey"] = val
 			}
 
 			if basic {
@@ -180,38 +174,28 @@ Examples:
 				if err != nil {
 					return app.ExitResult{Code: 1, Message: err.Error(), ToStderr: true}
 				}
-				if cred == nil {
-					cred = map[string]any{}
+				if update.Credentials == nil {
+					update.Credentials = map[string]any{}
 				}
-				cred["basic"] = map[string]any{
+				update.Credentials["basic"] = map[string]any{
 					"username": username,
 					"password": password,
 				}
-				credChanged = true
 			}
 
-			cfgChanged, err := applyContextKVFields(
-				headers, cookies, envVars, metaEntries,
-				&cfg.Headers, &cfg.Cookies, &cfg.Environment, &cfg.Metadata,
-			)
+			var err error
+			update.Headers, update.Cookies, update.Environment, update.Metadata, err =
+				parseContextKVFlags(headers, cookies, envVars, metaEntries)
 			if err != nil {
 				return err
 			}
 
-			if !credChanged && !cfgChanged {
+			if update.IsEmpty() {
 				return app.ExitResult{Code: 1, Message: "no fields specified; use --bearer-token, --api-key, --basic, --header, --cookie, --env, --meta, or --from-curl", ToStderr: true}
 			}
 
-			if credChanged {
-				if err := app.SaveContextCredentials(targetURL, cred); err != nil {
-					return app.ExitResult{Code: 1, Message: err.Error(), ToStderr: true}
-				}
-			}
-
-			if cfgChanged || credChanged {
-				if err := app.SaveContextConfig(targetURL, cfg); err != nil {
-					return app.ExitResult{Code: 1, Message: err.Error(), ToStderr: true}
-				}
+			if err := app.ApplyContextUpdate(targetURL, update); err != nil {
+				return app.ExitResult{Code: 1, Message: err.Error(), ToStderr: true}
 			}
 
 			fmt.Fprintf(os.Stderr, "Context for %q updated.\n", targetURL)
@@ -251,63 +235,29 @@ func newContextRemoveCmd() *cobra.Command {
 func handleFromCurl(targetURL, curlCmd string) error {
 	parsed := parseCurlCommand(curlCmd)
 
-	cfg, err := app.LoadContextConfig(targetURL)
-	if err != nil {
-		return app.ExitResult{Code: 1, Message: err.Error(), ToStderr: true}
+	update := app.ContextUpdate{
+		Headers: parsed.headers,
+		Cookies: parsed.cookies,
 	}
-
-	cred, err := app.LoadContextCredentials(targetURL)
-	if err != nil {
-		return app.ExitResult{Code: 1, Message: err.Error(), ToStderr: true}
-	}
-
 	if parsed.bearerToken != "" {
-		if cred == nil {
-			cred = map[string]any{}
-		}
-		cred["bearerToken"] = parsed.bearerToken
+		update.Credentials = map[string]any{"bearerToken": parsed.bearerToken}
 	}
 	if parsed.basic != nil {
-		if cred == nil {
-			cred = map[string]any{}
+		if update.Credentials == nil {
+			update.Credentials = map[string]any{}
 		}
-		cred["basic"] = parsed.basic
+		update.Credentials["basic"] = parsed.basic
 	}
 
-	if len(parsed.headers) > 0 {
-		if cfg.Headers == nil {
-			cfg.Headers = make(map[string]string)
-		}
-		for k, v := range parsed.headers {
-			cfg.Headers[k] = v
-		}
-	}
-	if len(parsed.cookies) > 0 {
-		if cfg.Cookies == nil {
-			cfg.Cookies = make(map[string]string)
-		}
-		for k, v := range parsed.cookies {
-			cfg.Cookies[k] = v
-		}
+	if update.IsEmpty() {
+		return app.ExitResult{Code: 1, Message: "no context fields found in curl command", ToStderr: true}
 	}
 
-	if len(cred) > 0 {
-		if err := app.SaveContextCredentials(targetURL, cred); err != nil {
-			return app.ExitResult{Code: 1, Message: err.Error(), ToStderr: true}
-		}
-	}
-
-	if err := app.SaveContextConfig(targetURL, cfg); err != nil {
+	if err := app.ApplyContextUpdate(targetURL, update); err != nil {
 		return app.ExitResult{Code: 1, Message: err.Error(), ToStderr: true}
 	}
 
-	count := len(parsed.headers) + len(parsed.cookies)
-	if parsed.bearerToken != "" {
-		count++
-	}
-	if parsed.basic != nil {
-		count++
-	}
+	count := len(parsed.headers) + len(parsed.cookies) + len(update.Credentials)
 	fmt.Fprintf(os.Stderr, "Imported %d field(s) from curl command into context for %q.\n", count, targetURL)
 	return nil
 }
@@ -503,49 +453,43 @@ func promptSecret(prompt string) (string, error) {
 	return val, nil
 }
 
-// applyContextKVFields parses and writes header/cookie/env/metadata entries
-// into the supplied target maps. Returns (changed, error).
-func applyContextKVFields(
-	headers, cookies, envVars, metaEntries []string,
-	targetHeaders, targetCookies, targetEnv *map[string]string,
-	targetMeta *map[string]any,
-) (bool, error) {
-	changed := false
-	setStr := func(entries []string, sep, kind, example string, target *map[string]string) error {
+// parseContextKVFlags parses the repeatable --header/--cookie/--env/--meta
+// flag values into update maps. Empty flag groups yield nil maps.
+func parseContextKVFlags(headers, cookies, envVars, metaEntries []string) (h, c, e map[string]string, m map[string]any, err error) {
+	parseStr := func(entries []string, sep, kind, example string) (map[string]string, error) {
+		var out map[string]string
 		for _, raw := range entries {
 			k, v, ok := parseKV(raw, sep)
 			if !ok {
-				return app.ExitResult{Code: 1, Message: fmt.Sprintf("invalid %s %q (expected %q)", kind, raw, example), ToStderr: true}
+				return nil, app.ExitResult{Code: 1, Message: fmt.Sprintf("invalid %s %q (expected %q)", kind, raw, example), ToStderr: true}
 			}
-			if *target == nil {
-				*target = make(map[string]string)
+			if out == nil {
+				out = make(map[string]string)
 			}
-			(*target)[k] = v
-			changed = true
+			out[k] = v
 		}
-		return nil
+		return out, nil
 	}
-	if err := setStr(headers, ":", "header", "Key: Value", targetHeaders); err != nil {
-		return false, err
+	if h, err = parseStr(headers, ":", "header", "Key: Value"); err != nil {
+		return nil, nil, nil, nil, err
 	}
-	if err := setStr(cookies, "=", "cookie", "Key=Value", targetCookies); err != nil {
-		return false, err
+	if c, err = parseStr(cookies, "=", "cookie", "Key=Value"); err != nil {
+		return nil, nil, nil, nil, err
 	}
-	if err := setStr(envVars, "=", "env", "VAR=value", targetEnv); err != nil {
-		return false, err
+	if e, err = parseStr(envVars, "=", "env", "VAR=value"); err != nil {
+		return nil, nil, nil, nil, err
 	}
-	for _, m := range metaEntries {
-		k, v, ok := parseKV(m, "=")
+	for _, raw := range metaEntries {
+		k, v, ok := parseKV(raw, "=")
 		if !ok {
-			return false, app.ExitResult{Code: 1, Message: fmt.Sprintf("invalid meta %q (expected \"key=value\")", m), ToStderr: true}
+			return nil, nil, nil, nil, app.ExitResult{Code: 1, Message: fmt.Sprintf("invalid meta %q (expected \"key=value\")", raw), ToStderr: true}
 		}
-		if *targetMeta == nil {
-			*targetMeta = make(map[string]any)
+		if m == nil {
+			m = make(map[string]any)
 		}
-		(*targetMeta)[k] = v
-		changed = true
+		m[k] = v
 	}
-	return changed, nil
+	return h, c, e, m, nil
 }
 
 // parseKV splits a string on the first occurrence of sep, trimming whitespace.

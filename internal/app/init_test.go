@@ -38,7 +38,29 @@ func TestInit(t *testing.T) {
 	}
 }
 
-func TestInit_AlreadyExists(t *testing.T) {
+func TestInit_AlreadyInitialized(t *testing.T) {
+	tmpDir := t.TempDir()
+	origDir, _ := os.Getwd()
+	defer func() { _ = os.Chdir(origDir) }()
+	_ = os.Chdir(tmpDir)
+
+	// An environment exists when its config file does.
+	_ = os.MkdirAll(filepath.Join(tmpDir, EnvDir), DirPerm)
+	if err := SaveEnvConfig(filepath.Join(tmpDir, EnvDir), &EnvConfig{}); err != nil {
+		t.Fatalf("seed config: %v", err)
+	}
+
+	_, err := Init(false)
+	if err == nil {
+		t.Error("expected error when the environment is already initialized")
+	}
+}
+
+// TestInit_CompletesBareDirectory verifies that a directory without the
+// config marker is completed, not refused: sibling features (the context
+// store lives under the global config dir) may create the directory without
+// initializing an environment.
+func TestInit_CompletesBareDirectory(t *testing.T) {
 	tmpDir := t.TempDir()
 	origDir, _ := os.Getwd()
 	defer func() { _ = os.Chdir(origDir) }()
@@ -46,9 +68,15 @@ func TestInit_AlreadyExists(t *testing.T) {
 
 	_ = os.MkdirAll(filepath.Join(tmpDir, EnvDir), DirPerm)
 
-	_, err := Init(false)
-	if err == nil {
-		t.Error("expected error when .openbindings/ already exists")
+	status, err := Init(false)
+	if err != nil {
+		t.Fatalf("expected bare directory to be initialized, got: %v", err)
+	}
+	if status.EnvironmentType != "local" {
+		t.Errorf("environmentType = %q, want local", status.EnvironmentType)
+	}
+	if _, err := os.Stat(filepath.Join(tmpDir, EnvDir, EnvConfigFile)); err != nil {
+		t.Errorf("expected config marker created: %v", err)
 	}
 }
 

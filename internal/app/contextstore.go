@@ -17,7 +17,7 @@ import (
 )
 
 // ContextConfig holds the non-secret fields of a URL-keyed context.
-// Persisted as JSON in ~/.config/openbindings/contexts/<sanitized-url>.json.
+// Persisted as JSON in <user-config-dir>/openbindings/contexts/<sanitized-url>.json.
 type ContextConfig struct {
 	URL         string            `json:"url"`
 	Headers     map[string]string `json:"headers,omitempty"`
@@ -333,8 +333,11 @@ func ContextExists(url string) bool {
 	return err == nil
 }
 
-// ListContexts returns summaries of all URL-keyed contexts.
+// ListContexts returns summaries of all URL-keyed contexts. The result is
+// always a non-nil slice (the listContexts wire output is a bare array,
+// never null).
 func ListContexts() ([]ContextSummary, error) {
+	summaries := []ContextSummary{}
 	dir, err := contextsDir()
 	if err != nil {
 		return nil, err
@@ -342,12 +345,10 @@ func ListContexts() ([]ContextSummary, error) {
 	entries, err := os.ReadDir(dir)
 	if err != nil {
 		if os.IsNotExist(err) {
-			return nil, nil
+			return summaries, nil
 		}
 		return nil, fmt.Errorf("reading contexts directory: %w", err)
 	}
-
-	var summaries []ContextSummary
 	for _, e := range entries {
 		if e.IsDir() || !strings.HasSuffix(e.Name(), ".json") {
 			continue

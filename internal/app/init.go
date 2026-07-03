@@ -2,6 +2,7 @@ package app
 
 import (
 	"encoding/json"
+	"fmt"
 	"os"
 	"path/filepath"
 )
@@ -13,22 +14,13 @@ type EnvConfig struct {
 	Delegates []DelegateRecord `json:"delegates,omitempty"`
 }
 
-// InitResult is returned by Init.
-type InitResult struct {
-	Initialized     string `json:"initialized"`
-	EnvironmentPath string `json:"environmentPath"`
-	Global          bool   `json:"global,omitempty"`
-}
-
-// Render returns a human-readable summary.
-func (r InitResult) Render() string {
-	return "Initialized " + r.EnvironmentPath + "/"
-}
-
-// Init creates an OpenBindings environment directory with a default config.
-// If global is true, initializes at ~/.config/openbindings/ instead of .openbindings/.
-func Init(global bool) (*InitResult, error) {
+// Init creates an OpenBindings environment directory with a default config
+// and returns the created environment's status (the initializeEnvironment
+// contract output). If global is true, initializes the openbindings directory
+// under the user config dir instead of a local .openbindings/.
+func Init(global bool) (*EnvironmentStatus, error) {
 	envDir := EnvDir
+	envType := "local"
 
 	if global {
 		globalPath, err := GlobalConfigPath()
@@ -36,10 +28,14 @@ func Init(global bool) (*InitResult, error) {
 			return nil, err
 		}
 		envDir = globalPath
+		envType = "global"
 	}
 
-	if _, err := os.Stat(envDir); err == nil {
-		return nil, ExitResult{Code: 1, Message: envDir + " already exists", ToStderr: true}
+	// An environment exists when its config file does. The bare directory is
+	// not the marker: sibling features (the context store lives under the
+	// global config dir) may have created it without initializing anything.
+	if _, err := os.Stat(filepath.Join(envDir, EnvConfigFile)); err == nil {
+		return nil, ExitResult{Code: 1, Message: envDir + " is already initialized", ToStderr: true}
 	}
 
 	if err := createDefaultEnvironment(envDir); err != nil {
@@ -51,10 +47,17 @@ func Init(global bool) (*InitResult, error) {
 		absPath = envDir
 	}
 
-	return &InitResult{
-		Initialized:     "environment",
+	// A fresh environment holds no delegates; the context count reflects the
+	// user's context store, which is user-scoped rather than per-environment.
+	contextCount := 0
+	if summaries, err := ListContexts(); err == nil {
+		contextCount = len(summaries)
+	}
+
+	return &EnvironmentStatus{
+		EnvironmentType: envType,
 		EnvironmentPath: absPath,
-		Global:          global,
+		ContextCount:    contextCount,
 	}, nil
 }
 
@@ -113,6 +116,8 @@ func LoadEnvConfig(envPath string) (*EnvConfig, error) {
 }
 
 // EnvironmentStatus holds the status of an OpenBindings environment.
+// ContextCount reflects the user's context store (contexts are user-scoped,
+// not per-environment); the delegate count is the environment's own registry.
 type EnvironmentStatus struct {
 	EnvironmentType string `json:"environmentType"`
 	EnvironmentPath string `json:"environmentPath"`
@@ -120,10 +125,16 @@ type EnvironmentStatus struct {
 	ContextCount    int    `json:"contextCount"`
 }
 
+// Render returns a human-friendly representation.
+func (s *EnvironmentStatus) Render() string {
+	return fmt.Sprintf("Environment: %s (%s)\nDelegates: %d\nContexts: %d",
+		s.EnvironmentType, s.EnvironmentPath, s.DelegateCount, s.ContextCount)
+}
+
 // GetEnvironmentStatus returns the current environment status: a snapshot of
-// the active .openbindings/ environment and what it holds (delegates and
-// stored contexts). Counts only — see `delegate list` / `context list` for
-// details.
+// the active .openbindings/ environment (type, path, registered delegates)
+// plus the user's stored-context count. Counts only — see `delegate list` /
+// `context list` for details.
 func GetEnvironmentStatus() (*EnvironmentStatus, error) {
 	envPath, isLocal, err := FindEnvironment()
 	if err != nil {

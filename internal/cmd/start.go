@@ -408,7 +408,8 @@ func handleContextSet(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	writeJSON(w, http.StatusOK, map[string]string{"url": targetURL, "status": "updated"})
+	// setContext declares no output; the body is null.
+	writeJSON(w, http.StatusOK, nil)
 }
 
 func handleContextDelete(w http.ResponseWriter, r *http.Request) {
@@ -422,7 +423,8 @@ func handleContextDelete(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusInternalServerError, ErrorResponse{Error: err.Error()})
 		return
 	}
-	writeJSON(w, http.StatusOK, map[string]string{"url": targetURL, "status": "deleted"})
+	// removeContext declares no output; the body is null.
+	writeJSON(w, http.StatusOK, nil)
 }
 
 // --- Resolve (with SSRF protection) ---
@@ -458,13 +460,16 @@ func handleResolve(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusBadGateway, ErrorResponse{Error: "remote interface returned invalid JSON"})
 		return
 	}
-	writeJSON(w, http.StatusOK, map[string]any{
-		"interface":    iface,
-		"url":          result.OBIURL,
-		"finalUrl":     result.FinalURL,
-		"synthesized":  result.Synthesized,
-		"sourceFormat": result.SourceFormat,
-	})
+	// The ResolveInterfaceOutput shape: the resolved document, the format it
+	// was synthesized from (absent for native OBIs), and where it was fetched.
+	resp := map[string]any{"interface": iface}
+	if result.Synthesized {
+		resp["synthesizedFrom"] = result.SourceFormat
+	}
+	if result.OBIURL != "" {
+		resp["resolvedUrl"] = result.OBIURL
+	}
+	writeJSON(w, http.StatusOK, resp)
 }
 
 // validateOutboundURL enforces SSRF protection on any outbound fetch ob makes

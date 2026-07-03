@@ -1,9 +1,6 @@
 package cmd
 
 import (
-	"fmt"
-	"strings"
-
 	"github.com/openbindings/ob/internal/app"
 	"github.com/spf13/cobra"
 )
@@ -14,7 +11,8 @@ func newEnvironmentCmd() *cobra.Command {
 		Aliases: []string{"env"},
 		Short:   "Show the active OpenBindings environment",
 		Long: `Show the active OpenBindings environment: whether it is local or global,
-its path, and counts of the delegates and contexts it holds.
+its path, the number of delegates it holds, and the number of contexts in
+the user's context store (contexts are user-scoped, not per-environment).
 
 For an OBI file's drift against its sources, use 'ob status <obi-path>'.`,
 		Args: cobra.NoArgs,
@@ -26,13 +24,7 @@ For an OBI file's drift against its sources, use 'ob status <obi-path>'.`,
 				return app.ExitResult{Code: 1, Message: err.Error(), ToStderr: true}
 			}
 
-			return app.OutputResultText(status, format, outputPath, func() string {
-				var sb strings.Builder
-				fmt.Fprintf(&sb, "Environment: %s (%s)\n", status.EnvironmentType, status.EnvironmentPath)
-				fmt.Fprintf(&sb, "Delegates: %d\n", status.DelegateCount)
-				fmt.Fprintf(&sb, "Contexts: %d", status.ContextCount)
-				return sb.String()
-			})
+			return app.OutputResultText(status, format, outputPath, status.Render)
 		},
 	}
 

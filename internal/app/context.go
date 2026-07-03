@@ -70,6 +70,77 @@ func SaveUnifiedContext(rawURL string, ctx map[string]any) error {
 	return SaveContextCredentials(rawURL, cred)
 }
 
+// ContextUpdate carries field-level updates for a stored context. Nil groups
+// leave that group unchanged; provided keys are merged over existing ones.
+type ContextUpdate struct {
+	Credentials map[string]any
+	Headers     map[string]string
+	Cookies     map[string]string
+	Environment map[string]string
+	Metadata    map[string]any
+}
+
+// IsEmpty reports whether the update carries no changes.
+func (u ContextUpdate) IsEmpty() bool {
+	return len(u.Credentials) == 0 && len(u.Headers) == 0 && len(u.Cookies) == 0 &&
+		len(u.Environment) == 0 && len(u.Metadata) == 0
+}
+
+// ApplyContextUpdate merges field updates into the stored context for a URL,
+// creating the context when absent. This is the CLI's field-flag lane
+// (`ob context set --header ...`); the wire operation setContext replaces the
+// whole value instead (SaveUnifiedContext). Credentials go to the OS keychain,
+// the other groups to the on-disk config file.
+func ApplyContextUpdate(rawURL string, up ContextUpdate) error {
+	cfg, err := LoadContextConfig(rawURL)
+	if err != nil {
+		return err
+	}
+
+	if len(up.Credentials) > 0 {
+		cred, err := LoadContextCredentials(rawURL)
+		if err != nil {
+			return err
+		}
+		if cred == nil {
+			cred = map[string]any{}
+		}
+		for k, v := range up.Credentials {
+			cred[k] = v
+		}
+		if err := SaveContextCredentials(rawURL, cred); err != nil {
+			return err
+		}
+	}
+
+	mergeStr := func(dst *map[string]string, src map[string]string) {
+		if len(src) == 0 {
+			return
+		}
+		if *dst == nil {
+			*dst = make(map[string]string, len(src))
+		}
+		for k, v := range src {
+			(*dst)[k] = v
+		}
+	}
+	mergeStr(&cfg.Headers, up.Headers)
+	mergeStr(&cfg.Cookies, up.Cookies)
+	mergeStr(&cfg.Environment, up.Environment)
+	if len(up.Metadata) > 0 {
+		if cfg.Metadata == nil {
+			cfg.Metadata = make(map[string]any, len(up.Metadata))
+		}
+		for k, v := range up.Metadata {
+			cfg.Metadata[k] = v
+		}
+	}
+
+	// Always write the config file: it doubles as the store's index entry, so
+	// a credentials-only context still lists and matches.
+	return SaveContextConfig(rawURL, cfg)
+}
+
 func stringMapToAny(m map[string]string) map[string]any {
 	out := make(map[string]any, len(m))
 	for k, v := range m {

@@ -14,7 +14,9 @@ func newInitCmd() *cobra.Command {
 		Long: `Initialize an OpenBindings environment.
 
 By default, creates a .openbindings/ directory in the current directory.
-Use --global to initialize the global environment at ~/.config/openbindings/ instead.
+Use --global to initialize the global environment in the user config
+directory instead (~/.config/openbindings on Linux, ~/Library/Application
+Support/openbindings on macOS).
 
 Examples:
   ob init
@@ -28,11 +30,11 @@ Examples:
 			}
 			format, outputPath := getOutputFlags(cmd)
 			return app.OutputResultText(result, format, outputPath, func() string {
-				return result.Render()
+				return "Initialized " + result.EnvironmentPath + "/ (" + result.EnvironmentType + " environment)"
 			})
 		},
 	}
 
-	cmd.Flags().BoolVar(&global, "global", false, "Initialize the global environment (~/.config/openbindings/)")
+	cmd.Flags().BoolVar(&global, "global", false, "Initialize the global environment (user config dir)")
 	return cmd
 }
