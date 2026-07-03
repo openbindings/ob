@@ -409,7 +409,7 @@
       }
     },
     "openbindings.ob.startServer": {
-      "description": "Start a local server that exposes ob's operations over HTTP (and the binding-invoker frame protocol). A foreground, environment-local operation; not meaningfully invoked over a remote transport.",
+      "description": "Start a local server that exposes ob's operations over HTTP and HTTPS (and the binding-invoker frame protocol). A foreground, environment-local operation; not meaningfully invoked over a remote transport.",
       "input": {
         "$ref": "#/schemas/StartServerInput"
       },
@@ -418,7 +418,7 @@
       }
     },
     "openbindings.ob.startMCPServer": {
-      "description": "Serve one or more interface URLs as an MCP server, exposing their operations as MCP tools over stdio or HTTP. A foreground, environment-local operation, the MCP sibling of startServer; not meaningfully invoked over a remote transport.",
+      "description": "Serve an interface URL as an MCP server, exposing its operations as MCP tools (named by the sanitized full operation key) over stdio or HTTP. To bridge several services, compose them into one aggregate interface first. A foreground, environment-local operation, the MCP sibling of startServer; not meaningfully invoked over a remote transport.",
       "input": {
         "$ref": "#/schemas/StartMCPServerInput"
       },
@@ -2161,6 +2161,10 @@
         "token": {
           "type": "string",
           "description": "Pre-shared session token."
+        },
+        "noTls": {
+          "type": "boolean",
+          "description": "Skip the HTTPS listener and CA trust setup (HTTP only)."
         }
       },
       "additionalProperties": false
@@ -2168,13 +2172,9 @@
     "StartMCPServerInput": {
       "type": "object",
       "properties": {
-        "urls": {
-          "type": "array",
-          "items": {
-            "type": "string"
-          },
-          "minItems": 1,
-          "description": "Interface URLs to expose as MCP tools."
+        "url": {
+          "type": "string",
+          "description": "Interface URL to expose as an MCP server (an OBI, a well-known discovery base, or a raw binding spec). Compose an aggregate OBI to bridge several services."
         },
         "transport": {
           "type": "string",
@@ -2194,7 +2194,7 @@
         }
       },
       "required": [
-        "urls"
+        "url"
       ],
       "additionalProperties": false
     },

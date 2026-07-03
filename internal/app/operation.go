@@ -68,9 +68,9 @@ func (o OperationListOutput) Render() string {
 
 // OperationList lists all operations in an OBI file.
 func OperationList(obiPath string, tagFilter string) (OperationListOutput, error) {
-	iface, err := loadInterfaceFile(obiPath)
+	iface, err := resolveInterface(obiPath)
 	if err != nil {
-		return nil, fmt.Errorf("load OBI: %w", err)
+		return nil, fmt.Errorf("resolve OBI: %w", err)
 	}
 
 	// Collect the binding keys that realize each operation.
@@ -533,9 +533,9 @@ func (o OperationAliasListOutput) Render() string {
 // interface operations it satisfies via aliases. When op is non-empty it is
 // scoped to that single operation (shown even if it has no aliases).
 func OperationAliasList(obiPath, op string) (OperationAliasListOutput, error) {
-	iface, err := loadInterfaceFile(obiPath)
+	iface, err := resolveInterface(obiPath)
 	if err != nil {
-		return nil, fmt.Errorf("load OBI: %w", err)
+		return nil, fmt.Errorf("resolve OBI: %w", err)
 	}
 
 	entries := OperationAliasListOutput{}

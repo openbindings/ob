@@ -2641,17 +2641,13 @@
           ],
           "type": "string"
         },
-        "urls": {
-          "description": "Interface URLs to expose as MCP tools.",
-          "items": {
-            "type": "string"
-          },
-          "minItems": 1,
-          "type": "array"
+        "url": {
+          "description": "Interface URL to expose as an MCP server (an OBI, a well-known discovery base, or a raw binding spec). Compose an aggregate OBI to bridge several services.",
+          "type": "string"
         }
       },
       "required": [
-        "urls"
+        "url"
       ],
       "type": "object"
     },
@@ -2664,6 +2660,10 @@
             "type": "string"
           },
           "type": "array"
+        },
+        "noTls": {
+          "description": "Skip the HTTPS listener and CA trust setup (HTTP only).",
+          "type": "boolean"
         },
         "port": {
           "description": "Port to listen on (default 20290).",

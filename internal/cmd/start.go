@@ -41,7 +41,7 @@ func newStartCmd() *cobra.Command {
 
 	cmd := &cobra.Command{
 		Use:   "start",
-		Short: "Start a local server exposing ob operations (HTTP, WebSocket, MCP)",
+		Short: "Start a local server exposing ob operations (HTTP, WebSocket)",
 		Long: `Start a local HTTP/REST server that exposes ob's full capability surface.
 Authorized clients can invoke operations, browse interfaces,
 and manage contexts through the same operations available via the CLI.
@@ -52,7 +52,17 @@ The server binds to 127.0.0.1 only — never exposed to the network.
 
 The token can be provided via --token flag or OB_START_TOKEN environment variable
 to enable stable tokens for CI/CD and automation. When provided, the token is not
-printed to stderr (the caller already knows it).`,
+printed to stderr (the caller already knows it).
+
+By default the server dual-listens HTTP and HTTPS; the HTTPS listener uses a
+locally-generated CA installed into the system trust store (prompts for sudo
+on first run). Use --no-tls to skip HTTPS entirely.
+
+Environment variables: OB_START_TOKEN (pre-shared token), OB_START_PORT
+(default port), OB_START_ORIGINS (comma-separated CORS origins).
+
+To expose this server's operations to an MCP agent, bridge it with
+'ob mcp <this-url>'.`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			logger := slog.New(slog.NewTextHandler(os.Stderr, nil)).With("component", "ob-start")
 			slog.SetDefault(logger)
@@ -237,9 +247,6 @@ func handleOBI(port int) http.HandlerFunc {
 			}
 			if asyncapi, ok := sources["asyncapi"].(map[string]any); ok {
 				asyncapi["location"] = baseURL + "/asyncapi.yaml"
-			}
-			if mcpSource, ok := sources["mcp"].(map[string]any); ok {
-				mcpSource["location"] = baseURL + "/mcp"
 			}
 		}
 

@@ -51,7 +51,7 @@ func newOperationInvokeCmd() *cobra.Command {
 	var verbose bool
 
 	cmd := &cobra.Command{
-		Use:   "invoke <obi-path> [operation]",
+		Use:   "invoke <obi> [operation]",
 		Short: "Invoke an operation via a binding",
 		Long: `Invoke an operation from an OpenBindings interface.
 
@@ -146,7 +146,7 @@ func newOperationPrepareCmd() *cobra.Command {
 	var bindingKey string
 
 	cmd := &cobra.Command{
-		Use:   "prepare <obi-path> [operation]",
+		Use:   "prepare <obi> [operation]",
 		Short: "Preflight an operation's required context without invoking it",
 		Long: `Report the context invoking an operation would require, without invoking
 it or causing any side effect.
@@ -198,7 +198,7 @@ func newOperationListCmd() *cobra.Command {
 	var tagFilter string
 
 	cmd := &cobra.Command{
-		Use:     "list <obi-path>",
+		Use:     "list <obi>",
 		Aliases: []string{"ls"},
 		Short:   "List operations on an OBI",
 		Long: `List all operations defined in an OpenBindings interface document.
@@ -398,7 +398,7 @@ Examples:
 
 func newOperationAliasListCmd() *cobra.Command {
 	cmd := &cobra.Command{
-		Use:     "list <obi-path> [operation]",
+		Use:     "list <obi> [operation]",
 		Aliases: []string{"ls"},
 		Short:   "Show the satisfaction map (which ops satisfy which interfaces)",
 		Long: `List the satisfaction aliases in an interface — each operation and the

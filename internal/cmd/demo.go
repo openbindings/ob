@@ -25,13 +25,14 @@ func newDemoCmd() *cobra.Command {
 
 	cmd := &cobra.Command{
 		Use:   "demo",
-		Short: "Start the OpenBlendings coffee shop demo server",
+		Short: "Start the OpenBlendings demo server (one interface, six protocols)",
 		Long: `Start a local demo server that showcases OpenBindings in action.
 
-The OpenBlendings coffee shop exposes five operations (getMenu, placeOrder,
-getOrderStatus, cancelOrder, orderUpdates) across six binding
-specifications simultaneously: REST (OpenAPI), gRPC, Connect, MCP, GraphQL,
-and SSE (AsyncAPI).
+The OpenBlendings coffee shop exposes six operations (getMenu, placeOrder,
+getOrderStatus, cancelOrder, orderUpdates, placeAndTrack) across six
+binding specifications simultaneously: REST (OpenAPI), gRPC, Connect, MCP,
+GraphQL, and SSE (AsyncAPI). placeAndTrack is bound to an operation graph
+that composes placeOrder with the orderUpdates stream.
 
 One interface. Six protocols. Same operations.`,
 		Args: cobra.NoArgs,
@@ -102,7 +103,7 @@ func printBanner(port, grpcPort int) {
 	// Discover
 	h := lipgloss.NewStyle().Bold(true).Foreground(green)
 	fmt.Fprintf(w, "  %s\n\n", h.Render("Discover"))
-	fmt.Fprintf(w, "  $ ob fetch localhost:%d\n", port)
+	fmt.Fprintf(w, "  $ ob resolve localhost:%d\n", port)
 	fmt.Fprintf(w, "  $ ob validate %s\n", base)
 	fmt.Fprintf(w, "  $ ob op list %s\n", base)
 	fmt.Fprintln(w)

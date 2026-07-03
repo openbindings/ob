@@ -34,11 +34,18 @@ func newMCPCmd() *cobra.Command {
 		Long: `Start an MCP (Model Context Protocol) server that exposes one interface's
 operations as MCP tools, resources, and prompts. Agents (Cursor, Claude
 Desktop, etc.) connect and interact with the underlying service through
-OpenBindings. Tool names are the interface's operation short-names.
+OpenBindings. Tool names are the interface's full operation keys, sanitized
+to the MCP charset (openbindings.ob.describe → openbindings_ob_describe).
 
-Authentication to the target server can be provided via --token, --token-file,
-or the OB_TOKEN environment variable. The token is used as a Bearer credential
-when resolving the interface and executing operations.
+The URL may point at an OBI, a well-known discovery base, or a raw binding
+spec (e.g. an OpenAPI document) — non-OBI specs are synthesized into an
+interface on the fly.
+
+Resolving the interface itself is unauthenticated (discovery is public by
+design). Authentication to the target server for EXECUTING operations can
+be provided via --token, --token-file, or the OB_TOKEN environment
+variable; the token is supplied as a Bearer credential in every bridged
+operation's invocation context.
 
 To expose several services as one MCP server, compose them into a single
 aggregate OBI first (e.g. with 'ob merge'), then bridge that one interface —
@@ -57,7 +64,10 @@ Examples:
 			// Resolve token from flag, file, or environment. When present it is
 			// supplied as a bearer credential in every bridged operation's
 			// invocation context (bindings read credentials from context).
-			token := resolveToken(tokenFlag, tokenFile)
+			token, err := resolveToken(tokenFlag, tokenFile)
+			if err != nil {
+				return app.ExitResult{Code: 2, Message: err.Error(), ToStderr: true}
+			}
 			var baseContext map[string]any
 			if token != "" {
 				baseContext = map[string]any{"bearerToken": token}
@@ -80,7 +90,8 @@ Examples:
 				return app.ExitResult{Code: 2, Message: fmt.Sprintf("invalid URL: %s", args[0]), ToStderr: true}
 			}
 
-			fetched, err := openbindings.FetchInterface(ctx, normalized)
+			fetched, err := openbindings.FetchInterface(ctx, normalized,
+				openbindings.WithSynthesizers(app.DefaultSynthesizer()))
 			if err != nil {
 				return app.ExitResult{Code: 1, Message: fmt.Sprintf("failed to resolve interface %s: %v", normalized, err), ToStderr: true}
 			}
@@ -128,16 +139,20 @@ Examples:
 	return cmd
 }
 
-// resolveToken returns a token from flag, file, or OB_TOKEN env var.
-func resolveToken(flag, file string) string {
+// resolveToken returns a token from flag, file, or OB_TOKEN env var. An
+// unreadable --token-file is an error, not a silent fall-through: the caller
+// asked for that token, and proceeding without it would fail later with an
+// opaque 401.
+func resolveToken(flag, file string) (string, error) {
 	if flag != "" {
-		return flag
+		return flag, nil
 	}
 	if file != "" {
 		data, err := os.ReadFile(file)
-		if err == nil {
-			return strings.TrimSpace(string(data))
+		if err != nil {
+			return "", fmt.Errorf("reading --token-file: %w", err)
 		}
+		return strings.TrimSpace(string(data)), nil
 	}
-	return os.Getenv("OB_TOKEN")
+	return os.Getenv("OB_TOKEN"), nil
 }
