@@ -278,18 +278,24 @@ func Merge(input MergeInput) (MergeOutput, error) {
 	}
 
 	// Apply the merge if not dry-run.
-	if !input.DryRun && applied > 0 {
+	// Grafting mutates target into the merged document, which always rides the
+	// report (MergeResult.interface is contract-required). Only the file WRITE
+	// is gated by dry-run: a dry run computes the merged document for the report
+	// but leaves disk untouched.
+	if applied > 0 {
 		applyMerge(target, source, entries, copyBindings, copySources)
 
-		outPath := input.TargetPath
-		if input.OutPath != "" {
-			outPath = input.OutPath
-		}
-		// The served operation has no path; it returns the merged document in
-		// Result instead of writing a file.
-		if outPath != "" {
-			if err := WriteInterfaceFile(outPath, target); err != nil {
-				return MergeOutput{}, fmt.Errorf("write: %w", err)
+		if !input.DryRun {
+			outPath := input.TargetPath
+			if input.OutPath != "" {
+				outPath = input.OutPath
+			}
+			// The served operation has no path; it returns the merged document
+			// in Result instead of writing a file.
+			if outPath != "" {
+				if err := WriteInterfaceFile(outPath, target); err != nil {
+					return MergeOutput{}, fmt.Errorf("write: %w", err)
+				}
 			}
 		}
 	}
@@ -307,9 +313,7 @@ func Merge(input MergeInput) (MergeOutput, error) {
 		Skipped:  skipped,
 		Warnings: warnings,
 		DryRun:   input.DryRun,
-	}
-	if input.TargetInterface != nil {
-		out.Result = target
+		Result:   target,
 	}
 	return out, nil
 }

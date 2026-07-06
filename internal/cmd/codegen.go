@@ -8,6 +8,13 @@ import (
 	"github.com/spf13/cobra"
 )
 
+// codegenEnvelope is the machine-lane output shape of `ob codegen` — the
+// contract's CodegenOutput: the generated source paired with its language.
+type codegenEnvelope struct {
+	Language string `json:"language"`
+	Code     string `json:"code"`
+}
+
 func newCodegenCmd() *cobra.Command {
 	var (
 		lang        string
@@ -66,6 +73,15 @@ Examples:
 				code = codegen.EmitTypeScript(result)
 			case "go":
 				code = codegen.EmitGo(result, packageName)
+			}
+
+			// Machine lane (-F json/yaml): emit the CodegenOutput envelope
+			// {language, code} — the contract shape — rather than raw source.
+			// The default (and -F text) keeps the natural CLI behavior: raw
+			// generated code to stdout or -o.
+			format, _ := getOutputFlags(cmd)
+			if format == "json" || format == "yaml" || format == "yml" {
+				return app.OutputResult(codegenEnvelope{Language: lang, Code: code}, format, output)
 			}
 
 			// Write output.

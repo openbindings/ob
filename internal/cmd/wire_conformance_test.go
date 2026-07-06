@@ -112,6 +112,23 @@ func TestWireConformance_ExecLane(t *testing.T) {
 			"ping": map[string]any{},
 		},
 	}
+	// conform/merge fixtures: a reference to satisfy, an empty target to
+	// scaffold into, a source to graft from. These ops ride BOTH documents on
+	// temp files (a written-back target cannot be stdin) with -y injected.
+	docRef := map[string]any{
+		"openbindings": "0.2.0",
+		"name":         "wire-ref",
+		"operations": map[string]any{
+			"createUser": map[string]any{"input": map[string]any{"type": "object"}},
+		},
+	}
+	docSrc := map[string]any{
+		"openbindings": "0.2.0",
+		"name":         "wire-src",
+		"operations": map[string]any{
+			"newOp": map[string]any{},
+		},
+	}
 
 	// Ordered: later cases depend on earlier state (the initialized
 	// environment, the registered delegate, the stored context).
@@ -201,6 +218,34 @@ func TestWireConformance_ExecLane(t *testing.T) {
 			m, _ := output.(map[string]any)
 			if _, ok := m["summary"]; !ok {
 				t.Errorf("expected a compatibility summary, got %#v", output)
+			}
+		}},
+		{"codegen", "openbindings.ob.codegen", map[string]any{"interface": docA, "language": "go"}, func(t *testing.T, output any) {
+			m, _ := output.(map[string]any)
+			if m["language"] != "go" || m["code"] == "" || m["code"] == nil {
+				t.Errorf("expected a go CodegenOutput envelope, got %#v", output)
+			}
+		}},
+		{"conform", "openbindings.ob.conform", map[string]any{"interface": docRef, "target": map[string]any{
+			"openbindings": "0.2.0", "name": "wire-tgt", "operations": map[string]any{},
+		}}, func(t *testing.T, output any) {
+			m, _ := output.(map[string]any)
+			if m["modified"] != true {
+				t.Errorf("expected the target to be modified (createUser scaffolded), got %#v", output)
+			}
+			if _, ok := m["interface"].(map[string]any); !ok {
+				t.Errorf("expected the conformed interface in the report, got %#v", output)
+			}
+		}},
+		{"mergeInterfaces", "openbindings.ob.mergeInterfaces", map[string]any{"target": map[string]any{
+			"openbindings": "0.2.0", "name": "wire-mtgt", "operations": map[string]any{"oldOp": map[string]any{}},
+		}, "source": docSrc}, func(t *testing.T, output any) {
+			m, _ := output.(map[string]any)
+			if applied, _ := m["applied"].(float64); applied < 1 {
+				t.Errorf("expected at least one applied merge entry, got %#v", output)
+			}
+			if _, ok := m["interface"].(map[string]any); !ok {
+				t.Errorf("expected the merged interface in the report, got %#v", output)
 			}
 		}},
 	}

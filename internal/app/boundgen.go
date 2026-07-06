@@ -153,6 +153,17 @@ func GenerateBoundCLI(contractPath, usagePath string) (*openbindings.Interface, 
 		"prepareOperation":      `{"obi": $$.interface, "operation": $$.operation, "binding": $$.binding, "format": "json"}`,
 		"compareInterfaces":     `{"baseline": $$.baseline, "comparison": $$.comparison, "from-sources": $$.fromSources, "only": $$.only, "format": "json"}`,
 		"reportCompatibility":   `{"target": $$.target, "candidate": $$.candidate, "format": "json"}`,
+
+		// codegen: `language` → the CLI's --lang; -F json emits the CodegenOutput
+		// envelope (the CLI defaults to raw source, its natural human lane).
+		"codegen": `{"source": $$.interface, "lang": $$.language, "package": $$.package, "format": "json"}`,
+		// conform/merge modify their target, so BOTH documents ride file
+		// delivery (a written-back target cannot be stdin) and the transport
+		// injects auto-accept (-y): the child's stdin never carries a document,
+		// so nothing can be misread as a prompt answer, and the modified
+		// interface returns inside the ConformResult/MergeResult report.
+		"conform":         `{"interface": $$.interface, "target-obi": $$.target, "dry-run": $$.dryRun, "yes": true, "format": "json"}`,
+		"mergeInterfaces": `{"target": $$.target, "source": $$.source, "from-sources": $$.fromSources, "only": $$.only, "op": $$.operations, "exclude-op": $$.excludeOperations, "ops-only": $$.opsOnly, "no-bindings": $$.noBindings, "no-sources": $$.noSources, "yes": true, "format": "json"}`,
 	}
 	// deliveryByShort routes document-valued POST-transform fields off argv:
 	// the primary document to the child's stdin (stdin-dash substitutes `-` in
@@ -169,6 +180,11 @@ func GenerateBoundCLI(contractPath, usagePath string) (*openbindings.Interface, 
 		"prepareOperation":      {"obi": "stdin-dash"},
 		"compareInterfaces":     {"baseline": "stdin-dash", "comparison": "file"},
 		"reportCompatibility":   {"target": "stdin-dash", "candidate": "file"},
+		"codegen":               {"source": "stdin-dash"},
+		// Both documents to temp files: conform/merge write the target back
+		// (impossible on stdin), and materialization keeps stdin clear.
+		"conform":         {"interface": "file", "target-obi": "file"},
+		"mergeInterfaces": {"target": "file", "source": "file"},
 	}
 	// Machine-natured --input lanes (the relocated wireInput props): the
 	// whole wire input JSON-serializes into one flag. $$ (the root of the

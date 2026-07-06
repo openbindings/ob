@@ -251,9 +251,11 @@ func Conform(input ConformInput, confirm func(op string, action string) bool) Co
 		}
 		output.Modified = true
 	}
-	if input.TargetInterface != nil {
-		output.Result = targetIface
-	}
+	// The conformed document always rides the report: ConformResult.interface
+	// is contract-required, so both lanes carry it (the served operation for
+	// its caller, the CLI's -F json machine lane for the exec binding). The
+	// CLI additionally persists it to TargetPath above.
+	output.Result = targetIface
 
 	return output
 }

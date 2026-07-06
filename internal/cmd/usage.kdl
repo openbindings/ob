@@ -389,7 +389,8 @@ cmd "codegen" help="Generate a typed invoker from an interface" {
   flag "-l --lang <language>" help="Target language: typescript or go (required)"
   flag "-o --output <path>" help="Output file path (default: stdout)"
   flag "--package <name>" help="Go package name (default: derived from interface name)"
-  arg "<source>" help="Interface to generate from (file path or URL)"
+  flag "-F --format <format>" help="Output format: text (raw code, default) | json|yaml (CodegenOutput envelope)"
+  arg "<source>" help="Interface to generate from (file path, URL, or - for stdin)"
 }
 
 cmd "mcp" help="Serve an interface URL as an MCP server" {
