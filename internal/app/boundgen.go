@@ -135,6 +135,40 @@ func GenerateBoundCLI(contractPath, usagePath string) (*openbindings.Interface, 
 		// getContext/removeContext: the wire key is the CLI's <url> argument.
 		"getContext":    `{"url": $$.key, "format": "json"}`,
 		"removeContext": `{"url": $$.key, "format": "json"}`,
+
+		// Read/analysis family (cohort C): document-in operations realized as
+		// Unix filters. The contract's document-valued field(s) ride out of
+		// band via the unit's `delivery` map (stdin-dash for the primary
+		// document, file for a second); the transform renames each wire field
+		// to the CLI's own natural arg/flag name and forces the machine lane
+		// (-F json). Every field the transform emits must name a flag or arg of
+		// the command, or be routed off argv by delivery — buildCLIArgs refuses
+		// strays. See ob-pj/wire-conformance.md, batch 3.
+		"validateInterface":     `{"locator": $$.interface, "strict": $$.strict, "format": "json"}`,
+		"reportInterfaceStatus": `{"obi-path": $$.interface, "format": "json"}`,
+		"purifyInterface":       `{"obi-path": $$, "format": "json"}`,
+		"listSources":           `{"obi-path": $$.interface, "format": "json"}`,
+		"listOperations":        `{"obi": $$.interface, "tag": $$.tag, "format": "json"}`,
+		"listOperationAliases":  `{"obi": $$.interface, "operation": $$.operation, "format": "json"}`,
+		"prepareOperation":      `{"obi": $$.interface, "operation": $$.operation, "binding": $$.binding, "format": "json"}`,
+		"compareInterfaces":     `{"baseline": $$.baseline, "comparison": $$.comparison, "from-sources": $$.fromSources, "only": $$.only, "format": "json"}`,
+		"reportCompatibility":   `{"target": $$.target, "candidate": $$.candidate, "format": "json"}`,
+	}
+	// deliveryByShort routes document-valued POST-transform fields off argv:
+	// the primary document to the child's stdin (stdin-dash substitutes `-` in
+	// its slot; the CLI reads the doc as a `-` locator), a second document to a
+	// materialized temp file (its path fills the slot). Keys are the CLI arg
+	// names the transforms above produce.
+	deliveryByShort := map[string]map[string]any{
+		"validateInterface":     {"locator": "stdin-dash"},
+		"reportInterfaceStatus": {"obi-path": "stdin-dash"},
+		"purifyInterface":       {"obi-path": "stdin-dash"},
+		"listSources":           {"obi-path": "stdin-dash"},
+		"listOperations":        {"obi": "stdin-dash"},
+		"listOperationAliases":  {"obi": "stdin-dash"},
+		"prepareOperation":      {"obi": "stdin-dash"},
+		"compareInterfaces":     {"baseline": "stdin-dash", "comparison": "file"},
+		"reportCompatibility":   {"target": "stdin-dash", "candidate": "file"},
 	}
 	// Machine-natured --input lanes (the relocated wireInput props): the
 	// whole wire input JSON-serializes into one flag. $$ (the root of the
@@ -185,6 +219,9 @@ func GenerateBoundCLI(contractPath, usagePath string) (*openbindings.Interface, 
 			"openbindings.usage": usage.WrapperVersion,
 			"command":            cmdPath,
 			"stdout":             "json",
+		}
+		if d := deliveryByShort[short]; d != nil {
+			unit["delivery"] = d
 		}
 		if codes := exitOKByShort[short]; codes != nil {
 			ok := make([]any, len(codes))

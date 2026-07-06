@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"strings"
 	"time"
@@ -12,6 +13,31 @@ import (
 	"github.com/openbindings/openbindings-go"
 	"github.com/openbindings/openbindings-go/canonicaljson"
 )
+
+// StdinLocator is the locator/path that means "read the document from stdin".
+// It is the CLI-filter convention: a command reading its OBI from `-` is a
+// Unix filter, which is how the exec-lane binding delivers a document-valued
+// input field (stdin-dash delivery substitutes `-` in the argv slot and pipes
+// the bytes to the child's stdin). See ob-pj/wire-conformance.md, batch 3.
+const StdinLocator = "-"
+
+// ReadDocumentBytes reads the raw document bytes for a locator, treating the
+// bare `-` as stdin. For commands that consume a document as untyped JSON
+// (e.g. purify runs it through an operation-graph) rather than parsing it into
+// an Interface.
+func ReadDocumentBytes(path string) ([]byte, error) {
+	return readLocatorBytes(path)
+}
+
+// readLocatorBytes reads the raw bytes for a file locator, treating the bare
+// `-` as stdin. It is the single point where the stdin-filter convention is
+// honored for document input.
+func readLocatorBytes(path string) ([]byte, error) {
+	if path == StdinLocator {
+		return io.ReadAll(os.Stdin)
+	}
+	return os.ReadFile(path)
+}
 
 // DefaultProbeTimeout is the timeout for probing remote interfaces.
 const DefaultProbeTimeout = 10 * time.Second
@@ -49,12 +75,17 @@ func resolveInterface(locator string) (*openbindings.Interface, error) {
 }
 
 // loadInterfaceFile reads and parses an OpenBindings interface JSON file.
+// The bare `-` reads the document from stdin (the CLI-filter convention).
 func loadInterfaceFile(path string) (*openbindings.Interface, error) {
-	data, err := os.ReadFile(path)
+	data, err := readLocatorBytes(path)
 	if err != nil {
 		return nil, err
 	}
-	return parseInterfaceJSON(data, path)
+	source := path
+	if path == StdinLocator {
+		source = "<stdin>"
+	}
+	return parseInterfaceJSON(data, source)
 }
 
 // parseInterfaceJSON unmarshals JSON into an Interface, providing clear error

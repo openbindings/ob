@@ -85,6 +85,34 @@ func TestWireConformance_ExecLane(t *testing.T) {
 	}
 	defer func() { _ = os.Chdir(origDir) }()
 
+	// Document fixtures for the read/analysis family (cohort C). These ops
+	// take an interface document as input; the exec-lane binding delivers it
+	// out of band (the primary via stdin, a second via a temp file) and the
+	// CLI reads it as a `-` locator or file path. See ob-pj/wire-conformance.md
+	// batch 3.
+	docA := map[string]any{
+		"openbindings": "0.2.0",
+		"name":         "wire-fixture-a",
+		"version":      "1.0.0",
+		"operations": map[string]any{
+			"ping": map[string]any{},
+			"pong": map[string]any{},
+		},
+		"sources": map[string]any{
+			"s": map[string]any{"format": "openapi@3.1", "location": "https://example.com/openapi.yaml"},
+		},
+		"bindings": map[string]any{
+			"ping.s": map[string]any{"operation": "ping", "source": "s", "ref": "#/paths/~1ping/get"},
+		},
+	}
+	docB := map[string]any{
+		"openbindings": "0.2.0",
+		"name":         "wire-fixture-b",
+		"operations": map[string]any{
+			"ping": map[string]any{},
+		},
+	}
+
 	// Ordered: later cases depend on earlier state (the initialized
 	// environment, the registered delegate, the stored context).
 	cases := []struct {
@@ -126,6 +154,53 @@ func TestWireConformance_ExecLane(t *testing.T) {
 			iface, _ := m["interface"].(map[string]any)
 			if iface == nil || iface["name"] != "fixture" {
 				t.Errorf("expected the fixture interface in the envelope, got %#v", output)
+			}
+		}},
+
+		// Read/analysis family (cohort C): document-in filters. The document
+		// rides stdin; the CLI reads a `-` locator. Output is judged against
+		// each operation's contract output schema above.
+		{"validateInterface", "openbindings.ob.validateInterface", map[string]any{"interface": docA}, func(t *testing.T, output any) {
+			m, _ := output.(map[string]any)
+			if m["valid"] != true {
+				t.Errorf("expected valid=true for the fixture, got %#v", output)
+			}
+		}},
+		{"reportInterfaceStatus", "openbindings.ob.reportInterfaceStatus", map[string]any{"interface": docA}, func(t *testing.T, output any) {
+			m, _ := output.(map[string]any)
+			if srcs, _ := m["sources"].([]any); len(srcs) != 1 {
+				t.Errorf("expected one source in the status report, got %#v", output)
+			}
+		}},
+		{"purifyInterface", "openbindings.ob.purifyInterface", docA, func(t *testing.T, output any) {
+			m, _ := output.(map[string]any)
+			if m["name"] != "wire-fixture-a" {
+				t.Errorf("expected the purified interface back, got %#v", output)
+			}
+		}},
+		{"listSources", "openbindings.ob.listSources", map[string]any{"interface": docA}, func(t *testing.T, output any) {
+			if entries, _ := output.([]any); len(entries) != 1 {
+				t.Errorf("expected one source entry, got %#v", output)
+			}
+		}},
+		{"listOperations", "openbindings.ob.listOperations", map[string]any{"interface": docA}, func(t *testing.T, output any) {
+			if entries, _ := output.([]any); len(entries) != 2 {
+				t.Errorf("expected two operation entries, got %#v", output)
+			}
+		}},
+		{"listOperationAliases", "openbindings.ob.listOperationAliases", map[string]any{"interface": docA}, nil},
+		{"prepareOperation", "openbindings.ob.prepareOperation", map[string]any{"interface": docA, "operation": "ping"}, nil},
+		{"compareInterfaces", "openbindings.ob.compareInterfaces", map[string]any{"baseline": docA, "comparison": docB}, func(t *testing.T, output any) {
+			m, _ := output.(map[string]any)
+			ops, _ := m["operations"].([]any)
+			if len(ops) == 0 {
+				t.Errorf("expected a delta for the removed operation, got %#v", output)
+			}
+		}},
+		{"reportCompatibility", "openbindings.ob.reportCompatibility", map[string]any{"target": docA, "candidate": docB}, func(t *testing.T, output any) {
+			m, _ := output.(map[string]any)
+			if _, ok := m["summary"]; !ok {
+				t.Errorf("expected a compatibility summary, got %#v", output)
 			}
 		}},
 	}

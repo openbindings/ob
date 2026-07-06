@@ -3,7 +3,6 @@ package cmd
 import (
 	"context"
 	"encoding/json"
-	"os"
 
 	"github.com/openbindings/ob/internal/app"
 	"github.com/spf13/cobra"
@@ -28,7 +27,7 @@ runs through the same graph machinery ob exposes to everyone else. It produces
 the same result as ` + "`ob source pull --pure`" + `.`,
 		Args: cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			data, err := os.ReadFile(args[0])
+			data, err := app.ReadDocumentBytes(args[0])
 			if err != nil {
 				return app.ExitResult{Code: 1, Message: err.Error(), ToStderr: true}
 			}

@@ -19,7 +19,7 @@ cmd "status" help="Report an OBI's drift against its sources (read-only)" {
   flag "--exit-code" help="Exit non-zero if any source has drift (CI gate)"
   flag "-o --output <path>" help="Write output to file"
   flag "-F --format <format>" help="Output format: json|yaml|text"
-  arg "<obi-path>" help="Path to the OBI file"
+  arg "<obi-path>" help="Path to the OBI file (- for stdin)"
 }
 
 cmd "resolve" help="Resolve an OpenBindings interface from a URL or host" {
@@ -180,7 +180,7 @@ cmd "source" help="Manage source references on an OBI" subcommand_required=true 
     alias "ls"
     flag "-o --output <path>" help="Write output to file"
     flag "-F --format <format>" help="Output format: json|yaml|text"
-    arg "<obi-path>" help="Path to the OBI file"
+    arg "<obi-path>" help="Path to the OBI file (- for stdin)"
   }
   cmd "remove" help="Remove a source reference from an OBI" {
     alias "rm"
@@ -226,7 +226,7 @@ cmd "operation" help="Manage and invoke operations on an OBI" subcommand_require
       alias "ls"
       flag "-o --output <path>" help="Write output to file"
       flag "-F --format <format>" help="Output format: json|yaml|text"
-      arg "<obi>" help="OBI locator (file path, URL, or exec: reference)"
+      arg "<obi>" help="OBI locator (file path, URL, exec: reference, or - for stdin)"
       arg "[operation]" help="Scope to a single operation"
     }
   }
@@ -282,14 +282,14 @@ cmd "operation" help="Manage and invoke operations on an OBI" subcommand_require
     flag "--binding <key>" help="Binding key to invoke (operation is derived from the entry)"
     flag "--input <json>" help="Operation input as JSON"
     flag "-v --verbose" help="Show binding key and duration on stderr"
-    arg "<obi>" help="OBI locator (file path, URL, or exec: reference)"
+    arg "<obi>" help="OBI locator (file path, URL, exec: reference, or - for stdin)"
     arg "[operation]" help="Operation key to invoke"
   }
   cmd "prepare" help="Preflight an operation's required context without invoking it" {
     flag "--binding <key>" help="Binding key to preflight (operation is derived from the entry)"
     flag "-o --output <path>" help="Write output to file"
     flag "-F --format <format>" help="Output format: json|yaml|text"
-    arg "<obi>" help="OBI locator (file path, URL, or exec: reference)"
+    arg "<obi>" help="OBI locator (file path, URL, exec: reference, or - for stdin)"
     arg "[operation]" help="Operation key to preflight"
   }
   cmd "list" help="List operations on an OBI" {
@@ -297,7 +297,7 @@ cmd "operation" help="Manage and invoke operations on an OBI" subcommand_require
     flag "--tag <tag>" help="Filter operations by tag"
     flag "-o --output <path>" help="Write output to file"
     flag "-F --format <format>" help="Output format: json|yaml|text"
-    arg "<obi>" help="OBI locator (file path, URL, or exec: reference)"
+    arg "<obi>" help="OBI locator (file path, URL, exec: reference, or - for stdin)"
   }
   cmd "rename" help="Rename an operation and update all references" {
     alias "mv"
@@ -332,7 +332,7 @@ cmd "diff" help="Structural comparison of two OBIs" {
   flag "-q --quiet" help="Exit code only, no output"
   flag "-o --output <path>" help="Write output to file"
   flag "-F --format <format>" help="Output format: json|yaml|text"
-  arg "<baseline>" help="Baseline OBI (file path, URL, or exec: locator)"
+  arg "<baseline>" help="Baseline OBI (file path, URL, exec: locator, or - for stdin)"
   arg "[comparison]" help="Comparison OBI (omit with --from-sources)"
 }
 
@@ -359,14 +359,14 @@ cmd "validate" help="Validate an OpenBindings interface document" {
   flag "--strict" help="Additionally reject unknown (non-x-) fields"
   flag "-o --output <path>" help="Write output to file"
   flag "-F --format <format>" help="Output format: json|yaml|text"
-  arg "<locator>" help="File path, HTTP(S) URL, or exec: locator"
+  arg "<locator>" help="File path, HTTP(S) URL, exec: locator, or - for stdin"
 }
 
 cmd "compat" help="Check interface conformance between two interfaces" {
   flag "-q --quiet" help="Exit code only, no output"
   flag "-o --output <path>" help="Write output to file"
   flag "-F --format <format>" help="Output format: json|yaml|text"
-  arg "<target>" help="Target interface (locator)"
+  arg "<target>" help="Target interface (locator, or - for stdin)"
   arg "<candidate>" help="Candidate interface (locator)"
 }
 
@@ -382,7 +382,7 @@ cmd "conform" help="Scaffold or update operations so the target satisfies anothe
 cmd "purify" help="Strip x-ob vendor metadata, yielding a spec-only interface" {
   flag "-o --output <path>" help="Write output to file"
   flag "-F --format <format>" help="Output format: json|yaml|text"
-  arg "<obi-path>" help="Interface to purify"
+  arg "<obi-path>" help="Interface to purify (file path, or - for stdin)"
 }
 
 cmd "codegen" help="Generate a typed invoker from an interface" {
