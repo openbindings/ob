@@ -73,12 +73,13 @@ var CommandByShort = map[string]string{
 // WireInputByShort names the machine-natured commands whose whole wire input
 // rides one --input flag as JSON (the relocated wireInput props): binding
 // invoke/prepare keep the flag by design; inspect/synthesize are audited in
-// batch 5; context set converts to delivery routing in batch 3.
+// batch 5. setContext converted to stdin delivery in batch 3 (the Context
+// value rides stdin so credentials never touch argv; see the adaptation and
+// delivery tables in GenerateBoundCLI).
 var WireInputByShort = map[string]string{
 	"inspectSource":       "input",
 	"invokeBinding":       "input",
 	"prepareBinding":      "input",
-	"setContext":          "input",
 	"synthesizeInterface": "input",
 }
 
@@ -164,6 +165,9 @@ func GenerateBoundCLI(contractPath, usagePath string) (*openbindings.Interface, 
 		// interface returns inside the ConformResult/MergeResult report.
 		"conform":         `{"interface": $$.interface, "target-obi": $$.target, "dry-run": $$.dryRun, "yes": true, "format": "json"}`,
 		"mergeInterfaces": `{"target": $$.target, "source": $$.source, "from-sources": $$.fromSources, "only": $$.only, "op": $$.operations, "exclude-op": $$.excludeOperations, "ops-only": $$.opsOnly, "no-bindings": $$.noBindings, "no-sources": $$.noSources, "yes": true, "format": "json"}`,
+		// setContext: the wire key is the CLI's <url> argument; the Context
+		// value rides stdin (delivery below) so credentials never touch argv.
+		"setContext": `{"url": $$.key, "value": $$.value}`,
 	}
 	// deliveryByShort routes document-valued POST-transform fields off argv:
 	// the primary document to the child's stdin (stdin-dash substitutes `-` in
@@ -185,6 +189,8 @@ func GenerateBoundCLI(contractPath, usagePath string) (*openbindings.Interface, 
 		// (impossible on stdin), and materialization keeps stdin clear.
 		"conform":         {"interface": "file", "target-obi": "file"},
 		"mergeInterfaces": {"target": "file", "source": "file"},
+		// setContext: the Context value (credentials) rides stdin, never argv.
+		"setContext": {"value": "stdin-dash"},
 	}
 	// Machine-natured --input lanes (the relocated wireInput props): the
 	// whole wire input JSON-serializes into one flag. $$ (the root of the

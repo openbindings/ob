@@ -5,6 +5,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"io"
 	"os"
 	"strings"
 
@@ -105,7 +106,7 @@ func newContextSetCmd() *cobra.Command {
 		envVars     []string
 		metaEntries []string
 		fromCurl    string
-		inputJSON   string
+		valueJSON   string
 	)
 
 	cmd := &cobra.Command{
@@ -126,10 +127,10 @@ a config file and can be specified multiple times.
 
 Use --from-curl to import credentials from a curl command.
 
-Machine callers pass the operation's wire input wholesale instead: --input
-takes a SetContextInput ({"key": ..., "value": {...}}) as a JSON string and
-REPLACES the whole context (the key-value-store set contract), exclusive
-with the key argument and all field flags.
+Machine callers pass the full Context value with --value instead: the <url>
+is the key, --value takes the Context ({...}) as JSON and REPLACES the whole
+context (the key-value-store set contract), exclusive with the field flags.
+Pass "-" to read the value from stdin, so credentials never ride argv.
 
 Examples:
   ob context set https://api.github.com --bearer-token ghp_xxx
@@ -141,11 +142,11 @@ Examples:
   ob context set https://api.github.com --from-curl 'curl -H "Authorization: Bearer ghp_xxx" https://api.github.com'`,
 		Args: cobra.MaximumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			if inputJSON != "" {
-				return runContextSetWire(cmd, args, inputJSON)
+			if cmd.Flags().Changed("value") {
+				return runContextSetValue(cmd, args, valueJSON)
 			}
 			if len(args) != 1 {
-				return app.ExitResult{Code: 2, Message: "provide a <url> argument or --input", ToStderr: true}
+				return app.ExitResult{Code: 2, Message: "provide a <url> argument", ToStderr: true}
 			}
 			targetURL := args[0]
 
@@ -224,34 +225,41 @@ Examples:
 	cmd.Flags().StringArrayVar(&envVars, "env", nil, "add env var as \"VAR=value\" (repeatable)")
 	cmd.Flags().StringArrayVar(&metaEntries, "meta", nil, "add metadata as \"key=value\" (repeatable)")
 	cmd.Flags().StringVar(&fromCurl, "from-curl", "", "import context from a curl command string")
-	cmd.Flags().StringVar(&inputJSON, "input", "", "SetContextInput as a JSON string (machine lane)")
+	cmd.Flags().StringVar(&valueJSON, "value", "", "full Context value as JSON, full-replacement machine lane (- reads stdin); keyed by <url>, exclusive with field flags")
 
 	return cmd
 }
 
-// runContextSetWire is the machine lane: the setContext wire input wholesale,
-// full-replacement semantics per the key-value-store set contract. The
-// operation declares no output; the lane prints null.
-func runContextSetWire(cmd *cobra.Command, args []string, inputJSON string) error {
-	if len(args) > 0 {
-		return app.ExitResult{Code: 2, Message: "--input is exclusive with the <url> argument", ToStderr: true}
+// runContextSetValue is the machine lane: full-replacement of a URL-keyed
+// context (the key-value-store set contract). The key rides the <url>
+// argument; the Context value rides --value, or its stdin (`-`) so credentials
+// never touch argv. The operation declares no output; the lane prints null.
+func runContextSetValue(cmd *cobra.Command, args []string, valueJSON string) error {
+	if len(args) != 1 {
+		return app.ExitResult{Code: 2, Message: "--value requires a <url> argument (the context key)", ToStderr: true}
 	}
 	if cmd.Flags().Changed("bearer-token") || cmd.Flags().Changed("api-key") || cmd.Flags().Changed("basic") ||
 		cmd.Flags().Changed("header") || cmd.Flags().Changed("cookie") || cmd.Flags().Changed("env") ||
 		cmd.Flags().Changed("meta") || cmd.Flags().Changed("from-curl") {
-		return app.ExitResult{Code: 2, Message: "--input is exclusive with the field flags", ToStderr: true}
+		return app.ExitResult{Code: 2, Message: "--value is exclusive with the field flags", ToStderr: true}
 	}
-	var wire struct {
-		Key   string         `json:"key"`
-		Value map[string]any `json:"value"`
+	key := args[0]
+
+	raw := valueJSON
+	if raw == "-" {
+		data, err := io.ReadAll(os.Stdin)
+		if err != nil {
+			return app.ExitResult{Code: 2, Message: fmt.Sprintf("--value: read stdin: %v", err), ToStderr: true}
+		}
+		raw = string(data)
 	}
-	if err := json.Unmarshal([]byte(inputJSON), &wire); err != nil {
-		return app.ExitResult{Code: 2, Message: fmt.Sprintf("parse --input: %v", err), ToStderr: true}
+	var value map[string]any
+	if strings.TrimSpace(raw) != "" {
+		if err := json.Unmarshal([]byte(raw), &value); err != nil {
+			return app.ExitResult{Code: 2, Message: fmt.Sprintf("parse --value: %v", err), ToStderr: true}
+		}
 	}
-	if wire.Key == "" {
-		return app.ExitResult{Code: 2, Message: "--input: key is required", ToStderr: true}
-	}
-	if err := app.SaveUnifiedContext(wire.Key, wire.Value); err != nil {
+	if err := app.SaveUnifiedContext(key, value); err != nil {
 		return app.ExitResult{Code: 1, Message: err.Error(), ToStderr: true}
 	}
 	fmt.Println("null")

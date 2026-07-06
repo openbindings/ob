@@ -54,7 +54,7 @@ cmd "context" help="Manage binding context (credentials, headers, environment)" 
     flag "--env <env>" help="Add env var as \"VAR=value\" (repeatable)"
     flag "--meta <meta>" help="Add metadata as \"key=value\" (repeatable)"
     flag "--from-curl <curl>" help="Import context from a curl command string"
-    flag "--input <json>" help="SetContextInput as a JSON string (machine lane; full replacement, exclusive with the key argument and field flags)"
+    flag "--value <json>" help="Full Context value as JSON (machine lane; full replacement, keyed by <url>, exclusive with field flags; - reads stdin)"
     arg "[url]" help="Target URL"
   }
   cmd "remove" help="Remove context for a target URL" {
