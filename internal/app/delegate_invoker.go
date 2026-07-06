@@ -70,7 +70,7 @@ func DelegateBindingInvoker(resolved delegates.Resolved) (openbindings.BindingIn
 				bc := b
 				frameBinding = &bc
 			}
-		case strings.HasPrefix(source.Format, "usage"):
+		case strings.HasPrefix(source.Format, "openbindings.usage"):
 			if cliBinding == nil {
 				bc := b
 				cliBinding = &bc

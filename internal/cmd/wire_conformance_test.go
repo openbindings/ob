@@ -117,7 +117,7 @@ func TestWireConformance_ExecLane(t *testing.T) {
 			}
 		}},
 		{"removeContext", "openbindings.ob.removeContext", map[string]any{"key": "https://wire.example.com"}, nil},
-		{"resolveDelegateForFormat", "openbindings.ob.resolveDelegateForFormat", map[string]any{"format": "usage@2.0.0"}, nil},
+		{"resolveDelegateForFormat", "openbindings.ob.resolveDelegateForFormat", map[string]any{"format": "openbindings.usage@0.1.0"}, nil},
 		{"registerDelegate", "openbindings.ob.registerDelegate", map[string]any{"location": "exec:ob-fixture", "preference": 5}, nil},
 		{"setDelegatePreference", "openbindings.ob.setDelegatePreference", map[string]any{"location": "exec:ob-fixture", "preference": 10}, nil},
 		{"unregisterDelegate", "openbindings.ob.unregisterDelegate", map[string]any{"location": "exec:ob-fixture"}, nil},

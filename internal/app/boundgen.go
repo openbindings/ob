@@ -9,67 +9,123 @@ import (
 	"github.com/openbindings/openbindings-go/formats/usage"
 )
 
+// CommandByShort maps each contract operation's short name to its CLI
+// command path — the generator's binding-derivation table. This knowledge
+// lived in usage.kdl as opKey props until the openbindings.usage port
+// evicted it: the artifact stays pristine jdx, and the command↔operation
+// marriage is generator configuration, reviewable in one place. The
+// usage.kdl conformance test (internal/cmd) cross-checks this table against
+// the kdl tree and the contract.
+var CommandByShort = map[string]string{
+	"addOperation":             "operation add",
+	"addOperationAlias":        "operation alias add",
+	"addSource":                "source add",
+	"bindOperation":            "operation bind",
+	"codegen":                  "codegen",
+	"compareInterfaces":        "diff",
+	"conform":                  "conform",
+	"demo":                     "demo",
+	"describe":                 "describe",
+	"detachOperation":          "operation detach",
+	"getContext":               "context get",
+	"getDelegateRequirements":  "delegate requirements",
+	"initializeEnvironment":    "init",
+	"inspectSource":            "inspect",
+	"invokeBinding":            "binding invoke",
+	"invokeOperation":          "operation invoke",
+	"listContexts":             "context list",
+	"listDelegates":            "delegate list",
+	"listFormats":              "formats",
+	"listOperationAliases":     "operation alias list",
+	"listOperations":           "operation list",
+	"listSources":              "source list",
+	"mergeInterfaces":          "merge",
+	"newInterface":             "new",
+	"prepareBinding":           "binding prepare",
+	"prepareOperation":         "operation prepare",
+	"pullSource":               "source pull",
+	"purifyInterface":          "purify",
+	"registerDelegate":         "delegate register",
+	"removeContext":            "context remove",
+	"removeOperation":          "operation remove",
+	"removeOperationAlias":     "operation alias remove",
+	"removeSource":             "source remove",
+	"renameOperation":          "operation rename",
+	"reportCompatibility":      "compat",
+	"reportEnvironmentStatus":  "environment",
+	"reportInterfaceStatus":    "status",
+	"resolveDelegate":          "delegate resolve",
+	"resolveDelegateForFormat": "delegate resolve-format",
+	"resolveInterface":         "resolve",
+	"setContext":               "context set",
+	"setDelegatePreference":    "delegate prefer",
+	"setMetadata":              "meta set",
+	"setOperation":             "operation set",
+	"setOperationCodegenName":  "operation codegen-name",
+	"startMCPServer":           "mcp",
+	"startServer":              "start",
+	"synthesizeInterface":      "synthesize",
+	"unbindOperation":          "operation unbind",
+	"unregisterDelegate":       "delegate unregister",
+	"validateInterface":        "validate",
+}
+
+// WireInputByShort names the machine-natured commands whose whole wire input
+// rides one --input flag as JSON (the relocated wireInput props): binding
+// invoke/prepare keep the flag by design; inspect/synthesize are audited in
+// batch 5; context set converts to delivery routing in batch 3.
+var WireInputByShort = map[string]string{
+	"inspectSource":       "input",
+	"invokeBinding":       "input",
+	"prepareBinding":      "input",
+	"setContext":          "input",
+	"synthesizeInterface": "input",
+}
+
+// exitOKByShort stamps diff(1)-convention exits: the code is a result, not a
+// failure, and the -F json report carries the verdict either way.
+var exitOKByShort = map[string][]int{
+	"compareInterfaces":   {0, 1},
+	"reportCompatibility": {0, 1},
+	"validateInterface":   {0, 1},
+}
+
 // GenerateBoundCLI builds the bound CLI realization of ob's interface: the
 // unbound contract's operations (keys, aliases, schemas — authoritative for
-// operation identity) with usage-transport bindings attached by short-name from
-// usage.kdl (authoritative for the CLI wire ref). This is what
-// `ob --openbindings` emits; regenerating it from the contract keeps it
-// conformant instead of drifting as a hand-maintained file.
+// operation identity) bound through a generated openbindings.usage wrapper
+// document that embeds the pristine usage.kdl and carries one unit per
+// operation (command path from CommandByShort, stdout "json" — ob's machine
+// lane speaks JSON for every operation — and exit classifications where the
+// CLI follows the diff(1) convention). This is what `ob --openbindings`
+// emits; regenerating it from the contract keeps it conformant instead of
+// drifting as a hand-maintained file.
 //
-// contractPath and usagePath are read for generation; usageFormat is the usage
-// format token (e.g. "usage@2.13.1"). The usage source is embedded as `content`
-// (not a relative `location`) so the emitted OBI is self-contained and portable
-// per the spec's context-free reference guarantee (OBI-D-05): `ob --openbindings`
-// is consumed away from this repo (delegate registration, agents), where a
+// The usage.kdl is embedded verbatim inside the wrapper (spec.content) so
+// the emitted OBI is self-contained and portable per OBI-D-05: it is
+// consumed away from this repo (delegate registration, agents), where a
 // relative path would not resolve.
-func GenerateBoundCLI(contractPath, usagePath, usageFormat string) (*openbindings.Interface, error) {
+func GenerateBoundCLI(contractPath, usagePath string) (*openbindings.Interface, error) {
 	contract, err := loadInterfaceFile(contractPath)
 	if err != nil {
 		return nil, fmt.Errorf("load contract: %w", err)
 	}
 
-	// Derive the CLI's bindable targets from usage.kdl. Derived bindings are
-	// keyed by the usage opKey, i.e. the operation short-name.
-	derived, err := DeriveFromSource(openbindings.Source{Format: usageFormat, Location: usagePath}, "usage", "")
-	if err != nil {
-		return nil, fmt.Errorf("derive usage: %w", err)
-	}
-	refByShort := make(map[string]string, len(derived.Bindings))
-	for _, b := range derived.Bindings {
-		refByShort[b.Operation] = b.Ref
-	}
-
-	// Embed the usage spec inline so the bound OBI carries no out-of-document
-	// reference. usage.kdl is text, so this embeds as its UTF-8 source string.
 	usageData, err := os.ReadFile(usagePath)
 	if err != nil {
 		return nil, fmt.Errorf("read usage source: %w", err)
 	}
-	usageContent, err := ParseContentForEmbed(usageData, usageFormat)
-	if err != nil {
-		return nil, fmt.Errorf("embed usage source: %w", err)
-	}
-
-	// Machine-lane transforms. A usage.kdl command may declare
-	// wireInput="<flag>", meaning the command carries the operation's whole
-	// wire input as one JSON string in that flag (the `binding invoke --input`
-	// pattern). For those bindings we attach an inputTransform that JSON-
-	// serializes the operation input into the flag, so generic operation-
-	// invocation — in particular a registrar operation-invoking ob as an exec
-	// delegate — produces argv the CLI actually parses. Ops without wireInput
-	// rely on the usage transport's field-name mapping, which only carries
-	// flat, scalar-shaped inputs.
+	usageText := string(usageData)
 	spec, err := usage.ParseKDL(usageData)
 	if err != nil {
 		return nil, fmt.Errorf("parse usage spec: %w", err)
 	}
+
 	// Per-operation adaptation transforms: where a wire input field cannot
 	// ride the transport's field-name mapping as-is (a name the CLI spells
 	// differently, or one shadowed by a root flag like -F/--format), the
-	// BINDING adapts the wire shape to the CLI's natural surface. This table
-	// lives here — not in usage.kdl — so the usage doc stays a pure
-	// description of the CLI. All transforms also force the machine format
-	// (-F json), replacing the generic forcing below for these ops.
+	// BINDING adapts the wire shape to the CLI's natural surface. Transforms
+	// are spec-level and stay on the OBI entry; transport mechanics live in
+	// the wrapper units.
 	adaptationByShort := map[string]string{
 		// resolveDelegateForFormat: wire `format` → the <format-token> arg
 		// (the bare name would map to the root --format flag).
@@ -80,26 +136,29 @@ func GenerateBoundCLI(contractPath, usagePath, usageFormat string) (*openbinding
 		"getContext":    `{"url": $$.key, "format": "json"}`,
 		"removeContext": `{"url": $$.key, "format": "json"}`,
 	}
+	// Machine-natured --input lanes (the relocated wireInput props): the
+	// whole wire input JSON-serializes into one flag. $$ (the root of the
+	// operation input), not $: inside an object constructor the context is
+	// a sequence, and $string would serialize a one-element array.
+	for short, flag := range WireInputByShort {
+		adaptationByShort[short] = fmt.Sprintf("{ %q: $string($$) }", flag)
+	}
 
-	wireInputByShort := map[string]string{}
-	formatFlagByShort := map[string]bool{}
-	spec.Walk(func(_ []string, cmd usage.Command) {
-		opKey := cmd.Node.Props["opKey"].String()
-		if opKey == "" {
-			return
-		}
-		if flag := cmd.Node.Props["wireInput"].String(); flag != "" {
-			wireInputByShort[opKey] = flag
-		}
+	// Commands whose kdl declares a --format flag get the machine lane
+	// forced (-F json) unless the operation's own input carries a `format`
+	// field (root-flag shadowing; those ops are adapted individually above).
+	formatFlagByPath := map[string]bool{}
+	spec.Walk(func(path []string, cmd usage.Command) {
 		for _, f := range cmd.Flags {
 			for _, long := range f.ParseUsage().Long {
 				if long == "format" {
-					formatFlagByShort[opKey] = true
+					formatFlagByPath[strings.Join(path, " ")] = true
 				}
 			}
 		}
 	})
 
+	units := map[string]any{}
 	bound := &openbindings.Interface{
 		OpenBindings: contract.OpenBindings,
 		Name:         contract.Name,
@@ -107,52 +166,61 @@ func GenerateBoundCLI(contractPath, usagePath, usageFormat string) (*openbinding
 		Description:  contract.Description,
 		Schemas:      contract.Schemas,
 		Operations:   make(map[string]openbindings.Operation, len(contract.Operations)),
-		Sources: map[string]openbindings.Source{
-			"usage": {Format: usageFormat, Content: usageContent},
-		},
-		Bindings: map[string]openbindings.BindingEntry{},
+		Sources:      map[string]openbindings.Source{},
+		Bindings:     map[string]openbindings.BindingEntry{},
 	}
 
-	var unbound []string
 	for key, op := range contract.Operations {
 		bound.Operations[key] = op
 		short := key[strings.LastIndex(key, ".")+1:]
-		ref, ok := refByShort[short]
+		cmdPath, ok := CommandByShort[short]
 		if !ok {
-			unbound = append(unbound, key)
+			// Operations with no CLI command stay unbound; that's expected.
 			continue
 		}
+
+		// The unit: the command pointer plus ob's lane elections. Every ob
+		// machine lane speaks JSON.
+		unit := map[string]any{
+			"openbindings.usage": usage.WrapperVersion,
+			"command":            cmdPath,
+			"stdout":             "json",
+		}
+		if codes := exitOKByShort[short]; codes != nil {
+			ok := make([]any, len(codes))
+			for i, c := range codes {
+				ok[i] = c
+			}
+			unit["exit"] = map[string]any{"ok": ok}
+		}
+		units[short] = unit
+
 		be := openbindings.BindingEntry{
 			Operation: key,
 			Source:    "usage",
-			Ref:       ref,
+			Ref:       usage.UnitRef(short),
 		}
 		if adaptation, ok := adaptationByShort[short]; ok {
 			be.InputTransform = &openbindings.TransformOrRef{Inline: adaptation}
-		} else if flag, ok := wireInputByShort[short]; ok {
-			// $$ (the root of the operation input), not $: inside an object
-			// constructor the context is a sequence, and $string would
-			// serialize a one-element array.
-			be.InputTransform = &openbindings.TransformOrRef{
-				Inline: fmt.Sprintf("{ %q: $string($$) }", flag),
-			}
-		} else if formatFlagByShort[short] && !inputHasFormatField(contract, op) {
-			// Exec-lane output conformance: the CLI renders text by default,
-			// and the usage transport wraps non-JSON stdout as {stdout: ...} —
-			// which fails the operation's output schema (OBI-T-08). Forcing
-			// the machine format makes commands whose -F json lane is
-			// wire-true emit contract-shaped output. Skipped when the
-			// operation's own input carries a `format` field (root-flag
-			// shadowing; those ops are handled individually).
+		} else if formatFlagByPath[cmdPath] && !inputHasFormatField(contract, op) {
 			be.InputTransform = &openbindings.TransformOrRef{
 				Inline: `$merge([$type($$) = "object" ? $$ : {}, {"format": "json"}])`,
 			}
 		}
 		bound.Bindings[key+".usage"] = be
 	}
-	// Operations with no CLI command (e.g. nothing in usage.kdl) stay unbound;
-	// that's expected, not an error.
-	_ = unbound
+
+	bound.Sources["usage"] = openbindings.Source{
+		Format: usage.WrapperToken,
+		Content: map[string]any{
+			"spec": map[string]any{
+				"format":  "usage@" + usage.MaxTestedVersion,
+				"content": usageText,
+				"hash":    usage.ArtifactHash(usageText),
+			},
+			"units": units,
+		},
+	}
 
 	return bound, nil
 }

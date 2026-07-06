@@ -2,6 +2,8 @@
 package delegates
 
 import (
+	"github.com/openbindings/openbindings-go/formats/usage"
+
 	"bytes"
 	"context"
 	"encoding/json"
@@ -84,13 +86,24 @@ func probeFormatsFromInterface(path string, timeout time.Duration, iface openbin
 	if !ok {
 		return nil, fmt.Errorf("binding source not found for %s", OpListFormats)
 	}
-	if !strings.HasPrefix(src.Format, "usage@") {
+	if !strings.HasPrefix(src.Format, "openbindings.usage@") {
 		return nil, fmt.Errorf("unsupported binding format for %s", OpListFormats)
 	}
 
-	args := strings.Fields(formatsRef)
+	// The ref is a unit pointer into the wrapper source; the unit's command
+	// is the argv prefix.
+	w, err := usage.ParseWrapper(src.Content)
+	if err != nil {
+		return nil, fmt.Errorf("parse %s wrapper source: %w", OpListFormats, err)
+	}
+	unitName := strings.TrimPrefix(formatsRef, "#/units/")
+	unit, ok := w.Units[unitName]
+	if !ok || unitName == formatsRef {
+		return nil, fmt.Errorf("formats ref %q does not resolve to a unit", formatsRef)
+	}
+	args := strings.Fields(unit.Command)
 	if len(args) == 0 {
-		return nil, fmt.Errorf("empty formats ref")
+		return nil, fmt.Errorf("empty formats command")
 	}
 
 	// Try JSON output first for structured parsing.

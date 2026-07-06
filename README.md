@@ -432,6 +432,8 @@ This is also how you get an MCP server for `ob` itself: point `ob mcp` at a runn
 
 When invoked through MCP, an operation's input schema is exposed as the tool's input schema; the response body is returned as the tool result.
 
+For interfaces whose operations take a whole OBI as input — much of `ob`'s own contract does — remember that tool arguments are paid for in model tokens. When the document is the vehicle for a call rather than its subject (invoking one operation of a large interface through `openbindings_ob_invokeOperation`, say), the agent can pass a slice: the operation being invoked plus everything it transitively references is itself a valid OBI, and the invocation behaves identically. Operations whose subject is the document itself (`validateInterface`, `compareInterfaces`) need the real thing.
+
 ### When to use which
 
 - **`ob start`**: another process (a browser app, a worker, a server-side host) needs to make binding invocations and you want REST/WS access. Use it when the consumer can speak HTTP.

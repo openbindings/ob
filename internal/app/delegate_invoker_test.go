@@ -154,11 +154,11 @@ func TestDelegateBindingInvoker_PrefersFramesOverCLI(t *testing.T) {
 		OBI: delegateOBI(
 			map[string]openbindings.Source{
 				"asyncapi": {Format: "asyncapi@3.0", Location: "http://localhost:1/asyncapi.yaml"},
-				"usage":    {Format: "usage@2.0.0", Location: "exec:test-delegate --usage-spec"},
+				"usage":    {Format: "openbindings.usage@0.1.0", Location: "exec:test-delegate --usage-spec"},
 			},
 			map[string]openbindings.BindingEntry{
 				"invokeBinding.asyncapi": {Operation: "invokeBinding", Ref: "#/operations/invokeBinding", Source: "asyncapi"},
-				"invokeBinding.usage":    {Operation: "invokeBinding", Ref: "binding invoke", Source: "usage"},
+				"invokeBinding.usage":    {Operation: "invokeBinding", Ref: "#/units/invokeBinding", Source: "usage"},
 			},
 		),
 	}
@@ -180,11 +180,11 @@ func TestDelegateBindingInvoker_CLIWhenAsyncAPIUnreachable(t *testing.T) {
 		OBI: delegateOBI(
 			map[string]openbindings.Source{
 				"asyncapi": {Format: "asyncapi@3.0", Location: "internal/server/asyncapi.yaml"},
-				"usage":    {Format: "usage@2.0.0", Location: "exec:test-delegate --usage-spec"},
+				"usage":    {Format: "openbindings.usage@0.1.0", Location: "exec:test-delegate --usage-spec"},
 			},
 			map[string]openbindings.BindingEntry{
 				"invokeBinding.asyncapi": {Operation: "invokeBinding", Ref: "#/operations/invokeBinding", Source: "asyncapi"},
-				"invokeBinding.usage":    {Operation: "invokeBinding", Ref: "binding invoke", Source: "usage"},
+				"invokeBinding.usage":    {Operation: "invokeBinding", Ref: "#/units/invokeBinding", Source: "usage"},
 			},
 		),
 	}
@@ -261,10 +261,13 @@ func TestDelegateBindingInvoker_MatchesKeyOrAlias(t *testing.T) {
 						tc.key: {Aliases: []string{"openbindings.binding-invoker.invokeBinding"}},
 					},
 					Sources: map[string]openbindings.Source{
-						"usage": {Format: "usage@2.0.0", Content: "cmd \"binding\" { cmd \"invoke\" { } }"},
+						"usage": {Format: "openbindings.usage@0.1.0", Content: map[string]any{
+							"spec":  map[string]any{"format": "usage@2.0.0", "content": "bin \"acme\"\ncmd \"binding\" subcommand_required=#true { cmd \"invoke\" { flag \"--input <json>\" } }"},
+							"units": map[string]any{"invokeBinding": map[string]any{"openbindings.usage": "0.1.0", "command": "binding invoke", "stdout": "json"}},
+						}},
 					},
 					Bindings: map[string]openbindings.BindingEntry{
-						tc.key + ".usage": {Operation: tc.key, Source: "usage", Ref: "binding invoke"},
+						tc.key + ".usage": {Operation: tc.key, Source: "usage", Ref: "#/units/invokeBinding"},
 					},
 				}},
 			}
@@ -323,8 +326,14 @@ exit 1
 
 	usageSpec := "min_usage_version \"2.0.0\"\nname \"fixture\"\nbin \"" + cliPath + "\"\n" +
 		"cmd \"binding\" subcommand_required=#true {\n" +
-		"  cmd \"invoke\" opKey=\"invokeBinding\" {\n" +
+		"  cmd \"invoke\" {\n" +
 		"    flag \"--input <json>\"\n  }\n}\n"
+	wrapperDoc := map[string]any{
+		"spec": map[string]any{"format": "usage@2.0.0", "content": usageSpec},
+		"units": map[string]any{
+			"invokeBinding": map[string]any{"openbindings.usage": "0.1.0", "command": "binding invoke", "stdout": "json"},
+		},
+	}
 
 	resolved := delegates.Resolved{
 		Format:   "thrift@1.0",
@@ -336,13 +345,13 @@ exit 1
 				"openbindings.ob.invokeBinding": {Aliases: []string{"openbindings.binding-invoker.invokeBinding"}},
 			},
 			Sources: map[string]openbindings.Source{
-				"usage": {Format: "usage@2.0.0", Content: usageSpec},
+				"usage": {Format: "openbindings.usage@0.1.0", Content: wrapperDoc},
 			},
 			Bindings: map[string]openbindings.BindingEntry{
 				"openbindings.ob.invokeBinding.usage": {
 					Operation:      "openbindings.ob.invokeBinding",
 					Source:         "usage",
-					Ref:            "binding invoke",
+					Ref:            "#/units/invokeBinding",
 					InputTransform: &openbindings.TransformOrRef{Inline: `{ "input": $string($$) }`},
 				},
 			},

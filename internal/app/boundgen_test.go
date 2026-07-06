@@ -115,7 +115,7 @@ func TestBoundOBIsAreSpecValid(t *testing.T) {
 }
 
 func TestGenerateBoundCLI_BindsOpsByShortName(t *testing.T) {
-	bound, err := GenerateBoundCLI("../../ob.obi.json", "../cmd/usage.kdl", "usage@"+usage.MaxTestedVersion)
+	bound, err := GenerateBoundCLI("../../ob.obi.json", "../cmd/usage.kdl")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -128,7 +128,7 @@ func TestGenerateBoundCLI_BindsOpsByShortName(t *testing.T) {
 	if !ok {
 		t.Fatal("expected a usage binding for describe")
 	}
-	if b.Operation != "openbindings.ob.describe" || b.Source != "usage" || b.Ref == "" {
+	if b.Operation != "openbindings.ob.describe" || b.Source != "usage" || b.Ref != "#/units/describe" {
 		t.Errorf("unexpected binding: %+v", b)
 	}
 	// The usage source is embedded as content (not a relative location) so the
@@ -140,14 +140,33 @@ func TestGenerateBoundCLI_BindsOpsByShortName(t *testing.T) {
 	if src.Content == nil || src.Location != "" {
 		t.Errorf("expected embedded usage content and no location, got content=%v location=%q", src.Content != nil, src.Location)
 	}
+	if src.Format != usage.WrapperToken {
+		t.Errorf("source format = %q, want %q", src.Format, usage.WrapperToken)
+	}
+	// The wrapper parses, its units resolve, and diff(1)-convention ops
+	// carry exit stamps.
+	w, perr := usage.ParseWrapper(src.Content)
+	if perr != nil {
+		t.Fatalf("emitted wrapper does not parse: %v", perr)
+	}
+	if _, ok := w.Units["describe"]; !ok {
+		t.Fatal("expected unit 'describe'")
+	}
+	if u := w.Units["validateInterface"]; u == nil || u.Exit == nil || len(u.Exit.OK) != 2 {
+		t.Errorf("validateInterface unit should declare exit ok [0,1], got %+v", w.Units["validateInterface"])
+	}
+	if u := w.Units["describe"]; u.Stdout != "json" {
+		t.Errorf("units should declare stdout json, got %q", u.Stdout)
+	}
 }
 
-// TestGenerateBoundCLI_AttachesWireInputTransforms: commands declaring
-// wireInput in usage.kdl carry a machine-lane inputTransform that JSON-
-// serializes the operation's wire input into the named flag, so generic
-// operation-invocation of the bound CLI OBI produces argv the CLI parses.
+// TestGenerateBoundCLI_AttachesWireInputTransforms: machine-natured commands
+// (WireInputByShort — the relocated wireInput props) carry a machine-lane
+// inputTransform that JSON-serializes the operation's wire input into the
+// named flag, so generic operation-invocation of the bound CLI OBI produces
+// argv the CLI parses.
 func TestGenerateBoundCLI_AttachesWireInputTransforms(t *testing.T) {
-	bound, err := GenerateBoundCLI("../../ob.obi.json", "../cmd/usage.kdl", "usage@"+usage.MaxTestedVersion)
+	bound, err := GenerateBoundCLI("../../ob.obi.json", "../cmd/usage.kdl")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}

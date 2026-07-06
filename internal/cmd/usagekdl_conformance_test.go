@@ -8,6 +8,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/openbindings/ob/internal/app"
 	"github.com/openbindings/openbindings-go/formats/usage"
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
@@ -28,13 +29,13 @@ import (
 //     are optional per command but must match the root definition
 //   - arg-arity drift: required/optional/variadic counts in kdl args vs the
 //     cobra Use string placeholders (<required> [optional] name...)
-//   - opKey drift: kdl opKey missing from the contract (orphan), duplicated,
-//     a kdl leaf with no opKey, or a contract op no kdl command binds
-//     (phantom — the syncInterface bug class)
-//   - wireInput coherence: a wireInput prop (machine lane: the operation's
-//     whole wire input rides the named flag as JSON; boundgen emits the
-//     matching inputTransform) must name a value-taking flag declared on
-//     the same command
+//   - table drift: boundgen's CommandByShort (the evicted opKey props) must
+//     map every contract operation to exactly one existing kdl leaf, with no
+//     orphans, duplicates, unbound leaves, or phantom contract ops
+//   - wire-lane coherence: boundgen's WireInputByShort entries must name a
+//     value-taking flag declared on the mapped command
+//   - pristineness: usage.kdl carries NO project vocabulary (no opKey, no
+//     wireInput — it parses as pure jdx usage-spec)
 //
 // Excluded: cobra builtins (help, completion) and the root meta-flags
 // (--openbindings, --usage-spec), which are CLI plumbing, not operations.
@@ -61,6 +62,21 @@ func TestUsageKDLMatchesCommandTree(t *testing.T) {
 		problems = append(problems, fmt.Sprintf(format, args...))
 	}
 
+	// Reverse table: command path -> contract short. Two shorts mapping to
+	// one command is a table bug (each CLI command realizes one operation).
+	shortByCommand := map[string]string{}
+	for short, path := range app.CommandByShort {
+		if prev, dup := shortByCommand[path]; dup {
+			lo, hi := short, prev
+			if lo > hi {
+				lo, hi = hi, lo
+			}
+			addf("CommandByShort: %q and %q both map to command %q", lo, hi, path)
+			continue
+		}
+		shortByCommand[path] = short
+	}
+
 	// Tree shape: same command paths on both sides.
 	for path := range kdl {
 		if _, ok := cob[path]; !ok {
@@ -73,7 +89,6 @@ func TestUsageKDLMatchesCommandTree(t *testing.T) {
 		}
 	}
 
-	seenOpKeys := map[string]string{} // opKey -> command path
 	for path, kc := range kdl {
 		cc, ok := cob[path]
 		if !ok {
@@ -85,25 +100,18 @@ func TestUsageKDLMatchesCommandTree(t *testing.T) {
 			addf("command %q: alias drift: %s", path, d)
 		}
 
-		// Group vs leaf, opKey wiring.
+		// Group vs leaf, table wiring (CommandByShort is the generator's
+		// binding-derivation table — the evicted opKey props).
 		if len(kc.subcommands) > 0 {
 			if !kc.subcommandRequired {
 				addf("command %q: has subcommands in usage.kdl but no subcommand_required=#true", path)
 			}
-			if kc.opKey != "" {
-				addf("command %q: group commands must not carry an opKey (got %q)", path, kc.opKey)
+			if short, bound := shortByCommand[path]; bound {
+				addf("command %q: group commands must not be bound (CommandByShort maps %q here)", path, short)
 			}
 		} else {
-			if kc.opKey == "" {
-				addf("command %q: leaf command has no opKey (every CLI command must bind a contract operation)", path)
-			} else {
-				if prev, dup := seenOpKeys[kc.opKey]; dup {
-					addf("command %q: opKey %q already used by %q", path, kc.opKey, prev)
-				}
-				seenOpKeys[kc.opKey] = path
-				if !shortNames[kc.opKey] {
-					addf("command %q: opKey %q has no matching operation in the contract (orphan)", path, kc.opKey)
-				}
+			if _, bound := shortByCommand[path]; !bound {
+				addf("command %q: leaf command not in boundgen's CommandByShort (every CLI command must bind a contract operation)", path)
 			}
 		}
 
@@ -142,23 +150,45 @@ func TestUsageKDLMatchesCommandTree(t *testing.T) {
 			addf("command %q: arg arity mismatch (kdl %s, cobra Use %s)", path, kc.args, cc.args)
 		}
 
-		// wireInput coherence.
-		if kc.wireInput != "" {
-			if kc.opKey == "" {
-				addf("command %q: wireInput without an opKey (nothing to transform)", path)
-			}
-			if f, ok := kc.flags[kc.wireInput]; !ok {
-				addf("command %q: wireInput %q names no flag on the command", path, kc.wireInput)
-			} else if !f.takesValue {
-				addf("command %q: wireInput flag --%s must take a value", path, kc.wireInput)
-			}
+	}
+
+	// Wire-lane coherence: every WireInputByShort entry names a value-taking
+	// flag on the mapped command.
+	for short, flag := range app.WireInputByShort {
+		path, ok := app.CommandByShort[short]
+		if !ok {
+			addf("WireInputByShort %q: not in CommandByShort", short)
+			continue
+		}
+		kc, ok := kdl[path]
+		if !ok {
+			continue // table drift already reported
+		}
+		if f, ok := kc.flags[flag]; !ok {
+			addf("command %q: wire-input flag %q (WireInputByShort) not declared on the command", path, flag)
+		} else if !f.takesValue {
+			addf("command %q: wire-input flag --%s must take a value", path, flag)
 		}
 	}
 
-	// Phantom ops: contract operations no CLI command binds.
+	// Pristineness: the artifact carries no project vocabulary.
+	if strings.Contains(embeddedUsageSpec, "opKey") || strings.Contains(embeddedUsageSpec, "wireInput") {
+		addf("usage.kdl carries project vocabulary (opKey/wireInput) — the artifact must stay pristine jdx")
+	}
+
+	// Table ↔ contract ↔ kdl coherence.
+	for short, path := range app.CommandByShort {
+		if !shortNames[short] {
+			addf("CommandByShort %q: no matching operation in the contract (orphan table entry)", short)
+		}
+		if _, ok := kdl[path]; !ok {
+			addf("CommandByShort %q: command path %q does not exist in usage.kdl", short, path)
+		}
+	}
+	// Phantom ops: contract operations the table does not bind.
 	for short := range shortNames {
-		if _, ok := seenOpKeys[short]; !ok {
-			addf("contract operation %q: no usage.kdl command binds it (phantom — add a command or remove the op)", short)
+		if _, ok := app.CommandByShort[short]; !ok {
+			addf("contract operation %q: not in boundgen's CommandByShort (phantom — add a command or remove the op)", short)
 		}
 	}
 
@@ -188,8 +218,6 @@ type cliCommand struct {
 	aliases            []string
 	flags              map[string]flagInfo
 	args               arity
-	opKey              string
-	wireInput          string
 	subcommands        []string
 	subcommandRequired bool
 }
@@ -199,8 +227,6 @@ func collectKDLCommands(spec *usage.Spec) map[string]cliCommand {
 	spec.Walk(func(path []string, cmd usage.Command) {
 		c := cliCommand{
 			flags:              map[string]flagInfo{},
-			opKey:              cmd.Node.Props["opKey"].String(),
-			wireInput:          cmd.Node.Props["wireInput"].String(),
 			subcommandRequired: cmd.SubcommandRequired,
 		}
 		for _, sub := range cmd.Commands {
