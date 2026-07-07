@@ -2,6 +2,7 @@ package app
 
 import (
 	"encoding/json"
+	"os"
 	"strings"
 	"testing"
 
@@ -9,15 +10,15 @@ import (
 )
 
 // TestBoundCLIConformsToContract is the drift guard: the committed bound CLI
-// OBI (internal/app/ob.obi.json) must conform to the unbound contract
+// OBI (internal/app/ob.bound.obi.json) must conform to the unbound contract
 // (../../ob.obi.json). If it fails, regenerate with `go generate ./internal/app`.
 func TestBoundCLIConformsToContract(t *testing.T) {
-	report := ComparisonCheck(ComparisonInput{Left: "../../ob.obi.json", Right: "ob.obi.json"})
+	report := ComparisonCheck(ComparisonInput{Left: "../../ob.obi.json", Right: "ob.bound.obi.json"})
 	if report.Error != nil {
 		t.Fatalf("compat error: %s", report.Error.Message)
 	}
 	if report.Summary.Verdict != "compatible" {
-		t.Fatalf("internal/app/ob.obi.json no longer conforms to the contract (verdict %s) — run `go generate ./internal/app`",
+		t.Fatalf("internal/app/ob.bound.obi.json no longer conforms to the contract (verdict %s) — run `go generate ./internal/app`",
 			report.Summary.Verdict)
 	}
 }
@@ -103,7 +104,7 @@ func TestGenerateBoundServe_BindsServedSurface(t *testing.T) {
 // the bound CLI OBI and the server serves the bound serve OBI as its discovery
 // document, both must validate. If this fails, run `go generate ./internal/app`.
 func TestBoundOBIsAreSpecValid(t *testing.T) {
-	for _, path := range []string{"ob.obi.json", "../server/serve.obi.json"} {
+	for _, path := range []string{"ob.bound.obi.json", "../server/serve.obi.json"} {
 		report := ValidateInterface(ValidateInput{Locator: path, Strict: true})
 		if report.Error != nil {
 			t.Fatalf("%s: validate error: %s", path, report.Error.Message)
@@ -141,8 +142,16 @@ func TestGenerateBoundCLI_BindsOpsByShortName(t *testing.T) {
 	if src.Content == nil || src.Location != "" {
 		t.Errorf("expected embedded usage content and no location, got content=%v location=%q", src.Content != nil, src.Location)
 	}
-	if src.Format != "usage@"+usage.MaxTestedVersion {
-		t.Errorf("source format = %q, want the bare usage token", src.Format)
+	kdl, err := os.ReadFile("../cmd/usage.kdl")
+	if err != nil {
+		t.Fatalf("read usage.kdl: %v", err)
+	}
+	kdlSpec, err := usage.ParseKDL(kdl)
+	if err != nil {
+		t.Fatalf("parse usage.kdl: %v", err)
+	}
+	if want := "usage@" + kdlSpec.Meta().MinUsageVersion; src.Format != want {
+		t.Errorf("source format = %q, want the artifact's declared floor %q", src.Format, want)
 	}
 	if text, _ := src.Content.(string); text == "" || !strings.Contains(text, `bin "ob"`) {
 		t.Error("expected the pristine kdl text as embedded content")

@@ -17,7 +17,7 @@ import (
 // TestUsageKDLMatchesCommandTree cross-references the three sources of truth
 // for the CLI surface: the cobra command tree (code), usage.kdl (the CLI's
 // usage doc and binding source), and the root contract's operations
-// (../../ob.obi.json). The bound OBI (internal/app/ob.obi.json) is generated
+// (../../ob.obi.json). The bound OBI (internal/app/ob.bound.obi.json) is generated
 // from the latter two, so keeping these three aligned keeps every surface
 // aligned. Sibling to TestBoundCLIConformsToContract in internal/app.
 //

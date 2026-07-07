@@ -1508,16 +1508,16 @@ func TestRewriteSpecPlaceholders_HTTPS(t *testing.T) {
 // --- Spec validation ---
 
 func TestSpecsParseCleanly(t *testing.T) {
-	t.Run("ob.obi.json", func(t *testing.T) {
+	t.Run("ob.bound.obi.json", func(t *testing.T) {
 		iface, err := app.OpenBindingsInterface()
 		if err != nil {
-			t.Fatalf("failed to parse ob.obi.json: %v", err)
+			t.Fatalf("failed to parse ob.bound.obi.json: %v", err)
 		}
 		if iface.Name == "" {
-			t.Error("ob.obi.json: name is empty")
+			t.Error("ob.bound.obi.json: name is empty")
 		}
 		if len(iface.Operations) == 0 {
-			t.Error("ob.obi.json: no operations defined")
+			t.Error("ob.bound.obi.json: no operations defined")
 		}
 	})
 

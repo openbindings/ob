@@ -46,7 +46,7 @@ func TestGenerateDemoOBI(t *testing.T) {
 }
 
 func TestGenerateCLIOBI(t *testing.T) {
-	iface := loadTestInterface(t, "../app/ob.obi.json")
+	iface := loadTestInterface(t, "../app/ob.bound.obi.json")
 
 	result, err := Generate(iface)
 	if err != nil {

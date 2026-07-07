@@ -2,7 +2,7 @@
 // (ob.obi.json), so the bound realizations stay conformant with the contract
 // instead of drifting as hand-maintained files:
 //
-//   - the bound CLI OBI (internal/app/ob.obi.json), from contract + usage.kdl;
+//   - the bound CLI OBI (internal/app/ob.bound.obi.json), from contract + usage.kdl;
 //   - the bound serve OBI (internal/server/serve.obi.json), from contract +
 //     openapi.yaml (REST) + the WS invoke binding.
 //
@@ -23,18 +23,18 @@ func main() {
 	const contractPath = "../../ob.obi.json"
 
 	// Bound CLI OBI: contract + usage.kdl, carrying the PRISTINE artifact
-	// verbatim as its source (bare usage@ token from usage.MaxTestedVersion,
+	// verbatim as its source (bare usage@ token from the artifact declared min_usage_version,
 	// command-path refs).
 	cli, err := app.GenerateBoundCLI(contractPath, "../cmd/usage.kdl")
 	if err != nil {
 		fmt.Fprintln(os.Stderr, "genbound: cli:", err)
 		os.Exit(1)
 	}
-	if err := app.WriteInterfaceFile("ob.obi.json", cli); err != nil {
+	if err := app.WriteInterfaceFile("ob.bound.obi.json", cli); err != nil {
 		fmt.Fprintln(os.Stderr, "genbound: write cli:", err)
 		os.Exit(1)
 	}
-	fmt.Printf("genbound: regenerated ob.obi.json (%d operations, %d bindings)\n",
+	fmt.Printf("genbound: regenerated ob.bound.obi.json (%d operations, %d bindings)\n",
 		len(cli.Operations), len(cli.Bindings))
 
 	// The per-op recipe: ob's consumer configuration as reference docs,

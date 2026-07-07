@@ -35,7 +35,7 @@ func TestWireConformance_ExecLane(t *testing.T) {
 
 	// The bound OBI, resolved before we chdir into the sandbox. Its schemas
 	// judge the outputs below.
-	obiPath, err := filepath.Abs("../app/ob.obi.json")
+	obiPath, err := filepath.Abs("../app/ob.bound.obi.json")
 	if err != nil {
 		t.Fatal(err)
 	}

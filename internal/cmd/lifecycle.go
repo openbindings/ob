@@ -54,7 +54,7 @@ Examples:
 	cmd.Flags().StringVar(&name, "name", "", "interface name")
 	cmd.Flags().StringVar(&version, "version", "", "interface version")
 	cmd.Flags().StringVar(&description, "description", "", "interface description")
-	cmd.Flags().StringVar(&obVersion, "openbindings", "", "target OpenBindings spec version (default: latest tested)")
+	cmd.Flags().StringVar(&obVersion, "spec-version", "", "target OpenBindings spec version (default: latest tested)")
 	cmd.Flags().BoolVar(&force, "force", false, "overwrite an existing file")
 
 	return cmd

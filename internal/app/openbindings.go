@@ -8,12 +8,13 @@ import (
 	"github.com/openbindings/openbindings-go"
 )
 
-// ob.obi.json is the bound CLI realization, generated from the unbound contract
-// (../../ob.obi.json) + usage.kdl. Regenerate with `go generate ./internal/app`;
-// do not hand-edit. The TestBoundCLIConformsToContract guard fails if it drifts.
+// ob.bound.obi.json is the bound CLI realization, generated from the unbound
+// contract (../../ob.obi.json) + usage.kdl. Regenerate with
+// `go generate ./internal/app`; do not hand-edit. The
+// TestBoundCLIConformsToContract guard fails if it drifts.
 //
 //go:generate go run ../genbound
-//go:embed ob.obi.json
+//go:embed ob.bound.obi.json
 var cliInterfaceJSON []byte
 
 var (
@@ -23,7 +24,7 @@ var (
 )
 
 // OpenBindingsInterface returns the OpenBindings CLI's own interface definition,
-// loaded from the embedded ob.obi.json file.
+// loaded from the embedded ob.bound.obi.json file.
 func OpenBindingsInterface() (openbindings.Interface, error) {
 	cliInterfaceOnce.Do(func() {
 		cliInterfaceErr = json.Unmarshal(cliInterfaceJSON, &cliInterface)
