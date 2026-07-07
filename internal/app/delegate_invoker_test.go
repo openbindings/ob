@@ -154,11 +154,11 @@ func TestDelegateBindingInvoker_PrefersFramesOverCLI(t *testing.T) {
 		OBI: delegateOBI(
 			map[string]openbindings.Source{
 				"asyncapi": {Format: "asyncapi@3.0", Location: "http://localhost:1/asyncapi.yaml"},
-				"usage":    {Format: "openbindings.usage@0.1.0", Location: "exec:test-delegate --usage-spec"},
+				"usage":    {Format: "usage@2.0.0", Location: "exec:test-delegate --usage-spec"},
 			},
 			map[string]openbindings.BindingEntry{
 				"invokeBinding.asyncapi": {Operation: "invokeBinding", Ref: "#/operations/invokeBinding", Source: "asyncapi"},
-				"invokeBinding.usage":    {Operation: "invokeBinding", Ref: "#/units/invokeBinding", Source: "usage"},
+				"invokeBinding.usage":    {Operation: "invokeBinding", Ref: "binding invoke", Source: "usage"},
 			},
 		),
 	}
@@ -180,11 +180,11 @@ func TestDelegateBindingInvoker_CLIWhenAsyncAPIUnreachable(t *testing.T) {
 		OBI: delegateOBI(
 			map[string]openbindings.Source{
 				"asyncapi": {Format: "asyncapi@3.0", Location: "internal/server/asyncapi.yaml"},
-				"usage":    {Format: "openbindings.usage@0.1.0", Location: "exec:test-delegate --usage-spec"},
+				"usage":    {Format: "usage@2.0.0", Location: "exec:test-delegate --usage-spec"},
 			},
 			map[string]openbindings.BindingEntry{
 				"invokeBinding.asyncapi": {Operation: "invokeBinding", Ref: "#/operations/invokeBinding", Source: "asyncapi"},
-				"invokeBinding.usage":    {Operation: "invokeBinding", Ref: "#/units/invokeBinding", Source: "usage"},
+				"invokeBinding.usage":    {Operation: "invokeBinding", Ref: "binding invoke", Source: "usage"},
 			},
 		),
 	}
@@ -261,13 +261,10 @@ func TestDelegateBindingInvoker_MatchesKeyOrAlias(t *testing.T) {
 						tc.key: {Aliases: []string{"openbindings.binding-invoker.invokeBinding"}},
 					},
 					Sources: map[string]openbindings.Source{
-						"usage": {Format: "openbindings.usage@0.1.0", Content: map[string]any{
-							"spec":  map[string]any{"format": "usage@2.0.0", "content": "bin \"acme\"\ncmd \"binding\" subcommand_required=#true { cmd \"invoke\" { flag \"--input <json>\" } }"},
-							"units": map[string]any{"invokeBinding": map[string]any{"openbindings.usage": "0.1.0", "command": "binding invoke", "stdout": "json"}},
-						}},
+						"usage": {Format: "usage@2.0.0", Content: "bin \"acme\"\ncmd \"binding\" subcommand_required=#true { cmd \"invoke\" { flag \"--input <json>\" } }"},
 					},
 					Bindings: map[string]openbindings.BindingEntry{
-						tc.key + ".usage": {Operation: tc.key, Source: "usage", Ref: "#/units/invokeBinding"},
+						tc.key + ".usage": {Operation: tc.key, Source: "usage", Ref: "binding invoke"},
 					},
 				}},
 			}
@@ -328,13 +325,6 @@ exit 1
 		"cmd \"binding\" subcommand_required=#true {\n" +
 		"  cmd \"invoke\" {\n" +
 		"    flag \"--input <json>\"\n  }\n}\n"
-	wrapperDoc := map[string]any{
-		"spec": map[string]any{"format": "usage@2.0.0", "content": usageSpec},
-		"units": map[string]any{
-			"invokeBinding": map[string]any{"openbindings.usage": "0.1.0", "command": "binding invoke", "stdout": "json"},
-		},
-	}
-
 	resolved := delegates.Resolved{
 		Format:   "thrift@1.0",
 		Delegate: "exec:fixture",
@@ -345,13 +335,13 @@ exit 1
 				"openbindings.ob.invokeBinding": {Aliases: []string{"openbindings.binding-invoker.invokeBinding"}},
 			},
 			Sources: map[string]openbindings.Source{
-				"usage": {Format: "openbindings.usage@0.1.0", Content: wrapperDoc},
+				"usage": {Format: "usage@2.0.0", Content: usageSpec},
 			},
 			Bindings: map[string]openbindings.BindingEntry{
 				"openbindings.ob.invokeBinding.usage": {
 					Operation:      "openbindings.ob.invokeBinding",
 					Source:         "usage",
-					Ref:            "#/units/invokeBinding",
+					Ref:            "binding invoke",
 					InputTransform: &openbindings.TransformOrRef{Inline: `{ "input": $string($$) }`},
 				},
 			},
@@ -409,5 +399,114 @@ exit 1
 
 	if _, rerr := out.Read(ctx); !errors.Is(rerr, io.EOF) {
 		t.Fatalf("expected EOF, got %v", rerr)
+	}
+}
+
+// TestOpInvoke_ExternalDelegateDisplacesElections is the §7/§11 dispatch-
+// unification harness case: `op invoke` routes a usage op to a PREFERRED
+// EXTERNAL delegate, and the displacement split fires. Without flags, ob's
+// standing internal-table elections for the op cannot cross the delegate
+// boundary, so the invocation proceeds with a loud attributed warning and
+// the delegate answers. With a data-face flag, the explicit per-invocation
+// intent that cannot apply is refused loudly (naming the delegate).
+func TestOpInvoke_ExternalDelegateDisplacesElections(t *testing.T) {
+	dir := t.TempDir()
+	cliPath := filepath.Join(dir, "ext-delegate")
+	delegateOBIFile := filepath.Join(dir, "delegate.obi.json")
+
+	// The external delegate's own OBI: invokeBinding bound to a usage source
+	// whose bin is the fixture; `binding invoke` takes --input.
+	usageSpec := "min_usage_version \"2.0.0\"\nname \"ext\"\nbin \"" + cliPath + "\"\n" +
+		"cmd \"binding\" subcommand_required=#true {\n  cmd \"invoke\" {\n    flag \"--input <json>\"\n  }\n}\n"
+	delegateIface := openbindings.Interface{
+		OpenBindings: "0.2.0",
+		Operations:   map[string]openbindings.Operation{"invokeBinding": {Aliases: []string{"openbindings.binding-invoker.invokeBinding"}}},
+		Sources:      map[string]openbindings.Source{"usage": {Format: "usage@2.0.0", Content: usageSpec}},
+		Bindings: map[string]openbindings.BindingEntry{
+			"invokeBinding.usage": {
+				Operation:      "invokeBinding",
+				Source:         "usage",
+				Ref:            "binding invoke",
+				InputTransform: &openbindings.TransformOrRef{Inline: `{ "input": $string($$) }`},
+			},
+		},
+	}
+	obiBytes, err := json.Marshal(delegateIface)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(delegateOBIFile, obiBytes, 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	script := "#!/bin/sh\n" +
+		"if [ \"$1\" = \"--openbindings\" ]; then cat " + delegateOBIFile + "; exit 0; fi\n" +
+		"if [ \"$1\" = \"binding\" ] && [ \"$2\" = \"invoke\" ]; then printf '{\"delegated\":true}\\n'; exit 0; fi\n" +
+		"echo \"unexpected: $*\" >&2; exit 1\n"
+	if err := os.WriteFile(cliPath, []byte(script), 0o755); err != nil {
+		t.Fatal(err)
+	}
+
+	// The invoked OBI declares one of ob's OWN bound ops (validateInterface,
+	// which carries the ok-exit {0,1} standing election) over a usage source,
+	// so displacement is observable against ob's internal table.
+	invokedIface := openbindings.Interface{
+		OpenBindings: "0.2.0",
+		Operations:   map[string]openbindings.Operation{"openbindings.ob.validateInterface": {}},
+		Sources:      map[string]openbindings.Source{"usage": {Format: "usage@2.0.0", Location: "exec:" + cliPath}},
+		Bindings: map[string]openbindings.BindingEntry{
+			"openbindings.ob.validateInterface.usage": {Operation: "openbindings.ob.validateInterface", Source: "usage", Ref: "validate"},
+		},
+	}
+	invokedFile := filepath.Join(dir, "invoked.obi.json")
+	ib, err := json.Marshal(invokedIface)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(invokedFile, ib, 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	// Register the external delegate and prefer it for the invoke operation
+	// so it outranks the self-delegate for the usage format.
+	pref := 100.0
+	getDelegateContextFunc = func() DelegateContext {
+		return DelegateContext{Delegates: []DelegateRecord{{
+			Location:             "exec:" + cliPath,
+			Name:                 "ext",
+			Capabilities:         []DelegateCapability{CapInvoke},
+			Formats:              []DelegateFormatInfo{{Format: "usage@2.0.0"}},
+			OperationPreferences: map[string]float64{"openbindings.binding-invoker.invokeBinding": pref},
+		}}}
+	}
+	t.Cleanup(func() { getDelegateContextFunc = defaultGetDelegateContext })
+
+	ctx := t.Context()
+
+	// (a) No flags: the delegate answers and the displacement warning fires.
+	run, err := InvokeOBIOperationConfigured(ctx, invokedFile, "openbindings.ob.validateInterface", "", nil, nil)
+	if err != nil {
+		t.Fatalf("configured invoke: %v", err)
+	}
+	if run.DisplacedWarning == "" {
+		t.Error("expected a displacement warning for a standing election that cannot reach the delegate")
+	} else if !strings.Contains(run.DisplacedWarning, "ext") {
+		t.Errorf("warning must name the delegate: %q", run.DisplacedWarning)
+	}
+	got := reduceUnaryInvocation(run.Events)
+	if got.Error != nil {
+		t.Fatalf("delegate invocation errored: %s", got.Error.Message)
+	}
+	if m, _ := got.Output.(map[string]any); m["delegated"] != true {
+		t.Errorf("delegate did not answer the hop: %#v", got.Output)
+	}
+
+	// (b) A data-face flag is refused loudly (it cannot cross the boundary).
+	_, ferr := InvokeOBIOperationConfigured(ctx, invokedFile, "openbindings.ob.validateInterface", "", nil, &InvokeConfig{OKExits: []int{0, 1}})
+	if ferr == nil {
+		t.Fatal("expected --ok-exit to refuse when an external delegate displaces ob's handling")
+	}
+	if !strings.Contains(ferr.Error(), "ext") {
+		t.Errorf("the refusal must name the delegate: %v", ferr)
 	}
 }

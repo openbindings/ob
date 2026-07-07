@@ -66,6 +66,14 @@ func newDefaultInvoker() *openbindings.OperationInvoker {
 	// needs plus non-secret config, never other stored credentials — and a
 	// binding invoker never gets raw store access.
 	invoker.ContextResolver = CLIContextResolver()
+	// ob's own consumer configuration: the site-guarded hook table for the
+	// bound CLI OBI (specification + configuration = complete invocation —
+	// the elections the pristine usage.kdl cannot express). Guarded to
+	// usage-family sites targeting ob's own binary, so foreign bindings
+	// see only the SDK defaults.
+	if bound, err := OpenBindingsInterface(); err == nil {
+		InstallBoundCLIHooks(invoker, &bound)
+	}
 	return invoker
 }
 

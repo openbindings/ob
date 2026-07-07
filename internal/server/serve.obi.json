@@ -2349,6 +2349,31 @@
       ],
       "type": "object"
     },
+    "SetOperationOutputSchemaInput": {
+      "additionalProperties": false,
+      "properties": {
+        "clear": {
+          "description": "Remove the output-schema election.",
+          "type": "boolean"
+        },
+        "interface": {
+          "$ref": "#/schemas/OpenBindingsInterface"
+        },
+        "operation": {
+          "description": "The operation's key or any identifier.",
+          "type": "string"
+        },
+        "outputSchema": {
+          "description": "The real output schema to elect. Omit with clear=true to remove the election.",
+          "type": "object"
+        }
+      },
+      "required": [
+        "interface",
+        "operation"
+      ],
+      "type": "object"
+    },
     "SoftwareIdentity": {
       "additionalProperties": true,
       "description": "Identity and metadata for a piece of software.",

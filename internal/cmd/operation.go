@@ -7,11 +7,13 @@ import (
 	"io"
 	"os"
 	"os/signal"
+	"strconv"
 	"strings"
 	"time"
 
 	"github.com/charmbracelet/huh"
 	"github.com/openbindings/ob/internal/app"
+	openbindings "github.com/openbindings/openbindings-go"
 	"github.com/spf13/cobra"
 	"golang.org/x/term"
 )
@@ -38,6 +40,7 @@ exposes. Use subcommands to list, rename, remove, or invoke operations.`,
 		newOperationUnbindCmd(),
 		newOperationAliasCmd(),
 		newOperationCodegenNameCmd(),
+		newOperationOutputSchemaCmd(),
 		newOperationRenameCmd(),
 		newOperationRemoveCmd(),
 	)
@@ -45,10 +48,64 @@ exposes. Use subcommands to list, rename, remove, or invoke operations.`,
 	return cmd
 }
 
+func newOperationOutputSchemaCmd() *cobra.Command {
+	var clear bool
+	cmd := &cobra.Command{
+		Use:   "output-schema <obi-path> <operation> [schema]",
+		Short: "Elect an operation's real output schema (the non-detaching remedy for a floor)",
+		Long: `Elect the output schema for an operation.
+
+When a source cannot declare an operation's output shape, synthesis derives
+a FLOOR-TRUE schema — {"type":"string"} carrying an in-schema x-ob
+floor-stamp — so the derived contract never lies. Once you know the real
+shape, elect it here: the elected schema is written into the operation's
+output, and an election marker is stamped in x-ob so it survives
+'ob source pull' (re-applied onto each fresh derivation, compared modulo the
+election). A grown, non-floor-stamped SOURCE output schema WINS and the
+prior election is displaced loudly on the next pull.
+
+The schema is inline JSON, @file, or - (stdin). Use --clear to remove the
+election (the elected value stays until the next pull re-derives it).
+'ob purify' strips the election marker and the floor-stamp alike.
+
+Examples:
+  ob op output-schema interface.json listPets @pets-schema.json
+  ob op output-schema interface.json listPets '{"type":"array","items":{"type":"object"}}'
+  ob op output-schema interface.json listPets --clear`,
+		Args: cobra.RangeArgs(2, 3),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			var schema openbindings.JSONSchema
+			switch {
+			case clear:
+				// nil schema clears the election.
+			case len(args) == 3:
+				parsed, err := readSchemaArg(args[2], "schema")
+				if err != nil {
+					return err
+				}
+				schema = openbindings.JSONSchema(parsed)
+			default:
+				return app.ExitResult{Code: 2, Message: "provide a schema (inline JSON, @file, or -), or pass --clear", ToStderr: true}
+			}
+			result, err := app.OperationSetOutputSchema(args[0], args[1], schema)
+			if err != nil {
+				return app.ExitResult{Code: 1, Message: fmt.Sprintf("elect output schema: %v", err), ToStderr: true}
+			}
+			format, outputPath := getOutputFlags(cmd)
+			return app.OutputResult(result, format, outputPath)
+		},
+	}
+	cmd.Flags().BoolVar(&clear, "clear", false, "remove the output-schema election")
+	return cmd
+}
+
 func newOperationInvokeCmd() *cobra.Command {
 	var bindingKey string
-	var inputJSON string
+	var inputArg string
 	var verbose bool
+	var decode string
+	var okExits string
+	var routes []string
 
 	cmd := &cobra.Command{
 		Use:   "invoke <obi> [operation]",
@@ -68,13 +125,29 @@ the operation is derived from the binding entry.
 Context (credentials, headers, etc.) is automatically resolved from
 the target URL. Use 'ob context set <url>' to configure context.
 
-Use -v/--verbose to emit binding key and total duration on stderr.
+The data face — per-invocation configuration for the wire questions a
+format artifact cannot answer (specification + configuration = complete
+invocation):
+  --decode json|text|none   how the output bytes become a value
+  --ok-exit 0,1             which exit codes count as success (CLI lanes)
+  --route field=argv|stdin|stdin-dash|file   where an input field rides
+Each is per-axis: an unmentioned axis or field falls through to ob's
+built-in handling. These configure ob's in-process handling; when an
+external delegate is preferred for the format, it owns the binding hop
+and these flags refuse (its own handling governs).
+
+--input accepts inline JSON, @file (read from a file), or - (read from
+stdin) — so credentials never sit on ob's own argv.
+
+Use -v/--verbose to emit binding key, duration, and any displaced
+elections on stderr.
 
 Examples:
   ob op invoke interface.json listPets --input '{"limit":10}'
   ob op invoke interface.json echo
-  ob op invoke interface.json --binding listPets.openapi --input '{"limit":10}'
-  ob op invoke interface.json listPets -v`,
+  ob op invoke interface.json validate --input @doc.json --ok-exit 0,1
+  ob op invoke interface.json format --route source=stdin-dash --input -
+  ob op invoke interface.json --binding listPets.openapi --input '{"limit":10}'`,
 		Args: cobra.RangeArgs(1, 2),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			obiFile := args[0]
@@ -91,31 +164,55 @@ Examples:
 				return app.ExitResult{Code: 2, Message: "operation key and --binding are mutually exclusive", ToStderr: true}
 			}
 
-			var input any
-			if inputJSON != "" {
-				if err := json.Unmarshal([]byte(inputJSON), &input); err != nil {
-					return app.ExitResult{Code: 2, Message: fmt.Sprintf("invalid --input JSON: %v", err), ToStderr: true}
-				}
+			input, ierr := readInvokeInput(inputArg)
+			if ierr != nil {
+				return app.ExitResult{Code: 2, Message: ierr.Error(), ToStderr: true}
 			}
+
+			config, cerr := buildInvokeConfig(decode, okExits, routes)
+			if cerr != nil {
+				return app.ExitResult{Code: 2, Message: cerr.Error(), ToStderr: true}
+			}
+
+			format, _ := getOutputFlags(cmd)
+			jsonEnvelope := format == "json"
 
 			ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt)
 			defer stop()
 
-			ch, selectedBinding, err := app.InvokeOBIOperation(ctx, obiFile, operationKey, bindingKey, input)
+			run, err := app.InvokeOBIOperationConfigured(ctx, obiFile, operationKey, bindingKey, input, config)
 			if err != nil {
 				return app.ExitResult{Code: 1, Message: fmt.Sprintf("invoke %s in %s: %v", operationKey, obiFile, err), ToStderr: true}
 			}
 
 			if verbose {
-				fmt.Fprintf(os.Stderr, "binding: %s\n", selectedBinding)
+				fmt.Fprintf(os.Stderr, "binding: %s\n", run.BindingKey)
+			}
+			if run.DisplacedWarning != "" {
+				fmt.Fprintf(os.Stderr, "warning: %s\n", run.DisplacedWarning)
+				if verbose {
+					for _, d := range run.DisplacedDetail {
+						fmt.Fprintf(os.Stderr, "  displaced: %s\n", d)
+					}
+				}
 			}
 
 			start := time.Now()
+			if jsonEnvelope {
+				return renderInvokeJSON(run)
+			}
+
 			enc := json.NewEncoder(os.Stdout)
 			hadError := false
-			for ev := range ch {
+			for ev := range run.Events {
+				if ev.Terminal {
+					continue // metadata marker (surfaced only in -F json)
+				}
 				if ev.Error != nil {
 					fmt.Fprintf(os.Stderr, "error: %s\n", ev.Error.Message)
+					if d := renderErrorDetails(ev.Error.Details); d != "" {
+						fmt.Fprintf(os.Stderr, "  %s\n", d)
+					}
 					hadError = true
 					continue
 				}
@@ -136,10 +233,179 @@ Examples:
 	}
 
 	cmd.Flags().StringVar(&bindingKey, "binding", "", "binding key to invoke (operation is derived from the entry)")
-	cmd.Flags().StringVar(&inputJSON, "input", "", "operation input as JSON")
-	cmd.Flags().BoolVarP(&verbose, "verbose", "v", false, "show binding key and duration on stderr")
+	cmd.Flags().StringVar(&inputArg, "input", "", "operation input: inline JSON, @file, or - (stdin)")
+	cmd.Flags().BoolVarP(&verbose, "verbose", "v", false, "show binding key, duration, and displaced elections on stderr")
+	cmd.Flags().StringVar(&decode, "decode", "", "output decode lane: json|text|none")
+	cmd.Flags().StringVar(&okExits, "ok-exit", "", "exit codes classified as success, comma-separated (e.g. 0,1)")
+	cmd.Flags().StringArrayVar(&routes, "route", nil, "field routing: field=argv|stdin|stdin-dash|file (repeatable)")
 
 	return cmd
+}
+
+// renderInvokeJSON drains the invocation and prints the §4.5.6 machine-lane
+// envelope on stdout: success is ONE terminal object
+// {"outputs":[...],"metadata":{...}} (the metadata block carries the SDK
+// trailer stamps and exec's x-exit-code — how a data-face consumer reads a
+// diff-class/grep-class verdict); an error is the InvocationError envelope
+// {"code","message","details"}. Human-facing warnings stay on stderr.
+func renderInvokeJSON(run *app.ConfiguredInvocation) error {
+	outputs := []any{}
+	metadata := map[string]any{}
+	if run.BindingKey != "" {
+		metadata["binding"] = run.BindingKey
+	}
+	if run.DisplacedWarning != "" {
+		metadata["x-ob-displaced-elections"] = run.DisplacedWarning
+		if len(run.DisplacedDetail) > 0 {
+			metadata["x-ob-displaced-detail"] = run.DisplacedDetail
+		}
+	}
+
+	enc := json.NewEncoder(os.Stdout)
+	enc.SetIndent("", "  ")
+	for ev := range run.Events {
+		if ev.Terminal {
+			for k, vals := range ev.Metadata {
+				if len(vals) == 1 {
+					metadata[k] = vals[0]
+				} else {
+					metadata[k] = vals
+				}
+			}
+			continue
+		}
+		if ev.Error != nil {
+			envelope := map[string]any{
+				"code":    ev.Error.Code,
+				"message": ev.Error.Message,
+			}
+			if ev.Error.Details != nil {
+				envelope["details"] = ev.Error.Details
+			}
+			_ = enc.Encode(envelope)
+			return app.ExitResult{Code: 1}
+		}
+		outputs = append(outputs, ev.Output)
+	}
+
+	if err := enc.Encode(map[string]any{"outputs": outputs, "metadata": metadata}); err != nil {
+		return app.ExitResult{Code: 1, Message: fmt.Sprintf("write error: %v", err), ToStderr: true}
+	}
+	return nil
+}
+
+// renderErrorDetails renders an InvocationError's Details as a compact
+// human line (child exit code and stderr tail on the error line, per
+// §4.5.6). Returns "" when there is nothing useful to show.
+func renderErrorDetails(details any) string {
+	m, ok := details.(map[string]any)
+	if !ok {
+		return ""
+	}
+	var parts []string
+	if code, ok := m["exitCode"]; ok {
+		parts = append(parts, fmt.Sprintf("exit %v", code))
+	}
+	if out, ok := m["output"].(string); ok && strings.TrimSpace(out) != "" {
+		parts = append(parts, "output: "+oneLine(out))
+	}
+	if so, ok := m["stdout"].(string); ok && strings.TrimSpace(so) != "" {
+		parts = append(parts, "stdout: "+oneLine(so))
+	}
+	return strings.Join(parts, "; ")
+}
+
+// oneLine collapses a captured stream to a single truncated line for the
+// human error line.
+func oneLine(s string) string {
+	s = strings.TrimSpace(s)
+	if i := strings.IndexByte(s, '\n'); i >= 0 {
+		s = s[:i] + " …"
+	}
+	if len(s) > 200 {
+		s = s[:200] + "…"
+	}
+	return s
+}
+
+// readInvokeInput resolves the --input house grammar: "" is no input,
+// "@file" reads a file, "-" reads stdin, and anything else is inline JSON.
+// Credentials never sit on ob's own argv this way.
+func readInvokeInput(arg string) (any, error) {
+	if arg == "" {
+		return nil, nil
+	}
+	var raw []byte
+	switch {
+	case arg == "-":
+		b, err := io.ReadAll(os.Stdin)
+		if err != nil {
+			return nil, fmt.Errorf("read --input from stdin: %w", err)
+		}
+		raw = b
+	case strings.HasPrefix(arg, "@"):
+		b, err := os.ReadFile(arg[1:])
+		if err != nil {
+			return nil, fmt.Errorf("read --input file: %w", err)
+		}
+		raw = b
+	default:
+		raw = []byte(arg)
+	}
+	if len(strings.TrimSpace(string(raw))) == 0 {
+		return nil, nil
+	}
+	var v any
+	if err := json.Unmarshal(raw, &v); err != nil {
+		return nil, fmt.Errorf("invalid --input JSON: %w", err)
+	}
+	return v, nil
+}
+
+// buildInvokeConfig validates and compiles the data-face flags into an
+// InvokeConfig. Unknown decode lanes and channel tokens are refused at
+// parse (a typo can never silently change behavior).
+func buildInvokeConfig(decode, okExits string, routes []string) (*app.InvokeConfig, error) {
+	config := &app.InvokeConfig{}
+
+	switch decode {
+	case "", "json", "text", "none":
+		config.Decode = decode
+	default:
+		return nil, fmt.Errorf("--decode: unknown lane %q (want json, text, or none)", decode)
+	}
+
+	if okExits != "" {
+		for _, part := range strings.Split(okExits, ",") {
+			part = strings.TrimSpace(part)
+			if part == "" {
+				continue
+			}
+			n, err := strconv.Atoi(part)
+			if err != nil {
+				return nil, fmt.Errorf("--ok-exit: %q is not an integer exit code", part)
+			}
+			config.OKExits = append(config.OKExits, n)
+		}
+	}
+
+	if len(routes) > 0 {
+		config.Routes = map[string]string{}
+		for _, r := range routes {
+			field, channel, ok := strings.Cut(r, "=")
+			if !ok || field == "" {
+				return nil, fmt.Errorf("--route: %q is not field=channel", r)
+			}
+			switch channel {
+			case "argv", "stdin", "stdin-dash", "file":
+			default:
+				return nil, fmt.Errorf("--route %s: unknown channel %q (want argv, stdin, stdin-dash, or file)", field, channel)
+			}
+			config.Routes[field] = channel
+		}
+	}
+
+	return config, nil
 }
 
 func newOperationPrepareCmd() *cobra.Command {

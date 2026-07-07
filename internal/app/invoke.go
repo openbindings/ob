@@ -34,6 +34,20 @@ type InvokeOperationInput struct {
 	Input     any                     `json:"input,omitempty"`
 	Context   map[string]any          `json:"context,omitempty"`
 	Interface *openbindings.Interface `json:"interface,omitempty"`
+	// Binding is the selected binding entry (the operation identity the
+	// hook seam's InvokeSite derives from). Populated on the
+	// operation-resolved paths; nil for raw binding invocations.
+	// Process-local — never wire.
+	Binding *openbindings.BindingEntry `json:"-"`
+	// InputSchema is the operation's input schema. ALWAYS thread it with
+	// Binding: a non-nil Binding with a nil InputSchema means "no-input
+	// operation" to the usage run loop (the recorded discriminator).
+	InputSchema openbindings.JSONSchema `json:"-"`
+	// Hooks is the data face's per-invocation seam carrier (compiled from
+	// `op invoke` flags), composed over ob's standing invoker-level table.
+	// Nil = no per-invocation configuration; the invoker's own snapshot
+	// (its site-guarded table) still applies. Process-local — never wire.
+	Hooks *openbindings.InvokeHooks `json:"-"`
 }
 
 // InvokeOperationOutput is the output of invokeBinding.
@@ -184,6 +198,12 @@ type InvocationOutput struct {
 	Error      *openbindings.InvocationError `json:"error,omitempty"`
 	Status     int                           `json:"status,omitempty"`
 	DurationMs int64                         `json:"durationMs,omitempty"`
+	// Terminal marks the final metadata-only event a clean stream emits:
+	// nil Output and Error, carrying the invocation's trailing Metadata
+	// (the §4.5.2 stamps and exec's x-exit-code). Forwarders pass it
+	// through untouched; output consumers skip it.
+	Terminal bool               `json:"-"`
+	Metadata openbindings.Metadata `json:"-"`
 }
 
 // maxBindingContextRounds caps CONTEXT_REQUIRED resolve-and-retry rounds for
@@ -228,6 +248,16 @@ func driveBinding(
 			for {
 				v, err := out.Read(ctx)
 				if errors.Is(err, io.EOF) {
+					// Clean end: surface the invocation's trailer (the
+					// §4.5.2 stamps, exec's x-exit-code) as a terminal
+					// metadata marker so the data face's -F json envelope
+					// can carry the verdict block.
+					if md := call.Trailer(); len(md) > 0 {
+						select {
+						case ch <- InvocationOutput{Terminal: true, Metadata: md}:
+						case <-ctx.Done():
+						}
+					}
 					return
 				}
 				if err != nil {
@@ -305,11 +335,54 @@ func statusFromError(err *openbindings.InvocationError) int {
 // The string result is the key of the binding the invocation resolved to —
 // the selection outcome a caller can surface (e.g. `ob op invoke -v`).
 func InvokeOBIOperation(ctx context.Context, obiPath string, opKey string, bindingKey string, input any) (<-chan InvocationOutput, string, error) {
+	run, err := InvokeOBIOperationConfigured(ctx, obiPath, opKey, bindingKey, input, nil)
+	if err != nil {
+		return nil, "", err
+	}
+	// The terminal metadata marker is a data-face affordance
+	// (InvokeOBIOperationConfigured + renderInvokeJSON); legacy callers of
+	// this back-compat entry see only outputs and errors.
+	return withoutTerminalMarkers(run.Events), run.BindingKey, nil
+}
+
+// withoutTerminalMarkers strips the terminal metadata marker from an event
+// stream so consumers that treat every event as an output (or an error)
+// never observe a nil-output marker.
+func withoutTerminalMarkers(src <-chan InvocationOutput) <-chan InvocationOutput {
+	out := make(chan InvocationOutput)
+	go func() {
+		defer close(out)
+		for ev := range src {
+			if ev.Terminal {
+				continue
+			}
+			out <- ev
+		}
+	}()
+	return out
+}
+
+// ConfiguredInvocation is the data face's invocation result: the event
+// stream, the resolved binding key, and — when a winning EXTERNAL delegate
+// displaces ob's standing internal-table elections — the loud attributed
+// displacement warning (§7) and its verbose detail (which elections).
+type ConfiguredInvocation struct {
+	Events           <-chan InvocationOutput
+	BindingKey       string
+	DisplacedWarning string
+	DisplacedDetail  []string
+}
+
+// InvokeOBIOperationConfigured is the data-face entry: it invokes an
+// operation with an optional per-invocation InvokeConfig (--decode/
+// --ok-exit/--route), computing delegate selection PRE-DISPATCH so the
+// displacement split (§7) is decidable before anything runs.
+func InvokeOBIOperationConfigured(ctx context.Context, obiPath, opKey, bindingKey string, input any, config *InvokeConfig) (*ConfiguredInvocation, error) {
 	iface, err := resolveInterface(obiPath)
 	if err != nil {
-		return nil, "", fmt.Errorf("load OBI %q: %w", obiPath, err)
+		return nil, fmt.Errorf("load OBI %q: %w", obiPath, err)
 	}
-	return invokeOnInterface(ctx, iface, opKey, bindingKey, input, filepath.Dir(obiPath))
+	return invokeOnInterface(ctx, iface, opKey, bindingKey, input, filepath.Dir(obiPath), config)
 }
 
 // invokeOnInterface invokes an operation (or a specific binding) on an
@@ -317,33 +390,87 @@ func InvokeOBIOperation(ctx context.Context, obiPath string, opKey string, bindi
 // obiDir. It is the core shared by file-backed invocation (InvokeOBIOperation)
 // and delegate invocation: ob operation-invokes a delegate's operation against
 // the delegate's own resolved OBI through this same path.
-func invokeOnInterface(ctx context.Context, iface *openbindings.Interface, opKey, bindingKey string, input any, obiDir string) (<-chan InvocationOutput, string, error) {
+//
+// Dispatch is UNIFIED under delegate selection (§7/§11): the winner is
+// computed before anything runs. When the self-delegate wins, the config's
+// per-invocation hooks are compiled and threaded, and the streaming lane is
+// available. When an external delegate wins the hop, displaced FLAGS refuse
+// loudly (explicit intent that cannot cross the boundary) and displaced
+// STANDING elections proceed with a loud attributed warning. Every emitted
+// output is T-08-validated against the operation's declared output schema
+// before it reaches the caller (stop-and-return on nonconformant emission).
+func invokeOnInterface(ctx context.Context, iface *openbindings.Interface, opKey, bindingKey string, input any, obiDir string, config *InvokeConfig) (*ConfiguredInvocation, error) {
 	resolved, err := resolveBindingAndSource(iface, opKey, bindingKey, input)
 	if err != nil {
-		return nil, "", err
+		return nil, err
 	}
 
 	es := resolveSourceLocation(resolved.source, obiDir)
+	opCanonical := resolved.binding.Operation
+	outputSchema := iface.Operations[opCanonical].Output
 
 	lowLevel := InvokeOperationInput{
-		Source:    InvokeSource{Format: es.Format, Location: es.Location, Content: es.Content},
-		Ref:       resolved.binding.Ref,
-		Input:     resolved.input,
-		Interface: iface,
+		Source:      InvokeSource{Format: es.Format, Location: es.Location, Content: es.Content},
+		Ref:         resolved.binding.Ref,
+		Input:       resolved.input,
+		Interface:   iface,
+		Binding:     resolved.binding,
+		InputSchema: effectiveInputSchema(iface, resolved.binding, resolved.input),
 	}
 
-	// Try the streaming path (builtin drivers only).
+	run := &ConfiguredInvocation{BindingKey: resolved.bindingKey}
+
+	// Pre-dispatch delegate selection (deterministic): the split is decided
+	// before any side effect.
+	chosen := selectDelegate(CapInvoke, es.Format)
+	if chosen != nil && !chosen.builtin {
+		// An external delegate owns the binding hop. Displaced FLAGS cannot
+		// apply across the boundary — refuse the explicit intent loudly.
+		if !config.empty() {
+			return nil, fmt.Errorf("op invoke: --decode/--ok-exit/--route configure ob's built-in handling, which delegate %q displaces for format %q (the delegate dispatches the binding itself); unset them, or run in-process with `ob delegate prefer ob --operation %s`",
+				chosen.name(), es.Format, opCanonical)
+		}
+		// Displaced STANDING elections proceed with a loud attributed warning.
+		run.DisplacedWarning, run.DisplacedDetail = displacedElectionsWarning(opCanonical, chosen.name())
+
+		delegateIface, rerr := chosen.resolveInterface()
+		if rerr != nil {
+			return nil, fmt.Errorf("resolve delegate %q: %w", chosen.name(), rerr)
+		}
+		out := invokeViaExternalDelegate(ctx, delegates.Resolved{
+			Format:   es.Format,
+			Delegate: chosen.name(),
+			Location: chosen.location(),
+			OBI:      &delegates.ResolvedOBI{Interface: *delegateIface},
+		}, lowLevel)
+		run.Events = applyT08(unaryChannel(iface, resolved, out), outputSchema, iface.Schemas, resolved.bindingKey)
+		return run, nil
+	}
+
+	// Self-delegate / builtin: compile the config's per-invocation hooks
+	// (composed over ob's standing table) and thread them.
+	lowLevel.Hooks = config.perInvocationHooks(DefaultInvoker())
+
+	// Streaming lane (builtin drivers only) when the self-delegate wins.
 	if BuiltinSupportsFormat(es.Format) {
 		src, sErr := SubscribeOperationWithContext(ctx, lowLevel)
 		if sErr == nil {
-			return transformEventStream(src, iface, resolved), resolved.bindingKey, nil
+			run.Events = applyT08(transformEventStream(src, iface, resolved), outputSchema, iface.Schemas, resolved.bindingKey)
+			return run, nil
 		}
 	}
 
-	// Fall back to unary invocation (supports delegates).
-	result := InvokeOperationWithContext(ctx, lowLevel)
-	result.BindingKey = resolved.bindingKey
+	// Unary fallback (in-process builtin, or a self-delegate non-streaming path).
+	out := InvokeOperationWithContext(ctx, lowLevel)
+	out.BindingKey = resolved.bindingKey
+	run.Events = applyT08(unaryChannel(iface, resolved, out), outputSchema, iface.Schemas, resolved.bindingKey)
+	return run, nil
+}
 
+// unaryChannel collapses a unary InvokeOperationOutput into a one-event
+// channel, applying the binding's output transform on success (the
+// streaming lane applies it via transformEventStream).
+func unaryChannel(iface *openbindings.Interface, resolved *resolvedBinding, result InvokeOperationOutput) <-chan InvocationOutput {
 	if resolved.binding.OutputTransform != nil && result.Error == nil {
 		transformed, tErr := ApplyTransform(iface.Transforms, resolved.binding.OutputTransform, result.Output)
 		if tErr != nil {
@@ -352,15 +479,70 @@ func invokeOnInterface(ctx context.Context, iface *openbindings.Interface, opKey
 			result.Output = transformed
 		}
 	}
-
 	ch := make(chan InvocationOutput, 1)
 	if result.Error != nil {
-		ch <- InvocationOutput{Error: &openbindings.InvocationError{Code: result.Error.Code, Message: result.Error.Message}}
+		ch <- InvocationOutput{Error: &openbindings.InvocationError{Code: result.Error.Code, Message: result.Error.Message}, Status: result.Status}
 	} else {
-		ch <- InvocationOutput{Output: result.Output}
+		ch <- InvocationOutput{Output: result.Output, Status: result.Status}
 	}
 	close(ch)
-	return ch, resolved.bindingKey, nil
+	return ch
+}
+
+// applyT08 is ob's adoption of OBI-T-08 on the app-driven binding path
+// (which bypasses the SDK operation layer's own validation): every output
+// is validated against the operation's declared output schema BEFORE it
+// reaches the caller. A nonconformant output is not emitted — the stream
+// terminates with the validation error (§12.10 stop-and-return), carrying
+// the contract-decided election teaching when the schema is floor-stamped
+// (the derived contract still declares the floor; the remedy is the schema
+// election, not the decode).
+func applyT08(src <-chan InvocationOutput, schema openbindings.JSONSchema, schemas map[string]openbindings.JSONSchema, bindingKey string) <-chan InvocationOutput {
+	out := make(chan InvocationOutput)
+	go func() {
+		defer close(out)
+		for ev := range src {
+			if ev.Terminal {
+				// §4.5.3: ob drives the binding layer (the SDK operation
+				// layer's warning point is bypassed), so the assumption
+				// warning is appended here — keyed on the format's own
+				// decode stamp, riding the terminal metadata into the
+				// envelope. Only an assumption lane can trigger it.
+				stamp := ""
+				if v := ev.Metadata["x-ob-decode"]; len(v) > 0 {
+					stamp = v[0]
+				}
+				if w := openbindings.AssumptionWarning(stamp, schema); w != "" {
+					md := make(openbindings.Metadata, len(ev.Metadata)+1)
+					for k, v := range ev.Metadata {
+						md[k] = v
+					}
+					md["x-ob-warning"] = append(md["x-ob-warning"], w)
+					ev.Metadata = md
+				}
+				out <- ev
+				continue
+			}
+			if ev.Error != nil {
+				out <- ev
+				continue
+			}
+			if schema == nil {
+				out <- ev
+				continue
+			}
+			if verr := openbindings.ValidateAgainstSchema(ev.Output, schema, schemas); verr != nil {
+				msg := fmt.Sprintf("output validation failed for %q: %v", bindingKey, verr)
+				if openbindings.FloorStamped(schema) {
+					msg += " — the synthesized schema still declares the floor's string; elect the real output schema (`ob operation output-schema`)"
+				}
+				out <- InvocationOutput{Error: &openbindings.InvocationError{Code: openbindings.ErrCodeValidationFailed, Message: msg}}
+				return
+			}
+			out <- ev
+		}
+	}()
+	return out
 }
 
 // PrepareOperation is the operation-level preflight: it resolves an operation
@@ -388,7 +570,9 @@ func PrepareOperation(ctx context.Context, obiPath string, opKey string, binding
 		Source:    InvokeSource{Format: es.Format, Location: es.Location, Content: es.Content},
 		Ref:       resolved.binding.Ref,
 		Context:   callerContext,
-		Interface: iface,
+		Interface:   iface,
+		Binding:     resolved.binding,
+		InputSchema: effectiveInputSchema(iface, resolved.binding, resolved.input),
 	})
 }
 
@@ -430,7 +614,7 @@ func transformEventStream(src <-chan InvocationOutput, iface *openbindings.Inter
 	go func() {
 		defer close(out)
 		for ev := range src {
-			if ev.Error != nil || ev.Output == nil {
+			if ev.Terminal || ev.Error != nil || ev.Output == nil {
 				out <- ev
 				continue
 			}
@@ -586,9 +770,12 @@ func SubscribeOperationWithContext(ctx context.Context, input InvokeOperationInp
 				Location: input.Source.Location,
 				Content:  input.Source.Content,
 			},
-			Ref:       input.Ref,
-			Context:   ctxData,
-			Interface: input.Interface,
+			Ref:         input.Ref,
+			Context:     ctxData,
+			Interface:   input.Interface,
+			Binding:     input.Binding,
+			InputSchema: input.InputSchema,
+			Hooks:       input.Hooks,
 		})
 	}
 	return driveBinding(ctx, invoke, input.Context, input.Input, invoker.ContextResolver), nil
@@ -609,9 +796,12 @@ func invokeViaBuiltin(ctx context.Context, input InvokeOperationInput) InvokeOpe
 				Location: input.Source.Location,
 				Content:  input.Source.Content,
 			},
-			Ref:       input.Ref,
-			Context:   ctxData,
-			Interface: input.Interface,
+			Ref:         input.Ref,
+			Context:     ctxData,
+			Interface:   input.Interface,
+			Binding:     input.Binding,
+			InputSchema: input.InputSchema,
+			Hooks:       input.Hooks,
 		})
 	}
 
@@ -624,6 +814,9 @@ func reduceUnaryInvocation(events <-chan InvocationOutput) InvokeOperationOutput
 	var last *InvocationOutput
 	for ev := range events {
 		ev := ev
+		if ev.Terminal {
+			continue // metadata-only marker; not an output
+		}
 		last = &ev
 	}
 	if last == nil {
@@ -673,4 +866,21 @@ func invokeViaExternalDelegate(ctx context.Context, resolved delegates.Resolved,
 		})
 	}
 	return reduceUnaryInvocation(driveBinding(ctx, invoke, input.Context, input.Input, DefaultInvoker().ContextResolver))
+}
+
+
+// effectiveInputSchema is the no-input-convention discriminator's honest
+// input: the operation's declared schema — or, when the operation declares
+// none but the BINDING's input transform injected a value (ob's -F json
+// forcing transforms), a permissive schema, so the transport reads the
+// injected input instead of running the bare command (Binding non-nil +
+// InputSchema nil means "no-input operation" to the usage run loop).
+func effectiveInputSchema(iface *openbindings.Interface, binding *openbindings.BindingEntry, transformedInput any) openbindings.JSONSchema {
+	if schema := iface.Operations[binding.Operation].Input; schema != nil {
+		return schema
+	}
+	if transformedInput != nil {
+		return openbindings.JSONSchema{}
+	}
+	return nil
 }

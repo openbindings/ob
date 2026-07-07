@@ -2,6 +2,7 @@ package app
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -71,6 +72,12 @@ func DelegateBindingInvoker(resolved delegates.Resolved) (openbindings.BindingIn
 				frameBinding = &bc
 			}
 		case strings.HasPrefix(source.Format, "openbindings.usage"):
+			// Wrapper-era registration (the retired openbindings.usage
+			// format): loud migration, never silent non-matching — the
+			// delegate must be re-registered so its pinned OBI carries the
+			// bare usage source the current dispatch speaks.
+			return nil, fmt.Errorf("delegate %q was registered under the retired openbindings.usage wrapper format; re-register it (`ob delegate register %s`) to refresh its pinned interface", resolved.Delegate, resolved.Location)
+		case strings.HasPrefix(source.Format, "usage@") || source.Format == "usage":
 			if cliBinding == nil {
 				bc := b
 				cliBinding = &bc
@@ -301,6 +308,37 @@ type delegateCLIInvoker struct {
 	source   openbindings.Source
 }
 
+// delegateExecInvoker returns a shallow copy of the default invoker
+// configured for the delegate exec lane. ob-as-consumer of the published
+// binding-invoker interface knows the delegate CLI's machine lane emits
+// JSON (`binding invoke` prints JSON values on stdout), so the copy
+// carries a strict JSON decoder for the lane's usage sites — consumer
+// configuration (specification + configuration = complete invocation),
+// never a payload sniff in the format builtin. Classification stays the
+// builtin exit-0 rule: a delegate's handled failures surface as non-zero
+// exits with the captured output in Details.
+func delegateExecInvoker(delegate string) *openbindings.OperationInvoker {
+	lane := DefaultInvoker().WithRuntime(nil) // blessed shallow copy; runtime fields ride
+	lane.OutputDecoder = func(site openbindings.InvokeSite, raw openbindings.RawResult) (any, error) {
+		if site.FormatName() != "usage" {
+			return nil, openbindings.ErrUseDefault
+		}
+		if len(raw.Body) == 0 {
+			return nil, nil
+		}
+		var v any
+		if err := json.Unmarshal(raw.Body, &v); err != nil {
+			return nil, &openbindings.InvocationError{
+				Code:    openbindings.ErrCodeResponseError,
+				Message: fmt.Sprintf("delegate %q: binding-invoker machine lane must emit JSON, got: %v", delegate, err),
+				Details: map[string]any{"stdout": string(raw.Body)},
+			}
+		}
+		return v, nil
+	}
+	return lane
+}
+
 func (d *delegateCLIInvoker) Formats() []openbindings.FormatInfo {
 	return []openbindings.FormatInfo{{Token: d.format}}
 }
@@ -347,7 +385,7 @@ func (d *delegateCLIInvoker) InvokeBinding(ctx context.Context, args *openbindin
 		}
 
 		es := resolveSourceLocation(d.source, "")
-		inner := DefaultInvoker().InvokeBinding(ctx, &openbindings.BindingInvocationArgs{
+		inner := delegateExecInvoker(d.delegate).InvokeBinding(ctx, &openbindings.BindingInvocationArgs{
 			Source:  es,
 			Ref:     d.binding.Ref,
 			Context: args.Context,

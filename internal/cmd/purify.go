@@ -10,10 +10,14 @@ import (
 
 // purifyGraph implements purifyInterface as a transform-only operation-graph:
 // a single JSONata node that deletes x-ob at the four structural levels
-// (document root, each source, each operation, each binding), matching
-// app.StripAllXOB. Running ob purify therefore exercises ob's own operation-graph
-// processor rather than calling the Go stripper directly.
-const purifyGraph = `{"graphs":{"purify":{"openbindings.operation-graph":"0.2.0","nodes":{"in":{"type":"input"},"strip":{"type":"transform","transform":"$ ~> |$|{},[\"x-ob\"]| ~> |sources.*|{},[\"x-ob\"]| ~> |operations.*|{},[\"x-ob\"]| ~> |bindings.*|{},[\"x-ob\"]|"},"out":{"type":"output"}},"edges":[{"from":"in","to":"strip"},{"from":"strip","to":"out"}]}}}`
+// (document root, each source, each operation, each binding) AND recursively
+// within the schema bodies (each operation's input/output and the shared
+// schemas section, at any depth), so the synthesis floor-stamp
+// ({"x-ob":{"floor":...}} inside an output schema) strips too — matching
+// app.StripAllXOB. The recursive $strip lambda removes every x-ob key it
+// finds under those schema roots. Running ob purify therefore exercises ob's
+// own operation-graph processor rather than calling the Go stripper directly.
+const purifyGraph = `{"graphs":{"purify":{"openbindings.operation-graph":"0.2.0","nodes":{"in":{"type":"input"},"strip":{"type":"transform","transform":"($strip := function($v) {($type($v) = \"object\" ? $merge($each($sift($v, function($val, $k) { $k != \"x-ob\" }), function($val, $k) { {$k: $strip($val)} })) : $type($v) = \"array\" ? [$map($v, function($e) { $strip($e) })] : $v)}; $doc := $ ~> |$|{},[\"x-ob\"]| ~> |sources.*|{},[\"x-ob\"]| ~> |bindings.*|{},[\"x-ob\"]|; $doc := $doc ~> |operations.*|{\"input\": $exists(input) ? $strip(input), \"output\": $exists(output) ? $strip(output)},[\"x-ob\"]|; $exists($doc.schemas) ? ($doc ~> |$|{\"schemas\": $strip(schemas)}|) : $doc)"},"out":{"type":"output"}},"edges":[{"from":"in","to":"strip"},{"from":"strip","to":"out"}]}}}`
 
 func newPurifyCmd() *cobra.Command {
 	cmd := &cobra.Command{

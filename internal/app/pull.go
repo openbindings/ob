@@ -26,6 +26,35 @@ func carryCodegenName(existing openbindings.Operation, fresh *openbindings.Opera
 	}
 }
 
+// carryOutputSchemaElection re-applies an author's output-schema election
+// onto a freshly source-derived operation (the non-detaching contract: the
+// election survives regeneration and is compared modulo the derivation).
+// CONFLICT RULE: a grown, non-floor-stamped SOURCE output schema WINS — the
+// source now speaks the real shape, so the election is displaced and the
+// displacement is reported loudly. Otherwise (the source still derives the
+// floor, or nothing) the elected schema replaces the derivation and the
+// marker is re-stamped so the next pull compares against it too.
+func carryOutputSchemaElection(existing openbindings.Operation, fresh *openbindings.Operation, opKey string, warnings *[]string) {
+	elected, err := GetOutputSchemaElection(existing.LosslessFields)
+	if err != nil {
+		*warnings = append(*warnings, fmt.Sprintf("op %q: read output-schema election: %v", opKey, err))
+		return
+	}
+	if elected == nil {
+		return
+	}
+	if fresh.Output != nil && !openbindings.FloorStamped(fresh.Output) {
+		// The source grew a real output schema: grown coverage wins.
+		*warnings = append(*warnings, fmt.Sprintf(
+			"op %q: the source now derives a real output schema; the prior output-schema election is displaced", opKey))
+		return
+	}
+	fresh.Output = elected
+	if err := SetOutputSchemaElection(&fresh.LosslessFields, elected); err != nil {
+		*warnings = append(*warnings, fmt.Sprintf("op %q: preserve output-schema election: %v", opKey, err))
+	}
+}
+
 // SourcePullInput represents input for the `source pull` command.
 type SourcePullInput struct {
 	OBIPath    string   // path to the OBI file
@@ -207,8 +236,11 @@ func pullSourceInto(iface *openbindings.Interface, sourceKey string, derived Der
 		}
 		markSourceOwned(&freshOp.LosslessFields, freshOp, out)
 		if exists {
-			// The source owns spec fields, not the author's codegen-name hint.
+			// The source owns spec fields, not the author's hints: carry the
+			// codegen-name override and re-apply any output-schema election
+			// (grown source coverage displaces it, loudly).
 			carryCodegenName(existing, &freshOp, opKey, &out.Warnings)
+			carryOutputSchemaElection(existing, &freshOp, opKey, &out.Warnings)
 		}
 		iface.Operations[opKey] = freshOp
 		if exists {

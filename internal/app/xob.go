@@ -123,6 +123,15 @@ type OpBindingXOB struct {
 	// merge paths carry it forward. Bindings never set it (codegen is
 	// per-operation).
 	CodegenName string `json:"codegenName,omitempty"`
+	// OutputSchemaElection records an author's explicit output-schema
+	// election (`ob operation output-schema`): op.Output was set by the
+	// author, not derived from the source (the non-detaching remedy for a
+	// floor-stamped synthesis). The value is a copy of the elected schema
+	// so pull can re-apply it onto a fresh derivation and compare content
+	// modulo elections; a grown, non-floor-stamped SOURCE schema wins and
+	// displaces the election loudly. `--pure`/purify strips this marker;
+	// the elected value stays in op.Output. Bindings never set it.
+	OutputSchemaElection json.RawMessage `json:"outputSchemaElection,omitempty"`
 }
 
 // getOpBindingXOB reads the full x-ob struct from an operation/binding.
@@ -147,7 +156,7 @@ func getOpBindingXOB(lf openbindings.LosslessFields) (OpBindingXOB, error) {
 // rather than left as a bare {} — a lingering empty marker would misreport a
 // hand-authored object as source-owned.
 func setOpBindingXOB(lf *openbindings.LosslessFields, xob OpBindingXOB) error {
-	if xob.Base == nil && xob.CodegenName == "" {
+	if xob.Base == nil && xob.CodegenName == "" && xob.OutputSchemaElection == nil {
 		if lf.Extensions != nil {
 			delete(lf.Extensions, xobKey)
 		}
@@ -205,6 +214,43 @@ func SetCodegenName(lf *openbindings.LosslessFields, name string) error {
 	return setOpBindingXOB(lf, xob)
 }
 
+// GetOutputSchemaElection reads an operation's output-schema election marker
+// as a decoded schema (nil when unset).
+func GetOutputSchemaElection(lf openbindings.LosslessFields) (openbindings.JSONSchema, error) {
+	xob, err := getOpBindingXOB(lf)
+	if err != nil {
+		return nil, err
+	}
+	if xob.OutputSchemaElection == nil {
+		return nil, nil
+	}
+	var schema openbindings.JSONSchema
+	if err := json.Unmarshal(xob.OutputSchemaElection, &schema); err != nil {
+		return nil, fmt.Errorf("parse output-schema election: %w", err)
+	}
+	return schema, nil
+}
+
+// SetOutputSchemaElection records (or, with schema == nil, clears) an
+// operation's output-schema election marker, preserving any base snapshot
+// and codegen name. Clearing the last field removes x-ob.
+func SetOutputSchemaElection(lf *openbindings.LosslessFields, schema openbindings.JSONSchema) error {
+	xob, err := getOpBindingXOB(*lf)
+	if err != nil {
+		return err
+	}
+	if schema == nil {
+		xob.OutputSchemaElection = nil
+	} else {
+		data, merr := json.Marshal(schema)
+		if merr != nil {
+			return fmt.Errorf("marshal output-schema election: %w", merr)
+		}
+		xob.OutputSchemaElection = data
+	}
+	return setOpBindingXOB(lf, xob)
+}
+
 // ObjectToFieldMap marshals any value to a JSON field map, stripping x-ob.
 // Used to get the "content" of an operation or binding for merge comparison.
 func ObjectToFieldMap(v any) (map[string]json.RawMessage, error) {
@@ -220,7 +266,15 @@ func ObjectToFieldMap(v any) (map[string]json.RawMessage, error) {
 	return m, nil
 }
 
-// StripAllXOB removes x-ob from all objects in an interface recursively.
+// StripAllXOB removes x-ob from an interface: the object-level extensions on
+// the interface, sources, operations, and bindings (the four-level walk that
+// carries the op-level election marker and codegen-name hint), AND — walking
+// into the schema BODIES — any in-schema x-ob (the synthesis floor-stamp
+// `{"type":"string","x-ob":{"floor":...}}`). Schema bodies are reached
+// through each operation's input/output and the shared schemas section
+// (including nested subschemas and the $ref'd-schema case), so a floor-stamp
+// buried in a $def strips too. The elected output VALUE stays; only its x-ob
+// marker (op-level) and any floor-stamp (in-schema) are removed.
 func StripAllXOB(iface *openbindings.Interface) {
 	// Top-level interface extensions.
 	if iface.Extensions != nil {
@@ -235,19 +289,65 @@ func StripAllXOB(iface *openbindings.Interface) {
 		}
 	}
 
-	// Operations.
+	// Operations: object-level x-ob AND the input/output schema bodies.
 	for k, op := range iface.Operations {
 		if op.Extensions != nil {
 			delete(op.Extensions, xobKey)
-			iface.Operations[k] = op
 		}
+		stripXOBFromSchema(op.Input)
+		stripXOBFromSchema(op.Output)
+		iface.Operations[k] = op
 	}
 
-	// Bindings.
+	// Bindings (no schema bodies: bindings carry transforms, not schemas).
 	for k, b := range iface.Bindings {
 		if b.Extensions != nil {
 			delete(b.Extensions, xobKey)
 			iface.Bindings[k] = b
+		}
+	}
+
+	// The shared schemas section (JSON Pointer $ref targets).
+	for _, schema := range iface.Schemas {
+		stripXOBFromSchema(schema)
+	}
+}
+
+// stripXOBFromSchema removes the x-ob key at every level of a JSON Schema
+// body — the map itself and any nested subschema reached through the
+// keywords that carry them (properties, patternProperties, definitions/
+// $defs, items/prefixItems, additionalProperties, oneOf/anyOf/allOf/not,
+// if/then/else). Content-independent: it deletes only the extension key.
+func stripXOBFromSchema(schema openbindings.JSONSchema) {
+	if schema == nil {
+		return
+	}
+	delete(schema, xobKey)
+	for key, v := range schema {
+		switch key {
+		case "properties", "patternProperties", "definitions", "$defs":
+			if sub, ok := v.(map[string]any); ok {
+				for _, child := range sub {
+					stripXOBFromValue(child)
+				}
+			}
+		case "items", "prefixItems", "oneOf", "anyOf", "allOf":
+			stripXOBFromValue(v) // schema OR array of schemas
+		case "additionalProperties", "not", "if", "then", "else", "contains", "propertyNames":
+			stripXOBFromValue(v)
+		}
+	}
+}
+
+// stripXOBFromValue descends a JSON value that is a schema or an array of
+// schemas, applying stripXOBFromSchema to each schema map it finds.
+func stripXOBFromValue(v any) {
+	switch t := v.(type) {
+	case map[string]any:
+		stripXOBFromSchema(openbindings.JSONSchema(t))
+	case []any:
+		for _, e := range t {
+			stripXOBFromValue(e)
 		}
 	}
 }

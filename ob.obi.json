@@ -536,6 +536,15 @@
         "$ref": "#/schemas/OpenBindingsInterface"
       }
     },
+    "openbindings.ob.setOperationOutputSchema": {
+      "description": "Elect an operation's real output schema (the non-detaching remedy for a floor-stamped synthesis), writing it into the operation's output and stamping an x-ob election marker, and return the modified interface. The marker survives source pull (re-applied onto each fresh derivation; a grown, non-floor-stamped source schema wins and displaces it) and is stripped by purify.",
+      "input": {
+        "$ref": "#/schemas/SetOperationOutputSchemaInput"
+      },
+      "output": {
+        "$ref": "#/schemas/OpenBindingsInterface"
+      }
+    },
     "openbindings.ob.bindOperation": {
       "description": "Attach a source ref to an existing operation (preserving the operation's key) and return the modified interface. Warns and optionally scaffolds transform stubs on a shape mismatch.",
       "input": {
@@ -2907,6 +2916,31 @@
         "clear": {
           "type": "boolean",
           "description": "Remove the codegen-name override."
+        }
+      },
+      "required": [
+        "interface",
+        "operation"
+      ],
+      "additionalProperties": false
+    },
+    "SetOperationOutputSchemaInput": {
+      "type": "object",
+      "properties": {
+        "interface": {
+          "$ref": "#/schemas/OpenBindingsInterface"
+        },
+        "operation": {
+          "type": "string",
+          "description": "The operation's key or any identifier."
+        },
+        "outputSchema": {
+          "type": "object",
+          "description": "The real output schema to elect. Omit with clear=true to remove the election."
+        },
+        "clear": {
+          "type": "boolean",
+          "description": "Remove the output-schema election."
         }
       },
       "required": [

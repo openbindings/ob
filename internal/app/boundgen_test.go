@@ -128,11 +128,12 @@ func TestGenerateBoundCLI_BindsOpsByShortName(t *testing.T) {
 	if !ok {
 		t.Fatal("expected a usage binding for describe")
 	}
-	if b.Operation != "openbindings.ob.describe" || b.Source != "usage" || b.Ref != "#/units/describe" {
+	if b.Operation != "openbindings.ob.describe" || b.Source != "usage" || b.Ref != "describe" {
 		t.Errorf("unexpected binding: %+v", b)
 	}
-	// The usage source is embedded as content (not a relative location) so the
-	// emitted OBI is self-contained and spec-valid (OBI-D-05).
+	// The usage source is the PRISTINE artifact embedded as content (not a
+	// relative location) so the emitted OBI is self-contained and
+	// spec-valid (OBI-D-05).
 	src, ok := bound.Sources["usage"]
 	if !ok {
 		t.Fatal("expected a usage source entry")
@@ -140,23 +141,30 @@ func TestGenerateBoundCLI_BindsOpsByShortName(t *testing.T) {
 	if src.Content == nil || src.Location != "" {
 		t.Errorf("expected embedded usage content and no location, got content=%v location=%q", src.Content != nil, src.Location)
 	}
-	if src.Format != usage.WrapperToken {
-		t.Errorf("source format = %q, want %q", src.Format, usage.WrapperToken)
+	if src.Format != "usage@"+usage.MaxTestedVersion {
+		t.Errorf("source format = %q, want the bare usage token", src.Format)
 	}
-	// The wrapper parses, its units resolve, and diff(1)-convention ops
-	// carry exit stamps.
-	w, perr := usage.ParseWrapper(src.Content)
-	if perr != nil {
-		t.Fatalf("emitted wrapper does not parse: %v", perr)
+	if text, _ := src.Content.(string); text == "" || !strings.Contains(text, `bin "ob"`) {
+		t.Error("expected the pristine kdl text as embedded content")
 	}
-	if _, ok := w.Units["describe"]; !ok {
-		t.Fatal("expected unit 'describe'")
+	// The elections the document no longer carries live in ob's own
+	// site-guarded hook table (consumer configuration): JSON machine lane
+	// everywhere, diff(1)-convention exits, filter routing.
+	table := BoundCLIHookTable(bound)
+	if oks := table.OKExits["openbindings.ob.validateInterface"]; len(oks) != 2 {
+		t.Errorf("validateInterface should elect exit ok [0,1], got %v", oks)
 	}
-	if u := w.Units["validateInterface"]; u == nil || u.Exit == nil || len(u.Exit.OK) != 2 {
-		t.Errorf("validateInterface unit should declare exit ok [0,1], got %+v", w.Units["validateInterface"])
+	foundDescribe := false
+	for _, op := range table.DecodeJSON {
+		if op == "openbindings.ob.describe" {
+			foundDescribe = true
+		}
 	}
-	if u := w.Units["describe"]; u.Stdout != "json" {
-		t.Errorf("units should declare stdout json, got %q", u.Stdout)
+	if !foundDescribe {
+		t.Error("describe should elect the JSON machine lane")
+	}
+	if r := table.Routes["openbindings.ob.validateInterface"]; r["locator"] != usage.RouteStdinDash {
+		t.Errorf("validateInterface should route locator via stdin-dash, got %v", r)
 	}
 }
 

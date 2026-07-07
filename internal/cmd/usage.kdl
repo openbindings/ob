@@ -258,6 +258,14 @@ cmd "operation" help="Manage and invoke operations on an OBI" subcommand_require
     arg "<operation>" help="Operation key or identifier"
     arg "[name]" help="New codegen symbol name (omit with --clear)"
   }
+  cmd "output-schema" help="Elect an operation's real output schema (the non-detaching remedy for a floor)" {
+    flag "--clear" help="Remove the output-schema election"
+    flag "-o --output <path>" help="Write output to file"
+    flag "-F --format <format>" help="Output format: json|yaml|text"
+    arg "<obi-path>" help="Path to the OBI file"
+    arg "<operation>" help="Operation key or identifier"
+    arg "[schema]" help="Output schema: inline JSON, @file, or - for stdin (omit with --clear)"
+  }
   cmd "bind" help="Attach a source ref to an existing operation" {
     flag "--transform-stub" help="Scaffold identity transform stub(s) on shape mismatch"
     flag "--input-transform <jsonata>" help="Inline JSONata transforming operation input to binding input"
@@ -280,8 +288,13 @@ cmd "operation" help="Manage and invoke operations on an OBI" subcommand_require
   }
   cmd "invoke" help="Invoke an operation via a binding" {
     flag "--binding <key>" help="Binding key to invoke (operation is derived from the entry)"
-    flag "--input <json>" help="Operation input as JSON"
-    flag "-v --verbose" help="Show binding key and duration on stderr"
+    flag "--input <value>" help="Operation input: inline JSON, @file, or - for stdin"
+    flag "--decode <lane>" help="Output decode lane: json, text, or none" {
+      arg "<lane>"
+    }
+    flag "--ok-exit <codes>" help="Exit codes classified as success, comma-separated (e.g. 0,1)"
+    flag "--route <field=channel>" help="Field routing: field=argv|stdin|stdin-dash|file (repeatable)"
+    flag "-v --verbose" help="Show binding key, duration, and displaced elections on stderr"
     arg "<obi>" help="OBI locator (file path, URL, exec: reference, or - for stdin)"
     arg "[operation]" help="Operation key to invoke"
   }

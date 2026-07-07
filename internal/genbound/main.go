@@ -22,9 +22,9 @@ import (
 func main() {
 	const contractPath = "../../ob.obi.json"
 
-	// Bound CLI OBI: contract + usage.kdl, emitted as an openbindings.usage
-	// wrapper source (the artifact-version pin rides the wrapper's
-	// spec.format, tracked from usage.MaxTestedVersion inside boundgen).
+	// Bound CLI OBI: contract + usage.kdl, carrying the PRISTINE artifact
+	// verbatim as its source (bare usage@ token from usage.MaxTestedVersion,
+	// command-path refs).
 	cli, err := app.GenerateBoundCLI(contractPath, "../cmd/usage.kdl")
 	if err != nil {
 		fmt.Fprintln(os.Stderr, "genbound: cli:", err)
@@ -36,6 +36,15 @@ func main() {
 	}
 	fmt.Printf("genbound: regenerated ob.obi.json (%d operations, %d bindings)\n",
 		len(cli.Operations), len(cli.Bindings))
+
+	// The per-op recipe: ob's consumer configuration as reference docs,
+	// generated from the same table the invoker installs (hand-synced docs
+	// of a live table are a known drift failure).
+	if err := os.WriteFile("../../docs/bound-cli-recipe.md", []byte(app.GenerateBoundCLIRecipe(cli)), 0o644); err != nil {
+		fmt.Fprintln(os.Stderr, "genbound: write recipe:", err)
+		os.Exit(1)
+	}
+	fmt.Println("genbound: regenerated docs/bound-cli-recipe.md")
 
 	// Bound serve OBI: contract + openapi.yaml (REST) + WS invoke. MCP is not a
 	// served transport here; it is produced by pointing the bridge at a running

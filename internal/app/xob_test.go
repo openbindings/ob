@@ -109,6 +109,15 @@ func TestStripAllXOB(t *testing.T) {
 		},
 		Operations: map[string]openbindings.Operation{
 			"hello": {
+				// A floor-stamped output schema (x-ob INSIDE the schema body)
+				// plus a nested floor-stamp reached through properties.
+				Output: openbindings.JSONSchema{
+					"type": "object",
+					"x-ob": map[string]any{"floor": "text"},
+					"properties": map[string]any{
+						"inner": map[string]any{"type": "string", "x-ob": map[string]any{"floor": "text"}},
+					},
+				},
 				LosslessFields: openbindings.LosslessFields{Extensions: map[string]json.RawMessage{xobKey: json.RawMessage(`{}`)}},
 			},
 		},
@@ -116,6 +125,9 @@ func TestStripAllXOB(t *testing.T) {
 			"hello.src1": {
 				LosslessFields: openbindings.LosslessFields{Extensions: map[string]json.RawMessage{xobKey: json.RawMessage(`{}`)}},
 			},
+		},
+		Schemas: map[string]openbindings.JSONSchema{
+			"Pet": {"type": "object", "x-ob": map[string]any{"floor": "text"}},
 		},
 	}
 
@@ -130,6 +142,60 @@ func TestStripAllXOB(t *testing.T) {
 	}
 	if HasXOB(iface.Bindings["hello.src1"].LosslessFields) {
 		t.Error("expected x-ob stripped from binding")
+	}
+	// The in-schema floor-stamp must be stripped at every level (the doc
+	// comment's "recursively" is load-bearing now).
+	out := iface.Operations["hello"].Output
+	if _, ok := out["x-ob"]; ok {
+		t.Error("expected in-schema x-ob stripped from operation output")
+	}
+	if inner, _ := out["properties"].(map[string]any)["inner"].(map[string]any); inner["x-ob"] != nil {
+		t.Error("expected in-schema x-ob stripped from a nested subschema")
+	}
+	if _, ok := iface.Schemas["Pet"]["x-ob"]; ok {
+		t.Error("expected in-schema x-ob stripped from the shared schemas section")
+	}
+}
+
+// The output-schema election writes into op.Output and stamps the marker;
+// a pull re-applies it onto a floor derivation but a grown source schema
+// displaces it; purify strips the marker while the elected value stays.
+func TestOutputSchemaElection(t *testing.T) {
+	elected := openbindings.JSONSchema{"type": "array", "items": map[string]any{"type": "object"}}
+
+	var lf openbindings.LosslessFields
+	if err := SetOutputSchemaElection(&lf, elected); err != nil {
+		t.Fatal(err)
+	}
+	got, err := GetOutputSchemaElection(lf)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got["type"] != "array" {
+		t.Errorf("round-trip = %#v", got)
+	}
+
+	// Pull re-application onto a floor derivation.
+	existing := openbindings.Operation{LosslessFields: lf}
+	fresh := openbindings.Operation{Output: openbindings.JSONSchema{"type": "string", "x-ob": map[string]any{"floor": "text"}}}
+	var warns []string
+	carryOutputSchemaElection(existing, &fresh, "op", &warns)
+	if fresh.Output["type"] != "array" {
+		t.Errorf("election should re-apply onto a floor derivation, got %#v", fresh.Output)
+	}
+	if len(warns) != 0 {
+		t.Errorf("no warning expected re-applying onto a floor, got %v", warns)
+	}
+
+	// A grown, non-floor source schema wins and displaces the election.
+	fresh2 := openbindings.Operation{Output: openbindings.JSONSchema{"type": "object", "properties": map[string]any{"id": map[string]any{"type": "integer"}}}}
+	var warns2 []string
+	carryOutputSchemaElection(existing, &fresh2, "op", &warns2)
+	if fresh2.Output["type"] != "object" {
+		t.Errorf("a grown source schema must win, got %#v", fresh2.Output)
+	}
+	if len(warns2) == 0 {
+		t.Error("expected a loud displacement warning when the source grows a real schema")
 	}
 }
 
