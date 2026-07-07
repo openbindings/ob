@@ -53,7 +53,8 @@ func DeriveFromSource(source openbindings.Source, sourceKey string, obiDir strin
 	}
 
 	generated, err := SynthesizeInterfaceFromSource(context.Background(), &openbindings.SynthesizeInput{
-		Sources: []openbindings.SynthesizeSource{createSrc},
+		Sources:   []openbindings.SynthesizeSource{createSrc},
+		OnWarning: printSynthesizerWarning,
 	})
 	if err != nil {
 		return DeriveResult{}, fmt.Errorf("source %q: derive: %w", sourceKey, err)

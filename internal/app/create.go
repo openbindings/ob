@@ -210,6 +210,17 @@ func SynthesizeInterface(input SynthesizeInterfaceInput) (*openbindings.Interfac
 	return &iface, nil
 }
 
+// printSynthesizerWarning surfaces a non-fatal synthesis limitation on stderr —
+// the tooling-output surface SynthesizerWarning documents (lossy conversions
+// such as grpc skipping an unmappable construct).
+func printSynthesizerWarning(w openbindings.SynthesizerWarning) {
+	if w.Path != "" {
+		fmt.Fprintf(os.Stderr, "warning: %s: %s (%s)\n", w.Code, w.Message, w.Path)
+		return
+	}
+	fmt.Fprintf(os.Stderr, "warning: %s: %s\n", w.Code, w.Message)
+}
+
 // processSource processes a single source and adds its operations/bindings to the interface.
 // It uses the OperationInvoker to dispatch format-specific conversion, then applies
 // format-agnostic merge logic.
@@ -224,6 +235,7 @@ func processSource(iface *openbindings.Interface, src SynthesizeInterfaceSource,
 				Content:  src.Content,
 			},
 		},
+		OnWarning: printSynthesizerWarning,
 	})
 	if err != nil {
 		return err
