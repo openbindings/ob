@@ -173,6 +173,45 @@ func GenerateBoundCLI(contractPath, usagePath string) (*openbindings.Interface, 
 		// setContext: the wire key is the CLI's <url> argument; the Context
 		// value rides stdin (delivery below) so credentials never touch argv.
 		"setContext": `{"url": $$.key, "value": $$.value}`,
+
+		// Editing family (cohort C, batch 4): document-in/document-out
+		// operations realized as Unix filters. The interface document rides
+		// stdin (stdin-dash below); the CLI, seeing `-`, writes the modified
+		// document to stdout — which IS the contract output (these ops all
+		// return the resulting OpenBindingsInterface), so no -F json forcing
+		// is needed. The transform renames wire fields to the CLI's own
+		// arg/flag names; boolean wire fields whose CLI flags take true/false
+		// STRINGS (idempotent, deprecated) are stringified, real boolean
+		// flags (force, own, clear, transformStub) pass through (true emits
+		// the bare flag, false/absent emits nothing).
+		"newInterface":             `{"path": "-", "name": $$.name, "version": $$.version, "description": $$.description, "openbindings": $$.openbindings}`,
+		"setMetadata":              `{"obi-path": $$.interface, "name": $$.name, "version": $$.version, "description": $$.description}`,
+		"addOperation":             `$merge([{"obi-path": $$.interface, "key": $$.key, "description": $$.description, "alias": $$.aliases, "tag": $$.tags, "input-schema": $$.input, "output-schema": $$.output}, $exists($$.idempotent) ? {"idempotent": $string($$.idempotent)} : {}])`,
+		"setOperation":             `$merge([{"obi-path": $$.interface, "operation": $$.operation, "description": $$.description, "input-schema": $$.input, "output-schema": $$.output, "add-tag": $$.addTags, "remove-tag": $$.removeTags, "own": $$.own}, $exists($$.idempotent) ? {"idempotent": $string($$.idempotent)} : {}, $exists($$.deprecated) ? {"deprecated": $string($$.deprecated)} : {}])`,
+		"detachOperation":          `{"obi-path": $$.interface, "operation": $$.operation}`,
+		"renameOperation":          `{"obi-path": $$.interface, "old-key": $$.oldKey, "new-key": $$.newKey}`,
+		"removeOperation":          `{"obi-path": $$.interface, "key": $$.keys, "force": $$.force}`,
+		"bindOperation":            `{"obi-path": $$.interface, "operation": $$.operation, "source": $$.source, "ref": $$.ref, "preference": $$.preference, "input-transform": $$.inputTransform, "output-transform": $$.outputTransform, "transform-stub": $$.transformStub, "force": $$.force}`,
+		"unbindOperation":          `{"obi-path": $$.interface, "operation": $$.operation, "source": $$.source}`,
+		"addOperationAlias":        `{"obi-path": $$.interface, "operation": $$.operation, "alias": $$.aliases}`,
+		"removeOperationAlias":     `{"obi-path": $$.interface, "operation": $$.operation, "alias": $$.aliases}`,
+		"setOperationCodegenName":  `{"obi-path": $$.interface, "operation": $$.operation, "name": $$.codegenName, "clear": $$.clear}`,
+		"setOperationOutputSchema": `{"obi-path": $$.interface, "operation": $$.operation, "schema": $$.outputSchema, "clear": $$.clear}`,
+		// addSource: the wire's SynthesizeInterfaceSource maps onto the CLI's
+		// composite <source> token (format:location) and flags; embed=true is
+		// the CLI's --resolve content; -y skips the delegate/name prompts
+		// (moot on the non-TTY wire, but explicit). A content-provided source
+		// (inline `content`, no location) has no CLI carriage yet and fails
+		// loudly at the empty-location token — see the tracker's batch-5 note.
+		"addSource": `$merge([{"obi-path": $$.interface, "source": $$.source.format & ":" & $$.source.location, "key": $$.source.name, "uri": $$.source.outputLocation, "description": $$.source.description, "yes": true}, $$.source.embed ? {"resolve": "content"} : {}])`,
+		// removeSource: the wire key is the CLI's <key> argument.
+		"removeSource": `{"obi-path": $$.interface, "key": $$.key}`,
+		// pullSource: the ONE editing op whose contract output is a report
+		// (SourcePullOutput, carrying the resulting document) rather than the
+		// bare document, so its stdout is the -F json summary and the
+		// document rides a temp FILE (writing back to stdin is impossible;
+		// stdout must stay the report's).
+		"pullSource": `{"obi-path": $$.interface, "source-key": $$.sourceKeys, "format": "json"}`,
 	}
 	_ = routesByShort // elections live in the hook table (BoundCLIHookTable), not the document
 
@@ -396,6 +435,29 @@ var routesByShort = map[string]map[string]string{
 	"mergeInterfaces": {"target": usage.RouteFile, "source": usage.RouteFile},
 	// setContext: the Context value (credentials) rides stdin, never argv.
 	"setContext": {"value": usage.RouteStdinDash},
+
+	// Editing family (batch 4): the document rides stdin as the `-` locator;
+	// the CLI answers with the modified document on stdout (its contract
+	// output) and the summary on stderr.
+	"newInterface":             nil, // no document input; the transform's literal "-" path selects stdout
+	"setMetadata":              {"obi-path": usage.RouteStdinDash},
+	"addOperation":             {"obi-path": usage.RouteStdinDash},
+	"setOperation":             {"obi-path": usage.RouteStdinDash},
+	"detachOperation":          {"obi-path": usage.RouteStdinDash},
+	"renameOperation":          {"obi-path": usage.RouteStdinDash},
+	"removeOperation":          {"obi-path": usage.RouteStdinDash},
+	"bindOperation":            {"obi-path": usage.RouteStdinDash},
+	"unbindOperation":          {"obi-path": usage.RouteStdinDash},
+	"addOperationAlias":        {"obi-path": usage.RouteStdinDash},
+	"removeOperationAlias":     {"obi-path": usage.RouteStdinDash},
+	"setOperationCodegenName":  {"obi-path": usage.RouteStdinDash},
+	"setOperationOutputSchema": {"obi-path": usage.RouteStdinDash},
+	"addSource":                {"obi-path": usage.RouteStdinDash},
+	"removeSource":             {"obi-path": usage.RouteStdinDash},
+	// pullSource: stdout carries the -F json report, so the document rides a
+	// temp file instead of stdin (the CLI writes the pulled result back to
+	// that file; the report's `interface` member returns it to the wire).
+	"pullSource": {"obi-path": usage.RouteFile},
 }
 
 // BoundCLIHookTable is ob's own consumer configuration for its bound CLI

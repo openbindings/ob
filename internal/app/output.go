@@ -82,7 +82,10 @@ type Renderable interface {
 
 // outputResultCore is the shared implementation for all output helpers.
 // format: json|yaml|text|quiet (from --format). outputPath: from -o/--output; when set, write to file.
-func outputResultCore(v any, format string, outputPath string, code int, textFn func() string, defaultFormat ...OutputFormat) error {
+// toStderr directs every rendered message to stderr instead of stdout — the
+// filter lane's rule (stdout carries the resulting document, so the summary
+// moves aside).
+func outputResultCore(v any, format string, outputPath string, code int, textFn func() string, toStderr bool, defaultFormat ...OutputFormat) error {
 	if format == "quiet" {
 		return ExitResult{Code: code, Message: "", ToStderr: false}
 	}
@@ -103,7 +106,7 @@ func outputResultCore(v any, format string, outputPath string, code int, textFn 
 		if err := AtomicWriteFile(outputPath, b, FilePerm); err != nil {
 			return ExitResult{Code: 1, Message: err.Error(), ToStderr: true}
 		}
-		return ExitResult{Code: code, Message: "Wrote " + outputPath, ToStderr: false}
+		return ExitResult{Code: code, Message: "Wrote " + outputPath, ToStderr: toStderr}
 	}
 
 	// Stdout: explicit format
@@ -113,13 +116,13 @@ func outputResultCore(v any, format string, outputPath string, code int, textFn 
 			return ExitResult{Code: 2, Message: err.Error(), ToStderr: true}
 		}
 		if outFormat == OutputFormatText {
-			return ExitResult{Code: code, Message: renderText(v, textFn), ToStderr: false}
+			return ExitResult{Code: code, Message: renderText(v, textFn), ToStderr: toStderr}
 		}
 		b, err := FormatOutput(v, outFormat)
 		if err != nil {
 			return err
 		}
-		return ExitResult{Code: code, Message: string(b), ToStderr: false}
+		return ExitResult{Code: code, Message: string(b), ToStderr: toStderr}
 	}
 
 	// Stdout: default format
@@ -128,11 +131,11 @@ func outputResultCore(v any, format string, outputPath string, code int, textFn 
 		if err != nil {
 			return err
 		}
-		return ExitResult{Code: code, Message: string(b), ToStderr: false}
+		return ExitResult{Code: code, Message: string(b), ToStderr: toStderr}
 	}
 
 	// Stdout: text
-	return ExitResult{Code: code, Message: renderText(v, textFn), ToStderr: false}
+	return ExitResult{Code: code, Message: renderText(v, textFn), ToStderr: toStderr}
 }
 
 // renderText produces human-readable text from a value. Priority:
@@ -155,7 +158,7 @@ func renderText(v any, textFn func() string) string {
 // format: from --format (json|yaml|text|quiet). outputPath: from -o/--output; when set, write to file.
 // If defaultFormat is provided and format is empty, uses that format for stdout.
 func OutputResult(v any, format string, outputPath string, defaultFormat ...OutputFormat) error {
-	return outputResultCore(v, format, outputPath, 0, nil, defaultFormat...)
+	return outputResultCore(v, format, outputPath, 0, nil, false, defaultFormat...)
 }
 
 // OutputResultWithCode is like OutputResult but allows the caller to specify
@@ -163,11 +166,19 @@ func OutputResult(v any, format string, outputPath string, defaultFormat ...Outp
 // is valid data (not an error) but the process should exit non-zero.
 // If format is "quiet", suppresses all output and returns only the exit code.
 func OutputResultWithCode(v any, format string, outputPath string, code int) error {
-	return outputResultCore(v, format, outputPath, code, nil)
+	return outputResultCore(v, format, outputPath, code, nil, false)
 }
 
 // OutputResultText handles output formatting with an explicit text rendering function.
 // If format is empty, calls textFn for stdout. If outputPath is set, writes to file.
 func OutputResultText(result any, format string, outputPath string, textFn func() string) error {
-	return outputResultCore(result, format, outputPath, 0, textFn)
+	return outputResultCore(result, format, outputPath, 0, textFn, false)
+}
+
+// OutputResultStderr renders like OutputResult but directs the summary (and
+// the -o confirmation line) to stderr: the filter lane's rule. When a
+// command's document argument is `-`, stdout carries the resulting document,
+// so everything human-facing moves to stderr (sed semantics).
+func OutputResultStderr(v any, format string, outputPath string) error {
+	return outputResultCore(v, format, outputPath, 0, nil, true)
 }

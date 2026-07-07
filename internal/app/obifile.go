@@ -123,6 +123,11 @@ func parseInterfaceJSON(data []byte, source string) (*openbindings.Interface, er
 // WriteInterfaceFile writes an Interface to a file atomically using
 // canonical JSON formatting (D6). If the target file already exists,
 // its permissions are preserved; otherwise 0644 is used.
+//
+// The bare `-` writes the document to stdout instead — the write side of the
+// CLI-filter convention (readLocatorBytes is the read side): an editing
+// command whose document argument is `-` reads the document from stdin and
+// emits the modified document on stdout, with its human summary on stderr.
 func WriteInterfaceFile(path string, iface *openbindings.Interface) error {
 	// Marshal with canonical key ordering.
 	b, err := canonicaljson.Marshal(iface)
@@ -137,12 +142,22 @@ func WriteInterfaceFile(path string, iface *openbindings.Interface) error {
 	}
 	buf.WriteByte('\n') // trailing newline
 
+	if path == StdinLocator {
+		_, err := os.Stdout.Write(buf.Bytes())
+		return err
+	}
 	return AtomicWriteFile(path, buf.Bytes(), FilePerm)
 }
 
 // WriteInterfaceToPath writes the interface to path. Format is inferred from path
 // when format is empty or "text" (.yaml/.yml → yaml, else json).
+// The bare `-` writes canonical JSON to stdout (the filter lane's document
+// channel is always JSON; a format override applies to the summary, not the
+// document).
 func WriteInterfaceToPath(path string, iface *openbindings.Interface, format string) error {
+	if path == StdinLocator {
+		return WriteInterfaceFile(path, iface)
+	}
 	lower := strings.ToLower(path)
 	useYAML := strings.HasSuffix(lower, ".yaml") || strings.HasSuffix(lower, ".yml")
 	if !useYAML && format != "" && format != "text" {

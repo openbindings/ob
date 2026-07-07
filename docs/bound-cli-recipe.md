@@ -15,16 +15,16 @@ success = exit 0, fields ride argv).
 
 | Operation | Command | Decode | Success exits | Routed fields |
 | --- | --- | --- | --- | --- |
-| `openbindings.ob.addOperation` | `ob operation add` | json | 0 (assumption) | — |
-| `openbindings.ob.addOperationAlias` | `ob operation alias add` | json | 0 (assumption) | — |
-| `openbindings.ob.addSource` | `ob source add` | json | 0 (assumption) | — |
-| `openbindings.ob.bindOperation` | `ob operation bind` | json | 0 (assumption) | — |
+| `openbindings.ob.addOperation` | `ob operation add` | json | 0 (assumption) | obi-path=stdin-dash |
+| `openbindings.ob.addOperationAlias` | `ob operation alias add` | json | 0 (assumption) | obi-path=stdin-dash |
+| `openbindings.ob.addSource` | `ob source add` | json | 0 (assumption) | obi-path=stdin-dash |
+| `openbindings.ob.bindOperation` | `ob operation bind` | json | 0 (assumption) | obi-path=stdin-dash |
 | `openbindings.ob.codegen` | `ob codegen` | json | 0 (assumption) | source=stdin-dash |
 | `openbindings.ob.compareInterfaces` | `ob diff` | json | 0, 1 | baseline=stdin-dash, comparison=file |
 | `openbindings.ob.conform` | `ob conform` | json | 0 (assumption) | interface=file, target-obi=file |
 | `openbindings.ob.demo` | `ob demo` | json | 0 (assumption) | — |
 | `openbindings.ob.describe` | `ob describe` | json | 0 (assumption) | — |
-| `openbindings.ob.detachOperation` | `ob operation detach` | json | 0 (assumption) | — |
+| `openbindings.ob.detachOperation` | `ob operation detach` | json | 0 (assumption) | obi-path=stdin-dash |
 | `openbindings.ob.getContext` | `ob context get` | json | 0 (assumption) | — |
 | `openbindings.ob.getDelegateRequirements` | `ob delegate requirements` | json | 0 (assumption) | — |
 | `openbindings.ob.initializeEnvironment` | `ob init` | json | 0 (assumption) | — |
@@ -41,14 +41,14 @@ success = exit 0, fields ride argv).
 | `openbindings.ob.newInterface` | `ob new` | json | 0 (assumption) | — |
 | `openbindings.ob.prepareBinding` | `ob binding prepare` | json | 0 (assumption) | — |
 | `openbindings.ob.prepareOperation` | `ob operation prepare` | json | 0 (assumption) | obi=stdin-dash |
-| `openbindings.ob.pullSource` | `ob source pull` | json | 0 (assumption) | — |
+| `openbindings.ob.pullSource` | `ob source pull` | json | 0 (assumption) | obi-path=file |
 | `openbindings.ob.purifyInterface` | `ob purify` | json | 0 (assumption) | obi-path=stdin-dash |
 | `openbindings.ob.registerDelegate` | `ob delegate register` | json | 0 (assumption) | — |
 | `openbindings.ob.removeContext` | `ob context remove` | json | 0 (assumption) | — |
-| `openbindings.ob.removeOperation` | `ob operation remove` | json | 0 (assumption) | — |
-| `openbindings.ob.removeOperationAlias` | `ob operation alias remove` | json | 0 (assumption) | — |
-| `openbindings.ob.removeSource` | `ob source remove` | json | 0 (assumption) | — |
-| `openbindings.ob.renameOperation` | `ob operation rename` | json | 0 (assumption) | — |
+| `openbindings.ob.removeOperation` | `ob operation remove` | json | 0 (assumption) | obi-path=stdin-dash |
+| `openbindings.ob.removeOperationAlias` | `ob operation alias remove` | json | 0 (assumption) | obi-path=stdin-dash |
+| `openbindings.ob.removeSource` | `ob source remove` | json | 0 (assumption) | obi-path=stdin-dash |
+| `openbindings.ob.renameOperation` | `ob operation rename` | json | 0 (assumption) | obi-path=stdin-dash |
 | `openbindings.ob.reportCompatibility` | `ob compat` | json | 0, 1 | candidate=file, target=stdin-dash |
 | `openbindings.ob.reportEnvironmentStatus` | `ob environment` | json | 0 (assumption) | — |
 | `openbindings.ob.reportInterfaceStatus` | `ob status` | json | 0 (assumption) | obi-path=stdin-dash |
@@ -57,14 +57,14 @@ success = exit 0, fields ride argv).
 | `openbindings.ob.resolveInterface` | `ob resolve` | json | 0 (assumption) | — |
 | `openbindings.ob.setContext` | `ob context set` | json | 0 (assumption) | value=stdin-dash |
 | `openbindings.ob.setDelegatePreference` | `ob delegate prefer` | json | 0 (assumption) | — |
-| `openbindings.ob.setMetadata` | `ob meta set` | json | 0 (assumption) | — |
-| `openbindings.ob.setOperation` | `ob operation set` | json | 0 (assumption) | — |
-| `openbindings.ob.setOperationCodegenName` | `ob operation codegen-name` | json | 0 (assumption) | — |
-| `openbindings.ob.setOperationOutputSchema` | `ob operation output-schema` | json | 0 (assumption) | — |
+| `openbindings.ob.setMetadata` | `ob meta set` | json | 0 (assumption) | obi-path=stdin-dash |
+| `openbindings.ob.setOperation` | `ob operation set` | json | 0 (assumption) | obi-path=stdin-dash |
+| `openbindings.ob.setOperationCodegenName` | `ob operation codegen-name` | json | 0 (assumption) | obi-path=stdin-dash |
+| `openbindings.ob.setOperationOutputSchema` | `ob operation output-schema` | json | 0 (assumption) | obi-path=stdin-dash |
 | `openbindings.ob.startMCPServer` | `ob mcp` | json | 0 (assumption) | — |
 | `openbindings.ob.startServer` | `ob start` | json | 0 (assumption) | — |
 | `openbindings.ob.synthesizeInterface` | `ob synthesize` | json | 0 (assumption) | — |
-| `openbindings.ob.unbindOperation` | `ob operation unbind` | json | 0 (assumption) | — |
+| `openbindings.ob.unbindOperation` | `ob operation unbind` | json | 0 (assumption) | obi-path=stdin-dash |
 | `openbindings.ob.unregisterDelegate` | `ob delegate unregister` | json | 0 (assumption) | — |
 | `openbindings.ob.validateInterface` | `ob validate` | json | 0, 1 | locator=stdin-dash |
 

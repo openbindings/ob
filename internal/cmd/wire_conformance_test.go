@@ -250,45 +250,281 @@ func TestWireConformance_ExecLane(t *testing.T) {
 		}},
 	}
 
+	// invokeConformant drives one operation through the exec lane and judges
+	// the output against the operation's contract output schema (OBI-T-08
+	// semantics); it returns the (single) output value.
+	invokeConformant := func(t *testing.T, op string, input any) any {
+		t.Helper()
+		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+		defer cancel()
+
+		ch, _, err := app.InvokeOBIOperation(ctx, obiPath, op, "", input)
+		if err != nil {
+			t.Fatalf("invoke: %v", err)
+		}
+
+		outputSchema := bound.Operations[op].Output
+
+		var out any
+		got := 0
+		for ev := range ch {
+			if ev.Error != nil {
+				t.Fatalf("invocation error: %s: %s", ev.Error.Code, ev.Error.Message)
+			}
+			// The conformance judgment: the output must satisfy the
+			// operation's output schema (OBI-T-08 semantics).
+			if outputSchema != nil {
+				if verr := openbindings.ValidateAgainstSchema(ev.Output, outputSchema, bound.Schemas); verr != nil {
+					t.Fatalf("output does not conform to the operation's output schema: %v\noutput: %#v", verr, ev.Output)
+				}
+			}
+			// Belt and braces for permissive output schemas: the usage
+			// transport's non-JSON fallback must never leak through.
+			if m, ok := ev.Output.(map[string]any); ok {
+				if _, leaked := m["stdout"]; leaked {
+					t.Fatalf("output is the {stdout} wrapper, not the contract shape: %#v", ev.Output)
+				}
+			}
+			out = ev.Output
+			got++
+		}
+		if got == 0 {
+			t.Fatal("invocation produced no output")
+		}
+		return out
+	}
+
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-			defer cancel()
-
-			ch, _, err := app.InvokeOBIOperation(ctx, obiPath, tc.op, "", tc.input)
-			if err != nil {
-				t.Fatalf("invoke: %v", err)
+			out := invokeConformant(t, tc.op, tc.input)
+			if tc.check != nil {
+				tc.check(t, out)
 			}
+		})
+	}
 
-			outputSchema := bound.Operations[tc.op].Output
+	// Editing family (cohort C, batch 4): document-in/document-out filters.
+	// The interface document rides stdin as a `-` locator and the modified
+	// document comes back on stdout — which IS the contract output for every
+	// editing op except pullSource (whose report carries the document in its
+	// `interface` member). The chain authors an interface from nothing to a
+	// sourced, pulled, bound, edited document entirely over the wire; each
+	// step's output feeds the next step's input.
+	openapiFixture := `{"openapi":"3.1.0","info":{"title":"wire","version":"1.0.0"},"paths":{"/ping":{"get":{"operationId":"getPing","responses":{"200":{"description":"ok"}}}}}}`
+	if err := os.WriteFile(filepath.Join(workDir, "openapi.json"), []byte(openapiFixture), 0o644); err != nil {
+		t.Fatal(err)
+	}
 
-			got := 0
-			for ev := range ch {
-				if ev.Error != nil {
-					t.Fatalf("invocation error: %s: %s", ev.Error.Code, ev.Error.Message)
-				}
-				// The conformance judgment: the output must satisfy the
-				// operation's output schema (OBI-T-08 semantics).
-				if outputSchema != nil {
-					if verr := openbindings.ValidateAgainstSchema(ev.Output, outputSchema, bound.Schemas); verr != nil {
-						t.Fatalf("output does not conform to the operation's output schema: %v\noutput: %#v", verr, ev.Output)
-					}
-				}
-				// Belt and braces for permissive output schemas: the usage
-				// transport's non-JSON fallback must never leak through.
-				if m, ok := ev.Output.(map[string]any); ok {
-					if _, leaked := m["stdout"]; leaked {
-						t.Fatalf("output is the {stdout} wrapper, not the contract shape: %#v", ev.Output)
-					}
-				}
-				if tc.check != nil {
-					tc.check(t, ev.Output)
-				}
-				got++
+	// Navigation helpers over the wire documents.
+	child := func(t *testing.T, v any, path ...string) map[string]any {
+		t.Helper()
+		m, _ := v.(map[string]any)
+		for _, key := range path {
+			next, _ := m[key].(map[string]any)
+			if next == nil {
+				t.Fatalf("document has no object at %v: %#v", path, v)
 			}
-			if got == 0 {
-				t.Fatal("invocation produced no output")
+			m = next
+		}
+		return m
+	}
+
+	var doc map[string]any // the document flowing through the chain
+	chain := []struct {
+		name  string
+		op    string
+		input func() any
+		check func(t *testing.T, out any)
+	}{
+		{"newInterface", "openbindings.ob.newInterface", func() any {
+			return map[string]any{"name": "edit-fixture", "version": "0.1.0"}
+		}, func(t *testing.T, out any) {
+			doc = child(t, out)
+			if doc["name"] != "edit-fixture" {
+				t.Errorf("expected the new document back, got %#v", out)
 			}
+			if ops, ok := doc["operations"].(map[string]any); !ok || len(ops) != 0 {
+				t.Errorf("expected an empty operations map, got %#v", doc["operations"])
+			}
+		}},
+		{"setMetadata", "openbindings.ob.setMetadata", func() any {
+			return map[string]any{"interface": doc, "description": "edited over the wire"}
+		}, func(t *testing.T, out any) {
+			doc = child(t, out)
+			if doc["description"] != "edited over the wire" {
+				t.Errorf("expected the description set, got %#v", doc["description"])
+			}
+		}},
+		{"addOperation", "openbindings.ob.addOperation", func() any {
+			return map[string]any{
+				"interface":   doc,
+				"key":         "ping",
+				"description": "Ping.",
+				"tags":        []any{"t1"},
+				"aliases":     []any{"acme.wire.pingAlias"},
+				"idempotent":  true,
+				"input":       map[string]any{"type": "object"},
+				"output":      map[string]any{"type": "string"},
+			}
+		}, func(t *testing.T, out any) {
+			doc = child(t, out)
+			op := child(t, doc, "operations", "ping")
+			if op["idempotent"] != true {
+				t.Errorf("expected idempotent=true on the added operation, got %#v", op)
+			}
+			if in := child(t, op, "input"); in["type"] != "object" {
+				t.Errorf("expected the input schema on the added operation, got %#v", op)
+			}
+		}},
+		{"setOperation", "openbindings.ob.setOperation", func() any {
+			return map[string]any{"interface": doc, "operation": "ping", "description": "updated", "deprecated": true, "addTags": []any{"t2"}}
+		}, func(t *testing.T, out any) {
+			doc = child(t, out)
+			op := child(t, doc, "operations", "ping")
+			if op["deprecated"] != true || op["description"] != "updated" {
+				t.Errorf("expected the operation edited, got %#v", op)
+			}
+		}},
+		{"addOperationAlias", "openbindings.ob.addOperationAlias", func() any {
+			return map[string]any{"interface": doc, "operation": "ping", "aliases": []any{"acme.wire.get"}}
+		}, func(t *testing.T, out any) {
+			doc = child(t, out)
+			aliases, _ := child(t, doc, "operations", "ping")["aliases"].([]any)
+			if len(aliases) != 2 {
+				t.Errorf("expected two aliases after the add, got %#v", aliases)
+			}
+		}},
+		{"removeOperationAlias", "openbindings.ob.removeOperationAlias", func() any {
+			return map[string]any{"interface": doc, "operation": "ping", "aliases": []any{"acme.wire.get"}}
+		}, func(t *testing.T, out any) {
+			doc = child(t, out)
+			aliases, _ := child(t, doc, "operations", "ping")["aliases"].([]any)
+			if len(aliases) != 1 {
+				t.Errorf("expected one alias after the removal, got %#v", aliases)
+			}
+		}},
+		{"setOperationCodegenName", "openbindings.ob.setOperationCodegenName", func() any {
+			return map[string]any{"interface": doc, "operation": "ping", "codegenName": "Ping"}
+		}, func(t *testing.T, out any) {
+			doc = child(t, out)
+			xob := child(t, doc, "operations", "ping", "x-ob")
+			if xob["codegenName"] != "Ping" {
+				t.Errorf("expected the codegen-name override stored, got %#v", xob)
+			}
+		}},
+		{"setOperationOutputSchema", "openbindings.ob.setOperationOutputSchema", func() any {
+			return map[string]any{"interface": doc, "operation": "ping", "outputSchema": map[string]any{"type": "array"}}
+		}, func(t *testing.T, out any) {
+			doc = child(t, out)
+			if got := child(t, doc, "operations", "ping", "output"); got["type"] != "array" {
+				t.Errorf("expected the elected output schema, got %#v", got)
+			}
+		}},
+		{"renameOperation", "openbindings.ob.renameOperation", func() any {
+			return map[string]any{"interface": doc, "oldKey": "ping", "newKey": "pong"}
+		}, func(t *testing.T, out any) {
+			doc = child(t, out)
+			ops := child(t, doc, "operations")
+			if _, moved := ops["pong"]; !moved {
+				t.Errorf("expected the operation renamed to pong, got %#v", ops)
+			}
+			if _, stale := ops["ping"]; stale {
+				t.Error("the old key must be gone after the rename")
+			}
+		}},
+		{"addSource", "openbindings.ob.addSource", func() any {
+			return map[string]any{"interface": doc, "source": map[string]any{
+				"format":      "openapi@3.1",
+				"location":    "openapi.json",
+				"name":        "api",
+				"description": "Wire fixture API",
+			}}
+		}, func(t *testing.T, out any) {
+			doc = child(t, out)
+			src := child(t, doc, "sources", "api")
+			if src["format"] != "openapi@3.1" || src["description"] != "Wire fixture API" {
+				t.Errorf("expected the registered source back, got %#v", src)
+			}
+		}},
+		{"pullSource", "openbindings.ob.pullSource", func() any {
+			// Pull re-reads each source from its x-ob ref relative to the
+			// document's own directory. The exec lane materializes the
+			// document in a temp dir, so a relative ref cannot survive the
+			// trip; a wire consumer shipping a document away from its
+			// sources must carry refs that still resolve — point the ref at
+			// the fixture absolutely.
+			xob := child(t, doc, "sources", "api", "x-ob")
+			xob["ref"] = filepath.Join(workDir, "openapi.json")
+			return map[string]any{"interface": doc}
+		}, func(t *testing.T, out any) {
+			report := child(t, out)
+			if skipped, _ := report["skipped"].([]any); len(skipped) != 0 {
+				t.Fatalf("expected no skipped sources, got %#v (warnings: %#v)", skipped, report["warnings"])
+			}
+			doc = child(t, report, "interface")
+			if _, derived := child(t, doc, "operations")["getPing"]; !derived {
+				t.Errorf("expected getPing derived by the pull, got %#v", doc["operations"])
+			}
+		}},
+		{"bindOperation", "openbindings.ob.bindOperation", func() any {
+			ref, _ := child(t, doc, "bindings", "getPing.api")["ref"].(string)
+			if ref == "" {
+				t.Fatalf("no derived binding to take the ref from: %#v", doc["bindings"])
+			}
+			return map[string]any{"interface": doc, "operation": "pong", "source": "api", "ref": ref}
+		}, func(t *testing.T, out any) {
+			doc = child(t, out)
+			if _, bound := child(t, doc, "bindings")["pong.api"]; !bound {
+				t.Errorf("expected the pong.api binding, got %#v", doc["bindings"])
+			}
+		}},
+		{"unbindOperation", "openbindings.ob.unbindOperation", func() any {
+			return map[string]any{"interface": doc, "operation": "pong", "source": "api"}
+		}, func(t *testing.T, out any) {
+			doc = child(t, out)
+			if _, still := child(t, doc, "bindings")["pong.api"]; still {
+				t.Error("expected the pong.api binding removed")
+			}
+		}},
+		{"detachOperation", "openbindings.ob.detachOperation", func() any {
+			return map[string]any{"interface": doc, "operation": "getPing"}
+		}, func(t *testing.T, out any) {
+			doc = child(t, out)
+			op := child(t, doc, "operations", "getPing")
+			if xob, owned := op["x-ob"].(map[string]any); owned && xob["sourceOwned"] != nil {
+				t.Errorf("expected source ownership cleared, got %#v", op["x-ob"])
+			}
+		}},
+		{"removeOperation", "openbindings.ob.removeOperation", func() any {
+			return map[string]any{"interface": doc, "keys": []any{"pong"}}
+		}, func(t *testing.T, out any) {
+			doc = child(t, out)
+			if _, still := child(t, doc, "operations")["pong"]; still {
+				t.Error("expected pong removed")
+			}
+		}},
+		{"removeSource", "openbindings.ob.removeSource", func() any {
+			return map[string]any{"interface": doc, "key": "api"}
+		}, func(t *testing.T, out any) {
+			doc = child(t, out)
+			// Empty maps are omitted from the document, so absent == removed.
+			if srcs, _ := doc["sources"].(map[string]any); len(srcs) != 0 {
+				t.Errorf("expected the source removed, got %#v", srcs)
+			}
+			bindings, _ := doc["bindings"].(map[string]any)
+			if _, still := bindings["getPing.api"]; still {
+				t.Error("expected the source's binding removed with it")
+			}
+		}},
+	}
+
+	for _, step := range chain {
+		t.Run("edit_"+step.name, func(t *testing.T) {
+			if step.name != "newInterface" && doc == nil {
+				t.Fatal("chain broken: no document from the previous step")
+			}
+			out := invokeConformant(t, step.op, step.input())
+			step.check(t, out)
 		})
 	}
 }

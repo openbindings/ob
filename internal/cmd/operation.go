@@ -68,6 +68,9 @@ The schema is inline JSON, @file, or - (stdin). Use --clear to remove the
 election (the elected value stays until the next pull re-derives it).
 'ob purify' strips the election marker and the floor-stamp alike.
 
+Pass '-' as <obi-path> to read the document from stdin and write the
+modified document to stdout (the summary moves to stderr).
+
 Examples:
   ob op output-schema interface.json listPets @pets-schema.json
   ob op output-schema interface.json listPets '{"type":"array","items":{"type":"object"}}'
@@ -91,8 +94,7 @@ Examples:
 			if err != nil {
 				return app.ExitResult{Code: 1, Message: fmt.Sprintf("elect output schema: %v", err), ToStderr: true}
 			}
-			format, outputPath := getOutputFlags(cmd)
-			return app.OutputResult(result, format, outputPath)
+			return outputEditResult(cmd, args[0], result)
 		},
 	}
 	cmd.Flags().BoolVar(&clear, "clear", false, "remove the output-schema election")
@@ -514,6 +516,9 @@ added without any bindings — bind it to a source with 'ob operation bind'.
 
 Schema flags accept inline JSON, '@path' to read a file, or '-' for stdin.
 
+Pass '-' as <obi-path> to read the document from stdin and write the
+modified document to stdout (the summary moves to stderr).
+
 Examples:
   ob op add interface.json createUser --description "Create a new user"
   ob op add interface.json get --input-schema @get-input.json --output-schema @get-output.json
@@ -552,8 +557,7 @@ Examples:
 			if err != nil {
 				return app.ExitResult{Code: 1, Message: fmt.Sprintf("add operation: %v", err), ToStderr: true}
 			}
-			format, outputPath := getOutputFlags(cmd)
-			return app.OutputResult(result, format, outputPath)
+			return outputEditResult(cmd, args[0], result)
 		},
 	}
 
@@ -624,6 +628,9 @@ func newOperationAliasAddCmd() *cobra.Command {
 The operation may be referenced by its key or any existing identifier.
 Each alias must be free in the document's flat key+alias namespace.
 
+Pass '-' as <obi-path> to read the document from stdin and write the
+modified document to stdout (the summary moves to stderr).
+
 Examples:
   ob op alias add interface.json acme.cache.fetch openbindings.key-value-store.get
   ob op alias add interface.json describe openbindings.software-descriptor.describe`,
@@ -633,8 +640,7 @@ Examples:
 			if err != nil {
 				return app.ExitResult{Code: 1, Message: fmt.Sprintf("add alias: %v", err), ToStderr: true}
 			}
-			format, outputPath := getOutputFlags(cmd)
-			return app.OutputResult(result, format, outputPath)
+			return outputEditResult(cmd, args[0], result)
 		},
 	}
 	return cmd
@@ -647,6 +653,9 @@ func newOperationAliasRemoveCmd() *cobra.Command {
 		Short:   "Remove satisfaction alias(es) from an operation",
 		Long: `Remove one or more satisfaction aliases from an operation.
 
+Pass '-' as <obi-path> to read the document from stdin and write the
+modified document to stdout (the summary moves to stderr).
+
 Examples:
   ob op alias rm interface.json acme.cache.fetch openbindings.key-value-store.get`,
 		Args: cobra.MinimumNArgs(3),
@@ -655,8 +664,7 @@ Examples:
 			if err != nil {
 				return app.ExitResult{Code: 1, Message: fmt.Sprintf("remove alias: %v", err), ToStderr: true}
 			}
-			format, outputPath := getOutputFlags(cmd)
-			return app.OutputResult(result, format, outputPath)
+			return outputEditResult(cmd, args[0], result)
 		},
 	}
 	return cmd
@@ -715,6 +723,9 @@ overwritten by the next pull.
 
 Schema flags accept inline JSON, '@path' to read a file, or '-' for stdin.
 
+Pass '-' as <obi-path> to read the document from stdin and write the
+modified document to stdout (the summary moves to stderr).
+
 Examples:
   ob op set interface.json greet --description "Greet a user"
   ob op set interface.json greet --deprecated true
@@ -757,8 +768,7 @@ Examples:
 			if err != nil {
 				return app.ExitResult{Code: 1, Message: fmt.Sprintf("set operation: %v", err), ToStderr: true}
 			}
-			format, outputPath := getOutputFlags(cmd)
-			return app.OutputResult(result, format, outputPath)
+			return outputEditResult(cmd, args[0], result)
 		},
 	}
 	cmd.Flags().StringVar(&description, "description", "", "set the operation description")
@@ -779,6 +789,9 @@ func newOperationDetachCmd() *cobra.Command {
 		Long: `Detach a source-owned operation so 'ob source pull' no longer overwrites
 its schema. The operation becomes hand-authored ("you own it now").
 
+Pass '-' as <obi-path> to read the document from stdin and write the
+modified document to stdout (the summary moves to stderr).
+
 Examples:
   ob op detach interface.json getA`,
 		Args: cobra.ExactArgs(2),
@@ -787,8 +800,7 @@ Examples:
 			if err != nil {
 				return app.ExitResult{Code: 1, Message: fmt.Sprintf("detach operation: %v", err), ToStderr: true}
 			}
-			format, outputPath := getOutputFlags(cmd)
-			return app.OutputResult(result, format, outputPath)
+			return outputEditResult(cmd, args[0], result)
 		},
 	}
 	return cmd
@@ -815,6 +827,9 @@ When operation, source, or ref are omitted, you are prompted to pick them
 On a shape mismatch between the operation and the ref, it warns; with
 --transform-stub it scaffolds identity transform stubs ($) for you to
 complete. Use --force to re-point an existing binding.
+
+Pass '-' as <obi-path> to read the document from stdin and write the
+modified document to stdout (the summary moves to stderr).
 
 Examples:
   ob op bind interface.json                              # interactive picker
@@ -857,8 +872,7 @@ Examples:
 			if err != nil {
 				return app.ExitResult{Code: 1, Message: fmt.Sprintf("bind operation: %v", err), ToStderr: true}
 			}
-			format, outputPath := getOutputFlags(cmd)
-			return app.OutputResult(result, format, outputPath)
+			return outputEditResult(cmd, obiPath, result)
 		},
 	}
 	cmd.Flags().BoolVar(&transformStub, "transform-stub", false, "scaffold identity transform stub(s) on shape mismatch")
@@ -876,6 +890,9 @@ func newOperationUnbindCmd() *cobra.Command {
 		Long: `Remove the binding connecting an operation to a source, leaving the
 operation in place. Useful for re-pointing to a different backend.
 
+Pass '-' as <obi-path> to read the document from stdin and write the
+modified document to stdout (the summary moves to stderr).
+
 Examples:
   ob op unbind interface.json greet openapi`,
 		Args: cobra.ExactArgs(3),
@@ -884,8 +901,7 @@ Examples:
 			if err != nil {
 				return app.ExitResult{Code: 1, Message: fmt.Sprintf("unbind operation: %v", err), ToStderr: true}
 			}
-			format, outputPath := getOutputFlags(cmd)
-			return app.OutputResult(result, format, outputPath)
+			return outputEditResult(cmd, args[0], result)
 		},
 	}
 	return cmd
@@ -972,6 +988,9 @@ reference the key verbatim.
 The override is stored in the operation's x-ob metadata. It survives
 'ob source pull', and is stripped by 'ob purify' along with the rest of x-ob.
 
+Pass '-' as <obi-path> to read the document from stdin and write the
+modified document to stdout (the summary moves to stderr).
+
 Examples:
   ob op codegen-name interface.json openbindings.binding-invoker.invokeBinding invokeBinding
   ob op codegen-name interface.json invokeBinding --clear`,
@@ -991,8 +1010,7 @@ Examples:
 			if err != nil {
 				return app.ExitResult{Code: 1, Message: fmt.Sprintf("set codegen name: %v", err), ToStderr: true}
 			}
-			format, outputPath := getOutputFlags(cmd)
-			return app.OutputResult(result, format, outputPath)
+			return outputEditResult(cmd, args[0], result)
 		},
 	}
 	cmd.Flags().BoolVar(&clear, "clear", false, "remove the codegen-name override")
@@ -1009,6 +1027,9 @@ func newOperationRenameCmd() *cobra.Command {
 Updates the operation key, all binding 'operation' fields that reference
 it, and binding keys that follow the <operation>.<source> convention.
 
+Pass '-' as <obi-path> to read the document from stdin and write the
+modified document to stdout (the summary moves to stderr).
+
 Examples:
   ob operation rename interface.json hello greet
   ob op rename interface.json config.set settings.update`,
@@ -1018,8 +1039,7 @@ Examples:
 			if err != nil {
 				return app.ExitResult{Code: 1, Message: fmt.Sprintf("rename %s → %s in %s: %v", args[1], args[2], args[0], err), ToStderr: true}
 			}
-			format, outputPath := getOutputFlags(cmd)
-			return app.OutputResult(result, format, outputPath)
+			return outputEditResult(cmd, args[0], result)
 		},
 	}
 
@@ -1042,6 +1062,9 @@ is shown because the next 'ob source pull' will re-derive them. Use --force
 to suppress the warning, or 'ob source remove' to stop deriving from the
 source entirely.
 
+Pass '-' as <obi-path> to read the document from stdin and write the
+modified document to stdout (the summary moves to stderr).
+
 Examples:
   ob operation remove interface.json hello
   ob op remove interface.json config.set config.get
@@ -1051,63 +1074,15 @@ Examples:
 			obiPath := args[0]
 			keys := args[1:]
 
-			// Warn about source-owned operations unless --force.
-			if !force {
-				if warning := checkSourceOwnedOps(obiPath, keys); warning != "" {
-					return app.ExitResult{Code: 1, Message: warning, ToStderr: true}
-				}
-			}
-
-			result, err := app.OperationRemove(obiPath, keys)
+			result, err := app.OperationRemove(obiPath, keys, force)
 			if err != nil {
 				return app.ExitResult{Code: 1, Message: fmt.Sprintf("remove %v from %s: %v", keys, obiPath, err), ToStderr: true}
 			}
-			format, outputPath := getOutputFlags(cmd)
-			return app.OutputResult(result, format, outputPath)
+			return outputEditResult(cmd, obiPath, result)
 		},
 	}
 
 	cmd.Flags().BoolVar(&force, "force", false, "remove source-owned operations without warning")
 
 	return cmd
-}
-
-// checkSourceOwnedOps loads the OBI and returns a warning string if any of
-// the given operation keys are source-owned (derived from a registered
-// source). Returns "" if none are.
-func checkSourceOwnedOps(obiPath string, keys []string) string {
-	result, err := app.OperationList(obiPath, "")
-	if err != nil {
-		return "" // let the actual remove call surface the error
-	}
-
-	sourceOwned := map[string]bool{}
-	for _, op := range result {
-		if app.IsSourceOwned(op.Operation.LosslessFields) {
-			sourceOwned[op.Key] = true
-		}
-	}
-
-	var warn []string
-	for _, key := range keys {
-		if sourceOwned[key] {
-			warn = append(warn, key)
-		}
-	}
-
-	if len(warn) == 0 {
-		return ""
-	}
-
-	return "source-owned operations (the next 'ob source pull' will re-derive them): " +
-		joinKeys(warn) +
-		"\nuse --force to remove anyway, or 'ob source remove' to stop deriving from the source"
-}
-
-func joinKeys(keys []string) string {
-	quoted := make([]string, len(keys))
-	for i, k := range keys {
-		quoted[i] = "\"" + k + "\""
-	}
-	return strings.Join(quoted, ", ")
 }

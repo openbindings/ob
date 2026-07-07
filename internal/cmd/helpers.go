@@ -13,6 +13,18 @@ func getOutputFlags(c *cobra.Command) (format string, outputPath string) {
 	return format, outputPath
 }
 
+// outputEditResult prints an editing command's summary. On the filter lane —
+// the command's document argument is `-`, so the modified document rides
+// stdout — the summary moves to stderr (sed semantics); otherwise it behaves
+// exactly like OutputResult.
+func outputEditResult(cmd *cobra.Command, docArg string, result any) error {
+	format, outputPath := getOutputFlags(cmd)
+	if docArg == app.StdinLocator {
+		return app.OutputResultStderr(result, format, outputPath)
+	}
+	return app.OutputResult(result, format, outputPath)
+}
+
 // validateSourceModeArgs validates the mutual exclusion between positional OBI args
 // and --from-sources / --only flags used by diff and merge commands.
 func validateSourceModeArgs(args []string, fromSources bool, onlySource string) error {

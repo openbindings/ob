@@ -11,13 +11,14 @@ import (
 
 // SourceAddInput represents input for adding a source to an OBI file.
 type SourceAddInput struct {
-	OBIPath  string // path to the OBI file
-	Format   string // e.g. "usage@2.13.1"
-	Location string // path to the source (relative to CWD)
-	Key      string // explicit key override (optional)
-	Resolve  string // resolve mode: "location" (default) or "content"
-	URI      string // explicit published URI override (optional)
-	Delegate string // delegate that handles this source (e.g. "ob")
+	OBIPath     string // path to the OBI file
+	Format      string // e.g. "usage@2.13.1"
+	Location    string // path to the source (relative to CWD)
+	Key         string // explicit key override (optional)
+	Resolve     string // resolve mode: "location" (default) or "content"
+	URI         string // explicit published URI override (optional)
+	Delegate    string // delegate that handles this source (e.g. "ob")
+	Description string // human-readable description for the source entry (optional)
 }
 
 // SourceAddOutput represents the result of adding a source.
@@ -189,7 +190,8 @@ func SourceAdd(input SourceAddInput) (SourceAddOutput, error) {
 
 	// Build the source entry.
 	src := openbindings.Source{
-		Format: input.Format,
+		Format:      input.Format,
+		Description: input.Description,
 	}
 
 	// Build x-ob metadata.

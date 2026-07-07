@@ -27,9 +27,13 @@ This is the authorship entry point. Populate the new interface with
 (derive from a binding source), and 'ob operation bind' (wire an op to a
 source). To satisfy a published interface, see 'ob operation alias add'.
 
+Pass '-' as <path> to write the new document to stdout instead of a file
+(the summary moves to stderr), ready to pipe into further edits.
+
 Examples:
   ob new interface.obi.json --name "Acme API" --version 0.1.0
-  ob new svc.obi.json --name svc --version 1.0.0 --description "My service"`,
+  ob new svc.obi.json --name svc --version 1.0.0 --description "My service"
+  ob new - --name svc | ob operation add - greet`,
 		Args: cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			result, err := app.NewInterface(app.NewInterfaceInput{
@@ -43,8 +47,7 @@ Examples:
 			if err != nil {
 				return app.ExitResult{Code: 1, Message: fmt.Sprintf("create interface: %v", err), ToStderr: true}
 			}
-			format, outputPath := getOutputFlags(cmd)
-			return app.OutputResult(result, format, outputPath)
+			return outputEditResult(cmd, args[0], result)
 		},
 	}
 
@@ -84,6 +87,9 @@ func newMetaSetCmd() *cobra.Command {
 		Long: `Edit an interface's top-level metadata. Only the flags you pass are
 changed.
 
+Pass '-' as <obi-path> to read the document from stdin and write the
+modified document to stdout (the summary moves to stderr).
+
 Examples:
   ob meta set interface.obi.json --version 0.2.0
   ob meta set interface.obi.json --name "Acme API" --description "..."`,
@@ -103,8 +109,7 @@ Examples:
 			if err != nil {
 				return app.ExitResult{Code: 1, Message: fmt.Sprintf("set metadata: %v", err), ToStderr: true}
 			}
-			format, outputPath := getOutputFlags(cmd)
-			return app.OutputResult(result, format, outputPath)
+			return outputEditResult(cmd, args[0], result)
 		},
 	}
 

@@ -491,7 +491,7 @@
       }
     },
     "openbindings.ob.pullSource": {
-      "description": "Derive operations and bindings from registered sources into the interface \u2014 create on first pull, overwrite + prune source-owned objects on later pulls, leave hand-authored objects untouched. Returns the change log of affected operation and binding keys.",
+      "description": "Derive operations and bindings from registered sources into the interface \u2014 create on first pull, overwrite + prune source-owned objects on later pulls, leave hand-authored objects untouched. Returns the resulting interface document plus the change log of affected operation and binding keys.",
       "input": {
         "$ref": "#/schemas/PullSourceInput"
       },
@@ -2534,8 +2534,11 @@
     },
     "SourcePullOutput": {
       "type": "object",
-      "description": "The change log a `source pull` produced: the source-owned operations and bindings added, updated, or pruned, the sources pulled and skipped, and any warnings.",
+      "description": "The result of a `source pull`: the resulting interface document plus the change log — the source-owned operations and bindings added, updated, or pruned, the sources pulled and skipped, and any warnings.",
       "properties": {
+        "interface": {
+          "$ref": "#/schemas/OpenBindingsInterface"
+        },
         "sources": {
           "type": "array",
           "items": {
@@ -2593,6 +2596,9 @@
           }
         }
       },
+      "required": [
+        "interface"
+      ],
       "additionalProperties": false
     },
     "SourceStatus": {

@@ -124,7 +124,7 @@ cmd "new" help="Create an empty OpenBindings interface document" {
   flag "--force" help="Overwrite an existing file"
   flag "-o --output <path>" help="Write output to file"
   flag "-F --format <format>" help="Output format: json|yaml|text"
-  arg "<path>" help="Path for the new OBI file"
+  arg "<path>" help="Path for the new OBI file (- writes the document to stdout)"
 }
 
 cmd "meta" help="Manage interface-level metadata" subcommand_required=true {
@@ -134,7 +134,7 @@ cmd "meta" help="Manage interface-level metadata" subcommand_required=true {
     flag "--description <desc>" help="Set the interface description"
     flag "-o --output <path>" help="Write output to file"
     flag "-F --format <format>" help="Output format: json|yaml|text"
-    arg "<obi-path>" help="Path to the OBI file"
+    arg "<obi-path>" help="Path to the OBI file (- reads stdin and writes the modified document to stdout)"
   }
 }
 
@@ -163,17 +163,18 @@ cmd "source" help="Manage source references on an OBI" subcommand_required=true 
     flag "--resolve <mode>" help="Resolution mode: location (default) or content"
     flag "--uri <url>" help="Explicit published URI for location mode"
     flag "--delegate <delegate>" help="Delegate to use for this source (skips detection)"
+    flag "--description <desc>" help="Human-readable description for this source"
     flag "-y --yes" help="Accept first capable delegate without prompting"
     flag "-o --output <path>" help="Write output to file"
     flag "-F --format <format>" help="Output format: json|yaml|text"
-    arg "<obi-path>" help="Path to the OBI file"
+    arg "<obi-path>" help="Path to the OBI file (- reads stdin and writes the modified document to stdout)"
     arg "<source>" help="Source path or format:path (e.g., openapi.json or usage@2.0.0:./cli.kdl)"
   }
   cmd "pull" help="Derive operations and bindings from registered sources" {
     flag "--pure" help="Strip x-ob metadata from the output (publish-clean); requires -o"
     flag "-o --output <path>" help="Write output to file"
     flag "-F --format <format>" help="Output format: json|yaml|text"
-    arg "<obi-path>" help="Path to the OBI file"
+    arg "<obi-path>" help="Path to the OBI file (- reads stdin and writes the modified document to stdout)"
     arg "[source-key]..." help="Sources to pull (default: all)"
   }
   cmd "list" help="List source references on an OBI" {
@@ -186,7 +187,7 @@ cmd "source" help="Manage source references on an OBI" subcommand_required=true 
     alias "rm"
     flag "-o --output <path>" help="Write output to file"
     flag "-F --format <format>" help="Output format: json|yaml|text"
-    arg "<obi-path>" help="Path to the OBI file"
+    arg "<obi-path>" help="Path to the OBI file (- reads stdin and writes the modified document to stdout)"
     arg "<key>" help="Source key to remove"
   }
 }
@@ -202,7 +203,7 @@ cmd "operation" help="Manage and invoke operations on an OBI" subcommand_require
     flag "--idempotent <bool>" help="Whether the operation is idempotent (true/false)"
     flag "-o --output <path>" help="Write output to file"
     flag "-F --format <format>" help="Output format: json|yaml|text"
-    arg "<obi-path>" help="Path to the OBI file"
+    arg "<obi-path>" help="Path to the OBI file (- reads stdin and writes the modified document to stdout)"
     arg "<key>" help="Key for the new operation"
   }
   cmd "alias" help="Manage an operation's satisfaction aliases" subcommand_required=true {
@@ -210,7 +211,7 @@ cmd "operation" help="Manage and invoke operations on an OBI" subcommand_require
     cmd "add" help="Add satisfaction alias(es) to an operation" {
       flag "-o --output <path>" help="Write output to file"
       flag "-F --format <format>" help="Output format: json|yaml|text"
-      arg "<obi-path>" help="Path to the OBI file"
+      arg "<obi-path>" help="Path to the OBI file (- reads stdin and writes the modified document to stdout)"
       arg "<operation>" help="Operation key or identifier"
       arg "<alias>..." help="Satisfaction alias(es) to add"
     }
@@ -218,7 +219,7 @@ cmd "operation" help="Manage and invoke operations on an OBI" subcommand_require
       alias "rm"
       flag "-o --output <path>" help="Write output to file"
       flag "-F --format <format>" help="Output format: json|yaml|text"
-      arg "<obi-path>" help="Path to the OBI file"
+      arg "<obi-path>" help="Path to the OBI file (- reads stdin and writes the modified document to stdout)"
       arg "<operation>" help="Operation key or identifier"
       arg "<alias>..." help="Satisfaction alias(es) to remove"
     }
@@ -241,20 +242,20 @@ cmd "operation" help="Manage and invoke operations on an OBI" subcommand_require
     flag "--own" help="Take ownership of a source-owned operation (detach) before editing"
     flag "-o --output <path>" help="Write output to file"
     flag "-F --format <format>" help="Output format: json|yaml|text"
-    arg "<obi-path>" help="Path to the OBI file"
+    arg "<obi-path>" help="Path to the OBI file (- reads stdin and writes the modified document to stdout)"
     arg "<operation>" help="Operation key or identifier"
   }
   cmd "detach" help="Convert a source-owned operation to hand-authored" {
     flag "-o --output <path>" help="Write output to file"
     flag "-F --format <format>" help="Output format: json|yaml|text"
-    arg "<obi-path>" help="Path to the OBI file"
+    arg "<obi-path>" help="Path to the OBI file (- reads stdin and writes the modified document to stdout)"
     arg "<operation>" help="Operation key or identifier"
   }
   cmd "codegen-name" help="Set the symbol name 'ob codegen' emits for an operation" {
     flag "--clear" help="Remove the codegen-name override"
     flag "-o --output <path>" help="Write output to file"
     flag "-F --format <format>" help="Output format: json|yaml|text"
-    arg "<obi-path>" help="Path to the OBI file"
+    arg "<obi-path>" help="Path to the OBI file (- reads stdin and writes the modified document to stdout)"
     arg "<operation>" help="Operation key or identifier"
     arg "[name]" help="New codegen symbol name (omit with --clear)"
   }
@@ -262,7 +263,7 @@ cmd "operation" help="Manage and invoke operations on an OBI" subcommand_require
     flag "--clear" help="Remove the output-schema election"
     flag "-o --output <path>" help="Write output to file"
     flag "-F --format <format>" help="Output format: json|yaml|text"
-    arg "<obi-path>" help="Path to the OBI file"
+    arg "<obi-path>" help="Path to the OBI file (- reads stdin and writes the modified document to stdout)"
     arg "<operation>" help="Operation key or identifier"
     arg "[schema]" help="Output schema: inline JSON, @file, or - for stdin (omit with --clear)"
   }
@@ -274,7 +275,7 @@ cmd "operation" help="Manage and invoke operations on an OBI" subcommand_require
     flag "--force" help="Overwrite an existing binding for this operation+source (re-point)"
     flag "-o --output <path>" help="Write output to file"
     flag "-F --format <format>" help="Output format: json|yaml|text"
-    arg "<obi-path>" help="Path to the OBI file"
+    arg "<obi-path>" help="Path to the OBI file (- reads stdin and writes the modified document to stdout)"
     arg "[operation]" help="Operation key or identifier"
     arg "[source]" help="Source key"
     arg "[ref]" help="Source ref to bind"
@@ -282,7 +283,7 @@ cmd "operation" help="Manage and invoke operations on an OBI" subcommand_require
   cmd "unbind" help="Remove a binding from an operation (keep the operation)" {
     flag "-o --output <path>" help="Write output to file"
     flag "-F --format <format>" help="Output format: json|yaml|text"
-    arg "<obi-path>" help="Path to the OBI file"
+    arg "<obi-path>" help="Path to the OBI file (- reads stdin and writes the modified document to stdout)"
     arg "<operation>" help="Operation key or identifier"
     arg "<source>" help="Source key whose binding to remove"
   }
@@ -316,7 +317,7 @@ cmd "operation" help="Manage and invoke operations on an OBI" subcommand_require
     alias "mv"
     flag "-o --output <path>" help="Write output to file"
     flag "-F --format <format>" help="Output format: json|yaml|text"
-    arg "<obi-path>" help="Path to the OBI file"
+    arg "<obi-path>" help="Path to the OBI file (- reads stdin and writes the modified document to stdout)"
     arg "<old-key>" help="Current operation key"
     arg "<new-key>" help="New operation key"
   }
@@ -325,7 +326,7 @@ cmd "operation" help="Manage and invoke operations on an OBI" subcommand_require
     flag "--force" help="Remove source-owned operations without warning"
     flag "-o --output <path>" help="Write output to file"
     flag "-F --format <format>" help="Output format: json|yaml|text"
-    arg "<obi-path>" help="Path to the OBI file"
+    arg "<obi-path>" help="Path to the OBI file (- reads stdin and writes the modified document to stdout)"
     arg "<key>..." help="Operation keys to remove"
   }
 }

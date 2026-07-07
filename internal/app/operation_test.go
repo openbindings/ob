@@ -252,7 +252,7 @@ func TestOperationRemove_Basic(t *testing.T) {
 	}
 	obiPath := writeInterface(t, dir, "test.obi.json", obiData)
 
-	result, err := OperationRemove(obiPath, []string{"hello"})
+	result, err := OperationRemove(obiPath, []string{"hello"}, false)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -285,7 +285,7 @@ func TestOperationRemove_Multiple(t *testing.T) {
 		"help":  map[string]any{},
 	}))
 
-	result, err := OperationRemove(obiPath, []string{"hello", "info"})
+	result, err := OperationRemove(obiPath, []string{"hello", "info"}, false)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -306,7 +306,7 @@ func TestOperationRemove_NotFound(t *testing.T) {
 		"hello": map[string]any{},
 	}))
 
-	out, err := OperationRemove(obiPath, []string{"nonexistent"})
+	out, err := OperationRemove(obiPath, []string{"nonexistent"}, false)
 	if err != nil {
 		t.Fatalf("removing an absent operation should succeed (tolerant): %v", err)
 	}
@@ -322,7 +322,7 @@ func TestOperationRemove_PartialNotFound(t *testing.T) {
 	}))
 
 	// One exists, one doesn't — the present one is removed, the absent one is a no-op.
-	out, err := OperationRemove(obiPath, []string{"hello", "nonexistent"})
+	out, err := OperationRemove(obiPath, []string{"hello", "nonexistent"}, false)
 	if err != nil {
 		t.Fatalf("partial remove should succeed: %v", err)
 	}
@@ -337,7 +337,7 @@ func TestOperationRemove_PartialNotFound(t *testing.T) {
 }
 
 func TestOperationRemove_Empty(t *testing.T) {
-	_, err := OperationRemove("/nonexistent", []string{})
+	_, err := OperationRemove("/nonexistent", []string{}, false)
 	if err == nil {
 		t.Fatal("expected error for empty keys")
 	}

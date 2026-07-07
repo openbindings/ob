@@ -49,7 +49,8 @@ func NewInterface(input NewInterfaceInput) (NewInterfaceOutput, error) {
 	if input.Path == "" {
 		return NewInterfaceOutput{}, fmt.Errorf("output path is required")
 	}
-	if !input.Force {
+	// `-` writes to stdout (the filter lane); there is no file to overwrite.
+	if !input.Force && input.Path != StdinLocator {
 		if _, err := os.Stat(input.Path); err == nil {
 			return NewInterfaceOutput{}, fmt.Errorf("%s already exists; use --force to overwrite", input.Path)
 		}

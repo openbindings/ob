@@ -2501,7 +2501,7 @@
     },
     "SourcePullOutput": {
       "additionalProperties": false,
-      "description": "The change log a `source pull` produced: the source-owned operations and bindings added, updated, or pruned, the sources pulled and skipped, and any warnings.",
+      "description": "The result of a `source pull`: the resulting interface document plus the change log — the source-owned operations and bindings added, updated, or pruned, the sources pulled and skipped, and any warnings.",
       "properties": {
         "bindingsAdded": {
           "items": {
@@ -2520,6 +2520,9 @@
             "type": "string"
           },
           "type": "array"
+        },
+        "interface": {
+          "$ref": "#/schemas/OpenBindingsInterface"
         },
         "operationsAdded": {
           "items": {
@@ -2560,6 +2563,9 @@
           "type": "array"
         }
       },
+      "required": [
+        "interface"
+      ],
       "type": "object"
     },
     "SourceStatus": {

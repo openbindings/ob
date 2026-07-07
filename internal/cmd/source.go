@@ -39,6 +39,7 @@ func newSourceAddCmd() *cobra.Command {
 		resolveArg  string
 		uriArg      string
 		delegateArg string
+		description string
 		yes         bool
 	)
 
@@ -71,6 +72,9 @@ The --resolve flag controls how the source is stored in the OBI:
 
 When --resolve=location and --uri is provided, the spec location field
 uses the given URI instead of the local path.
+
+Pass '-' as <obi-path> to read the document from stdin and write the
+modified document to stdout (the summary moves to stderr).
 
 Examples:
   ob source add my.obi.json openapi.json
@@ -119,20 +123,20 @@ Examples:
 			}
 
 			result, err := app.SourceAdd(app.SourceAddInput{
-				OBIPath:  obiPath,
-				Format:   src.Format,
-				Location: src.Location,
-				Key:      sourceKey,
-				Resolve:  resolveArg,
-				URI:      uriArg,
-				Delegate: delegateID,
+				OBIPath:     obiPath,
+				Format:      src.Format,
+				Location:    src.Location,
+				Key:         sourceKey,
+				Resolve:     resolveArg,
+				URI:         uriArg,
+				Delegate:    delegateID,
+				Description: description,
 			})
 			if err != nil {
 				return app.ExitResult{Code: 1, Message: err.Error(), ToStderr: true}
 			}
 
-			format, outputPath := getOutputFlags(cmd)
-			return app.OutputResult(result, format, outputPath)
+			return outputEditResult(cmd, obiPath, result)
 		},
 	}
 
@@ -140,6 +144,7 @@ Examples:
 	cmd.Flags().StringVar(&resolveArg, "resolve", "", "resolution mode: location (default) or content")
 	cmd.Flags().StringVar(&uriArg, "uri", "", "explicit published URI for location mode")
 	cmd.Flags().StringVar(&delegateArg, "delegate", "", "delegate to use for this source (skips detection)")
+	cmd.Flags().StringVar(&description, "description", "", "human-readable description for this source")
 	cmd.Flags().BoolVarP(&yes, "yes", "y", false, "accept first capable delegate without prompting")
 
 	return cmd
@@ -279,6 +284,10 @@ With no source keys, every registered source is pulled.
 Use --pure with -o to write a clean, spec-only copy (x-ob metadata
 stripped) suitable for publishing.
 
+Pass '-' as <obi-path> to read the document from stdin and write the
+pulled document to stdout (the change log moves to stderr). Relative
+source locations then resolve against the current directory.
+
 Examples:
   ob source pull interface.json
   ob source pull interface.json openapi
@@ -297,7 +306,14 @@ Examples:
 			if err != nil {
 				return app.ExitResult{Code: 1, Message: fmt.Sprintf("pull sources in %s: %v", args[0], err), ToStderr: true}
 			}
-			return app.OutputResult(result, format, outputPath)
+			// -o names the document's destination (SourcePull wrote it there);
+			// the summary goes to the terminal, never to that same path. With
+			// `-` and no -o the document rode stdout, so the summary moves to
+			// stderr (the filter lane).
+			if args[0] == app.StdinLocator && outputPath == "" {
+				return app.OutputResultStderr(result, format, "")
+			}
+			return app.OutputResult(result, format, "")
 		},
 	}
 
@@ -334,7 +350,10 @@ The source entry and the bindings that reference it are removed. Operations
 are always preserved — ones left with no bindings at all are listed in a
 warning so you can decide whether to keep, rebind, or remove them.
 
-Removing a source that is not registered succeeds with nothing removed.`,
+Removing a source that is not registered succeeds with nothing removed.
+
+Pass '-' as <obi-path> to read the document from stdin and write the
+modified document to stdout (the summary moves to stderr).`,
 		Args: cobra.ExactArgs(2),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			result, err := app.SourceRemove(args[0], args[1])
@@ -342,8 +361,7 @@ Removing a source that is not registered succeeds with nothing removed.`,
 				return app.ExitResult{Code: 1, Message: err.Error(), ToStderr: true}
 			}
 
-			format, outputPath := getOutputFlags(cmd)
-			return app.OutputResult(result, format, outputPath)
+			return outputEditResult(cmd, args[0], result)
 		},
 	}
 

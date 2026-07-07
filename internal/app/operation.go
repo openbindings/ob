@@ -3,6 +3,7 @@ package app
 import (
 	"fmt"
 	"sort"
+	"strconv"
 	"strings"
 
 	"github.com/openbindings/openbindings-go"
@@ -243,8 +244,12 @@ func (o OperationRemoveOutput) Render() string {
 	return sb.String()
 }
 
-// OperationRemove removes one or more operations and their associated bindings from an OBI.
-func OperationRemove(obiPath string, keys []string) (OperationRemoveOutput, error) {
+// OperationRemove removes one or more operations and their associated bindings
+// from an OBI. Removing a source-owned operation (the next `source pull` would
+// re-derive it) is refused unless force is set — checked here, on the single
+// document read, so the refusal also holds for a document arriving on stdin
+// (a second pre-check read would drain the stream).
+func OperationRemove(obiPath string, keys []string, force bool) (OperationRemoveOutput, error) {
 	if len(keys) == 0 {
 		return OperationRemoveOutput{}, fmt.Errorf("no operation keys specified")
 	}
@@ -252,6 +257,20 @@ func OperationRemove(obiPath string, keys []string) (OperationRemoveOutput, erro
 	iface, err := loadInterfaceFile(obiPath)
 	if err != nil {
 		return OperationRemoveOutput{}, fmt.Errorf("load OBI: %w", err)
+	}
+
+	if !force {
+		var owned []string
+		for _, key := range keys {
+			if op, exists := iface.Operations[key]; exists && IsSourceOwned(op.LosslessFields) {
+				owned = append(owned, strconv.Quote(key))
+			}
+		}
+		if len(owned) > 0 {
+			return OperationRemoveOutput{}, fmt.Errorf(
+				"source-owned operations (the next 'ob source pull' will re-derive them): %s\nuse --force to remove anyway, or 'ob source remove' to stop deriving from the source",
+				strings.Join(owned, ", "))
+		}
 	}
 
 	// Remove the operations that are present; an absent key is a tolerant no-op.

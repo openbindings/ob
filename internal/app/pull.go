@@ -65,17 +65,21 @@ type SourcePullInput struct {
 }
 
 // SourcePullOutput reports what a pull changed. Each field is the set of keys
-// affected (count = len); no redundant counts.
+// affected (count = len); no redundant counts. Interface carries the resulting
+// document itself — contract-required, like ConformResult/MergeResult: a wire
+// consumer pulling an inline interface has no file to read the result back
+// from, so the report is the only channel that can return it.
 type SourcePullOutput struct {
-	Sources           []string `json:"sources,omitempty"`
-	Skipped           []string `json:"skipped,omitempty"`
-	OperationsAdded   []string `json:"operationsAdded,omitempty"`
-	OperationsUpdated []string `json:"operationsUpdated,omitempty"`
-	OperationsPruned  []string `json:"operationsPruned,omitempty"`
-	BindingsAdded     []string `json:"bindingsAdded,omitempty"`
-	BindingsUpdated   []string `json:"bindingsUpdated,omitempty"`
-	BindingsPruned    []string `json:"bindingsPruned,omitempty"`
-	Warnings          []string `json:"warnings,omitempty"`
+	Interface         *openbindings.Interface `json:"interface"`
+	Sources           []string                `json:"sources,omitempty"`
+	Skipped           []string                `json:"skipped,omitempty"`
+	OperationsAdded   []string                `json:"operationsAdded,omitempty"`
+	OperationsUpdated []string                `json:"operationsUpdated,omitempty"`
+	OperationsPruned  []string                `json:"operationsPruned,omitempty"`
+	BindingsAdded     []string                `json:"bindingsAdded,omitempty"`
+	BindingsUpdated   []string                `json:"bindingsUpdated,omitempty"`
+	BindingsPruned    []string                `json:"bindingsPruned,omitempty"`
+	Warnings          []string                `json:"warnings,omitempty"`
 }
 
 // Render returns a human-friendly representation.
@@ -207,6 +211,8 @@ func SourcePull(input SourcePullInput) (SourcePullOutput, error) {
 	if err := WriteInterfaceToPath(outputPath, iface, input.Format); err != nil {
 		return SourcePullOutput{}, fmt.Errorf("write OBI: %w", err)
 	}
+	// After the --pure strip, so the report carries exactly what was written.
+	out.Interface = iface
 
 	sort.Strings(out.OperationsAdded)
 	sort.Strings(out.OperationsUpdated)
