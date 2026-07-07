@@ -73,11 +73,14 @@ var CommandByShort = map[string]string{
 }
 
 // WireInputByShort names the machine-natured commands whose whole wire input
-// rides one --input flag as JSON (the relocated wireInput props): binding
-// invoke/prepare keep the flag by design; inspect/synthesize are audited in
-// batch 5. setContext converted to stdin delivery in batch 3 (the Context
-// value rides stdin so credentials never touch argv; see the adaptation and
-// delivery tables in GenerateBoundCLI).
+// rides one --input flag as JSON (the relocated wireInput props). The batch-5
+// audit RATIFIED all four: they are the delegate-facing derivation and
+// invocation surface (detect → inspect → synthesize; invoke/prepare), their
+// wire inputs are nested, content-bearing objects with no natural argv shape,
+// and --input implies wire-shaped JSON output on each. setContext converted
+// to stdin delivery in batch 3 (the Context value rides stdin so credentials
+// never touch argv; see the adaptation and delivery tables in
+// GenerateBoundCLI).
 var WireInputByShort = map[string]string{
 	"inspectSource":       "input",
 	"invokeBinding":       "input",
@@ -91,6 +94,28 @@ var exitOKByShort = map[string][]int{
 	"compareInterfaces":   {0, 1},
 	"reportCompatibility": {0, 1},
 	"validateInterface":   {0, 1},
+}
+
+// bindingNoteByShort stamps a description on the bound bindings whose exec
+// realization deliberately differs from the plain unary value-in/value-out
+// shape — the explicit note the wire-conformance loop's exit criteria
+// require (every binding conformant OR carrying its exclusion note). Two
+// classes:
+//
+//   - Foreground ops (cohort F): the command runs a server/demo in the
+//     foreground until interrupted; the contract already says they are not
+//     meaningfully invoked over a remote transport.
+//   - Frame ops (cohort S): invokeBinding/invokeOperation are declared as
+//     bidirectional frame streams. A unary exec transport cannot carry the
+//     frame grammar; the CLI is the contract's UNARY REALIZATION (the same
+//     collapse ob itself uses to drive exec delegates), and the frame
+//     stream rides the frame lanes (ob start's WS transport).
+var bindingNoteByShort = map[string]string{
+	"startServer":     "Foreground process: runs until interrupted. Not meaningfully invoked over the exec lane; the binding exists so the bound OBI is complete.",
+	"startMCPServer":  "Foreground process: runs until interrupted. Not meaningfully invoked over the exec lane; the binding exists so the bound OBI is complete.",
+	"demo":            "Foreground process: runs until interrupted. Not meaningfully invoked over the exec lane; the binding exists so the bound OBI is complete.",
+	"invokeBinding":   "Unary realization of the frame contract: --input carries the open payload plus at most one inline input value, and outputs print as JSON values — not frames. The bidirectional frame stream rides the frame lane (ob start).",
+	"invokeOperation": "Unary realization of the frame contract: the CLI takes an interface locator, an operation, and at most one --input value, and prints output values — not frames. The bidirectional frame stream rides the frame lane (ob start).",
 }
 
 // GenerateBoundCLI builds the bound CLI realization of ob's interface: the
@@ -258,9 +283,10 @@ func GenerateBoundCLI(contractPath, usagePath string) (*openbindings.Interface, 
 		}
 
 		be := openbindings.BindingEntry{
-			Operation: key,
-			Source:    "usage",
-			Ref:       cmdPath, // the format's own grammar: the command path
+			Operation:   key,
+			Source:      "usage",
+			Ref:         cmdPath, // the format's own grammar: the command path
+			Description: bindingNoteByShort[short],
 		}
 		if adaptation, ok := adaptationByShort[short]; ok {
 			be.InputTransform = &openbindings.TransformOrRef{Inline: adaptation}
@@ -588,5 +614,18 @@ func GenerateBoundCLIRecipe(contract *openbindings.Interface) string {
 	sb.WriteString("\nRoute tokens are the Go SDK's `usage.Route*` channel vocabulary: `stdin-dash`\n")
 	sb.WriteString("(bytes to stdin, `-` in the field's slot), `stdin` (slotless pure channel),\n")
 	sb.WriteString("`file` (temp-file path in the slot), `argv` (the default).\n")
+
+	sb.WriteString("\n## Special bindings\n\n")
+	sb.WriteString("These bindings carry an explicit note (also stamped on the binding entry's\n")
+	sb.WriteString("`description` in the bound OBI) because their exec realization deliberately\n")
+	sb.WriteString("differs from the plain unary value-in/value-out shape:\n\n")
+	noted := make([]string, 0, len(bindingNoteByShort))
+	for short := range bindingNoteByShort {
+		noted = append(noted, short)
+	}
+	sort.Strings(noted)
+	for _, short := range noted {
+		fmt.Fprintf(&sb, "- **`ob %s`** — %s\n", CommandByShort[short], bindingNoteByShort[short])
+	}
 	return sb.String()
 }

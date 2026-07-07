@@ -43,6 +43,7 @@
       "source": "usage"
     },
     "openbindings.ob.demo.usage": {
+      "description": "Foreground process: runs until interrupted. Not meaningfully invoked over the exec lane; the binding exists so the bound OBI is complete.",
       "operation": "openbindings.ob.demo",
       "ref": "demo",
       "source": "usage"
@@ -83,12 +84,14 @@
       "source": "usage"
     },
     "openbindings.ob.invokeBinding.usage": {
+      "description": "Unary realization of the frame contract: --input carries the open payload plus at most one inline input value, and outputs print as JSON values — not frames. The bidirectional frame stream rides the frame lane (ob start).",
       "inputTransform": "{ \"input\": $string($$) }",
       "operation": "openbindings.ob.invokeBinding",
       "ref": "binding invoke",
       "source": "usage"
     },
     "openbindings.ob.invokeOperation.usage": {
+      "description": "Unary realization of the frame contract: the CLI takes an interface locator, an operation, and at most one --input value, and prints output values — not frames. The bidirectional frame stream rides the frame lane (ob start).",
       "operation": "openbindings.ob.invokeOperation",
       "ref": "operation invoke",
       "source": "usage"
@@ -274,11 +277,13 @@
       "source": "usage"
     },
     "openbindings.ob.startMCPServer.usage": {
+      "description": "Foreground process: runs until interrupted. Not meaningfully invoked over the exec lane; the binding exists so the bound OBI is complete.",
       "operation": "openbindings.ob.startMCPServer",
       "ref": "mcp",
       "source": "usage"
     },
     "openbindings.ob.startServer.usage": {
+      "description": "Foreground process: runs until interrupted. Not meaningfully invoked over the exec lane; the binding exists so the bound OBI is complete.",
       "operation": "openbindings.ob.startServer",
       "ref": "start",
       "source": "usage"

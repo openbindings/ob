@@ -18,13 +18,16 @@ import (
 // TestWireConformance_ExecLane drives operations through the bound CLI OBI's
 // exec lane exactly as a delegate registrar would: resolve the bound OBI,
 // operation-invoke, exec the real `ob` binary, parse stdout. Every output is
-// then validated against the operation's output schema (the SDK's OBI-T-08
-// machinery via ValidateAgainstSchema — ob's own invoke path does not enforce
-// T-08 yet; see the tracker's parked decision), so an op passing here is
-// wire-conformant end to end: input field mapping, argv, exec, output shape.
+// validated against the operation's output schema (the SDK's OBI-T-08
+// machinery via ValidateAgainstSchema, independently of ob's own applyT08
+// enforcement), so an op passing here is wire-conformant end to end: input
+// field mapping, argv, exec, output shape.
 //
-// Cohort A of the wire-conformance loop (ob-pj/wire-conformance.md): flat
-// wire inputs, -F json forced by the generated binding.
+// Coverage spans the wire-conformance loop's cohorts
+// (ob-pj/wire-conformance.md): A (flat inputs), B (--input machine lanes),
+// C (document filters: the read/analysis cases plus the editing chain).
+// Cohort F (foreground) and the frame ops (unary realizations of the frame
+// contract) are excluded by design, with notes on their binding entries.
 func TestWireConformance_ExecLane(t *testing.T) {
 	if testing.Short() {
 		t.Skip("builds and execs the real binary")
@@ -128,6 +131,14 @@ func TestWireConformance_ExecLane(t *testing.T) {
 		"operations": map[string]any{
 			"newOp": map[string]any{},
 		},
+	}
+
+	// A binding-source artifact on disk, used by the cohort-B machine-lane
+	// cases below (inspect/synthesize read it from the child's cwd) and by
+	// the editing-family chain (source add/pull/bind).
+	openapiFixture := `{"openapi":"3.1.0","info":{"title":"wire","version":"1.0.0"},"paths":{"/ping":{"get":{"operationId":"getPing","responses":{"200":{"description":"ok"}}}}}}`
+	if err := os.WriteFile(filepath.Join(workDir, "openapi.json"), []byte(openapiFixture), 0o644); err != nil {
+		t.Fatal(err)
 	}
 
 	// Ordered: later cases depend on earlier state (the initialized
@@ -248,6 +259,45 @@ func TestWireConformance_ExecLane(t *testing.T) {
 				t.Errorf("expected the merged interface in the report, got %#v", output)
 			}
 		}},
+
+		// Cohort B (machine lane): the delegate-facing derivation and
+		// preflight surface. Their whole wire input rides one --input flag
+		// as JSON (the batch-5 audit ratified inspect/synthesize as
+		// machine-natured alongside binding invoke/prepare), and --input
+		// implies wire-shaped JSON output. The frame ops (invokeBinding,
+		// invokeOperation) are NOT here: their exec bindings are the
+		// documented UNARY REALIZATION of the frame contract — a unary
+		// transport cannot carry the frame grammar, so they are excluded
+		// like cohort F, with the note stamped on their binding entries.
+		{"inspectSource", "openbindings.ob.inspectSource", map[string]any{
+			"source": map[string]any{"format": "openapi@3.1", "location": "openapi.json"},
+		}, func(t *testing.T, output any) {
+			m, _ := output.(map[string]any)
+			if targets, _ := m["targets"].([]any); len(targets) != 1 {
+				t.Errorf("expected one bindable target in the inspection, got %#v", output)
+			}
+		}},
+		{"synthesizeInterface", "openbindings.ob.synthesizeInterface", map[string]any{
+			"name":    "synth-fixture",
+			"sources": []any{map[string]any{"format": "openapi@3.1", "location": "openapi.json"}},
+		}, func(t *testing.T, output any) {
+			m, _ := output.(map[string]any)
+			ops, _ := m["operations"].(map[string]any)
+			if m["name"] != "synth-fixture" || ops["getPing"] == nil {
+				t.Errorf("expected a synthesized interface with getPing, got %#v", output)
+			}
+		}},
+		{"prepareBinding", "openbindings.ob.prepareBinding", map[string]any{
+			"source": map[string]any{
+				"format":  "openbindings.operation-graph@0.2.0",
+				"content": map[string]any{"graphs": map[string]any{"echo": map[string]any{"openbindings.operation-graph": "0.2.0", "nodes": map[string]any{"in": map[string]any{"type": "input"}, "out": map[string]any{"type": "output"}}, "edges": []any{map[string]any{"from": "in", "to": "out"}}}}},
+			},
+			"ref": "#/graphs/echo",
+		}, func(t *testing.T, output any) {
+			if output != nil {
+				t.Errorf("expected null (no context required for a pure graph), got %#v", output)
+			}
+		}},
 	}
 
 	// invokeConformant drives one operation through the exec lane and judges
@@ -310,11 +360,6 @@ func TestWireConformance_ExecLane(t *testing.T) {
 	// `interface` member). The chain authors an interface from nothing to a
 	// sourced, pulled, bound, edited document entirely over the wire; each
 	// step's output feeds the next step's input.
-	openapiFixture := `{"openapi":"3.1.0","info":{"title":"wire","version":"1.0.0"},"paths":{"/ping":{"get":{"operationId":"getPing","responses":{"200":{"description":"ok"}}}}}}`
-	if err := os.WriteFile(filepath.Join(workDir, "openapi.json"), []byte(openapiFixture), 0o644); err != nil {
-		t.Fatal(err)
-	}
-
 	// Navigation helpers over the wire documents.
 	child := func(t *testing.T, v any, path ...string) map[string]any {
 		t.Helper()
