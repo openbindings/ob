@@ -22,7 +22,7 @@ func newContextCmd() *cobra.Command {
 		Long: `Manage URL-keyed contexts for operation invocation.
 
 A context is scoped to a target URL and contains credentials, headers,
-cookies, environment variables, and metadata. When executing an operation,
+cookies, environment variables, and metadata. When invoking an operation,
 context is automatically resolved from the target URL — no manual flag needed.
 
 Credentials are stored securely in the OS keychain. Non-secret
@@ -116,7 +116,7 @@ func newContextSetCmd() *cobra.Command {
 
 The URL is the target that this context applies to (e.g., an OpenAPI spec
 URL, an exec: reference, or any binding source URL). Context is automatically
-matched when executing operations against this target.
+matched when invoking operations against this target.
 
 Credential flags (--bearer-token, --api-key, --basic) store values
 securely in the OS keychain. Pass "-" to read from stdin without
