@@ -344,7 +344,7 @@
       "aliases": [
         "openbindings.interface-synthesizer.synthesizeInterface"
       ],
-      "description": "Create an OpenBindings interface, optionally from binding source artifacts. Given one or more sources (e.g. an OpenAPI spec, a CLI usage spec), extracts operations, schemas, sources, and bindings into the new OBI; with no sources, produces an empty interface to author by hand.",
+      "description": "Synthesize an OpenBindings interface, optionally from binding source artifacts. Given one or more sources (e.g. an OpenAPI spec, a CLI usage spec), extracts operations, schemas, sources, and bindings into the new OBI; with no sources, produces an empty interface to author by hand.",
       "idempotent": true,
       "input": {
         "$ref": "#/schemas/SynthesizeInterfaceInput"

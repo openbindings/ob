@@ -18,7 +18,8 @@ func newInspectCmd() *cobra.Command {
 		Short: "Inspect a binding source and list its bindable targets",
 		Long: `Inspect a binding source artifact and report the bindable targets it
 contains, without creating an interface. Use it to preview the operations
-that "ob source pull" would derive from a spec.
+that "ob source pull" would derive from a spec. It is also the operation an
+inspect-capable delegate performs for formats ob does not natively support.
 
 Source format: [format:]path[?option...]  (same form as "ob source add")
 
