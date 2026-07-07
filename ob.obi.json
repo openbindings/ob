@@ -1472,39 +1472,6 @@
       ],
       "additionalProperties": false
     },
-    "InvokeSource": {
-      "type": "object",
-      "description": "Binding source for invocation.",
-      "properties": {
-        "format": {
-          "type": "string",
-          "description": "Format token."
-        },
-        "location": {
-          "type": "string",
-          "description": "Location of the binding source (path or URL)."
-        },
-        "content": {
-          "description": "Binding source content directly."
-        }
-      },
-      "required": [
-        "format"
-      ],
-      "anyOf": [
-        {
-          "required": [
-            "location"
-          ]
-        },
-        {
-          "required": [
-            "content"
-          ]
-        }
-      ],
-      "additionalProperties": false
-    },
     "BindingContext": {
       "type": "object",
       "description": "Opaque runtime context for invocation, typically sourced from a context store. Well-known credential fields: bearerToken, apiKey, basic (username/password), accessToken/refreshToken/expiresAt for OAuth. Well-known transport fields: headers/cookies/environment (string-valued objects) and metadata. Implementations and callers MAY add fields; drivers SHOULD ignore fields they don't recognize.",
@@ -1515,7 +1482,7 @@
       "description": "Initial payload carried by the open frame: identifies the binding to invoke and provides context.",
       "properties": {
         "source": {
-          "$ref": "#/schemas/InvokeSource"
+          "$ref": "#/schemas/Source"
         },
         "ref": {
           "type": "string",

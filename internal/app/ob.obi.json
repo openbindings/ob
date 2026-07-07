@@ -1066,7 +1066,7 @@
           "type": "string"
         },
         "source": {
-          "$ref": "#/schemas/InvokeSource"
+          "$ref": "#/schemas/Source"
         }
       },
       "required": [
@@ -1995,39 +1995,6 @@
       "required": [
         "code",
         "message"
-      ],
-      "type": "object"
-    },
-    "InvokeSource": {
-      "additionalProperties": false,
-      "anyOf": [
-        {
-          "required": [
-            "location"
-          ]
-        },
-        {
-          "required": [
-            "content"
-          ]
-        }
-      ],
-      "description": "Binding source for invocation.",
-      "properties": {
-        "content": {
-          "description": "Binding source content directly."
-        },
-        "format": {
-          "description": "Format token.",
-          "type": "string"
-        },
-        "location": {
-          "description": "Location of the binding source (path or URL).",
-          "type": "string"
-        }
-      },
-      "required": [
-        "format"
       ],
       "type": "object"
     },
