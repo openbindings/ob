@@ -45,7 +45,7 @@ func InvokeBinding(ctx context.Context, in InvokeBindingInput) InvokeBindingResu
 		return InvokeBindingResult{Error: fmt.Errorf("binding source %q has no artifact or inline content", resolved.binding.Source)}
 	}
 
-	execInput := InvokeOperationInput{
+	execInput := InvocationInput{
 		Source: InvokeSource{Format: es.Format, Location: es.Location, Content: es.Content},
 		Ref:    resolved.binding.Ref,
 		Input:  resolved.input,

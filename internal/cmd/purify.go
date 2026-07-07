@@ -40,7 +40,7 @@ the same result as ` + "`ob source pull --pure`" + `.`,
 				return app.ExitResult{Code: 1, Message: "parse interface: " + err.Error(), ToStderr: true}
 			}
 
-			result := app.InvokeOperationWithContext(context.Background(), app.InvokeOperationInput{
+			result := app.InvokeOperationWithContext(context.Background(), app.InvocationInput{
 				Source: app.InvokeSource{Format: "openbindings.operation-graph@0.2.0", Content: purifyGraph},
 				Ref:    "#/graphs/purify",
 				Input:  doc,

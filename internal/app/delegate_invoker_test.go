@@ -375,7 +375,7 @@ exit 1
 	}
 
 	// The fixture echoes the --input payload it received: the JSON-serialized
-	// InvokeOperationInput the transform produced. Its round-tripping proves
+	// InvocationInput the transform produced. Its round-tripping proves
 	// every link — transform, argv build, exec, stdout parse — held.
 	top, ok := v.(map[string]any)
 	if !ok {

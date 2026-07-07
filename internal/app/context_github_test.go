@@ -204,7 +204,7 @@ func TestContextGitHub_SecuritySchemeApplication(t *testing.T) {
 		t.Fatalf("write spec: %v", err)
 	}
 
-	execInput := InvokeOperationInput{
+	execInput := InvocationInput{
 		Source: InvokeSource{
 			Format:   "openapi@3.0",
 			Location: specPath,
@@ -267,7 +267,7 @@ func TestContextGitHub_NoCredentialsFails(t *testing.T) {
 		t.Fatalf("write spec: %v", err)
 	}
 
-	execInput := InvokeOperationInput{
+	execInput := InvocationInput{
 		Source: InvokeSource{
 			Format:   "openapi@3.0",
 			Location: specPath,

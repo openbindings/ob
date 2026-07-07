@@ -362,7 +362,7 @@ func (d *delegateCLIInvoker) InvokeBinding(ctx context.Context, args *openbindin
 		_ = impl.CloseInput()
 
 		// The delegate's invokeBinding payload, shaped by its inputTransform.
-		var payload any = InvokeOperationInput{
+		var payload any = InvocationInput{
 			Source: InvokeSource{
 				Format:   args.Source.Format,
 				Location: args.Source.Location,

@@ -30,7 +30,7 @@ binding-invoker interface, and is the binding-level twin of operation prepare.`,
 				return app.ExitResult{Code: 1, Message: "--input is required", ToStderr: true}
 			}
 
-			var input app.InvokeOperationInput
+			var input app.InvocationInput
 			if err := json.Unmarshal([]byte(inputJSON), &input); err != nil {
 				return app.ExitResult{Code: 1, Message: fmt.Sprintf("failed to parse input JSON: %v", err), ToStderr: true}
 			}

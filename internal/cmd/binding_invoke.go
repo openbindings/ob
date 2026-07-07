@@ -31,9 +31,9 @@ binding-invoker interface.`,
 				return app.ExitResult{Code: 1, Message: "--input is required", ToStderr: true}
 			}
 
-			var input app.InvokeOperationInput
+			var input app.InvocationInput
 			if err := json.Unmarshal([]byte(inputJSON), &input); err != nil {
-				return writeInvokeOutput(app.InvokeOperationOutput{
+				return writeInvokeOutput(app.InvocationResult{
 					Error: &app.Error{Code: "invalid_input", Message: fmt.Sprintf("failed to parse input JSON: %v", err)},
 				})
 			}
@@ -48,7 +48,7 @@ binding-invoker interface.`,
 	return c
 }
 
-func writeInvokeOutput(output app.InvokeOperationOutput) error {
+func writeInvokeOutput(output app.InvocationResult) error {
 	b, err := json.Marshal(output)
 	if err != nil {
 		return app.ExitResult{Code: 1, Message: fmt.Sprintf("failed to marshal output: %v", err), ToStderr: true}

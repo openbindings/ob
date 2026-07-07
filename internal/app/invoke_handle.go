@@ -21,7 +21,7 @@ import (
 // surfaces as a terminal CONTEXT_REQUIRED for the remote caller — the consumer
 // runtime owns reactive resolution (binding-invoker rule 9); a frame server
 // never prompts.
-func InvokeBindingHandle(ctx context.Context, input InvokeOperationInput) openbindings.Invocation[any, any] {
+func InvokeBindingHandle(ctx context.Context, input InvocationInput) openbindings.Invocation[any, any] {
 	if input.Source.Format == "" {
 		return openbindings.NewErroredInvocation[any, any](&Error{
 			Code: openbindings.ErrCodeValidationFailed, Message: "source.format is required",
@@ -123,7 +123,7 @@ func withStoredContext(ctx context.Context, invoker *openbindings.OperationInvok
 // preparer — including formats handled by delegates — report nil, the
 // always-satisfiable conformant answer; invokeBinding's reactive
 // CONTEXT_REQUIRED challenge remains authoritative.
-func PrepareBinding(ctx context.Context, input InvokeOperationInput) (*openbindings.ContextRequiredDetails, error) {
+func PrepareBinding(ctx context.Context, input InvocationInput) (*openbindings.ContextRequiredDetails, error) {
 	if input.Source.Format == "" {
 		return nil, fmt.Errorf("source.format is required")
 	}

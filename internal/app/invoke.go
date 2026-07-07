@@ -27,8 +27,10 @@ type InvokeSource struct {
 	Binary   string `json:"binary,omitempty"` // Optional: binary name hint for CLI invocation
 }
 
-// InvokeOperationInput is the input for invokeBinding.
-type InvokeOperationInput struct {
+// InvocationInput is the app-level invocation carrier for both lanes:
+// a raw binding invocation (source+ref) or an operation-resolved one
+// (Interface/Binding populated).
+type InvocationInput struct {
 	Source    InvokeSource            `json:"source"`
 	Ref       string                  `json:"ref"`
 	Input     any                     `json:"input,omitempty"`
@@ -50,8 +52,8 @@ type InvokeOperationInput struct {
 	Hooks *openbindings.InvokeHooks `json:"-"`
 }
 
-// InvokeOperationOutput is the output of invokeBinding.
-type InvokeOperationOutput struct {
+// InvocationResult is the app-level invocation result for both lanes.
+type InvocationResult struct {
 	Output     any    `json:"output,omitempty"`
 	Status     int    `json:"status,omitempty"`
 	DurationMs int64  `json:"durationMs,omitempty"`
@@ -409,7 +411,7 @@ func invokeOnInterface(ctx context.Context, iface *openbindings.Interface, opKey
 	opCanonical := resolved.binding.Operation
 	outputSchema := iface.Operations[opCanonical].Output
 
-	lowLevel := InvokeOperationInput{
+	lowLevel := InvocationInput{
 		Source:      InvokeSource{Format: es.Format, Location: es.Location, Content: es.Content},
 		Ref:         resolved.binding.Ref,
 		Input:       resolved.input,
@@ -467,10 +469,10 @@ func invokeOnInterface(ctx context.Context, iface *openbindings.Interface, opKey
 	return run, nil
 }
 
-// unaryChannel collapses a unary InvokeOperationOutput into a one-event
+// unaryChannel collapses a unary InvocationResult into a one-event
 // channel, applying the binding's output transform on success (the
 // streaming lane applies it via transformEventStream).
-func unaryChannel(iface *openbindings.Interface, resolved *resolvedBinding, result InvokeOperationOutput) <-chan InvocationOutput {
+func unaryChannel(iface *openbindings.Interface, resolved *resolvedBinding, result InvocationResult) <-chan InvocationOutput {
 	if resolved.binding.OutputTransform != nil && result.Error == nil {
 		transformed, tErr := ApplyTransform(iface.Transforms, resolved.binding.OutputTransform, result.Output)
 		if tErr != nil {
@@ -566,7 +568,7 @@ func PrepareOperation(ctx context.Context, obiPath string, opKey string, binding
 
 	es := resolveSourceLocation(resolved.source, filepath.Dir(obiPath))
 
-	return PrepareBinding(ctx, InvokeOperationInput{
+	return PrepareBinding(ctx, InvocationInput{
 		Source:    InvokeSource{Format: es.Format, Location: es.Location, Content: es.Content},
 		Ref:       resolved.binding.Ref,
 		Context:   callerContext,
@@ -685,12 +687,12 @@ func isSelf(location string) bool {
 
 // InvokeOperationWithContext invokes an operation with cancellation support.
 // Pass a cancellable context to allow aborting long-running operations.
-func InvokeOperationWithContext(ctx context.Context, input InvokeOperationInput) InvokeOperationOutput {
+func InvokeOperationWithContext(ctx context.Context, input InvocationInput) InvocationResult {
 	start := time.Now()
 
 	// Validate input
 	if input.Source.Format == "" {
-		return InvokeOperationOutput{
+		return InvocationResult{
 			Error: &Error{
 				Code:    "invalid_input",
 				Message: "source.format is required",
@@ -698,7 +700,7 @@ func InvokeOperationWithContext(ctx context.Context, input InvokeOperationInput)
 		}
 	}
 	if input.Ref == "" {
-		return InvokeOperationOutput{
+		return InvocationResult{
 			Error: &Error{
 				Code:    "invalid_input",
 				Message: "ref is required",
@@ -711,14 +713,14 @@ func InvokeOperationWithContext(ctx context.Context, input InvokeOperationInput)
 	// non-native formats select an external delegate when one is registered.
 	chosen := selectDelegate(CapInvoke, input.Source.Format)
 
-	var output InvokeOperationOutput
+	var output InvocationResult
 	if chosen == nil || chosen.builtin {
 		// Self-delegate or nothing: invoke in-process when ob supports the
 		// format natively, else there is nowhere to route.
 		if BuiltinSupportsFormat(input.Source.Format) {
 			output = invokeViaBuiltin(ctx, input)
 		} else {
-			return InvokeOperationOutput{
+			return InvocationResult{
 				Error: &Error{
 					Code:    "delegate_resolution_failed",
 					Message: fmt.Sprintf("no invoker or delegate handles format %q", input.Source.Format),
@@ -730,7 +732,7 @@ func InvokeOperationWithContext(ctx context.Context, input InvokeOperationInput)
 		// registration pin (match and invoke the same document).
 		iface, rerr := chosen.resolveInterface()
 		if rerr != nil {
-			return InvokeOperationOutput{
+			return InvocationResult{
 				Error: &Error{Code: "delegate_resolution_failed", Message: rerr.Error()},
 			}
 		}
@@ -750,7 +752,7 @@ func InvokeOperationWithContext(ctx context.Context, input InvokeOperationInput)
 // support. Mirrors InvokeOperationWithContext but returns a channel of events
 // instead of a single output. External delegates are not supported (streaming
 // across process boundaries requires a transport protocol; use builtin drivers).
-func SubscribeOperationWithContext(ctx context.Context, input InvokeOperationInput) (<-chan InvocationOutput, error) {
+func SubscribeOperationWithContext(ctx context.Context, input InvocationInput) (<-chan InvocationOutput, error) {
 	if input.Source.Format == "" {
 		return nil, fmt.Errorf("source.format is required")
 	}
@@ -782,7 +784,7 @@ func SubscribeOperationWithContext(ctx context.Context, input InvokeOperationInp
 }
 
 // invokeViaBuiltin invokes an operation using the built-in OperationInvoker.
-func invokeViaBuiltin(ctx context.Context, input InvokeOperationInput) InvokeOperationOutput {
+func invokeViaBuiltin(ctx context.Context, input InvocationInput) InvocationResult {
 	bindCtx := input.Context
 	if input.Source.Binary != "" {
 		bindCtx = withBinaryMetadata(bindCtx, input.Source.Binary)
@@ -810,7 +812,7 @@ func invokeViaBuiltin(ctx context.Context, input InvokeOperationInput) InvokeOpe
 
 // reduceUnaryInvocation collapses an invocation event stream to the unary
 // output shape: the last output wins; a terminal error takes precedence.
-func reduceUnaryInvocation(events <-chan InvocationOutput) InvokeOperationOutput {
+func reduceUnaryInvocation(events <-chan InvocationOutput) InvocationResult {
 	var last *InvocationOutput
 	for ev := range events {
 		ev := ev
@@ -820,20 +822,20 @@ func reduceUnaryInvocation(events <-chan InvocationOutput) InvokeOperationOutput
 		last = &ev
 	}
 	if last == nil {
-		return InvokeOperationOutput{}
+		return InvocationResult{}
 	}
 	if last.Error != nil {
 		status := last.Status
 		if status == 0 {
 			status = 1
 		}
-		return InvokeOperationOutput{
+		return InvocationResult{
 			Status:     status,
 			DurationMs: last.DurationMs,
 			Error:      last.Error,
 		}
 	}
-	return InvokeOperationOutput{
+	return InvocationResult{
 		Output:     last.Output,
 		Status:     last.Status,
 		DurationMs: last.DurationMs,
@@ -846,10 +848,10 @@ func reduceUnaryInvocation(events <-chan InvocationOutput) InvokeOperationOutput
 // unary shape through the invocation handle. CONTEXT_REQUIRED challenges from
 // the delegate (or the downstream binding behind it) resolve through the
 // configured resolver, exactly as for in-process invokers.
-func invokeViaExternalDelegate(ctx context.Context, resolved delegates.Resolved, input InvokeOperationInput) InvokeOperationOutput {
+func invokeViaExternalDelegate(ctx context.Context, resolved delegates.Resolved, input InvocationInput) InvocationResult {
 	delegateInvoker, err := DelegateBindingInvoker(resolved)
 	if err != nil {
-		return InvokeOperationOutput{
+		return InvocationResult{
 			Error: &Error{Code: "delegate_error", Message: err.Error()},
 		}
 	}

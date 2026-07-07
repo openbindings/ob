@@ -147,7 +147,7 @@ func serveFrameStream(ctx context.Context, cancel context.CancelFunc, conn *webs
 
 	logger.Info("bindings/invoke (frames)", "format", open.Input.Source.Format, "ref", open.Input.Ref)
 
-	inv := app.InvokeBindingHandle(ctx, app.InvokeOperationInput{
+	inv := app.InvokeBindingHandle(ctx, app.InvocationInput{
 		Source: app.InvokeSource{
 			Format:   open.Input.Source.Format,
 			Location: open.Input.Source.Location,
@@ -310,7 +310,7 @@ func handleBindingPrepare(logger *slog.Logger) http.HandlerFunc {
 
 		logger.Info("bindings/prepare", "format", input.Source.Format, "ref", input.Ref)
 
-		details, perr := app.PrepareBinding(r.Context(), app.InvokeOperationInput{
+		details, perr := app.PrepareBinding(r.Context(), app.InvocationInput{
 			Source: app.InvokeSource{
 				Format:   input.Source.Format,
 				Location: input.Source.Location,

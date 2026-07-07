@@ -37,7 +37,7 @@ func TestPurifyGraphMatchesStripAllXOB(t *testing.T) {
 	if err := json.Unmarshal([]byte(sourceOwnedFixture), &doc); err != nil {
 		t.Fatal(err)
 	}
-	result := app.InvokeOperationWithContext(context.Background(), app.InvokeOperationInput{
+	result := app.InvokeOperationWithContext(context.Background(), app.InvocationInput{
 		Source: app.InvokeSource{Format: "openbindings.operation-graph@0.2.0", Content: purifyGraph},
 		Ref:    "#/graphs/purify",
 		Input:  doc,
