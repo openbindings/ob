@@ -5,9 +5,16 @@ import (
 	"fmt"
 	"os"
 	"strings"
+	"time"
 
 	openbindings "github.com/openbindings/openbindings-go"
 )
+
+// probeTimeout bounds each per-format synthesis probe during detection.
+// Detection is a liveness question: a format whose synthesizer cannot
+// answer quickly (e.g. a gRPC reflection dial against something that is
+// not a gRPC server) is a non-claim, not a hang.
+const probeTimeout = 5 * time.Second
 
 // DelegateClaim represents a delegate's claim that it can handle a source.
 // Produced by running SynthesizeInterface and inspecting the result.
@@ -32,9 +39,11 @@ func DetectSourceCandidates(location string) ([]DelegateClaim, error) {
 
 	var claims []DelegateClaim
 	for _, fi := range DefaultSynthesizer().Formats() {
-		iface, err := SynthesizeInterfaceFromSource(context.Background(), &openbindings.SynthesizeInput{
+		probeCtx, cancel := context.WithTimeout(context.Background(), probeTimeout)
+		iface, err := SynthesizeInterfaceFromSource(probeCtx, &openbindings.SynthesizeInput{
 			Sources: []openbindings.SynthesizeSource{{Format: fi.Token, Location: location}},
 		})
+		cancel()
 		if err != nil {
 			continue
 		}

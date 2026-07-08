@@ -103,11 +103,19 @@ Examples:
 				delegateID = claim.DelegateID
 				fmt.Fprintf(cmd.ErrOrStderr(), "detected format: %s (via %s)\n", claim.FormatToken, claim.DelegateName)
 			} else if delegateID == "" {
-				claim, claimErr := selectDelegate(cmd, src.Location, delegateArg, yes)
-				if claimErr != nil {
-					return claimErr
+				// The format is explicit: route by the token through the
+				// delegate registry. Probe-detection is for format-less adds
+				// only (a probe would try every synthesizer against the
+				// location — including ones that dial it as an endpoint).
+				resolved, resErr := app.ResolveDelegateForFormat(src.Format)
+				if resErr != nil {
+					return resErr
 				}
-				delegateID = claim.DelegateID
+				if resolved.Builtin {
+					delegateID = "ob"
+				} else {
+					delegateID = resolved.Location
+				}
 			}
 
 			sourceKey := key
