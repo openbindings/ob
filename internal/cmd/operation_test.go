@@ -1,9 +1,50 @@
 package cmd
 
 import (
+	"bytes"
+	"encoding/json"
 	"strings"
 	"testing"
+
+	"github.com/openbindings/ob/internal/app"
 )
+
+// The §4.5.6 machine envelope must carry the displaced-elections warning:
+// a machine consumer is never blind to a displaced standing election (the
+// §7 carriage pin, invocation-configuration round 5).
+func TestRenderInvokeJSON_CarriesDisplacedElections(t *testing.T) {
+	ch := make(chan app.InvocationOutput, 2)
+	ch <- app.InvocationOutput{Output: map[string]any{"ok": true}}
+	ch <- app.InvocationOutput{Terminal: true}
+	close(ch)
+	run := &app.ConfiguredInvocation{
+		BindingKey:       "op.usage",
+		DisplacedWarning: `2 internal-table election(s) for "op" do not reach delegate "ext"; its own handling governs the binding hop`,
+		DisplacedDetail:  []string{"decode=json", "ok-exit=0,1"},
+		Events:           ch,
+	}
+	var buf bytes.Buffer
+	if err := renderInvokeJSON(&buf, run); err != nil {
+		t.Fatalf("render: %v", err)
+	}
+	var envelope struct {
+		Outputs  []any          `json:"outputs"`
+		Metadata map[string]any `json:"metadata"`
+	}
+	if err := json.Unmarshal(buf.Bytes(), &envelope); err != nil {
+		t.Fatalf("envelope is not JSON: %v\n%s", err, buf.String())
+	}
+	if len(envelope.Outputs) != 1 {
+		t.Errorf("expected one output in the envelope, got %v", envelope.Outputs)
+	}
+	warning, _ := envelope.Metadata["x-ob-displaced-elections"].(string)
+	if !strings.Contains(warning, "ext") {
+		t.Errorf("metadata must carry the attributed displacement warning, got %#v", envelope.Metadata)
+	}
+	if _, ok := envelope.Metadata["x-ob-displaced-detail"]; !ok {
+		t.Error("metadata must carry the displaced-elections detail")
+	}
+}
 
 // The data-face flags refuse typos loudly (a misspelled lane or channel can
 // never silently change behavior); valid inputs compile per-axis.

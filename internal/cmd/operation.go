@@ -201,7 +201,7 @@ Examples:
 
 			start := time.Now()
 			if jsonEnvelope {
-				return renderInvokeJSON(run)
+				return renderInvokeJSON(os.Stdout, run)
 			}
 
 			enc := json.NewEncoder(os.Stdout)
@@ -250,7 +250,7 @@ Examples:
 // trailer stamps and exec's x-exit-code — how a data-face consumer reads a
 // diff-class/grep-class verdict); an error is the InvocationError envelope
 // {"code","message","details"}. Human-facing warnings stay on stderr.
-func renderInvokeJSON(run *app.ConfiguredInvocation) error {
+func renderInvokeJSON(w io.Writer, run *app.ConfiguredInvocation) error {
 	outputs := []any{}
 	metadata := map[string]any{}
 	if run.BindingKey != "" {
@@ -263,7 +263,7 @@ func renderInvokeJSON(run *app.ConfiguredInvocation) error {
 		}
 	}
 
-	enc := json.NewEncoder(os.Stdout)
+	enc := json.NewEncoder(w)
 	enc.SetIndent("", "  ")
 	for ev := range run.Events {
 		if ev.Terminal {
