@@ -33,6 +33,10 @@ is attempted automatically.
 
 Supported languages: typescript, go
 
+Output format: -F text (the default) emits the raw generated code, ready
+to redirect or write with -o; -F json|yaml emit the CodegenOutput envelope
+for machine consumers.
+
 Examples:
   ob codegen interface.json --lang typescript -o ./src/generated/invoker.ts
   ob codegen interface.json --lang go -o ./generated/invoker.go --package myapi

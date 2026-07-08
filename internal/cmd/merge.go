@@ -45,6 +45,10 @@ accept/reject. Use --all to apply all changes in batch mode, or
 --yes to auto-accept all prompts. Without a TTY and without --all or
 --yes, changes are only reported, not applied.
 
+Two output destinations exist and are independent: --out writes the merged
+DOCUMENT to an alternate path (default: the target is updated in place),
+while the global -o writes the merge REPORT (the -F json/yaml summary).
+
 Use --op to cherry-pick specific operations, or --exclude-op to skip them:
 
   ob merge target.obi.json source.obi.json --op createUser --op deleteUser --yes
