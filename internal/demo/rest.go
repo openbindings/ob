@@ -30,8 +30,7 @@ func handlePlaceOrder(store *Store) http.HandlerFunc {
 			writeError(w, http.StatusBadRequest, err.Error())
 			return
 		}
-		w.WriteHeader(http.StatusCreated)
-		writeJSON(w, output)
+		writeJSONStatus(w, http.StatusCreated, output)
 	}
 }
 
@@ -81,6 +80,15 @@ func extractPathParam(path, prefix string) string {
 func writeJSON(w http.ResponseWriter, v any) {
 	w.Header().Set("Content-Type", "application/json")
 	w.Header().Set("Access-Control-Allow-Origin", "*")
+	json.NewEncoder(w).Encode(v)
+}
+
+// writeJSONStatus writes a JSON body with an explicit status code. Headers
+// must be set before WriteHeader or Go drops them and sniffs text/plain.
+func writeJSONStatus(w http.ResponseWriter, code int, v any) {
+	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set("Access-Control-Allow-Origin", "*")
+	w.WriteHeader(code)
 	json.NewEncoder(w).Encode(v)
 }
 

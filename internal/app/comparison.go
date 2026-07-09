@@ -11,6 +11,7 @@ import (
 
 	"github.com/openbindings/openbindings-go"
 	"github.com/openbindings/openbindings-go/canonicaljson"
+	"github.com/openbindings/openbindings-go/schemaprofile"
 )
 
 const comparisonReportVersion = "ob-comparison-report/v1"
@@ -134,6 +135,9 @@ type Finding struct {
 	Location FindingLocation `json:"location"`
 	Before   *any            `json:"before,omitempty"`
 	After    *any            `json:"after,omitempty"`
+	// Detail carries prose the kind alone cannot: the schema-compatibility
+	// engine's reason for a subsumption verdict.
+	Detail string `json:"detail,omitempty"`
 }
 
 type FindingLocation struct {
@@ -324,11 +328,13 @@ func compareOperationDeltas(left, right resolvedComparisonInput, mode string) []
 		if leftOp.Input != nil || rightOp.Input != nil {
 			delta.Input = compareSchemaSlot("input", leftOp.Input, rightOp.Input, leftRoot, rightRoot)
 			delta.Findings = append(delta.Findings, schemaFindings(key, "input", leftOp.Input, rightOp.Input, leftRoot, rightRoot)...)
+			delta.Findings = append(delta.Findings, subsumptionFindings(key, "input", leftOp.Input, rightOp.Input, leftRoot, rightRoot, delta.Findings)...)
 			delta.Input = compatibilityForFindings("input", delta.Input.Verdict, delta.Findings)
 		}
 		if leftOp.Output != nil || rightOp.Output != nil {
 			delta.Output = compareSchemaSlot("output", leftOp.Output, rightOp.Output, leftRoot, rightRoot)
 			delta.Findings = append(delta.Findings, schemaFindings(key, "output", leftOp.Output, rightOp.Output, leftRoot, rightRoot)...)
+			delta.Findings = append(delta.Findings, subsumptionFindings(key, "output", leftOp.Output, rightOp.Output, leftRoot, rightRoot, delta.Findings)...)
 			delta.Output = compatibilityForFindings("output", delta.Output.Verdict, delta.Findings)
 		}
 		deltas = append(deltas, delta)
@@ -371,11 +377,85 @@ func compareSchemaSlot(direction string, left, right, leftRoot, rightRoot map[st
 	return &SchemaCompatibility{Verdict: verdict, Direction: direction, Reasons: []FindingRef{}}
 }
 
+// subsumptionFindings runs the SDK's schema-compatibility engine over a
+// paired slot as the SAFETY NET behind the structural walk: the walk
+// (schemaFindings) reports precise per-keyword findings but does not
+// descend everywhere (array items, combinators), so a slot it cannot fault
+// still needs a verdict. It is the same engine CheckInterfaceCompatibility
+// uses, so `ob compat` and the SDKs reach the same verdict on the same
+// pair — the shared-semantics promise.
+//
+// Composition rules: when the walk already faulted the slot as breaking,
+// the engine adds nothing (the walk's pointers are sharper). When either
+// schema falls outside the compatibility profile, the walk's graded
+// findings (unverified.*, profile.schema.*) own the verdict and the engine
+// stays silent — outside-profile is deliberately "cannot verify", never
+// "incompatible".
+func subsumptionFindings(opKey, direction string, left, right, leftRoot, rightRoot map[string]any, collected []Finding) []Finding {
+	if left == nil || right == nil {
+		return nil
+	}
+	if slotAlreadyFaulted(collected, direction) {
+		return nil
+	}
+	lr, ls, _ := derefSchema(leftRoot, left, map[string]bool{})
+	rr, rs, _ := derefSchema(rightRoot, right, map[string]bool{})
+	if ls != "" || rs != "" {
+		return nil // external/unresolved/cycle: the structural walk reports it
+	}
+	if strippedCanonicalEqual(lr, rr) {
+		return nil // identical slots need no engine
+	}
+
+	// Each side normalizes against its own document root so cross-document
+	// $refs resolve, then the directional check runs on the results.
+	ln, lerr := (&schemaprofile.Normalizer{Root: leftRoot}).Normalize(lr)
+	rn, rerr := (&schemaprofile.Normalizer{Root: rightRoot}).Normalize(rr)
+	if lerr != nil || rerr != nil {
+		return nil // outside profile or unresolvable: graded by the walk
+	}
+
+	norm := &schemaprofile.Normalizer{}
+	var ok bool
+	var reason string
+	var err error
+	if direction == "input" {
+		ok, reason, err = norm.InputCompatible(ln, rn)
+	} else {
+		ok, reason, err = norm.OutputCompatible(ln, rn)
+	}
+	if err != nil || ok {
+		return nil
+	}
+	f := finding("subsume.violated", "right", "/operations/"+escapePointer(opKey)+"/"+direction, nil, nil, direction)
+	f.Detail = reason
+	return []Finding{f}
+}
+
+// slotAlreadyFaulted reports whether the structural walk already carries a
+// breaking, unverified, or indeterminate finding for the slot — any of
+// which owns the verdict, so the engine must not double-report.
+func slotAlreadyFaulted(findings []Finding, direction string) bool {
+	for _, f := range findings {
+		ptr := f.Location.Pointer
+		if !strings.Contains(ptr, "/"+direction+"/") && !strings.HasSuffix(ptr, "/"+direction) {
+			continue
+		}
+		if findingVerdict(f) != "" {
+			return true
+		}
+	}
+	return false
+}
+
 func compatibilityForFindings(direction, defaultVerdict string, findings []Finding) *SchemaCompatibility {
 	reasons := []FindingRef{}
 	verdict := defaultVerdict
 	for _, f := range findings {
-		if !strings.Contains(f.Location.Pointer, "/"+direction+"/") {
+		// Match findings inside the slot ("/input/...") and AT the slot
+		// ("/input" — the engine's subsumption verdict is slot-level).
+		if !strings.Contains(f.Location.Pointer, "/"+direction+"/") &&
+			!strings.HasSuffix(f.Location.Pointer, "/"+direction) {
 			continue
 		}
 		reasons = append(reasons, FindingRef{Kind: f.Kind, Pointer: f.Location.Pointer, Side: f.Location.Side})
@@ -769,6 +849,10 @@ func projectedCategory(kind, direction string) ([]string, string) {
 		// A type swap breaks both directions: the candidate rejects inputs the
 		// contract defines AND returns outputs the contract consumer does not
 		// expect.
+		return []string{"breaking"}, "error"
+	case "subsume.violated":
+		// The compatibility engine already ran directionally; a violation is
+		// breaking by definition (the candidate cannot stand in).
 		return []string{"breaking"}, "error"
 	case "required.added", "object.additional_properties.disabled", "numeric.minimum.tightened", "type.number_to_integer", "type.set.narrowed":
 		if direction == "input" {

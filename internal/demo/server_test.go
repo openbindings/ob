@@ -14,7 +14,7 @@ import (
 // port: the served document must rewrite the default-port base to the running
 // port and remain a valid 0.2.0 OBI.
 func TestServedDemoOBIRewritesPortAndValidates(t *testing.T) {
-	srv := httptest.NewServer(serveOBI(9999))
+	srv := httptest.NewServer(serveOBI(9999, 9091))
 	defer srv.Close()
 
 	resp, err := http.Get(srv.URL)

@@ -281,3 +281,33 @@ func TestCLIContextStore_OriginChallengeFindsPathScopedContext(t *testing.T) {
 		t.Fatalf("unexpected match for unrelated origin: %#v (err %v)", other, err)
 	}
 }
+
+// Credentials set with an http:// target must be readable under either
+// scheme: the config-file store normalizes http → https, and the keychain
+// store must agree. Regression: keychain keys were the RAW url, so
+// `ob context set http://host --bearer-token X` reported success and every
+// subsequent http:// invoke re-raised the identical CONTEXT_REQUIRED.
+func TestContextCredentials_HTTPTargetRoundTrip(t *testing.T) {
+	setupContextTestDir(t)
+
+	if err := SaveContextCredentials("http://127.0.0.1:8123", map[string]any{"bearerToken": "orders-secret"}); err != nil {
+		t.Fatal(err)
+	}
+
+	for _, lookup := range []string{"http://127.0.0.1:8123", "https://127.0.0.1:8123"} {
+		cred, err := LoadContextCredentials(lookup)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if cred == nil || cred["bearerToken"] != "orders-secret" {
+			t.Errorf("LoadContextCredentials(%q) = %v, want the stored bearer token", lookup, cred)
+		}
+	}
+
+	if err := DeleteContextCredentials("http://127.0.0.1:8123"); err != nil {
+		t.Fatal(err)
+	}
+	if cred, _ := LoadContextCredentials("https://127.0.0.1:8123"); cred != nil {
+		t.Errorf("credentials survived delete under the normalized key: %v", cred)
+	}
+}

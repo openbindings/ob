@@ -50,7 +50,7 @@ func Start(ctx context.Context, cfg Config) error {
 
 	mux.HandleFunc("GET /openapi.json", serveEmbedded("api/openapi.json", "application/json"))
 	mux.HandleFunc("GET /asyncapi.json", serveEmbedded("api/asyncapi.json", "application/json"))
-	mux.HandleFunc("GET /.well-known/openbindings", serveOBI(cfg.Port))
+	mux.HandleFunc("GET /.well-known/openbindings", serveOBI(cfg.Port, cfg.GRPCPort))
 
 	addr := fmt.Sprintf("127.0.0.1:%d", cfg.Port)
 	srv := &http.Server{Addr: addr, Handler: mux}
@@ -72,7 +72,7 @@ func Start(ctx context.Context, cfg Config) error {
 	}
 }
 
-func serveOBI(port int) http.HandlerFunc {
+func serveOBI(port, grpcPort int) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		data, err := apiFS.ReadFile("api/openbindings.json")
 		if err != nil {
@@ -82,10 +82,12 @@ func serveOBI(port int) http.HandlerFunc {
 
 		baseURL := fmt.Sprintf("http://localhost:%d", port)
 
-		// The static OBI declares the default-port base (http://localhost:8080)
-		// so it is a valid standalone OBI; rewrite it to the running port so the
-		// served document's source locations point at this process.
+		// The static OBI declares the default ports (http://localhost:8080,
+		// grpc localhost:9090) so it is a valid standalone OBI; rewrite both
+		// to the running ports so the served document's source locations
+		// point at this process.
 		body := strings.ReplaceAll(string(data), "http://localhost:8080", baseURL)
+		body = strings.ReplaceAll(body, "localhost:9090", fmt.Sprintf("localhost:%d", grpcPort))
 
 		w.Header().Set("Content-Type", "application/json")
 		w.Header().Set("Access-Control-Allow-Origin", "*")

@@ -143,8 +143,11 @@ func SaveContextConfig(rawURL string, cfg ContextConfig) error {
 // LoadContextCredentials reads credentials from the OS keychain for a URL.
 // Returns nil (not an error) if no credentials are stored.
 // The returned map uses well-known field names (bearerToken, apiKey, basic).
+// The key is normalized (http → https) at this boundary, matching the
+// config-file store, so credentials set with an http:// target resolve when
+// the same origin is looked up under either scheme.
 func LoadContextCredentials(url string) (map[string]any, error) {
-	return loadKeychainCredentials(url)
+	return loadKeychainCredentials(normalizeContextKey(url))
 }
 
 func loadKeychainCredentials(key string) (map[string]any, error) {
@@ -164,8 +167,10 @@ func loadKeychainCredentials(key string) (map[string]any, error) {
 
 // SaveContextCredentials writes credentials to the OS keychain for a URL.
 // The map should use well-known field names (bearerToken, apiKey, basic).
+// The key is normalized (http → https) at this boundary; see
+// LoadContextCredentials.
 func SaveContextCredentials(url string, cred map[string]any) error {
-	return saveKeychainCredentials(url, cred)
+	return saveKeychainCredentials(normalizeContextKey(url), cred)
 }
 
 func saveKeychainCredentials(key string, cred map[string]any) error {
@@ -183,8 +188,10 @@ func saveKeychainCredentials(key string, cred map[string]any) error {
 }
 
 // DeleteContextCredentials removes credentials from the OS keychain.
+// The key is normalized (http → https) at this boundary; see
+// LoadContextCredentials.
 func DeleteContextCredentials(url string) error {
-	return deleteKeychainCredentials(url)
+	return deleteKeychainCredentials(normalizeContextKey(url))
 }
 
 func deleteKeychainCredentials(key string) error {

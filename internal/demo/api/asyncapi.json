@@ -1,5 +1,6 @@
 {
   "asyncapi": "3.0.0",
+  "defaultContentType": "application/json",
   "info": {
     "title": "OpenBlendings Events",
     "version": "1.0.0",
@@ -52,10 +53,16 @@
   "operations": {
     "onOrderUpdate": {
       "action": "receive",
-      "channel": {"$ref": "#/channels/orderUpdates"},
+      "channel": {
+        "$ref": "#/channels/orderUpdates"
+      },
       "summary": "Receive order status updates",
       "description": "Subscribe to real-time order status changes. Connect via SSE at /events/orders.",
-      "messages": [{"$ref": "#/channels/orderUpdates/messages/OrderUpdate"}]
+      "messages": [
+        {
+          "$ref": "#/channels/orderUpdates/messages/OrderUpdate"
+        }
+      ]
     }
   }
 }
