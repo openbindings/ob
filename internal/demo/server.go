@@ -48,8 +48,8 @@ func Start(ctx context.Context, cfg Config) error {
 	mux.Handle("GET /mcp", mcpHandler)
 	mux.Handle("DELETE /mcp", mcpHandler)
 
-	mux.HandleFunc("GET /openapi.json", serveEmbedded("api/openapi.json", "application/json"))
-	mux.HandleFunc("GET /asyncapi.json", serveEmbedded("api/asyncapi.json", "application/json"))
+	mux.HandleFunc("GET /openapi.json", serveSpec("api/openapi.json", cfg.Port, cfg.GRPCPort))
+	mux.HandleFunc("GET /asyncapi.json", serveSpec("api/asyncapi.json", cfg.Port, cfg.GRPCPort))
 	mux.HandleFunc("GET /.well-known/openbindings", serveOBI(cfg.Port, cfg.GRPCPort))
 
 	addr := fmt.Sprintf("127.0.0.1:%d", cfg.Port)
@@ -95,15 +95,25 @@ func serveOBI(port, grpcPort int) http.HandlerFunc {
 	}
 }
 
-func serveEmbedded(path, contentType string) http.HandlerFunc {
+// serveSpec serves an embedded source spec (openapi.json / asyncapi.json)
+// with its declared default ports rewritten to the running ones. The specs,
+// like the OBI, declare http://localhost:8080 / localhost:9090 so they are
+// valid standalone documents; a consumer that resolves a server URL from
+// them (the openapi invoker reads `servers`) must land on this process,
+// whatever --port it runs on.
+func serveSpec(path string, port, grpcPort int) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		data, err := apiFS.ReadFile(path)
 		if err != nil {
 			http.Error(w, "not found", http.StatusNotFound)
 			return
 		}
-		w.Header().Set("Content-Type", contentType)
+		// Bare host:port form first covers AsyncAPI's scheme-less `host`
+		// field; it also subsumes the http://-prefixed occurrences.
+		body := strings.ReplaceAll(string(data), "localhost:8080", fmt.Sprintf("localhost:%d", port))
+		body = strings.ReplaceAll(body, "localhost:9090", fmt.Sprintf("localhost:%d", grpcPort))
+		w.Header().Set("Content-Type", "application/json")
 		w.Header().Set("Access-Control-Allow-Origin", "*")
-		w.Write(data)
+		w.Write([]byte(body))
 	}
 }

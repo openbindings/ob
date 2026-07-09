@@ -33,6 +33,9 @@ OBIs — OpenBindings interface documents, portable descriptions of a
 service's operations independent of the protocols that carry them.`,
 		SilenceErrors: true,
 		SilenceUsage:  true,
+		// `ob --version` is the conventional identity probe; `ob describe`
+		// carries the full identity block.
+		Version: fmt.Sprintf("%s (OpenBindings spec %s)", app.OBVersion, app.SpecRange()),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if usageSpec {
 				fmt.Print(embeddedUsageSpec)

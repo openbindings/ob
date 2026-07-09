@@ -211,10 +211,7 @@ Examples:
 					continue // metadata marker (surfaced only in -F json)
 				}
 				if ev.Error != nil {
-					fmt.Fprintf(os.Stderr, "error: %s\n", ev.Error.Message)
-					if d := renderErrorDetails(ev.Error.Details); d != "" {
-						fmt.Fprintf(os.Stderr, "  %s\n", d)
-					}
+					renderInvokeError(os.Stderr, ev.Error)
 					hadError = true
 					continue
 				}
@@ -294,6 +291,44 @@ func renderInvokeJSON(w io.Writer, run *app.ConfiguredInvocation) error {
 		return app.ExitResult{Code: 1, Message: fmt.Sprintf("write error: %v", err), ToStderr: true}
 	}
 	return nil
+}
+
+// renderInvokeError writes a terminal invocation error for humans: the
+// message, any actionable details, and — for CONTEXT_REQUIRED — the full
+// challenge plus a copy-pasteable remedy, so the auth loop closes from the
+// error itself instead of from the docs.
+func renderInvokeError(w io.Writer, ierr *openbindings.InvocationError) {
+	fmt.Fprintf(w, "error: %s\n", ierr.Message)
+	if details := openbindings.ContextRequiredFrom(ierr); details != nil {
+		fmt.Fprintln(w, app.RenderContextRequirements(details))
+		if hint := contextSetHint(details); hint != "" {
+			fmt.Fprintf(w, "  satisfy it with: %s\n", hint)
+		}
+		return
+	}
+	if d := renderErrorDetails(ierr.Details); d != "" {
+		fmt.Fprintf(w, "  %s\n", d)
+	}
+}
+
+// contextSetHint maps the challenge's first requirement to the ob context
+// flag that satisfies it.
+func contextSetHint(d *openbindings.ContextRequiredDetails) string {
+	if d.Target == "" || len(d.Alternatives) == 0 || len(d.Alternatives[0].Requirements) == 0 {
+		return ""
+	}
+	switch d.Alternatives[0].Requirements[0].Type {
+	case "auth.bearer":
+		return fmt.Sprintf("ob context set %s --bearer-token <token>", d.Target)
+	case "auth.apiKey":
+		return fmt.Sprintf("ob context set %s --api-key <key>", d.Target)
+	case "auth.basic":
+		return fmt.Sprintf("ob context set %s --basic <user:pass>", d.Target)
+	case "auth.oauth2":
+		return fmt.Sprintf("ob context set %s --bearer-token <access-token>", d.Target)
+	default:
+		return fmt.Sprintf("ob context set %s --help", d.Target)
+	}
 }
 
 // renderErrorDetails renders an InvocationError's Details as a compact

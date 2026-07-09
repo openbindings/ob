@@ -88,6 +88,11 @@ func RenderObInfo(sw SoftwareIdentity) string {
 	return sb.String()
 }
 
+// SpecRange returns the supported OpenBindings spec range as prose
+// ("0.2.0", or "0.1.0..0.2.0" across versions) for identity surfaces
+// (describe, --version).
+func SpecRange() string { return formatSpecRange() }
+
 // formatSpecRange returns "0.1.0" when min == max, "0.1.0..0.2.0" otherwise.
 func formatSpecRange() string {
 	min, max := openbindings.SupportedRange()

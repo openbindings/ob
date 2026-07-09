@@ -3,9 +3,12 @@ package app
 import (
 	"context"
 	"encoding/json"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -306,5 +309,63 @@ func TestDriveBindingTearsDownOnCancel(t *testing.T) {
 	case <-done:
 	case <-time.After(2 * time.Second):
 		t.Fatal("driveBinding did not tear down after cancel (goroutine leak)")
+	}
+}
+
+// OBI-T-07 on the app-driven path: schema-violating input fails BEFORE any
+// dispatch. Regression: the binding path bypassed the SDK operation layer's
+// validation, so the mutation executed (side effect!) and the defect was
+// then reported as an OUTPUT validation failure blaming the response.
+func TestInvokeOBIOperation_InvalidInputNeverReachesWire(t *testing.T) {
+	var requests atomic.Int32
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		requests.Add(1)
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"ok":true}`))
+	}))
+	defer srv.Close()
+
+	dir := t.TempDir()
+	obi := writeOBIFile(t, dir, map[string]any{
+		"openbindings": "0.2.0",
+		"operations": map[string]any{
+			"createOrder": map[string]any{
+				"input": map[string]any{
+					"type":       "object",
+					"properties": map[string]any{"quantity": map[string]any{"type": "integer"}},
+				},
+			},
+		},
+		"sources": map[string]any{
+			"api": map[string]any{
+				"format":  "openapi@3.0",
+				"content": map[string]any{"openapi": "3.0.3", "info": map[string]any{"title": "t", "version": "1"}, "servers": []any{map[string]any{"url": srv.URL}}, "paths": map[string]any{"/orders": map[string]any{"post": map[string]any{"operationId": "createOrder", "responses": map[string]any{"200": map[string]any{"description": "ok"}}}}}},
+			},
+		},
+		"bindings": map[string]any{
+			"createOrder.api": map[string]any{"operation": "createOrder", "source": "api", "ref": "#/paths/~1orders/post"},
+		},
+	})
+
+	_, _, err := InvokeOBIOperation(context.Background(), obi, "createOrder", "", map[string]any{"quantity": "five"})
+	if err == nil {
+		t.Fatal("expected input validation failure")
+	}
+	if !strings.Contains(err.Error(), "input validation failed") {
+		t.Errorf("error should name input validation, got: %v", err)
+	}
+	if got := requests.Load(); got != 0 {
+		t.Errorf("schema-violating input reached the wire: %d requests dispatched", got)
+	}
+
+	// The conforming message still dispatches.
+	events, _, err := InvokeOBIOperation(context.Background(), obi, "createOrder", "", map[string]any{"quantity": 5})
+	if err != nil {
+		t.Fatalf("valid input refused: %v", err)
+	}
+	for range events {
+	}
+	if got := requests.Load(); got != 1 {
+		t.Errorf("valid input should dispatch exactly once, got %d", got)
 	}
 }

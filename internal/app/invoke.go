@@ -2,10 +2,12 @@ package app
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
 	"net"
+	"net/http"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -411,6 +413,20 @@ func invokeOnInterface(ctx context.Context, iface *openbindings.Interface, opKey
 	opCanonical := resolved.binding.Operation
 	outputSchema := iface.Operations[opCanonical].Output
 
+	// OBI-T-07 on the app-driven path: ob drives the binding layer directly
+	// (bypassing the SDK operation layer's per-message validation), so the
+	// caller's message is validated against the operation's input schema
+	// BEFORE any dispatch. Schema-violating input must never reach the wire —
+	// by the time output validation fails, the side effect has happened.
+	// The check runs on the caller's message, pre-transform: the operation
+	// schema describes the caller's shape, the transform's result is the
+	// binding's business.
+	if inSchema := iface.Operations[opCanonical].Input; inSchema != nil && input != nil {
+		if verr := openbindings.ValidateAgainstSchema(input, inSchema, iface.Schemas); verr != nil {
+			return nil, fmt.Errorf("input validation failed for %q: %w", resolved.bindingKey, verr)
+		}
+	}
+
 	lowLevel := InvocationInput{
 		Source:      InvokeSource{Format: es.Format, Location: es.Location, Content: es.Content},
 		Ref:         resolved.binding.Ref,
@@ -534,17 +550,66 @@ func applyT08(src <-chan InvocationOutput, schema openbindings.JSONSchema, schem
 				continue
 			}
 			if verr := openbindings.ValidateAgainstSchema(ev.Output, schema, schemas); verr != nil {
-				msg := fmt.Sprintf("output validation failed for %q: %v", bindingKey, verr)
-				if openbindings.FloorStamped(schema) {
-					msg += " — the synthesized schema still declares the floor's string; elect the real output schema (`ob operation output-schema`)"
-				}
-				out <- InvocationOutput{Error: &openbindings.InvocationError{Code: openbindings.ErrCodeValidationFailed, Message: msg}}
+				out <- InvocationOutput{Error: t08Failure(ev, verr, schema, bindingKey)}
 				return
 			}
 			out <- ev
 		}
 	}()
 	return out
+}
+
+// t08Failure builds the stop-and-return terminal for a nonconformant
+// output. The offending payload (truncated) and the decode lane ride the
+// error — the failure moment is exactly when the user needs to see what
+// the service actually returned, and without a window here the only
+// recourse is abandoning ob for curl (which gRPC/Connect/MCP bindings do
+// not have).
+func t08Failure(ev InvocationOutput, verr error, schema openbindings.JSONSchema, bindingKey string) *openbindings.InvocationError {
+	msg := fmt.Sprintf("output validation failed for %q: %v", bindingKey, verr)
+	if openbindings.FloorStamped(schema) {
+		msg += " — the synthesized schema still declares the floor's string; elect the real output schema (`ob operation output-schema`)"
+	}
+	details := map[string]any{}
+	if stamp := firstMetaValue(ev.Metadata, "x-ob-decode"); stamp != "" {
+		details["decodedBy"] = stamp
+	}
+	if ct := firstMetaValue(ev.Metadata, "Content-Type"); ct != "" {
+		details["contentType"] = ct
+	}
+	if snippet := payloadSnippet(ev.Output); snippet != "" {
+		details["received"] = snippet
+		msg += "\nreceived: " + snippet
+	}
+	ie := &openbindings.InvocationError{Code: openbindings.ErrCodeValidationFailed, Message: msg}
+	if len(details) > 0 {
+		ie.Details = details
+	}
+	return ie
+}
+
+func firstMetaValue(md openbindings.Metadata, key string) string {
+	if vs := md[key]; len(vs) > 0 {
+		return vs[0]
+	}
+	return ""
+}
+
+// payloadSnippet renders an output value for diagnostics, truncated so a
+// large payload cannot flood the terminal.
+func payloadSnippet(v any) string {
+	if v == nil {
+		return "null"
+	}
+	data, err := json.Marshal(v)
+	if err != nil {
+		return fmt.Sprintf("%.512v", v)
+	}
+	const maxLen = 2048
+	if len(data) > maxLen {
+		return fmt.Sprintf("%s… (%d bytes total)", data[:maxLen], len(data))
+	}
+	return string(data)
 }
 
 // PrepareOperation is the operation-level preflight: it resolves an operation
@@ -568,14 +633,65 @@ func PrepareOperation(ctx context.Context, obiPath string, opKey string, binding
 
 	es := resolveSourceLocation(resolved.source, filepath.Dir(obiPath))
 
+	// The binding-layer preflight performs no I/O (its contract), so a
+	// location-only source would answer "unknown" from a cold cache even
+	// when auth is statically declared in the document. Document
+	// ACQUISITION is the CLI's job: read or fetch the source exactly as
+	// invoke would (read-only, side-effect-free) and ask the question
+	// against the materialized content.
+	if es.Content == nil && es.Location != "" {
+		if data := acquireSourceDocument(ctx, es.Location); data != nil {
+			es.Content = data
+		}
+	}
+
 	return PrepareBinding(ctx, InvocationInput{
-		Source:    InvokeSource{Format: es.Format, Location: es.Location, Content: es.Content},
-		Ref:       resolved.binding.Ref,
-		Context:   callerContext,
+		Source:      InvokeSource{Format: es.Format, Location: es.Location, Content: es.Content},
+		Ref:         resolved.binding.Ref,
+		Context:     callerContext,
 		Interface:   iface,
 		Binding:     resolved.binding,
 		InputSchema: effectiveInputSchema(iface, resolved.binding, resolved.input),
 	})
+}
+
+// acquireSourceDocument materializes a source artifact for the preflight:
+// local files are read, http(s) locations fetched (size-capped). Locations
+// that are not documents (exec: refs, host:port service addresses) and any
+// failure return nil — the preflight then answers from what it has, which
+// is the pre-acquisition behavior.
+func acquireSourceDocument(ctx context.Context, location string) []byte {
+	const maxDocBytes = 1 << 20
+	switch {
+	case execref.IsExec(location) || isHostPort(location):
+		return nil
+	case strings.HasPrefix(location, "http://") || strings.HasPrefix(location, "https://"):
+		req, err := http.NewRequestWithContext(ctx, http.MethodGet, location, nil)
+		if err != nil {
+			return nil
+		}
+		resp, err := http.DefaultClient.Do(req)
+		if err != nil {
+			return nil
+		}
+		defer resp.Body.Close()
+		if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+			return nil
+		}
+		data, err := io.ReadAll(io.LimitReader(resp.Body, maxDocBytes+1))
+		if err != nil || len(data) > maxDocBytes {
+			return nil
+		}
+		return data
+	case strings.Contains(location, "://"):
+		return nil
+	default:
+		data, err := os.ReadFile(location)
+		if err != nil {
+			return nil
+		}
+		return data
+	}
 }
 
 // RenderContextRequirements renders prepareOperation/prepareBinding details
