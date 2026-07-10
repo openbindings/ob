@@ -371,7 +371,7 @@
       }
     },
     "openbindings.ob.setDelegatePreference": {
-      "description": "Set or clear a delegate's selection preference (higher = more preferred; 0 is the baseline; negatives rank below it; null clears). Without an operation, sets the delegate-level default; with one, sets that operation's entry in the delegate's preference index. ob additionally accepts a binding-source format scope on an operation entry \u2014 how synthesis of one format can prefer one delegate while everything else prefers another. Preference governs the order resolveDelegate returns candidates in; routing selection follows OBI-T-09 (effective preference is the per-operation value, else the delegate-level value, else 0). Returns the updated summary.",
+      "description": "Set or clear a delegate's selection preference (higher = more preferred; 0 is the baseline; negatives rank below it; null clears). Without an operation, sets the delegate-level default; with one, sets that operation's entry in the delegate's preference index. ob additionally accepts a binding-source format scope on an operation entry \u2014 how synthesis of one format can prefer one delegate while everything else prefers another. Preference governs the order resolveDelegate returns candidates in; routing applies OBI-T-09's selection semantics to delegates \u2014 ob's own narrowing, not a spec rule \u2014 with effective preference the per-operation value, else the delegate-level value, else 0. Returns the updated summary.",
       "aliases": [
         "openbindings.delegate-manager.setDelegatePreference"
       ],
