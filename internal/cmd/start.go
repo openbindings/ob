@@ -576,7 +576,7 @@ func writeJSON(w http.ResponseWriter, status int, v any) {
 
 // writeOBI writes an OBI document using the vendor-registered media type
 // (application/vnd.openbindings+json) per spec §7.1 (Discovery response
-// contract) and §14.2 (IANA media-type registration). Clients that send
+// contract) and §12.2 (IANA media-type registration). Clients that send
 // only Accept: application/json still receive the same body; per §7.1 the
 // vendor type is SHOULD-level, not a hard requirement.
 func writeOBI(w http.ResponseWriter, status int, v any) {

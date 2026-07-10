@@ -385,7 +385,8 @@ func GenerateBoundServe(contractPath, openapiPath, existingServePath, servedBase
 	// absolute URL (default port; handleOBI rewrites it to the request address).
 	// No embedded content: the served OBI is always fetched from a running
 	// server, so a frozen inline copy would only bloat the discovery document and,
-	// per spec §401, shadow the live location. MCP is bridged at runtime
+	// per spec §6.4 / OBI-T-15 (embedded content is authoritative over an
+	// artifact location), shadow the live location. MCP is bridged at runtime
 	// (`ob mcp <url>`), not a served transport, so its source is dropped.
 	for key, src := range existing.Sources {
 		if key == "mcp" {

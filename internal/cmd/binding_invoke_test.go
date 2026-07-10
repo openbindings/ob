@@ -18,7 +18,7 @@ import (
 // service fails OBI-T-08 under `operation invoke` (with a copy-pasteable
 // pointer carrying the selected binding key), while `binding invoke
 // <obi> <binding-key>` returns the source's own value — post-decode,
-// pre-outputTransform, unvalidated, because no operation result is produced
+// pre-outputTransform, unvalidated, because the wire lane sits below the operation boundary (no T-07/T-08 subject)
 // below the contract boundary.
 func TestBindingInvoke_WireLaneReadsWhatT08Refuses(t *testing.T) {
 	drifted := `{"orders":[{"quantity":2},{"quantity":"three"}]}`

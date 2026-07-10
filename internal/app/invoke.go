@@ -210,8 +210,9 @@ type InvocationOutput struct {
 	DurationMs int64                         `json:"durationMs,omitempty"`
 	// Terminal marks the final metadata-only event a clean stream emits:
 	// nil Output and Error, carrying the invocation's trailing Metadata
-	// (the §4.5.2 stamps and exec's x-exit-code). Forwarders pass it
-	// through untouched; output consumers skip it.
+	// (the provenance stamps the format-conventions record recommends —
+	// x-ob-decode/-classify/-route — and exec's x-exit-code). Forwarders
+	// pass it through untouched; output consumers skip it.
 	Terminal bool                  `json:"-"`
 	Metadata openbindings.Metadata `json:"-"`
 }
@@ -259,7 +260,7 @@ func driveBinding(
 				v, err := out.Read(ctx)
 				if errors.Is(err, io.EOF) {
 					// Clean end: surface the invocation's trailer (the
-					// §4.5.2 stamps, exec's x-exit-code) as a terminal
+					// provenance stamps, exec's x-exit-code) as a terminal
 					// metadata marker so the data face's -F json envelope
 					// can carry the verdict block.
 					if md := call.Trailer(); len(md) > 0 {
@@ -374,8 +375,9 @@ func withoutTerminalMarkers(src <-chan InvocationOutput) <-chan InvocationOutput
 
 // ConfiguredInvocation is the data face's invocation result: the event
 // stream, the resolved binding key, and — when a winning EXTERNAL delegate
-// displaces ob's standing internal-table elections — the loud attributed
-// displacement warning (§7) and its verbose detail (which elections).
+// displaces ob's standing internal-table elections (the table published as
+// docs/bound-cli-recipe.md) — the loud attributed displacement warning and
+// its verbose detail (which elections).
 type ConfiguredInvocation struct {
 	Events           <-chan InvocationOutput
 	BindingKey       string
@@ -386,7 +388,8 @@ type ConfiguredInvocation struct {
 // InvokeOBIOperationConfigured is the data-face entry: it invokes an
 // operation with an optional per-invocation InvokeConfig (--decode/
 // --ok-exit/--route), computing delegate selection PRE-DISPATCH so the
-// displacement split (§7) is decidable before anything runs.
+// displacement split (flags refuse, standing elections warn) is decidable
+// before anything runs.
 func InvokeOBIOperationConfigured(ctx context.Context, obiPath, opKey, bindingKey string, input any, config *InvokeConfig) (*ConfiguredInvocation, error) {
 	iface, err := resolveInterface(obiPath)
 	if err != nil {
@@ -401,7 +404,7 @@ func InvokeOBIOperationConfigured(ctx context.Context, obiPath, opKey, bindingKe
 // and delegate invocation: ob operation-invokes a delegate's operation against
 // the delegate's own resolved OBI through this same path.
 //
-// Dispatch is UNIFIED under delegate selection (§7/§11): the winner is
+// Dispatch is UNIFIED under delegate selection: the winner is
 // computed before anything runs. When the self-delegate wins, the config's
 // per-invocation hooks are compiled and threaded, and the streaming lane is
 // available. When an external delegate wins the hop, displaced FLAGS refuse
@@ -520,7 +523,7 @@ func unaryChannel(iface *openbindings.Interface, resolved *resolvedBinding, resu
 // (which bypasses the SDK operation layer's own validation): every output
 // is validated against the operation's declared output schema BEFORE it
 // reaches the caller. A nonconformant output is not emitted — the stream
-// terminates with the validation error (§12.10 stop-and-return), carrying
+// terminates with the validation error (stop-and-return), carrying
 // the contract-decided election teaching when the schema is floor-stamped
 // (the derived contract still declares the floor; the remedy is the schema
 // election, not the decode).
@@ -530,8 +533,10 @@ func applyT08(src <-chan InvocationOutput, schema openbindings.JSONSchema, schem
 		defer close(out)
 		for ev := range src {
 			if ev.Terminal {
-				// §4.5.3: ob drives the binding layer (the SDK operation
-				// layer's warning point is bypassed), so the assumption
+				// Assumption warning (the format-conventions record
+				// recommends warning when an assumption lane decoded into
+				// a contract): ob drives the binding layer (the SDK
+				// operation layer's warning point is bypassed), so the
 				// warning is appended here — keyed on the format's own
 				// decode stamp, riding the terminal metadata into the
 				// envelope. Only an assumption lane can trigger it.

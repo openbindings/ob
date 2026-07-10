@@ -141,8 +141,9 @@ func displacedElections(opKey string) []string {
 	return out
 }
 
-// displacedElectionsWarning composes the §7 attributed displacement
-// warning: the count of ob's standing elections that do not reach the
+// displacedElectionsWarning composes the loud attributed displacement
+// warning: the count of ob's standing elections (the internal hook table
+// published as docs/bound-cli-recipe.md) that do not reach the
 // winning external delegate. Returns "" when nothing is displaced. The
 // verbose detail (which elections) rides the returned slice for `-v`.
 func displacedElectionsWarning(opKey, delegate string) (summary string, detail []string) {

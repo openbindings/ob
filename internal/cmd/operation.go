@@ -241,7 +241,7 @@ Examples:
 	return cmd
 }
 
-// renderInvokeJSON drains the invocation and prints the §4.5.6 machine-lane
+// renderInvokeJSON drains the invocation and prints the machine-lane
 // envelope on stdout: success is ONE terminal object
 // {"outputs":[...],"metadata":{...}} (the metadata block carries the SDK
 // trailer stamps and exec's x-exit-code — how a data-face consumer reads a
@@ -332,8 +332,9 @@ func contextSetHint(d *openbindings.ContextRequiredDetails) string {
 }
 
 // renderErrorDetails renders an InvocationError's Details as a compact
-// human line (child exit code and stderr tail on the error line, per
-// §4.5.6). Returns "" when there is nothing useful to show.
+// human line (child exit code and stderr tail ride the error line, so an
+// exec failure is diagnosable in place). Returns "" when there is nothing
+// useful to show.
 func renderErrorDetails(details any) string {
 	m, ok := details.(map[string]any)
 	if !ok {

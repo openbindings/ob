@@ -65,13 +65,15 @@ func InvokeBindingHandle(ctx context.Context, input InvocationInput) openbinding
 }
 
 // resolveDelegateInvoker selects an invoke-capable delegate that handles the
-// format via the unified delegate selection (OBI-T-09: capability + format,
+// format via the unified delegate selection (OBI-T-09's semantics applied to
+// delegates — ob's narrowing, not a spec rule: capability + format,
 // preference, self-first ties), then wraps it as a BindingInvoker. The
 // self-delegate is excluded here by construction — it has no iface (it runs
 // natively, and native handling was already tried before falling through to a
 // delegate). The chosen delegate's frame/CLI transport is still carried by
-// DelegateBindingInvoker (the frame-transport collapse is the tracked "B"
-// follow-up; see delegate-model-design.md §11b).
+// DelegateBindingInvoker (the frame-transport collapse remains a tracked
+// follow-up; its owner is the serve-pass handoff note in
+// ob-pj/wire-conformance.md).
 func resolveDelegateInvoker(format string) (openbindings.BindingInvoker, error) {
 	chosen := selectDelegate(CapInvoke, format)
 	if chosen == nil || chosen.builtin {

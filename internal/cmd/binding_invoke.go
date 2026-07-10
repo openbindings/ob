@@ -18,12 +18,14 @@ func newBindingInvokeCmd() *cobra.Command {
 		Long: `Invoke a binding directly — the wire lane, below the operation contract.
 
 With an OBI path and a binding key, resolves the named binding from the
-document (embedded content or location, the binding's declared inputTransform
-applied) and drives it. No operation contract is engaged: the output is the
-source's own value, post-decode and pre-outputTransform, and OBI-T-07/T-08
-validation does not apply because no operation result is produced. This is
-how you read what a drifted service actually returns while 'ob operation
-invoke' correctly refuses it. --input carries the binding's input value.
+document (embedded content or location) and drives it. This sits BELOW the
+operation boundary: it is not an operation invocation, so OBI-T-07/T-08,
+which apply when invoking an operation, have no subject here. The binding's
+declared inputTransform still applies — it is part of the binding itself,
+not of operation validation. The output is the source's own value,
+post-decode and pre-outputTransform. This is how you read what a drifted
+service actually returns while 'ob operation invoke' correctly refuses it.
+--input carries the binding's input value.
 
 With no positional arguments (machine-to-machine), --input carries a
 BindingInvocationInput envelope wholesale; the result envelope

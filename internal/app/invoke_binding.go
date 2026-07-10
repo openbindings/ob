@@ -120,10 +120,12 @@ func FormatOpOutput(output any) string {
 // ResolveBindingInvocation builds the wire-lane invocation input for a named
 // binding in a document: the source resolved (embedded content, or a paired
 // or absolute location), the binding's declared inputTransform applied (it
-// is part of the binding's definition and required to construct a valid wire
-// request), and NO operation contract threaded. The result invokes BELOW the
-// operation boundary — no OBI-T-07/T-08 subject exists — and its output is
-// the source's own value, post-decode, pre-outputTransform: the wire truth.
+// is part of the binding itself, not of operation validation, and required
+// to construct a valid wire request), and NO operation contract threaded.
+// The result invokes BELOW the operation boundary — this is not an operation
+// invocation, so OBI-T-07/T-08, which apply when invoking an operation, have
+// no subject here — and its output is the source's own value, post-decode,
+// pre-outputTransform: the wire truth.
 // This is `ob binding invoke <obi> <binding-key>`, the porcelain twin of the
 // machine lane's wholesale --input envelope.
 func ResolveBindingInvocation(obiPath, bindingKey string, input any) (InvocationInput, error) {
