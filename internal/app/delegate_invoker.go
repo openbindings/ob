@@ -384,7 +384,14 @@ func (d *delegateCLIInvoker) InvokeBinding(ctx context.Context, args *openbindin
 			payload = transformed
 		}
 
-		es := resolveSourceLocation(d.source, "")
+		es, esErr := resolveSourceLocation(d.source)
+		if esErr != nil {
+			impl.FireError(&openbindings.InvocationError{
+				Code:    openbindings.ErrCodeSourceConfigError,
+				Message: esErr.Error(),
+			})
+			return
+		}
 		inner := delegateExecInvoker(d.delegate).InvokeBinding(ctx, &openbindings.BindingInvocationArgs{
 			Source:  es,
 			Ref:     d.binding.Ref,

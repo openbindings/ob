@@ -21,11 +21,12 @@ import (
 
 func newMCPCmd() *cobra.Command {
 	var (
-		transport  string
-		port       int
-		serverName string
-		tokenFlag  string
-		tokenFile  string
+		transport   string
+		port        int
+		serverName  string
+		tokenFlag   string
+		tokenFile   string
+		toolTimeout time.Duration
 	)
 
 	cmd := &cobra.Command{
@@ -100,7 +101,8 @@ Examples:
 				return app.ExitResult{Code: 1, Message: fmt.Sprintf("no interface resolved from %s", normalized), ToStderr: true}
 			}
 
-			count := mcpbridge.RegisterInterface(mcpServer, iface, invoker, baseContext)
+			count := mcpbridge.RegisterInterface(mcpServer, iface, invoker, baseContext,
+				mcpbridge.RegisterOptions{ToolDeadline: toolTimeout})
 			logger.Info("resolved interface", "url", normalized, "primitives", count)
 
 			switch transport {
@@ -135,6 +137,7 @@ Examples:
 	cmd.Flags().StringVar(&serverName, "name", "", "MCP server name (default: ob-mcp)")
 	cmd.Flags().StringVar(&tokenFlag, "token", "", "Bearer token for authenticating to target servers (also: OB_TOKEN)")
 	cmd.Flags().StringVar(&tokenFile, "token-file", "", "read Bearer token from file")
+	cmd.Flags().DurationVar(&toolTimeout, "tool-timeout", mcpbridge.DefaultToolDeadline, "bound on a single bridged tool call (MCP tools are request-scoped; a subscription-style operation cannot complete as a tool)")
 
 	return cmd
 }

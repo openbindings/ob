@@ -26,8 +26,8 @@ func NewRoot() *cobra.Command {
 	var openbindingsFlag bool
 
 	root := &cobra.Command{
-		Use:           "ob",
-		Short:         "openbindings: one interface · limitless bindings",
+		Use:   "ob",
+		Short: "openbindings: one interface · limitless bindings",
 		Long: `ob is the OpenBindings CLI: author, validate, compare, and invoke
 OBIs — OpenBindings interface documents, portable descriptions of a
 service's operations independent of the protocols that carry them.`,

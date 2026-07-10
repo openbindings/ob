@@ -67,7 +67,7 @@ func TestOperationList_TagFilter(t *testing.T) {
 func TestOperationList_BindingCount(t *testing.T) {
 	dir := t.TempDir()
 	obiData := map[string]any{
-		"openbindings": "0.1.0",
+		"openbindings": "0.2.0",
 		"operations": map[string]any{
 			"hello": map[string]any{},
 		},
@@ -110,7 +110,7 @@ func TestOperationList_RenderEmpty(t *testing.T) {
 func TestOperationRename_Basic(t *testing.T) {
 	dir := t.TempDir()
 	obiData := map[string]any{
-		"openbindings": "0.1.0",
+		"openbindings": "0.2.0",
 		"operations": map[string]any{
 			"hello": map[string]any{"description": "Say hello"},
 		},
@@ -208,7 +208,7 @@ func TestOperationRename_NoBindings(t *testing.T) {
 func TestOperationRename_MultipleBindings(t *testing.T) {
 	dir := t.TempDir()
 	obiData := map[string]any{
-		"openbindings": "0.1.0",
+		"openbindings": "0.2.0",
 		"operations": map[string]any{
 			"hello": map[string]any{},
 			"other": map[string]any{},
@@ -241,7 +241,7 @@ func TestOperationRename_MultipleBindings(t *testing.T) {
 func TestOperationRemove_Basic(t *testing.T) {
 	dir := t.TempDir()
 	obiData := map[string]any{
-		"openbindings": "0.1.0",
+		"openbindings": "0.2.0",
 		"operations": map[string]any{
 			"hello": map[string]any{},
 			"info":  map[string]any{},

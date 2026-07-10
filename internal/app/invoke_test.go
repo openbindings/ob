@@ -127,7 +127,7 @@ func TestInvokeOBIOperation_FileNotFound(t *testing.T) {
 func TestInvokeOBIOperation_OperationNotFound(t *testing.T) {
 	dir := t.TempDir()
 	obi := writeOBIFile(t, dir, map[string]any{
-		"openbindings": "0.1.0",
+		"openbindings": "0.2.0",
 		"id":           "test",
 		"operations": map[string]any{
 			"listPets": map[string]any{},
@@ -143,7 +143,7 @@ func TestInvokeOBIOperation_OperationNotFound(t *testing.T) {
 func TestInvokeOBIOperation_NoBinding(t *testing.T) {
 	dir := t.TempDir()
 	obi := writeOBIFile(t, dir, map[string]any{
-		"openbindings": "0.1.0",
+		"openbindings": "0.2.0",
 		"id":           "test",
 		"operations": map[string]any{
 			"listPets": map[string]any{},
@@ -159,7 +159,7 @@ func TestInvokeOBIOperation_NoBinding(t *testing.T) {
 func TestInvokeOBIOperation_MissingSource(t *testing.T) {
 	dir := t.TempDir()
 	obi := writeOBIFile(t, dir, map[string]any{
-		"openbindings": "0.1.0",
+		"openbindings": "0.2.0",
 		"id":           "test",
 		"operations": map[string]any{
 			"listPets": map[string]any{},
@@ -181,7 +181,7 @@ func TestInvokeOBIOperation_MissingSource(t *testing.T) {
 func TestInvokeOBIOperation_BindingKeyResolvesOperation(t *testing.T) {
 	dir := t.TempDir()
 	obi := writeOBIFile(t, dir, map[string]any{
-		"openbindings": "0.1.0",
+		"openbindings": "0.2.0",
 		"id":           "test",
 		"operations": map[string]any{
 			"listPets": map[string]any{},
@@ -223,7 +223,7 @@ func TestInvokeOBIOperation_BindingKeyResolvesOperation(t *testing.T) {
 func TestInvokeOBIOperation_BindingKeyNotFound(t *testing.T) {
 	dir := t.TempDir()
 	obi := writeOBIFile(t, dir, map[string]any{
-		"openbindings": "0.1.0",
+		"openbindings": "0.2.0",
 		"id":           "test",
 		"operations": map[string]any{
 			"listPets": map[string]any{},

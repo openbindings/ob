@@ -29,6 +29,12 @@ Sources use the same syntax as 'ob inspect' and 'ob source add':
 [format:]path[?option&option...], with options name=, outputLocation=,
 description=, and embed.
 
+A LOCAL FILE artifact is embedded by default: its content rides the spec
+'content' field so the document is conformant (OBI-D-05) and works from
+anywhere, and the local path is recorded in x-ob metadata as the pull
+path. Pass outputLocation= to point at the published URL instead, or
+?embed on a URL to fetch and pin a remote artifact.
+
 The document is written to stdout, or to a file with -o. To keep an OBI in
 sync with its sources over time, prefer 'ob source add' + 'ob source pull';
 synthesize is the one-shot derivation. It is also the operation a
@@ -87,7 +93,10 @@ Examples:
 				// Machine lane: wire input in, wire-shaped output out.
 				format = "json"
 			}
-			return app.OutputResult(iface, format, outputPath)
+			// The document channel writes through the one canonical
+			// serializer every document-writing command shares, so a
+			// synthesize followed by a no-op pull is byte-identical.
+			return app.OutputDocument(iface, format, outputPath)
 		},
 	}
 

@@ -1,6 +1,7 @@
 package app
 
 import (
+	"fmt"
 	"path/filepath"
 	"sort"
 
@@ -98,7 +99,27 @@ func (p MergePreview) keysByFilter(typ string, isNew, hasChanges, hasConflicts b
 // merge preview against the OBI, returning one MergePreviewEntry per object.
 // This is the shared core for ob status, ob conflicts, and dry-run logic.
 func PreviewSourceMerge(src openbindings.Source, srcKey string, iface *openbindings.Interface, obiDir string) (MergePreview, error) {
-	derived, err := DeriveFromSource(src, srcKey, obiDir)
+	// Embed-mode sources derive FRESH from the x-ob pull path, never from
+	// the stored content: the stored content is the LAST-SYNCED artifact
+	// (deriving from it would compare stored-vs-stored and report nothing,
+	// forever). The stored content instead reconstructs the merge BASE.
+	deriveSrc := src
+	var oldBases *reconstructedBases
+	if sourceEmbedsContent(iface, srcKey) {
+		if rb, ok := reconstructBases(iface, srcKey); ok {
+			oldBases = &rb
+		}
+		meta, merr := GetSourceMeta(src)
+		if merr != nil || meta == nil {
+			return MergePreview{}, fmt.Errorf("source %q: %v", srcKey, merr)
+		}
+		data, rerr := ReadSourceContent(meta.Ref, obiDir)
+		if rerr != nil {
+			return MergePreview{}, fmt.Errorf("source %q: read failed: %w", srcKey, rerr)
+		}
+		deriveSrc.Content = string(data)
+	}
+	derived, err := DeriveFromSource(deriveSrc, srcKey, obiDir)
 	if err != nil {
 		return MergePreview{}, err
 	}
@@ -125,7 +146,7 @@ func PreviewSourceMerge(src openbindings.Source, srcKey string, iface *openbindi
 			continue // hand-authored, untouched
 		}
 
-		base, _ := GetBase(existing.LosslessFields)
+		base := baseForOp(existing.LosslessFields, opKey, oldBases)
 		_, mr, err := MergeOperation(base, existing, freshOp)
 		if err != nil {
 			continue
@@ -160,6 +181,9 @@ func PreviewSourceMerge(src openbindings.Source, srcKey string, iface *openbindi
 		}
 
 		base, _ := GetBase(existing.LosslessFields)
+		if base == nil && oldBases != nil && oldBases.binds != nil {
+			base = oldBases.binds[bindKey]
+		}
 		_, mr, err := MergeBinding(base, existing, freshBind)
 		if err != nil {
 			continue

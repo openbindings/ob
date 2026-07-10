@@ -12,7 +12,6 @@ import (
 // InvokeBindingInput holds the parameters for invoking an operation via its binding.
 type InvokeBindingInput struct {
 	OpKey     string
-	OBIDir    string
 	Interface *openbindings.Interface
 	InputData map[string]any
 }
@@ -39,7 +38,10 @@ func InvokeBinding(ctx context.Context, in InvokeBindingInput) InvokeBindingResu
 		return InvokeBindingResult{Error: err}
 	}
 
-	es := resolveSourceLocation(resolved.source, in.OBIDir)
+	es, err := resolveSourceLocation(resolved.source)
+	if err != nil {
+		return InvokeBindingResult{Error: err}
+	}
 
 	if es.Location == "" && es.Content == nil {
 		return InvokeBindingResult{Error: fmt.Errorf("binding source %q has no artifact or inline content", resolved.binding.Source)}
@@ -113,4 +115,33 @@ func FormatOpOutput(output any) string {
 		}
 		return string(b)
 	}
+}
+
+// ResolveBindingInvocation builds the wire-lane invocation input for a named
+// binding in a document: the source resolved (embedded content, or a paired
+// or absolute location), the binding's declared inputTransform applied (it
+// is part of the binding's definition and required to construct a valid wire
+// request), and NO operation contract threaded. The result invokes BELOW the
+// operation boundary — no OBI-T-07/T-08 subject exists — and its output is
+// the source's own value, post-decode, pre-outputTransform: the wire truth.
+// This is `ob binding invoke <obi> <binding-key>`, the porcelain twin of the
+// machine lane's wholesale --input envelope.
+func ResolveBindingInvocation(obiPath, bindingKey string, input any) (InvocationInput, error) {
+	iface, err := resolveInterface(obiPath)
+	if err != nil {
+		return InvocationInput{}, fmt.Errorf("load OBI %q: %w", obiPath, err)
+	}
+	resolved, err := resolveBindingAndSource(iface, "", bindingKey, input)
+	if err != nil {
+		return InvocationInput{}, err
+	}
+	es, err := resolveSourceLocation(resolved.source)
+	if err != nil {
+		return InvocationInput{}, err
+	}
+	return InvocationInput{
+		Source: InvokeSource{Format: es.Format, Location: es.Location, Content: es.Content},
+		Ref:    resolved.binding.Ref,
+		Input:  resolved.input,
+	}, nil
 }

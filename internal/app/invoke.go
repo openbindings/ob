@@ -168,21 +168,27 @@ func resolveBindingAndSource(iface *openbindings.Interface, opKey, bindingKey st
 	}, nil
 }
 
-// resolveSourceLocation resolves a source location relative to the OBI directory.
-// exec: refs, URIs, absolute paths, and host:port addresses pass through unchanged;
-// relative file paths are joined with obiDir.
-func resolveSourceLocation(source openbindings.Source, obiDir string) openbindings.InvocationSource {
+// resolveSourceLocation builds the InvocationSource for a binding's source.
+// exec: refs, URIs, absolute paths, and host:port addresses pass through
+// unchanged; embedded content rides as-is. A RELATIVE file location is
+// refused: the deleted courtesy lane silently resolved it against the OBI's
+// directory, which made nonconformant documents (OBI-D-05) invoke fine in
+// place and die with a bare file error everywhere else. The remedy is the
+// D-05 ruling's local lane — embed the artifact — or an absolute URI.
+func resolveSourceLocation(source openbindings.Source) (openbindings.InvocationSource, error) {
 	es := openbindings.InvocationSource{Format: source.Format}
 	if source.Location != "" {
 		loc := source.Location
-		if !execref.IsExec(loc) && !strings.Contains(loc, "://") && !filepath.IsAbs(loc) && !isHostPort(loc) && obiDir != "" {
-			loc = filepath.Join(obiDir, loc)
+		if !execref.IsExec(loc) && !strings.Contains(loc, "://") && !filepath.IsAbs(loc) && !isHostPort(loc) {
+			return es, fmt.Errorf(
+				"source location %q is a relative reference — not conformant (OBI-D-05) and not portable; embed the artifact instead ('ob source add --resolve content', or synthesize with '?embed'), or set an absolute URI ('ob source add --uri')",
+				loc)
 		}
 		es.Location = loc
 	} else if source.Content != nil {
 		es.Content = source.Content
 	}
-	return es
+	return es, nil
 }
 
 // isHostPort returns true if s looks like a host:port network address.
@@ -206,7 +212,7 @@ type InvocationOutput struct {
 	// nil Output and Error, carrying the invocation's trailing Metadata
 	// (the §4.5.2 stamps and exec's x-exit-code). Forwarders pass it
 	// through untouched; output consumers skip it.
-	Terminal bool               `json:"-"`
+	Terminal bool                  `json:"-"`
 	Metadata openbindings.Metadata `json:"-"`
 }
 
@@ -386,7 +392,7 @@ func InvokeOBIOperationConfigured(ctx context.Context, obiPath, opKey, bindingKe
 	if err != nil {
 		return nil, fmt.Errorf("load OBI %q: %w", obiPath, err)
 	}
-	return invokeOnInterface(ctx, iface, opKey, bindingKey, input, filepath.Dir(obiPath), config)
+	return invokeOnInterface(ctx, iface, opKey, bindingKey, input, config)
 }
 
 // invokeOnInterface invokes an operation (or a specific binding) on an
@@ -403,13 +409,16 @@ func InvokeOBIOperationConfigured(ctx context.Context, obiPath, opKey, bindingKe
 // STANDING elections proceed with a loud attributed warning. Every emitted
 // output is T-08-validated against the operation's declared output schema
 // before it reaches the caller (stop-and-return on nonconformant emission).
-func invokeOnInterface(ctx context.Context, iface *openbindings.Interface, opKey, bindingKey string, input any, obiDir string, config *InvokeConfig) (*ConfiguredInvocation, error) {
+func invokeOnInterface(ctx context.Context, iface *openbindings.Interface, opKey, bindingKey string, input any, config *InvokeConfig) (*ConfiguredInvocation, error) {
 	resolved, err := resolveBindingAndSource(iface, opKey, bindingKey, input)
 	if err != nil {
 		return nil, err
 	}
 
-	es := resolveSourceLocation(resolved.source, obiDir)
+	es, err := resolveSourceLocation(resolved.source)
+	if err != nil {
+		return nil, err
+	}
 	opCanonical := resolved.binding.Operation
 	outputSchema := iface.Operations[opCanonical].Output
 
@@ -581,6 +590,10 @@ func t08Failure(ev InvocationOutput, verr error, schema openbindings.JSONSchema,
 		details["received"] = snippet
 		msg += "\nreceived: " + snippet
 	}
+	// The wire lane sits below the operation boundary where T-08 attaches:
+	// point at it, with the exact binding already selected, so a drifted
+	// service stays READABLE while it stays nonconformant.
+	msg += fmt.Sprintf("\nto see what the service actually returned: ob binding invoke <obi> %s", bindingKey)
 	ie := &openbindings.InvocationError{Code: openbindings.ErrCodeValidationFailed, Message: msg}
 	if len(details) > 0 {
 		ie.Details = details
@@ -631,7 +644,10 @@ func PrepareOperation(ctx context.Context, obiPath string, opKey string, binding
 		return nil, err
 	}
 
-	es := resolveSourceLocation(resolved.source, filepath.Dir(obiPath))
+	es, err := resolveSourceLocation(resolved.source)
+	if err != nil {
+		return nil, err
+	}
 
 	// The binding-layer preflight performs no I/O (its contract), so a
 	// location-only source would answer "unknown" from a cold cache even
@@ -753,8 +769,11 @@ func transformEventStream(src <-chan InvocationOutput, iface *openbindings.Inter
 // SubscribeOBIOperationDirect opens a streaming subscription using
 // pre-resolved binding components. Used by the TUI which already has the
 // interface, binding, and source loaded.
-func SubscribeOBIOperationDirect(ctx context.Context, binding *openbindings.BindingEntry, source openbindings.Source, obiDir string) (<-chan InvocationOutput, error) {
-	es := resolveSourceLocation(source, obiDir)
+func SubscribeOBIOperationDirect(ctx context.Context, binding *openbindings.BindingEntry, source openbindings.Source) (<-chan InvocationOutput, error) {
+	es, err := resolveSourceLocation(source)
+	if err != nil {
+		return nil, err
+	}
 	invoker := DefaultInvoker()
 	invoke := func(ctx context.Context, ctxData map[string]any) openbindings.Invocation[any, any] {
 		return invoker.InvokeBinding(ctx, &openbindings.BindingInvocationArgs{
@@ -985,7 +1004,6 @@ func invokeViaExternalDelegate(ctx context.Context, resolved delegates.Resolved,
 	}
 	return reduceUnaryInvocation(driveBinding(ctx, invoke, input.Context, input.Input, DefaultInvoker().ContextResolver))
 }
-
 
 // effectiveInputSchema is the no-input-convention discriminator's honest
 // input: the operation's declared schema — or, when the operation declares

@@ -160,4 +160,3 @@ func cliPrompt(_ context.Context, message string, opts *openbindings.PromptOptio
 	}
 	return strings.TrimSpace(line), nil
 }
-

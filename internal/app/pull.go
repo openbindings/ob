@@ -55,6 +55,86 @@ func carryOutputSchemaElection(existing openbindings.Operation, fresh *openbindi
 	}
 }
 
+// carryAuthoredNames preserves the author's alias/tag overlay across a
+// source-owned refresh. Satisfaction aliases (OBI-T-12) are spec-level author
+// data no binding source owns, and tags may be author-curated on top of
+// derived ones. Each list merges three-way against the base (the last pure
+// derivation — recorded in x-ob, or reconstructed from embedded content):
+// names the author added carry onto the fresh derivation, names the author
+// removed stay removed, and everything else follows the source. A nil base
+// treats every existing name as authored (the data-preserving fallback).
+func carryAuthoredNames(existing openbindings.Operation, fresh *openbindings.Operation, base map[string]json.RawMessage) {
+	fresh.Aliases = mergeNameList(baseNameList(base, "aliases"), existing.Aliases, fresh.Aliases)
+	fresh.Tags = mergeNameList(baseNameList(base, "tags"), existing.Tags, fresh.Tags)
+}
+
+// baseNameList extracts a string-list field from a recorded x-ob base snapshot.
+func baseNameList(base map[string]json.RawMessage, field string) []string {
+	if base == nil {
+		return nil
+	}
+	raw, ok := base[field]
+	if !ok {
+		return nil
+	}
+	var out []string
+	if err := json.Unmarshal(raw, &out); err != nil {
+		return nil
+	}
+	return out
+}
+
+// mergeNameList three-way-merges a name list: the fresh derivation is the new
+// baseline, author additions (in existing but not in base) are appended in
+// their existing order, and author removals (in base but not in existing)
+// stay removed even when the source derives them again.
+func mergeNameList(base, existing, fresh []string) []string {
+	inBase := make(map[string]bool, len(base))
+	for _, n := range base {
+		inBase[n] = true
+	}
+	inExisting := make(map[string]bool, len(existing))
+	for _, n := range existing {
+		inExisting[n] = true
+	}
+	var out []string
+	seen := map[string]bool{}
+	for _, n := range fresh {
+		if inBase[n] && !inExisting[n] {
+			continue // author removed a derived name: stays removed
+		}
+		if !seen[n] {
+			out = append(out, n)
+			seen[n] = true
+		}
+	}
+	for _, n := range existing {
+		if inBase[n] {
+			continue // derived-or-kept: the fresh derivation decides
+		}
+		if !seen[n] {
+			out = append(out, n) // author addition survives the refresh
+			seen[n] = true
+		}
+	}
+	return out
+}
+
+// sameXOB reports whether two lossless field sets carry identical x-ob
+// payloads (base snapshot, codegen-name override, output-schema election),
+// so the no-op check recognizes a rebuilt operation whose stored bytes would
+// not change.
+func sameXOB(a, b openbindings.LosslessFields) bool {
+	ax, err1 := getOpBindingXOB(a)
+	bx, err2 := getOpBindingXOB(b)
+	if err1 != nil || err2 != nil {
+		return false
+	}
+	aj, _ := json.Marshal(ax)
+	bj, _ := json.Marshal(bx)
+	return string(aj) == string(bj)
+}
+
 // SourcePullInput represents input for the `source pull` command.
 type SourcePullInput struct {
 	OBIPath    string   // path to the OBI file
@@ -70,32 +150,47 @@ type SourcePullInput struct {
 // consumer pulling an inline interface has no file to read the result back
 // from, so the report is the only channel that can return it.
 type SourcePullOutput struct {
-	Interface         *openbindings.Interface `json:"interface"`
-	Sources           []string                `json:"sources,omitempty"`
-	Skipped           []string                `json:"skipped,omitempty"`
-	OperationsAdded   []string                `json:"operationsAdded,omitempty"`
-	OperationsUpdated []string                `json:"operationsUpdated,omitempty"`
-	OperationsPruned  []string                `json:"operationsPruned,omitempty"`
-	BindingsAdded     []string                `json:"bindingsAdded,omitempty"`
-	BindingsUpdated   []string                `json:"bindingsUpdated,omitempty"`
-	BindingsPruned    []string                `json:"bindingsPruned,omitempty"`
-	Warnings          []string                `json:"warnings,omitempty"`
+	Interface *openbindings.Interface `json:"interface"`
+	Sources   []string                `json:"sources,omitempty"`
+	// Skipped lists sources pull passes over by design (hand-authored, no
+	// x-ob tracking). Failed lists tracked sources whose read/derive FAILED —
+	// a pull with failures is incomplete and exits non-zero, never "complete".
+	Skipped           []string `json:"skipped,omitempty"`
+	Failed            []string `json:"failed,omitempty"`
+	OperationsAdded   []string `json:"operationsAdded,omitempty"`
+	OperationsUpdated []string `json:"operationsUpdated,omitempty"`
+	OperationsPruned  []string `json:"operationsPruned,omitempty"`
+	BindingsAdded     []string `json:"bindingsAdded,omitempty"`
+	BindingsUpdated   []string `json:"bindingsUpdated,omitempty"`
+	BindingsPruned    []string `json:"bindingsPruned,omitempty"`
+	Warnings          []string `json:"warnings,omitempty"`
 }
 
 // Render returns a human-friendly representation.
 func (o SourcePullOutput) Render() string {
 	s := Styles
 	var sb strings.Builder
-	sb.WriteString(s.Header.Render("Pull complete"))
+	if len(o.Failed) > 0 {
+		sb.WriteString(s.Warning.Render("Pull incomplete"))
+	} else {
+		sb.WriteString(s.Header.Render("Pull complete"))
+	}
 	sb.WriteString("\n\n")
 	sb.WriteString(fmt.Sprintf("  %d source(s) pulled", len(o.Sources)))
 	if len(o.Skipped) > 0 {
 		sb.WriteString(fmt.Sprintf(", %d skipped", len(o.Skipped)))
 	}
+	if len(o.Failed) > 0 {
+		sb.WriteString(fmt.Sprintf(", %d failed", len(o.Failed)))
+	}
 	if len(o.Sources) > 0 {
 		sb.WriteString("\n")
 		sb.WriteString(s.Dim.Render("  Sources: "))
 		sb.WriteString(strings.Join(o.Sources, ", "))
+	}
+	if len(o.Failed) > 0 {
+		sb.WriteString("\n")
+		sb.WriteString(s.Warning.Render("  Failed: " + strings.Join(o.Failed, ", ")))
 	}
 	renderKeyGroup(&sb, s, "Operations", o.OperationsUpdated, o.OperationsAdded)
 	if len(o.OperationsPruned) > 0 {
@@ -186,16 +281,29 @@ func SourcePull(input SourcePullInput) (SourcePullOutput, error) {
 	out := SourcePullOutput{}
 
 	for _, key := range targetKeys {
+		// Reconstruct the last-synced bases from the OLD embedded content
+		// BEFORE the refresh replaces it (nil for location-mode sources,
+		// which carry recorded bases instead).
+		var oldBases *reconstructedBases
+		if rb, ok := reconstructBases(iface, key); ok {
+			oldBases = &rb
+		}
 		derived, ok, warning := reReadAndDerive(iface, key, obiDir)
 		if warning != "" {
 			out.Warnings = append(out.Warnings, warning)
 		}
 		if !ok {
-			out.Skipped = append(out.Skipped, key)
+			// A warning marks a real failure (unreadable, underivable); a
+			// silent skip is a hand-authored source pull ignores by design.
+			if warning != "" {
+				out.Failed = append(out.Failed, key)
+			} else {
+				out.Skipped = append(out.Skipped, key)
+			}
 			continue
 		}
 		out.Sources = append(out.Sources, key)
-		pullSourceInto(iface, key, derived, &out)
+		pullSourceInto(iface, key, derived, oldBases, &out)
 	}
 
 	outputPath := input.OBIPath
@@ -220,13 +328,20 @@ func SourcePull(input SourcePullInput) (SourcePullOutput, error) {
 	sort.Strings(out.BindingsAdded)
 	sort.Strings(out.BindingsUpdated)
 	sort.Strings(out.BindingsPruned)
+	sort.Strings(out.Failed)
 	return out, nil
 }
 
 // pullSourceInto applies one source's derived operations/bindings to the
 // interface: overwrite source-owned, add new, prune the source's objects that
 // are no longer derived, never touch hand-authored objects.
-func pullSourceInto(iface *openbindings.Interface, sourceKey string, derived DeriveResult, out *SourcePullOutput) {
+func pullSourceInto(iface *openbindings.Interface, sourceKey string, derived DeriveResult, oldBases *reconstructedBases, out *SourcePullOutput) {
+	// The embed lane elides per-object x-ob.base copies: the embedded content
+	// IS the last-synced artifact, so bases are reconstructable on demand
+	// (see reconstructBases) and storing them roughly doubles the committed
+	// document. Location-mode sources keep recorded bases (the artifact is
+	// not carried, so there is nothing to reconstruct from).
+	elideBase := sourceEmbedsContent(iface, sourceKey)
 	derivedOps := map[string]bool{}
 	for opKey, freshOp := range derived.Operations {
 		derivedOps[opKey] = true
@@ -237,16 +352,24 @@ func pullSourceInto(iface *openbindings.Interface, sourceKey string, derived Der
 				"source %q: derived operation %q collides with a hand-authored operation; left unchanged", sourceKey, opKey))
 			continue
 		}
-		if exists && sameContent(existing, freshOp) {
-			continue // unchanged source-owned op: no churn, no drift
-		}
-		markSourceOwned(&freshOp.LosslessFields, freshOp, out)
+		// The x-ob merge base must stay the PURE derivation: authored data is
+		// carried on top of it, and recording carried data into the base would
+		// make the next pull read it as source-derived (and drop it).
+		pureDerived := freshOp
 		if exists {
-			// The source owns spec fields, not the author's hints: carry the
-			// codegen-name override and re-apply any output-schema election
-			// (grown source coverage displaces it, loudly).
+			// The source owns the spec fields it derives, never the author's
+			// overlay: satisfaction aliases (OBI-T-12) and author-curated tags
+			// merge three-way against the recorded base (additions survive,
+			// removals stay removed, source evolution propagates); the
+			// codegen-name override and any output-schema election re-apply
+			// (grown source coverage displaces the election, loudly).
+			carryAuthoredNames(existing, &freshOp, baseForOp(existing.LosslessFields, opKey, oldBases))
 			carryCodegenName(existing, &freshOp, opKey, &out.Warnings)
 			carryOutputSchemaElection(existing, &freshOp, opKey, &out.Warnings)
+		}
+		markSourceOwned(&freshOp.LosslessFields, pureDerived, elideBase, out)
+		if exists && sameContent(existing, freshOp) && sameXOB(existing.LosslessFields, freshOp.LosslessFields) {
+			continue // unchanged source-owned op: no churn, no drift, no report
 		}
 		iface.Operations[opKey] = freshOp
 		if exists {
@@ -266,10 +389,14 @@ func pullSourceInto(iface *openbindings.Interface, sourceKey string, derived Der
 				"source %q: derived binding %q collides with a hand-authored binding; left unchanged", sourceKey, bk))
 			continue
 		}
-		if exists && sameContent(existingBind, freshBind) {
-			continue // unchanged source-owned binding
+		// Build the full candidate first (mirrors the operation flow): the
+		// no-op check must also compare x-ob, so a pre-elision document
+		// migrates its binding bases to markers on the first pull instead of
+		// keeping them until content happens to change.
+		markSourceOwned(&freshBind.LosslessFields, freshBind, elideBase, out)
+		if exists && sameContent(existingBind, freshBind) && sameXOB(existingBind.LosslessFields, freshBind.LosslessFields) {
+			continue // unchanged source-owned binding: no churn, no drift
 		}
-		markSourceOwned(&freshBind.LosslessFields, freshBind, out)
 		iface.Bindings[bk] = freshBind
 		if exists {
 			out.BindingsUpdated = append(out.BindingsUpdated, bk)
@@ -313,11 +440,16 @@ func pullSourceInto(iface *openbindings.Interface, sourceKey string, derived Der
 	}
 }
 
-// markSourceOwned records the source-derived snapshot as the object's x-ob base.
-// Its presence is the "source-owned" marker that pull, prune, and status key
-// on, and it is the base a later `merge --from-sources` reconciles against.
-// obj is the value being stored (op or binding).
-func markSourceOwned(lossless *openbindings.LosslessFields, obj any, out *SourcePullOutput) {
+// markSourceOwned records source ownership on an object. In the recorded
+// lane the source-derived snapshot is stored as the x-ob base (what a later
+// `merge --from-sources` reconciles against); in the embed lane (elideBase)
+// only the bare x-ob marker is written and the base is reconstructed from
+// the embedded content on demand. obj is the value being stored.
+func markSourceOwned(lossless *openbindings.LosslessFields, obj any, elideBase bool, out *SourcePullOutput) {
+	if elideBase {
+		SetXOB(lossless)
+		return
+	}
 	fields, err := ObjectToFieldMap(obj)
 	if err != nil {
 		out.Warnings = append(out.Warnings, fmt.Sprintf("record provenance: %v", err))
@@ -356,7 +488,7 @@ func reReadAndDerive(iface *openbindings.Interface, key, obiDir string) (DeriveR
 		return DeriveResult{}, false, "" // hand-authored source: silently skip
 	}
 
-	if needsLiveDiscovery(src.Format) {
+	if needsLiveDiscovery(src.Format, meta.Ref) {
 		ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
 		derivedIface, derr := SynthesizeInterfaceFromSource(ctx, &openbindings.SynthesizeInput{
 			Sources: []openbindings.SynthesizeSource{{Format: src.Format, Location: meta.Ref}},
@@ -372,9 +504,7 @@ func reReadAndDerive(iface *openbindings.Interface, key, obiDir string) (DeriveR
 		if rerr := ResolveSourceSpec(&src, *meta, data, obiDir); rerr != nil {
 			return DeriveResult{}, false, fmt.Sprintf("source %q: resolve failed: %v", key, rerr)
 		}
-		meta.ContentHash = HashContent(data)
-		meta.LastSynced = NowISO()
-		meta.OBVersion = OBVersion
+		stampSyncCursor(meta, HashContent(data))
 		if serr := SetSourceMeta(&src, *meta); serr != nil {
 			return DeriveResult{}, false, fmt.Sprintf("source %q: write meta failed: %v", key, serr)
 		}
@@ -389,9 +519,7 @@ func reReadAndDerive(iface *openbindings.Interface, key, obiDir string) (DeriveR
 	if serr := ResolveSourceSpec(&src, *meta, data, obiDir); serr != nil {
 		return DeriveResult{}, false, fmt.Sprintf("source %q: resolve failed: %v", key, serr)
 	}
-	meta.ContentHash = contentHash
-	meta.LastSynced = NowISO()
-	meta.OBVersion = OBVersion
+	stampSyncCursor(meta, contentHash)
 	if serr := SetSourceMeta(&src, *meta); serr != nil {
 		return DeriveResult{}, false, fmt.Sprintf("source %q: write meta failed: %v", key, serr)
 	}
@@ -406,6 +534,20 @@ func reReadAndDerive(iface *openbindings.Interface, key, obiDir string) (DeriveR
 		return DeriveResult{}, false, fmt.Sprintf("source %q: derive failed: %v", key, derr)
 	}
 	return derived, true, ""
+}
+
+// stampSyncCursor updates a source's sync cursor only when something actually
+// changed (the artifact bytes, or the deriving tool's version). An unchanged
+// artifact leaves lastSynced untouched, so a no-op pull is byte-identical:
+// no dirty git tree, no guaranteed same-line merge conflicts on parallel
+// branches, and back-to-back pulls converge instead of churning timestamps.
+func stampSyncCursor(meta *SourceMeta, contentHash string) {
+	if meta.ContentHash == contentHash && meta.OBVersion == OBVersion {
+		return
+	}
+	meta.ContentHash = contentHash
+	meta.LastSynced = NowISO()
+	meta.OBVersion = OBVersion
 }
 
 // resolveTargetKeys returns the sorted list of source keys to pull.
@@ -433,9 +575,22 @@ func resolveTargetKeys(iface *openbindings.Interface, sourceKeys []string) ([]st
 	return sorted, nil
 }
 
-// needsLiveDiscovery reports whether a format derives by connecting to a live
-// endpoint (server reflection / tool listing) rather than reading a file.
-func needsLiveDiscovery(format string) bool {
+// needsLiveDiscovery reports whether a source must be re-read by connecting
+// to a live endpoint rather than by reading a file. Classification is by ref
+// SHAPE, not format alone: a grpc source may be backed by a .proto file on
+// disk (file lane, same rule the grpc format itself dispatches on) or by a
+// reflection address (live lane). Treating a file-backed source as live
+// re-derives an interface and embeds THAT marshaled interface in place of
+// the artifact text — corrupting an embedded source on every pull.
+func needsLiveDiscovery(format, ref string) bool {
 	name := strings.ToLower(strings.SplitN(format, "@", 2)[0])
-	return name == "mcp" || name == "grpc"
+	switch name {
+	case "mcp":
+		// MCP source locations are always live HTTP(S) endpoints.
+		return true
+	case "grpc":
+		return !strings.HasSuffix(ref, ".proto")
+	default:
+		return false
+	}
 }

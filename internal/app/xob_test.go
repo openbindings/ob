@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/openbindings/openbindings-go"
@@ -322,5 +323,52 @@ func TestResolveSourceSpec_Content(t *testing.T) {
 	}
 	if src.Location != "" {
 		t.Error("expected location to be empty in content mode")
+	}
+}
+
+// Binary artifacts cannot be embedded: a byte-for-string conversion mangles
+// them into U+FFFD soup that still validates (observed in the DX field test
+// with a FileDescriptorSet). The embed lane must refuse, naming the gap.
+func TestParseContentForEmbed_RefusesBinary(t *testing.T) {
+	binary := []byte{0x0a, 0xff, 0xfe, 0x00, 0x9c, 0x01, 0x62}
+	_, err := ParseContentForEmbed(binary, "grpc")
+	if err == nil {
+		t.Fatal("non-UTF-8 input must refuse to embed")
+	}
+	for _, want := range []string{"not valid UTF-8", "location", ".proto", "reflection"} {
+		if !strings.Contains(err.Error(), want) {
+			t.Errorf("refusal must mention %q, got: %v", want, err)
+		}
+	}
+}
+
+// Embedded content must be self-contained (spec §6.4): an embedded proto
+// with imports cannot resolve them from inside a document, so deriving from
+// the embed fails later and cryptically. Refuse at embed time.
+func TestParseContentForEmbed_RefusesProtoWithImports(t *testing.T) {
+	multi := []byte(`syntax = "proto3";
+package a;
+import "common.proto";
+service A { rpc Go(B) returns (B); }
+`)
+	_, err := ParseContentForEmbed(multi, "grpc")
+	if err == nil {
+		t.Fatal("a proto with imports must refuse to embed (self-containment)")
+	}
+	if !strings.Contains(err.Error(), "self-contained") || !strings.Contains(err.Error(), `"common.proto"`) {
+		t.Errorf("refusal must cite self-containment and the import, got: %v", err)
+	}
+
+	selfContained := []byte(`syntax = "proto3";
+package a;
+message B { string x = 1; }
+service A { rpc Go(B) returns (B); }
+`)
+	content, err := ParseContentForEmbed(selfContained, "grpc")
+	if err != nil {
+		t.Fatalf("a self-contained proto must embed: %v", err)
+	}
+	if _, ok := content.(string); !ok {
+		t.Errorf("proto embeds as source text, got %T", content)
 	}
 }

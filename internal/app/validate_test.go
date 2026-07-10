@@ -21,8 +21,8 @@ func TestValidateInterface_ValidDocument(t *testing.T) {
 	if !report.Valid {
 		t.Errorf("expected valid, got invalid: %v", report.Problems)
 	}
-	if report.Version != "0.1.0" {
-		t.Errorf("expected version 0.1.0, got %q", report.Version)
+	if report.Version != "0.2.0" {
+		t.Errorf("expected version 0.2.0, got %q", report.Version)
 	}
 }
 
@@ -30,7 +30,7 @@ func TestValidateInterface_MissingRequiredFields(t *testing.T) {
 	dir := t.TempDir()
 	// Missing operations and id.
 	path := writeInterface(t, dir, "bad.json", map[string]any{
-		"openbindings": "0.1.0",
+		"openbindings": "0.2.0",
 	})
 
 	report := ValidateInterface(ValidateInput{Locator: path})
@@ -61,7 +61,7 @@ func TestValidateInterface_StrictMode(t *testing.T) {
 	dir := t.TempDir()
 	// Valid document but with unknown fields — strict should catch it.
 	path := writeInterface(t, dir, "strict.json", map[string]any{
-		"openbindings": "0.1.0",
+		"openbindings": "0.2.0",
 		"operations":   map[string]any{},
 		"customField":  "should fail in strict",
 	})
@@ -132,7 +132,7 @@ func TestValidateInterface_JSONRoundTrip(t *testing.T) {
 func TestValidateInterface_DuplicateAliases(t *testing.T) {
 	dir := t.TempDir()
 	path := writeInterface(t, dir, "dup-alias.json", map[string]any{
-		"openbindings": "0.1.0",
+		"openbindings": "0.2.0",
 		"operations": map[string]any{
 			"a": map[string]any{"aliases": []any{"shared"}},
 			"b": map[string]any{"aliases": []any{"shared"}},
@@ -160,7 +160,7 @@ func TestValidateInterface_Render(t *testing.T) {
 	}
 
 	// Invalid.
-	path = writeInterface(t, dir, "bad.json", map[string]any{"openbindings": "0.1.0"})
+	path = writeInterface(t, dir, "bad.json", map[string]any{"openbindings": "0.2.0"})
 	report = ValidateInterface(ValidateInput{Locator: path})
 	rendered = report.Render()
 	if !contains(rendered, "Invalid") {

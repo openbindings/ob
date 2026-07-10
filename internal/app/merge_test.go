@@ -112,7 +112,7 @@ func TestMerge_UpdateOperation_PreservesUserFields(t *testing.T) {
 
 	// Target has description and aliases (user-authored fields).
 	targetData := map[string]any{
-		"openbindings": "0.1.0",
+		"openbindings": "0.2.0",
 		"id":           "test",
 		"operations": map[string]any{
 			"greet": map[string]any{
@@ -130,7 +130,7 @@ func TestMerge_UpdateOperation_PreservesUserFields(t *testing.T) {
 
 	// Source has updated input schema.
 	sourceData := map[string]any{
-		"openbindings": "0.1.0",
+		"openbindings": "0.2.0",
 		"id":           "test",
 		"operations": map[string]any{
 			"greet": map[string]any{
@@ -221,7 +221,7 @@ func TestMerge_RemoveBinding(t *testing.T) {
 
 	// Target has an operation bound to a source.
 	targetData := map[string]any{
-		"openbindings": "0.1.0",
+		"openbindings": "0.2.0",
 		"id":           "test",
 		"operations": map[string]any{
 			"greet":   map[string]any{},
@@ -347,7 +347,7 @@ func TestMerge_RefMigration(t *testing.T) {
 
 	// Source has a schema and an operation that references it.
 	sourceData := map[string]any{
-		"openbindings": "0.1.0",
+		"openbindings": "0.2.0",
 		"id":           "test",
 		"schemas": map[string]any{
 			"Greeting": map[string]any{

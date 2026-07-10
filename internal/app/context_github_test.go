@@ -64,15 +64,25 @@ func TestContextGitHub_OperationInvokerDriven(t *testing.T) {
   }
 }`
 
+	// The source embeds its artifact (the D-05 ruling's local lane; the
+	// courtesy lane that resolved relative locations is deleted).
+	var embedded map[string]any
+	if err := json.Unmarshal([]byte(specContent), &embedded); err != nil {
+		t.Fatalf("parse spec fixture: %v", err)
+	}
+	embeddedJSON, err := json.Marshal(embedded)
+	if err != nil {
+		t.Fatal(err)
+	}
 	obiContent := `{
-  "openbindings": "0.1.0",
+  "openbindings": "0.2.0",
   "name": "github-user-test",
   "version": "1.0.0",
   "operations": {
     "getAuthenticatedUser": { "description": "Get the authenticated user" }
   },
   "sources": {
-    "openapi": { "format": "openapi@3.0", "location": "github-user.openapi.json" }
+    "openapi": { "format": "openapi@3.0", "content": ` + string(embeddedJSON) + ` }
   },
   "bindings": {
     "getAuthenticatedUser.openapi": {

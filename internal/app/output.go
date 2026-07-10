@@ -182,3 +182,10 @@ func OutputResultText(result any, format string, outputPath string, textFn func(
 func OutputResultStderr(v any, format string, outputPath string) error {
 	return outputResultCore(v, format, outputPath, 0, nil, true)
 }
+
+// OutputResultStderrWithCode is OutputResultStderr with a caller-specified
+// exit code: a filter-lane summary that must both print and fail the process
+// (e.g. an incomplete pull).
+func OutputResultStderrWithCode(v any, format string, outputPath string, code int) error {
+	return outputResultCore(v, format, outputPath, code, nil, true)
+}

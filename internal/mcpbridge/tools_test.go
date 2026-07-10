@@ -1,9 +1,11 @@
 package mcpbridge
 
 import (
+	"context"
 	"encoding/json"
 	"strings"
 	"testing"
+	"time"
 
 	gomcp "github.com/modelcontextprotocol/go-sdk/mcp"
 	openbindings "github.com/openbindings/openbindings-go"
@@ -35,7 +37,7 @@ func TestRegisterInterface_ToolsFromNonMCPBindings(t *testing.T) {
 	}
 	srv := gomcp.NewServer(&gomcp.Implementation{Name: "test"}, nil)
 	invoker := openbindings.NewOperationInvoker()
-	count := RegisterInterface(srv, iface, invoker, nil)
+	count := RegisterInterface(srv, iface, invoker, nil, RegisterOptions{})
 	if count != 2 {
 		t.Fatalf("expected 2 primitives, got %d", count)
 	}
@@ -61,7 +63,7 @@ func TestRegisterInterface_ResourceFromMCPBinding(t *testing.T) {
 	}
 	srv := gomcp.NewServer(&gomcp.Implementation{Name: "test"}, nil)
 	invoker := openbindings.NewOperationInvoker()
-	count := RegisterInterface(srv, iface, invoker, nil)
+	count := RegisterInterface(srv, iface, invoker, nil, RegisterOptions{})
 	if count != 1 {
 		t.Fatalf("expected 1 primitive, got %d", count)
 	}
@@ -95,7 +97,7 @@ func TestRegisterInterface_PromptFromMCPBinding(t *testing.T) {
 	}
 	srv := gomcp.NewServer(&gomcp.Implementation{Name: "test"}, nil)
 	invoker := openbindings.NewOperationInvoker()
-	count := RegisterInterface(srv, iface, invoker, nil)
+	count := RegisterInterface(srv, iface, invoker, nil, RegisterOptions{})
 	if count != 1 {
 		t.Fatalf("expected 1 primitive, got %d", count)
 	}
@@ -121,7 +123,7 @@ func TestRegisterInterface_MixedPrimitives(t *testing.T) {
 	}
 	srv := gomcp.NewServer(&gomcp.Implementation{Name: "test"}, nil)
 	invoker := openbindings.NewOperationInvoker()
-	count := RegisterInterface(srv, iface, invoker, nil)
+	count := RegisterInterface(srv, iface, invoker, nil, RegisterOptions{})
 	if count != 3 {
 		t.Fatalf("expected 3 primitives, got %d", count)
 	}
@@ -275,5 +277,70 @@ func TestBundleInputSchema_HandlesCycle(t *testing.T) {
 	defs, _ := got["$defs"].(map[string]any)
 	if _, ok := defs["Node"]; !ok {
 		t.Errorf("expected Node in $defs, got %v", defs)
+	}
+}
+
+// neverEndingInvoker emits outputs forever: the shape of a subscription
+// binding bridged into a request-scoped MCP tool call.
+type neverEndingInvoker struct{}
+
+func (n *neverEndingInvoker) Formats() []openbindings.FormatInfo {
+	return []openbindings.FormatInfo{{Token: "test-stream", Description: "unbounded stream"}}
+}
+
+func (n *neverEndingInvoker) InvokeBinding(ctx context.Context, args *openbindings.BindingInvocationArgs) openbindings.Invocation[any, any] {
+	inv := openbindings.NewInvocationImpl[any, any](ctx)
+	go func() {
+		_ = inv.CloseInput()
+		i := 0
+		for {
+			select {
+			case <-inv.Done():
+				return
+			case <-time.After(5 * time.Millisecond):
+				i++
+				if err := inv.EmitOutput(map[string]any{"event": i}); err != nil {
+					return
+				}
+			}
+		}
+	}()
+	return inv
+}
+
+// A subscription-style operation cannot complete a request-scoped MCP tool
+// call; the drain must terminate at the deadline with an honest refusal
+// (never hang until the agent's client gives up — the field-check finding).
+func TestDrainOperation_UnboundedStreamHitsDeadline(t *testing.T) {
+	invoker := openbindings.NewOperationInvoker(&neverEndingInvoker{})
+	iface := &openbindings.Interface{
+		OpenBindings: "0.2.0",
+		Name:         "streams",
+		Operations:   map[string]openbindings.Operation{"orderUpdates": {Description: "subscription"}},
+		Sources:      map[string]openbindings.Source{"s": {Format: "test-stream", Location: "https://example.com/stream"}},
+		Bindings: map[string]openbindings.BindingEntry{
+			"orderUpdates.s": {Operation: "orderUpdates", Source: "s", Ref: "updates"},
+		},
+	}
+
+	start := time.Now()
+	call := openbindings.Invoke(context.Background(), invoker, iface,
+		openbindings.NewOperationSignature[any, any]("orderUpdates"))
+	out, ierr := drainOperation(context.Background(), call, nil, "orderUpdates", 120*time.Millisecond)
+	elapsed := time.Since(start)
+
+	if ierr == nil {
+		t.Fatalf("unbounded stream must terminate with a refusal, got output %v", out)
+	}
+	if ierr.Code != openbindings.ErrCodeTimeout {
+		t.Errorf("want ERR_TIMEOUT, got %s", ierr.Code)
+	}
+	for _, want := range []string{"request-scoped", "subscription-style", "event(s) collected"} {
+		if !strings.Contains(ierr.Message, want) {
+			t.Errorf("refusal must mention %q, got: %s", want, ierr.Message)
+		}
+	}
+	if elapsed > 2*time.Second {
+		t.Errorf("drain must terminate at the deadline, took %v", elapsed)
 	}
 }

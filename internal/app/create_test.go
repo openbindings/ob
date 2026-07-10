@@ -157,7 +157,10 @@ func TestDeriveSourceKey_FallbackIndex(t *testing.T) {
 	}
 }
 
-func TestReadEmbedContent_JSON(t *testing.T) {
+// The embed lane reads through ReadSourceContent and parses by FORMAT via
+// ParseContentForEmbed — one canonical embed parse across synthesize,
+// source add --resolve content, and pull refreshes.
+func TestEmbedLane_JSONFormat(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "test.json")
 	data := map[string]any{"hello": "world"}
@@ -166,7 +169,11 @@ func TestReadEmbedContent_JSON(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	result, err := readEmbedContent(path)
+	raw, err := ReadSourceContent(path, "")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	result, err := ParseContentForEmbed(raw, "openapi@3.1")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -179,14 +186,18 @@ func TestReadEmbedContent_JSON(t *testing.T) {
 	}
 }
 
-func TestReadEmbedContent_YAML(t *testing.T) {
+func TestEmbedLane_YAMLFormat(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "test.yaml")
 	if err := os.WriteFile(path, []byte("greeting: hello\n"), 0644); err != nil {
 		t.Fatal(err)
 	}
 
-	result, err := readEmbedContent(path)
+	raw, err := ReadSourceContent(path, "")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	result, err := ParseContentForEmbed(raw, "asyncapi@3.0")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -199,28 +210,32 @@ func TestReadEmbedContent_YAML(t *testing.T) {
 	}
 }
 
-func TestReadEmbedContent_KDL(t *testing.T) {
+func TestEmbedLane_TextFormat(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "test.kdl")
 	if err := os.WriteFile(path, []byte("node \"value\""), 0644); err != nil {
 		t.Fatal(err)
 	}
 
-	result, err := readEmbedContent(path)
+	raw, err := ReadSourceContent(path, "")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	result, err := ParseContentForEmbed(raw, "usage@2.0")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 	str, ok := result.(string)
 	if !ok {
-		t.Fatalf("expected string for KDL, got %T", result)
+		t.Fatalf("expected string for a text format, got %T", result)
 	}
 	if str != "node \"value\"" {
 		t.Errorf("result = %q", str)
 	}
 }
 
-func TestReadEmbedContent_FileNotFound(t *testing.T) {
-	_, err := readEmbedContent("/nonexistent/test.json")
+func TestEmbedLane_FileNotFound(t *testing.T) {
+	_, err := ReadSourceContent("/nonexistent/test.json", "")
 	if err == nil {
 		t.Error("expected error")
 	}

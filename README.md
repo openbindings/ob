@@ -42,6 +42,14 @@ ob source pull interface.json                            # derive operations + b
 
 `ob source add` accepts a bare path (`./openapi.json`) and auto-detects the format, or an explicit `format@version:path`. `ob source pull` reads the source, extracts operations and schemas, and writes the operations and their bindings back into the OBI.
 
+For a one-shot derivation (no ongoing sync), `ob synthesize` collapses the three steps into one:
+
+```bash
+ob synthesize ./openapi.json -o interface.json     # derive a whole OBI in one command
+```
+
+Use `synthesize` when you just want the OBI once; use `source add` + `source pull` when you want `ob` to track the source and re-derive on drift.
+
 ### 2. Add a second source
 
 Your service also has a CLI described by a usage spec:
@@ -62,17 +70,22 @@ ob status interface.json
 ```
 
 ```
-myservice v1.0.0  (openbindings 0.2.0)
+myservice 1.0.0  (openbindings 0.2.0)
 
 Sources (2)
-  openapi    openapi@3.1    ./openapi.json       drifted (synced 3d ago)
-  cli        usage@2.0      ./cli.usage.kdl      current (synced 3d ago)
+  openapi           openapi@3.1     ./openapi.json          out of sync (synced 3d ago, ob 0.2.0)
+    ↳ operations to add: deletePet
+    ↳ bindings to add: deletePet.openapi
+  cli               usage@2.0       ./cli.usage.kdl         in sync (synced 3d ago, ob 0.2.0)
 
-Operations (8) — 8 managed, 0 hand-authored
-Bindings (10) — 10 managed, 0 hand-authored
+Operations (8)  — 8 source-owned
 
-1 source(s) out of sync. Run 'ob source pull interface.json' to update.
+Bindings (10)  — 10 source-owned
+
+1 source(s) out of sync. Run 'ob source pull <obi>' to update.
 ```
+
+`ob status` is a dry pull: the indented `↳` lines are exactly what the next `ob source pull` would add, update, or remove. An operation you wrote by hand (no source) shows in the counts as `hand-authored` and never appears in a source's drift list.
 
 ### 4. Pull
 
@@ -120,14 +133,14 @@ An OBI is a JSON document with:
 
 OBIs are format-agnostic. The same operation can be bound to an OpenAPI endpoint, a gRPC method, an MCP tool, and a CLI command simultaneously. Authentication is deliberately absent from the document: credentials and other prerequisites are negotiated at invocation time and stored as context (see `ob context`).
 
-### Managed vs. Hand-Authored
+### Source-Owned vs. Hand-Authored
 
-`ob` tracks which objects it manages via `x-ob` metadata:
+`ob` tracks provenance via `x-ob` metadata:
 
-- **Managed** (`x-ob` present with a source base): derived by `ob source pull` from a registered source. A later pull can overwrite them when the source changes.
-- **Hand-authored** (no source base): added manually with `ob operation add` / `ob operation bind`. Pull never touches them.
+- **Source-owned** (`x-ob` marker present): derived by `ob source pull` from a registered source. A later pull refreshes them when the source changes — but never your overlay: satisfaction aliases, curated tags, codegen-name overrides, and output-schema elections all survive the refresh.
+- **Hand-authored** (no `x-ob`): added manually with `ob operation add` / `ob operation bind`. Pull never touches them.
 
-`ob operation detach` converts a managed operation into a hand-authored one — the operation stays; `ob` just stops overwriting it on pull.
+`ob operation detach` converts a source-owned operation into a hand-authored one — the operation stays; `ob` just stops refreshing it on pull.
 
 ## Code Generation
 
@@ -226,39 +239,40 @@ A minimal `exec:` delegate is a CLI that:
 
 ## Source Resolution
 
-When adding a source, `--resolve` controls how it appears in the OBI:
+How a source is stored in the OBI follows from what you point at; `--resolve` overrides.
 
-### `location` (default)
+### `content` (the default for local files)
 
-Stores a path or URI to the source artifact:
-
-```bash
-ob source add interface.json openapi@3.1:./api.yaml
-```
-
-With `--uri`, the output location differs from the input path:
+A local file artifact embeds directly in the OBI: the document is conformant (a relative path can never be, per OBI-D-05) and works from anywhere — registry, stdin, a colleague's clone. The local path is recorded in x-ob metadata as the pull path `ob source pull` refreshes from:
 
 ```bash
-ob source add interface.json openapi@3.1:./api.yaml --uri https://cdn.example.com/api.yaml
+ob source add interface.json openapi@3.1:./api.yaml          # embeds by default
+ob source add interface.json 'openapi@3.1:https://example.com/api.yaml?embed'  # fetch and pin a remote artifact
 ```
 
-### `content`
+JSON/YAML formats embed as native objects. Text formats (KDL, protobuf source) embed as strings and must be self-contained (a `.proto` with imports refuses). Binary artifacts cannot be embedded.
 
-Embeds the source content directly in the OBI:
+### `location` (the default for URLs and live addresses)
+
+Stores a URI or format-defined address (a gRPC `host:port`, an MCP endpoint) in the spec `location` field:
 
 ```bash
-ob source add interface.json usage@2.0:./cli.kdl --resolve content
+ob source add interface.json openapi@3.1:https://example.com/api.yaml
 ```
 
-JSON/YAML formats embed as native objects. Text formats (KDL, protobuf) embed as strings.
+To keep a local working file but publish a pointer, pair `--resolve location` with `--uri`:
+
+```bash
+ob source add interface.json openapi@3.1:./api.yaml --resolve location --uri https://cdn.example.com/api.yaml
+```
 
 ## Drift Detection and Pull
 
-`ob` hashes each source artifact when it is pulled (`x-ob.contentHash`). `ob status` compares the current file against the stored hash to detect changes.
+`ob` hashes each source artifact when it is pulled (`x-ob.contentHash`). `ob status` compares the current file against the stored hash and, for anything that changed, previews the exact add/update/remove lines the next pull would apply — without writing anything. It is a dry pull. `ob source pull` then executes that plan: it re-derives the operations and bindings each drifted source owns and leaves hand-authored objects untouched. Running pull on an already-synced OBI is a no-op.
 
 ```bash
-ob status interface.json                                    # check for drift
-ob source pull interface.json                               # update from drifted sources
+ob status interface.json                                    # dry pull: preview what a pull would change
+ob source pull interface.json                               # apply: update from drifted sources
 ob source pull interface.json usage                         # pull just one source
 ob source pull interface.json -o dist/interface.json --pure # publish clean
 ```
@@ -285,6 +299,7 @@ ob source pull interface.json -o dist/interface.json --pure # publish clean
 | Command | Description |
 |---------|-------------|
 | `ob new <obi>` | Create an empty OBI document |
+| `ob synthesize [source]...` | Derive a whole OBI from sources in one shot (no ongoing sync) |
 | `ob source add <obi> <source>` | Register a binding source reference |
 | `ob source pull <obi> [source-keys...]` | Derive operations and bindings from registered sources |
 | `ob source list/remove <obi> [key]` | List or remove source references |
@@ -309,7 +324,7 @@ ob source pull interface.json -o dist/interface.json --pure # publish clean
 | `ob operation alias <obi> …` | Manage an operation's satisfaction aliases |
 | `ob operation rename/remove/detach <obi> …` | Rename, remove, or detach operations |
 | `ob operation codegen-name <obi> <operation> [name]` | Set/clear the symbol name `ob codegen` emits for an operation |
-| `ob binding invoke` | Low-level: invoke a resolved binding (delegate plumbing) |
+| `ob binding invoke <obi> <binding-key>` | Invoke a binding directly: the wire lane — output as the source produced it, unvalidated (also the machine lane via `--input`) |
 
 ### Delegates and formats
 
@@ -334,7 +349,8 @@ ob source pull interface.json -o dist/interface.json --pure # publish clean
 
 | Command | Description |
 |---------|-------------|
-| `ob describe` | Show `ob` identity and metadata |
+| `ob describe` | Show `ob`'s identity, version, and the OpenBindings spec version it supports |
+| `ob --version` | Print the CLI version and its supported spec range (e.g. `ob version 0.2.0 (OpenBindings spec 0.2.0)`) |
 | `ob validate <locator>` | Validate an OBI document |
 | `ob compat <target> <candidate>` | Check interface conformance between two interfaces |
 

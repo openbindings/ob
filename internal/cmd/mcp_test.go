@@ -68,7 +68,7 @@ func TestMCPCommand_BridgesInterfaceToTools(t *testing.T) {
 		Version: "1.0.0",
 	}, nil)
 
-	count := mcpbridge.RegisterInterface(mcpServer, iface, invoker, nil)
+	count := mcpbridge.RegisterInterface(mcpServer, iface, invoker, nil, mcpbridge.RegisterOptions{})
 	if count != 1 {
 		t.Fatalf("expected 1 registered primitive, got %d", count)
 	}
@@ -176,7 +176,7 @@ func TestObStartServedInterfaceBridgesToMCP(t *testing.T) {
 
 	srv := gomcp.NewServer(&gomcp.Implementation{Name: "ob", Version: "test"}, nil)
 	count := mcpbridge.RegisterInterface(srv, fetched.Interface, app.DefaultInvoker(),
-		map[string]any{"bearerToken": "test-token"})
+		map[string]any{"bearerToken": "test-token"}, mcpbridge.RegisterOptions{})
 
 	if count == 0 {
 		t.Fatal("bridge registered no MCP primitives from ob's served interface")

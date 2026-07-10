@@ -10,7 +10,7 @@ func TestFormatOutput_YAML_SerializesXOBAsObject(t *testing.T) {
 	// when marshaled directly to YAML, json.RawMessage ([]byte) becomes [123, 125].
 	// After our JSON round-trip, it should appear as x-ob: {} in YAML.
 	v := map[string]any{
-		"openbindings": "0.1.0",
+		"openbindings": "0.2.0",
 		"name":         "test",
 		"operations": map[string]any{
 			"hello": map[string]any{

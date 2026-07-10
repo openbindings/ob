@@ -332,8 +332,10 @@ cmd "operation" help="Manage and invoke operations on an OBI" subcommand_require
 }
 
 cmd "binding" help="Low-level binding operations" subcommand_required=true {
-  cmd "invoke" help="Invoke a resolved binding (machine-to-machine)" {
-    flag "--input <json>" help="BindingInvocationInput as a JSON string"
+  cmd "invoke" help="Invoke a binding directly (the wire lane)" {
+    flag "--input <json>" help="Binding input value (with positional args), or a BindingInvocationInput envelope (machine lane)"
+    arg "[obi-path]" help="OBI document to resolve the binding from"
+    arg "[binding-key]" help="Binding key to invoke (output is the wire value: post-decode, pre-outputTransform, unvalidated)"
   }
   cmd "prepare" help="Preflight a resolved binding (machine-to-machine)" {
     flag "--input <json>" help="BindingInvocationInput as a JSON string"
@@ -394,6 +396,7 @@ cmd "conform" help="Scaffold or update operations so the target satisfies anothe
 }
 
 cmd "purify" help="Strip x-ob vendor metadata, yielding a spec-only interface" {
+  flag "--check" help="Check purity without writing: exit 1 and list x-ob locations if anything would be stripped"
   flag "-o --output <path>" help="Write output to file"
   flag "-F --format <format>" help="Output format: json|yaml|text"
   arg "<obi-path>" help="Interface to purify (file path, or - for stdin)"
@@ -413,6 +416,7 @@ cmd "mcp" help="Serve an interface URL as an MCP server" {
   flag "--name <name>" help="MCP server name (default: ob-mcp)"
   flag "--token <token>" help="Bearer token for authenticating to target servers (also: OB_TOKEN)"
   flag "--token-file <path>" help="Read Bearer token from file"
+  flag "--tool-timeout <duration>" help="Bound on a single bridged tool call (MCP tools are request-scoped; a subscription-style operation cannot complete as a tool)"
   arg "<url>" help="Interface URL to expose as an MCP server (compose an aggregate OBI for several services)"
 }
 

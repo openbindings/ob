@@ -59,19 +59,30 @@ or --yes to accept the first capable delegate.
 The delegate choice is stored in the source's x-ob metadata so that
 'ob source pull' knows which delegate to use later.
 
-The source path is stored relative to the OBI file's directory, so the
-reference works regardless of where you run commands from.
+A LOCAL FILE artifact is embedded by default: its content rides the
+spec 'content' field so the document is conformant (OBI-D-05) and works
+from anywhere, and the local path is recorded in x-ob metadata as the
+pull path 'ob source pull' refreshes from. URLs and live addresses
+(host:port, MCP endpoints) are stored as the spec 'location'.
 
 This does NOT derive operations or create bindings — it only registers
 the source reference. Use 'ob source pull' afterward to derive operations
 and bindings from the source.
 
-The --resolve flag controls how the source is stored in the OBI:
-  location  (default) Store a path/URI in the spec 'location' field.
-  content   Read the source and embed its content in the spec 'content' field.
+The --resolve flag overrides the default storage mode:
+  content   Embed the artifact in the spec 'content' field (the default
+            for local files; on a URL, fetches and pins the artifact).
+  location  Store a path/URI in the spec 'location' field. A local path
+            stored this way is NOT publishable (OBI-D-05); pair it with
+            --uri to record the published URL.
 
-When --resolve=location and --uri is provided, the spec location field
-uses the given URI instead of the local path.
+--uri sets the spec location field. In location mode it replaces the
+local path (the published URL). In content mode it PAIRS with the
+embedded artifact (spec §6.4): the artifact's canonical origin for
+document formats, or the service's dial address for service-addressed
+formats — e.g. pin a .proto and carry its server:
+
+  ob source add my.obi.json grpc:./svc.proto --resolve content --uri api.example.com:443
 
 Pass '-' as <obi-path> to read the document from stdin and write the
 modified document to stdout (the summary moves to stderr).
@@ -81,7 +92,7 @@ Examples:
   ob source add my.obi.json ./api.yaml --key restApi
   ob source add my.obi.json openapi@3.1:./api.yaml
   ob source add my.obi.json openapi.json --delegate ob
-  ob source add my.obi.json usage@2.0.0:./cli.kdl --resolve content
+  ob source add my.obi.json 'openapi@3.1:https://example.com/openapi.json?embed'
   ob source add my.obi.json openapi@3.1:./api.yaml --uri https://cdn.example.com/api.yaml`,
 		Args: cobra.ExactArgs(2),
 		RunE: func(cmd *cobra.Command, args []string) error {
@@ -118,7 +129,32 @@ Examples:
 				}
 			}
 
+			// Source-string options are honored, never silently dropped: the
+			// synthesize/inspect/source-add source syntax is one grammar.
+			resolve := resolveArg
+			if src.Embed {
+				if resolveArg == app.ResolveModeLocation {
+					return app.ExitResult{Code: 2, Message: "?embed contradicts --resolve location", ToStderr: true}
+				}
+				resolve = app.ResolveModeContent
+			}
+			uri := uriArg
+			if src.OutputLocation != "" {
+				if uriArg != "" && uriArg != src.OutputLocation {
+					return app.ExitResult{Code: 2, Message: fmt.Sprintf(
+						"?outputLocation=%s contradicts --uri %s", src.OutputLocation, uriArg), ToStderr: true}
+				}
+				uri = src.OutputLocation
+			}
+			desc := description
+			if desc == "" {
+				desc = src.Description
+			}
+
 			sourceKey := key
+			if sourceKey == "" && src.Name != "" {
+				sourceKey = src.Name
+			}
 			if sourceKey == "" {
 				derived := app.DeriveSourceKey(app.SynthesizeInterfaceSource{
 					Format:   src.Format,
@@ -135,10 +171,10 @@ Examples:
 				Format:      src.Format,
 				Location:    src.Location,
 				Key:         sourceKey,
-				Resolve:     resolveArg,
-				URI:         uriArg,
+				Resolve:     resolve,
+				URI:         uri,
 				Delegate:    delegateID,
-				Description: description,
+				Description: desc,
 			})
 			if err != nil {
 				return app.ExitResult{Code: 1, Message: err.Error(), ToStderr: true}
@@ -294,7 +330,7 @@ stripped) suitable for publishing.
 
 Pass '-' as <obi-path> to read the document from stdin and write the
 pulled document to stdout (the change log moves to stderr). Relative
-source locations then resolve against the current directory.
+x-ob pull paths then resolve against the current directory.
 
 Examples:
   ob source pull interface.json
@@ -317,11 +353,17 @@ Examples:
 			// -o names the document's destination (SourcePull wrote it there);
 			// the summary goes to the terminal, never to that same path. With
 			// `-` and no -o the document rode stdout, so the summary moves to
-			// stderr (the filter lane).
-			if args[0] == app.StdinLocator && outputPath == "" {
-				return app.OutputResultStderr(result, format, "")
+			// stderr (the filter lane). An incomplete pull (a tracked source
+			// could not be read or derived) exits non-zero: "Pull complete"
+			// over 0/N failures is how stale documents pass CI.
+			exitCode := 0
+			if len(result.Failed) > 0 {
+				exitCode = 1
 			}
-			return app.OutputResult(result, format, "")
+			if args[0] == app.StdinLocator && outputPath == "" {
+				return app.OutputResultStderrWithCode(result, format, "", exitCode)
+			}
+			return app.OutputResultWithCode(result, format, "", exitCode)
 		},
 	}
 

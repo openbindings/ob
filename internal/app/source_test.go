@@ -2,6 +2,8 @@ package app
 
 import (
 	"encoding/json"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"testing"
@@ -53,7 +55,7 @@ func TestSourceAdd_KeyCollision(t *testing.T) {
 
 	// Create OBI with existing source.
 	obiData := map[string]any{
-		"openbindings": "0.1.0",
+		"openbindings": "0.2.0",
 		"id":           "test",
 		"operations":   map[string]any{},
 		"sources": map[string]any{
@@ -129,7 +131,7 @@ func TestSourceList_WithSources(t *testing.T) {
 	dir := t.TempDir()
 
 	obiData := map[string]any{
-		"openbindings": "0.1.0",
+		"openbindings": "0.2.0",
 		"id":           "test",
 		"operations":   map[string]any{},
 		"sources": map[string]any{
@@ -167,7 +169,7 @@ func TestSourceRemove_Basic(t *testing.T) {
 	dir := t.TempDir()
 
 	obiData := map[string]any{
-		"openbindings": "0.1.0",
+		"openbindings": "0.2.0",
 		"id":           "test",
 		"operations":   map[string]any{},
 		"sources": map[string]any{
@@ -216,7 +218,7 @@ func TestSourceRemove_CleansUpBindings(t *testing.T) {
 	dir := t.TempDir()
 
 	obiData := map[string]any{
-		"openbindings": "0.1.0",
+		"openbindings": "0.2.0",
 		"id":           "test",
 		"operations": map[string]any{
 			"greet": map[string]any{},
@@ -258,7 +260,7 @@ func TestSourceRemove_WarnsUnboundOps(t *testing.T) {
 	dir := t.TempDir()
 
 	obiData := map[string]any{
-		"openbindings": "0.1.0",
+		"openbindings": "0.2.0",
 		"id":           "test",
 		"operations": map[string]any{
 			"greet":   map[string]any{},
@@ -353,5 +355,251 @@ func TestSourceList_RenderEmpty(t *testing.T) {
 	rendered := output.Render()
 	if rendered == "" {
 		t.Error("expected non-empty render output for empty list")
+	}
+}
+
+// THE FLIP (D-05 ruling): a local file artifact embeds by default — the
+// document is conformant immediately, and the local path lives in x-ob.ref
+// as the pull path.
+func TestSourceAdd_LocalFileEmbedsByDefault(t *testing.T) {
+	dir := t.TempDir()
+	obiPath := writeInterface(t, dir, "my.obi.json", minimalInterface(map[string]any{}))
+	artifactPath := filepath.Join(dir, "cli.kdl")
+	if err := os.WriteFile(artifactPath, []byte("name \"tool\""), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	result, err := SourceAdd(SourceAddInput{
+		OBIPath:  obiPath,
+		Format:   "usage@2.0.0",
+		Location: artifactPath,
+	})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if result.Resolve != ResolveModeContent {
+		t.Errorf("local file must embed by default, got resolve=%q", result.Resolve)
+	}
+
+	iface, err := loadInterfaceFile(obiPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	src := iface.Sources[result.Key]
+	if src.Location != "" {
+		t.Errorf("embedded source must carry no spec location, got %q", src.Location)
+	}
+	if s, ok := src.Content.(string); !ok || s != "name \"tool\"" {
+		t.Errorf("artifact text must be embedded, got %T %v", src.Content, src.Content)
+	}
+	meta, err := GetSourceMeta(src)
+	if err != nil || meta == nil {
+		t.Fatalf("x-ob meta: %v", err)
+	}
+	if meta.Ref != "cli.kdl" {
+		t.Errorf("pull path must ride x-ob.ref relative to the OBI, got %q", meta.Ref)
+	}
+	if meta.ContentHash == "" {
+		t.Error("embed lane must seal the artifact bytes with a contentHash")
+	}
+}
+
+// An explicit --resolve location keeps the (nonconformant, working-form)
+// pointer; explicit intent is honored, never silently overridden.
+func TestSourceAdd_ExplicitLocationHonored(t *testing.T) {
+	dir := t.TempDir()
+	obiPath := writeInterface(t, dir, "my.obi.json", minimalInterface(map[string]any{}))
+	artifactPath := filepath.Join(dir, "cli.kdl")
+	if err := os.WriteFile(artifactPath, []byte("# dummy"), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	result, err := SourceAdd(SourceAddInput{
+		OBIPath:  obiPath,
+		Format:   "usage@2.0.0",
+		Location: artifactPath,
+		Resolve:  ResolveModeLocation,
+	})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if result.Resolve != ResolveModeLocation {
+		t.Errorf("explicit --resolve location must be honored, got %q", result.Resolve)
+	}
+}
+
+// A --uri implies the published pointer: location mode, no silent embed.
+func TestSourceAdd_URIKeepsLocationMode(t *testing.T) {
+	dir := t.TempDir()
+	obiPath := writeInterface(t, dir, "my.obi.json", minimalInterface(map[string]any{}))
+	artifactPath := filepath.Join(dir, "api.json")
+	if err := os.WriteFile(artifactPath, []byte(`{"openapi":"3.1.0"}`), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	result, err := SourceAdd(SourceAddInput{
+		OBIPath:  obiPath,
+		Format:   "openapi@3.1",
+		Location: artifactPath,
+		URI:      "https://cdn.example.com/api.json",
+	})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if result.Resolve != ResolveModeLocation {
+		t.Errorf("--uri implies location mode, got %q", result.Resolve)
+	}
+	iface, _ := loadInterfaceFile(obiPath)
+	if src := iface.Sources[result.Key]; src.Location != "https://cdn.example.com/api.json" {
+		t.Errorf("spec location must be the published URI, got %q", src.Location)
+	}
+}
+
+// A URL source with --resolve content fetches and pins the remote artifact
+// (the field test found ?embed on a URL dying with a filesystem ENOENT).
+func TestSourceAdd_URLFetchEmbed(t *testing.T) {
+	spec := `{"openapi":"3.1.0","info":{"title":"T","version":"1"},"paths":{}}`
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(spec))
+	}))
+	defer srv.Close()
+
+	dir := t.TempDir()
+	obiPath := writeInterface(t, dir, "my.obi.json", minimalInterface(map[string]any{}))
+
+	result, err := SourceAdd(SourceAddInput{
+		OBIPath:  obiPath,
+		Format:   "openapi@3.1",
+		Location: srv.URL + "/openapi.json",
+		Key:      "api",
+		Resolve:  ResolveModeContent,
+	})
+	if err != nil {
+		t.Fatalf("URL fetch-embed failed: %v", err)
+	}
+	iface, _ := loadInterfaceFile(obiPath)
+	src := iface.Sources[result.Key]
+	obj, ok := src.Content.(map[string]any)
+	if !ok || obj["openapi"] != "3.1.0" {
+		t.Fatalf("remote artifact must be fetched and embedded, got %T", src.Content)
+	}
+	meta, _ := GetSourceMeta(src)
+	if meta.Ref != srv.URL+"/openapi.json" {
+		t.Errorf("the URL must ride x-ob.ref for pull refresh, got %q", meta.Ref)
+	}
+	if meta.ContentHash != HashContent([]byte(spec)) {
+		t.Errorf("contentHash must seal the fetched bytes")
+	}
+}
+
+// A URL source with no explicit resolve stays a pointer (location mode).
+func TestSourceAdd_URLDefaultsToLocation(t *testing.T) {
+	spec := `{"openapi":"3.1.0"}`
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_, _ = w.Write([]byte(spec))
+	}))
+	defer srv.Close()
+
+	dir := t.TempDir()
+	obiPath := writeInterface(t, dir, "my.obi.json", minimalInterface(map[string]any{}))
+
+	result, err := SourceAdd(SourceAddInput{
+		OBIPath:  obiPath,
+		Format:   "openapi@3.1",
+		Location: srv.URL + "/openapi.json",
+		Key:      "api",
+	})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if result.Resolve != ResolveModeLocation {
+		t.Errorf("URL source must default to location mode, got %q", result.Resolve)
+	}
+}
+
+// §6.4 pairing (ratified 2026-07-10): a source may carry BOTH embedded
+// content and a location. For service-addressed formats the location is the
+// dial address ("pinned contract + invocation target in one source"); for
+// document formats it is the canonical origin. --resolve content + --uri is
+// the explicit authoring path.
+func TestSourceAdd_ContentWithURIPairsBoth(t *testing.T) {
+	dir := t.TempDir()
+	obiPath := writeInterface(t, dir, "my.obi.json", minimalInterface(map[string]any{}))
+	protoPath := filepath.Join(dir, "tiny.proto")
+	proto := "syntax = \"proto3\";\npackage tiny;\nmessage M { string x = 1; }\nservice T { rpc Go(M) returns (M); }\n"
+	if err := os.WriteFile(protoPath, []byte(proto), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	result, err := SourceAdd(SourceAddInput{
+		OBIPath:  obiPath,
+		Format:   "grpc",
+		Location: protoPath,
+		Key:      "svc",
+		Resolve:  ResolveModeContent,
+		URI:      "api.example.com:443",
+	})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if result.Resolve != ResolveModeContent {
+		t.Errorf("resolve = %q", result.Resolve)
+	}
+	iface, err := loadInterfaceFile(obiPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	src := iface.Sources["svc"]
+	if s, ok := src.Content.(string); !ok || s != proto {
+		t.Errorf("content must pin the artifact text, got %T", src.Content)
+	}
+	if src.Location != "api.example.com:443" {
+		t.Errorf("location must carry the service address, got %q", src.Location)
+	}
+	if problems := ValidateDocumentValue(mustDocValue(t, obiPath)); len(problems) > 0 {
+		t.Errorf("paired source must validate: %v", problems)
+	}
+}
+
+// mustDocValue loads an OBI file as an untyped JSON value.
+func mustDocValue(t *testing.T, path string) any {
+	t.Helper()
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var v any
+	if err := json.Unmarshal(data, &v); err != nil {
+		t.Fatal(err)
+	}
+	return v
+}
+
+// A pull refresh preserves the paired location (the URI rides x-ob and is
+// re-applied on every refresh).
+func TestSourcePull_PreservesPairedLocation(t *testing.T) {
+	dir := t.TempDir()
+	obiPath := writeInterface(t, dir, "my.obi.json", minimalInterface(map[string]any{}))
+	protoPath := filepath.Join(dir, "tiny.proto")
+	proto := "syntax = \"proto3\";\npackage tiny;\nmessage M { string x = 1; }\nservice T { rpc Go(M) returns (M); }\n"
+	if err := os.WriteFile(protoPath, []byte(proto), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := SourceAdd(SourceAddInput{
+		OBIPath: obiPath, Format: "grpc", Location: protoPath, Key: "svc",
+		Resolve: ResolveModeContent, URI: "api.example.com:443",
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := SourcePull(SourcePullInput{OBIPath: obiPath}); err != nil {
+		t.Fatal(err)
+	}
+	iface, err := loadInterfaceFile(obiPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if src := iface.Sources["svc"]; src.Location != "api.example.com:443" {
+		t.Errorf("pull must preserve the paired service address, got %q", src.Location)
 	}
 }

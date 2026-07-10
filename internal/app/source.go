@@ -6,6 +6,8 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/openbindings/ob/internal/execref"
+
 	"github.com/openbindings/openbindings-go"
 )
 
@@ -129,8 +131,9 @@ func (o SourceRemoveOutput) Render() string {
 }
 
 // SourceAdd adds a source reference to an OBI file.
-// It reads the file, adds the source entry with x-ob metadata, and writes it back atomically.
-// Source paths are stored relative to the OBI file's directory (D5).
+// It reads the file, adds the source entry with x-ob metadata, and writes it
+// back atomically. Local file artifacts embed by default (the D-05 ruling);
+// the pull path is stored relative to the OBI file's directory in x-ob.ref.
 func SourceAdd(input SourceAddInput) (SourceAddOutput, error) {
 	// Load the OBI file.
 	iface, err := loadInterfaceFile(input.OBIPath)
@@ -138,18 +141,27 @@ func SourceAdd(input SourceAddInput) (SourceAddOutput, error) {
 		return SourceAddOutput{}, fmt.Errorf("load OBI: %w", err)
 	}
 
-	// Default resolve mode.
+	// Compute source path relative to OBI file directory.
+	obiDir := filepath.Dir(input.OBIPath)
+	relRef := makeRelativeToDir(input.Location, obiDir)
+
+	// Default resolve mode. THE FLIP (D-05 ruling): a local file artifact
+	// embeds by default — a relative path in the spec-level location field
+	// can never be conformant (OBI-D-05) and file:// is machine-coupled, so
+	// the portable form carries the artifact and the local path lives on in
+	// x-ob.ref as the pull path. An explicit --resolve or a published --uri
+	// keeps location mode; URLs, exec refs, and live addresses stay pointers.
 	resolveMode := input.Resolve
 	if resolveMode == "" {
-		resolveMode = ResolveModeLocation
+		if input.URI == "" && IsEmbeddableLocalFile(relRef, obiDir) {
+			resolveMode = ResolveModeContent
+		} else {
+			resolveMode = ResolveModeLocation
+		}
 	}
 	if resolveMode != ResolveModeLocation && resolveMode != ResolveModeContent {
 		return SourceAddOutput{}, fmt.Errorf("invalid --resolve value %q; must be %q or %q", resolveMode, ResolveModeLocation, ResolveModeContent)
 	}
-
-	// Compute source path relative to OBI file directory.
-	obiDir := filepath.Dir(input.OBIPath)
-	relRef := makeRelativeToDir(input.Location, obiDir)
 
 	// Derive the source key.
 	key := input.Key
@@ -164,9 +176,16 @@ func SourceAdd(input SourceAddInput) (SourceAddOutput, error) {
 		iface.Sources = map[string]openbindings.Source{}
 	}
 
-	// Check if this source file is already registered under any key.
+	// Check if this source artifact is already registered under any key —
+	// by spec location or, for embedded sources, by the x-ob pull path.
 	for existingKey, src := range iface.Sources {
 		if src.Location == relRef {
+			return SourceAddOutput{}, fmt.Errorf(
+				"source %q is already registered as %q",
+				relRef, existingKey,
+			)
+		}
+		if m, merr := GetSourceMeta(src); merr == nil && m != nil && m.Ref == relRef {
 			return SourceAddOutput{}, fmt.Errorf(
 				"source %q is already registered as %q",
 				relRef, existingKey,
@@ -313,6 +332,13 @@ func SourceRemove(obiPath string, key string) (SourceRemoveOutput, error) {
 // If the path is relative (to CWD), it is resolved to absolute first, then
 // made relative to dir. Falls back to the original path on any error.
 func makeRelativeToDir(path string, dir string) string {
+	// Only FILE paths relativize. URLs, exec refs, and host:port live
+	// addresses are not filesystem locations; treating a URL as a path
+	// mangled it into ../..-prefixed garbage that could never be read.
+	if execref.IsExec(path) || strings.Contains(path, "://") || isHostPort(path) {
+		return path
+	}
+
 	// If already absolute, just make relative to dir.
 	if filepath.IsAbs(path) {
 		rel, err := filepath.Rel(dir, path)

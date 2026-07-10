@@ -2,7 +2,6 @@ package app
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -11,7 +10,6 @@ import (
 	openbindings "github.com/openbindings/openbindings-go"
 	"golang.org/x/text/cases"
 	"golang.org/x/text/language"
-	"gopkg.in/yaml.v3"
 )
 
 // Default interface values when not provided
@@ -158,7 +156,10 @@ func DeriveSourceKey(src SynthesizeInterfaceSource, index int) string {
 		for _, p := range parts[1:] {
 			sb.WriteString(cases.Title(language.English).String(strings.ToLower(p)))
 		}
-		key := sb.String()
+		// A live-address location (localhost:9090, https://host) derives a
+		// name with characters OBI-D-03 forbids in map keys; sanitize so
+		// synthesize output always validates.
+		key := openbindings.SanitizeKey(sb.String())
 		if key != "" && len(key) <= 30 {
 			return key
 		}
@@ -260,13 +261,36 @@ func mergeGeneratedSource(iface *openbindings.Interface, generated *openbindings
 		iface.Version = generated.Version
 	}
 
-	// Add operations, marking each as source-owned and recording the
-	// source fields as the initial three-way-merge base. Storing the base
-	// at synthesis time means the very first `ob merge --from-sources`
-	// already has a real base to merge against, so hand-authored
-	// local-only fields (satisfies, aliases, deprecated, tags) are
-	// preserved correctly instead of falling through to the legacy
-	// heuristic in MergeOperation.
+	// Determine the resolve mode up front: it decides both how the source
+	// entry stores its artifact and whether per-object x-ob bases are
+	// recorded or elided (the embed lane reconstructs them from content).
+	var resolveMode string
+	switch {
+	case src.Embed || src.Content != nil:
+		resolveMode = ResolveModeContent
+	case src.OutputLocation != "":
+		// The author supplied the published pointer: location mode.
+		resolveMode = ResolveModeLocation
+	case IsEmbeddableLocalFile(src.Location, ""):
+		// THE FLIP (D-05 ruling): a local file artifact embeds by default.
+		// A relative path in the spec-level location field can never be
+		// conformant (OBI-D-05) and file:// is machine-coupled; the portable
+		// form carries the artifact, and the local path lives on in x-ob.ref
+		// as the pull path.
+		resolveMode = ResolveModeContent
+	default:
+		resolveMode = ResolveModeLocation
+	}
+	elideBase := resolveMode == ResolveModeContent
+
+	// Add operations, marking each as source-owned. In location mode the
+	// source fields are recorded as the initial three-way-merge base, so the
+	// very first `ob merge --from-sources` already has a real base and
+	// hand-authored local-only fields (satisfies, aliases, deprecated, tags)
+	// are preserved instead of falling through to the legacy heuristic in
+	// MergeOperation. In embed mode the base is elided: the embedded content
+	// IS the last-synced artifact, so bases reconstruct on demand and
+	// storing copies would roughly double the committed document.
 	//
 	// First source to define an operation wins for the definition
 	// (kind, schemas, description). Subsequent sources only contribute
@@ -275,12 +299,16 @@ func mergeGeneratedSource(iface *openbindings.Interface, generated *openbindings
 		if _, exists := iface.Operations[key]; exists {
 			continue
 		}
-		baseFields, err := ObjectToFieldMap(op)
-		if err != nil {
-			return fmt.Errorf("op %q: build base for x-ob: %w", key, err)
-		}
-		if err := SetBase(&op.LosslessFields, baseFields); err != nil {
-			return fmt.Errorf("op %q: set base: %w", key, err)
+		if elideBase {
+			SetXOB(&op.LosslessFields)
+		} else {
+			baseFields, err := ObjectToFieldMap(op)
+			if err != nil {
+				return fmt.Errorf("op %q: build base for x-ob: %w", key, err)
+			}
+			if err := SetBase(&op.LosslessFields, baseFields); err != nil {
+				return fmt.Errorf("op %q: set base: %w", key, err)
+			}
 		}
 		iface.Operations[key] = op
 	}
@@ -303,14 +331,7 @@ func mergeGeneratedSource(iface *openbindings.Interface, generated *openbindings
 		Description: src.Description,
 	}
 
-	// Determine resolve mode and build x-ob metadata.
-	var resolveMode string
-	if src.Embed || src.Content != nil {
-		resolveMode = ResolveModeContent
-	} else {
-		resolveMode = ResolveModeLocation
-	}
-
+	// Build x-ob metadata (resolve mode determined above).
 	meta := SourceMeta{
 		Ref:      src.Location,
 		Resolve:  resolveMode,
@@ -327,13 +348,23 @@ func mergeGeneratedSource(iface *openbindings.Interface, generated *openbindings
 		// Content provided directly on the wire (SynthesizeInterfaceSource
 		// content, the schema's alternative to location): carry it inline.
 		bsrc.Content = src.Content
-	case src.Embed:
-		// Read and embed content.
-		content, err := readEmbedContent(src.Location)
+	case resolveMode == ResolveModeContent:
+		// Read and embed content (format decides object vs string, the same
+		// parse `source add --resolve content` and pull refreshes use).
+		data, err := ReadSourceContent(src.Location, "")
+		if err != nil {
+			return fmt.Errorf("embed content: %w", err)
+		}
+		content, err := ParseContentForEmbed(data, src.Format)
 		if err != nil {
 			return fmt.Errorf("embed content: %w", err)
 		}
 		bsrc.Content = content
+		meta.ContentHash = HashContent(data)
+		// `?embed&outputLocation=` carries both: the pinned artifact plus
+		// the format-defined location (canonical origin, or the service's
+		// dial address for service-addressed formats — §6.4).
+		bsrc.Location = meta.URI
 	default:
 		// Use outputLocation if provided, otherwise input location.
 		if src.OutputLocation != "" {
@@ -343,9 +374,12 @@ func mergeGeneratedSource(iface *openbindings.Interface, generated *openbindings
 		}
 	}
 
-	// Compute contentHash from the source file (same path for both modes).
-	if data, err := os.ReadFile(src.Location); err == nil {
-		meta.ContentHash = HashContent(data)
+	// Compute the contentHash when the embed lane hasn't already (location
+	// mode). URLs fetch; live addresses have no bytes to hash and skip.
+	if meta.ContentHash == "" {
+		if data, err := ReadSourceContent(src.Location, ""); err == nil {
+			meta.ContentHash = HashContent(data)
+		}
 	}
 
 	// Set sync timestamps.
@@ -366,6 +400,11 @@ func mergeGeneratedSource(iface *openbindings.Interface, generated *openbindings
 		iface.Bindings = map[string]openbindings.BindingEntry{}
 	}
 	for bk, entry := range remapBindingKeys(generated.Bindings, sourceKey) {
+		if elideBase {
+			SetXOB(&entry.LosslessFields)
+			iface.Bindings[bk] = entry
+			continue
+		}
 		baseFields, err := ObjectToFieldMap(entry)
 		if err != nil {
 			return fmt.Errorf("binding %q: build base for x-ob: %w", bk, err)
@@ -377,35 +416,4 @@ func mergeGeneratedSource(iface *openbindings.Interface, generated *openbindings
 	}
 
 	return nil
-}
-
-// readEmbedContent reads a file and returns its content as map[string]any for embedding.
-// Supports JSON and YAML files. For other formats, returns an error with guidance.
-func readEmbedContent(path string) (any, error) {
-	data, err := os.ReadFile(path)
-	if err != nil {
-		return nil, err
-	}
-
-	ext := strings.ToLower(filepath.Ext(path))
-
-	switch ext {
-	case ".json":
-		var result map[string]any
-		if err := json.Unmarshal(data, &result); err != nil {
-			return nil, fmt.Errorf("parse JSON: %w", err)
-		}
-		return result, nil
-
-	case ".yaml", ".yml":
-		var result map[string]any
-		if err := yaml.Unmarshal(data, &result); err != nil {
-			return nil, fmt.Errorf("parse YAML: %w", err)
-		}
-		return result, nil
-
-	default:
-		// Non-JSON/YAML formats (KDL, protobuf, etc.) are embedded as raw string content.
-		return string(data), nil
-	}
 }

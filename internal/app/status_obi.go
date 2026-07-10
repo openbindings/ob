@@ -14,7 +14,7 @@ import (
 // OBIStatusInput represents input for the OBI status command.
 type OBIStatusInput struct {
 	// OBIPath is the file path (CLI). Interface, when set, is the inline document
-	// (the served operation) and takes precedence; relative source locations
+	// (the served operation) and takes precedence; relative x-ob pull paths
 	// then resolve against the current directory.
 	OBIPath   string
 	Interface *openbindings.Interface
@@ -34,6 +34,20 @@ type SourceStatus struct {
 	LastSynced string `json:"lastSynced,omitempty"`
 	OBVersion  string `json:"obVersion,omitempty"`
 	Error      string `json:"error,omitempty"`
+
+	// ContentDrift reports that the artifact's bytes have diverged from the
+	// last-synced state (the recorded contentHash — and in embed mode, the
+	// embedded copy itself) even when no derived operation or binding
+	// changes. In embed mode the embedded copy is the invocation authority
+	// (server URLs, auth, envelopes), so content-only drift is real drift.
+	ContentDrift bool `json:"contentDrift,omitempty"`
+	// PullPathUnreachable reports that the x-ob pull path cannot be read
+	// from here while the document itself remains fully usable (embedded
+	// content). The pull path is tool metadata and does not travel with the
+	// document; the embedded copy remains authoritative. This is its own
+	// state, not drift: a pull from here can never succeed, so it is
+	// excluded from the out-of-sync rollup and from HasDrift.
+	PullPathUnreachable bool `json:"pullPathUnreachable,omitempty"`
 
 	// Drift details: what `ob source pull` would change for this source —
 	// added/updated/removed source-owned objects — plus custodial drift on
@@ -58,10 +72,12 @@ type OBIStatusOutput struct {
 }
 
 // HasDrift reports whether any tracked source is out of sync (the source would
-// add/update/remove objects, or a hand-authored binding has custodial drift).
+// add/update/remove objects, content has drifted, or a hand-authored binding
+// has custodial drift). An unreachable pull path is NOT drift: the document is
+// self-contained and no pull from here can act on it.
 func (o OBIStatusOutput) HasDrift() bool {
 	for _, src := range o.Sources {
-		if src.Tracked && !src.InSync {
+		if src.Tracked && !src.InSync && !src.PullPathUnreachable {
 			return true
 		}
 	}
@@ -107,6 +123,8 @@ func (o OBIStatusOutput) Render() string {
 			sb.WriteString(s.Warning.Render("error: " + src.Error))
 		} else if !src.Tracked {
 			sb.WriteString(s.Dim.Render("hand-authored"))
+		} else if src.PullPathUnreachable {
+			sb.WriteString(s.Warning.Render("pull path unreachable"))
 		} else if src.InSync {
 			sb.WriteString(s.Success.Render("in sync"))
 		} else {
@@ -121,8 +139,19 @@ func (o OBIStatusOutput) Render() string {
 		}
 		sb.WriteString("\n")
 
+		if src.PullPathUnreachable {
+			if strings.Contains(src.Ref, "://") {
+				sb.WriteString(s.Dim.Render(fmt.Sprintf(
+					"    ↳ %s could not be fetched from here — the embedded copy remains authoritative; pull again when the artifact is reachable", src.Ref)))
+			} else {
+				sb.WriteString(s.Dim.Render(fmt.Sprintf(
+					"    ↳ %s is not readable from here — the pull path is tool metadata and does not travel with the document; the embedded copy remains authoritative", src.Ref)))
+			}
+			sb.WriteString("\n")
+		}
+
 		// Show diff details for out-of-sync sources.
-		if !src.InSync && src.Tracked {
+		if !src.InSync && src.Tracked && !src.PullPathUnreachable {
 			renderSourceDiff(&sb, s, src)
 		}
 	}
@@ -133,17 +162,29 @@ func (o OBIStatusOutput) Render() string {
 	// Bindings.
 	renderProvenanceSection(&sb, s, "Bindings", o.Bindings)
 
-	// Sync summary.
+	// Sync summary. Unreachable pull paths are their own class: a pull from
+	// here can never act on them, so the pull advice would be a lie.
 	outOfSync := 0
+	unreachable := 0
 	for _, src := range o.Sources {
-		if src.Tracked && !src.InSync {
+		if !src.Tracked {
+			continue
+		}
+		if src.PullPathUnreachable {
+			unreachable++
+		} else if !src.InSync {
 			outOfSync++
 		}
 	}
 	if outOfSync > 0 {
 		sb.WriteString(fmt.Sprintf("\n%s",
 			s.Warning.Render(fmt.Sprintf("%d source(s) out of sync. Run 'ob source pull <obi>' to update.", outOfSync))))
-	} else if len(o.Sources) > 0 {
+	}
+	if unreachable > 0 {
+		sb.WriteString(fmt.Sprintf("\n%s",
+			s.Dim.Render(fmt.Sprintf("%d source(s) with unreachable pull paths — the document is self-contained; pull where the artifact is reachable.", unreachable))))
+	}
+	if outOfSync == 0 && unreachable == 0 && len(o.Sources) > 0 {
 		sb.WriteString(fmt.Sprintf("\n%s", s.Success.Render("All sources in sync.")))
 	}
 
@@ -152,7 +193,15 @@ func (o OBIStatusOutput) Render() string {
 
 // renderSourceDiff appends per-source diff details (what ob source pull would change).
 func renderSourceDiff(sb *strings.Builder, s styles, src SourceStatus) {
-	lines := make([]string, 0, 7)
+	lines := make([]string, 0, 8)
+	if src.ContentDrift {
+		if src.Resolve == ResolveModeContent {
+			lines = append(lines, fmt.Sprintf(
+				"content drifted: the embedded copy no longer matches %s — invocation uses the embedded copy; run 'ob source pull'", src.Ref))
+		} else {
+			lines = append(lines, "artifact content changed since last sync — run 'ob source pull' to refresh the sync cursor")
+		}
+	}
 	if len(src.OperationsAdded) > 0 {
 		lines = append(lines, fmt.Sprintf("operations to add: %s", strings.Join(src.OperationsAdded, ", ")))
 	}
@@ -249,8 +298,46 @@ func OBIStatus(input OBIStatusInput) (OBIStatusOutput, error) {
 		ss.LastSynced = meta.LastSynced
 		ss.OBVersion = meta.OBVersion
 
+		// Content integrity for file-lane sources. The dry pull below only
+		// compares DERIVED objects, but in embed mode the embedded copy is
+		// the invocation authority: a changed server URL, auth scheme, or a
+		// corrupted embed alters invocation without touching any operation.
+		// The recorded contentHash seals the pull-path file; the embedded
+		// copy is verified against a fresh parse of those bytes.
+		if !needsLiveDiscovery(src.Format, meta.Ref) {
+			data, rerr := ReadSourceContent(meta.Ref, obiDir)
+			if rerr != nil {
+				if meta.Resolve == ResolveModeContent && src.Content != nil {
+					// The pull path does not travel with the document; the
+					// embedded copy keeps it fully usable. Own state, no
+					// drift verdict, no pull advice.
+					ss.PullPathUnreachable = true
+					sources = append(sources, ss)
+					continue
+				}
+				// Location mode: the ref is also the resolution path, so an
+				// unreadable artifact is a real error.
+				ss.Error = fmt.Sprintf("read failed: %v", rerr)
+				sources = append(sources, ss)
+				continue
+			}
+			if HashContent(data) != meta.ContentHash {
+				ss.ContentDrift = true
+			} else if meta.Resolve == ResolveModeContent && src.Content != nil {
+				// File unchanged: verify the embedded copy still matches it.
+				// A hand-edited or corrupted embed is invisible to the hash,
+				// which covers the file, not the copy.
+				if fresh, perr := ParseContentForEmbed(data, src.Format); perr == nil && !sameContentValue(src.Content, fresh) {
+					ss.ContentDrift = true
+				}
+			}
+		}
+
 		if err := detectSourceDrift(iface, key, obiDir, &ss); err != nil {
 			ss.Error = err.Error()
+		}
+		if ss.ContentDrift {
+			ss.InSync = false
 		}
 		sources = append(sources, ss)
 	}
@@ -300,6 +387,20 @@ func detectSourceDrift(iface *openbindings.Interface, key, obiDir string, ss *So
 	if err != nil {
 		return err
 	}
+	// The JSON round-trip drops empty maps to nil (omitempty); the dry pull
+	// assigns into both.
+	if clone.Operations == nil {
+		clone.Operations = map[string]openbindings.Operation{}
+	}
+	if clone.Bindings == nil {
+		clone.Bindings = map[string]openbindings.BindingEntry{}
+	}
+	// Reconstruct embed-lane bases from the OLD content before the dry
+	// refresh replaces it (mirrors SourcePull).
+	var oldBases *reconstructedBases
+	if rb, rok := reconstructBases(clone, key); rok {
+		oldBases = &rb
+	}
 	derived, ok, warning := reReadAndDerive(clone, key, obiDir)
 	if !ok {
 		if warning != "" {
@@ -309,7 +410,7 @@ func detectSourceDrift(iface *openbindings.Interface, key, obiDir string, ss *So
 	}
 
 	var pull SourcePullOutput
-	pullSourceInto(clone, key, derived, &pull)
+	pullSourceInto(clone, key, derived, oldBases, &pull)
 	ss.OperationsAdded = pull.OperationsAdded
 	ss.OperationsUpdated = pull.OperationsUpdated
 	ss.OperationsRemoved = pull.OperationsPruned
@@ -338,6 +439,18 @@ func detectSourceDrift(iface *openbindings.Interface, key, obiDir string, ss *So
 		len(ss.BindingsUpdated) == 0 && len(ss.BindingsRemoved) == 0 &&
 		len(ss.Custodial) == 0
 	return nil
+}
+
+// sameContentValue reports whether two embedded-content values (string for
+// textual formats, object for JSON formats) are semantically equal, via a
+// JSON round-trip (encoding/json sorts map keys, so key order is irrelevant).
+func sameContentValue(a, b any) bool {
+	aj, err1 := json.Marshal(a)
+	bj, err2 := json.Marshal(b)
+	if err1 != nil || err2 != nil {
+		return false
+	}
+	return string(aj) == string(bj)
 }
 
 // cloneInterface deep-copies an interface via a JSON round-trip, for read-only

@@ -282,18 +282,13 @@ func TestMergeOperation_NilBase_PreservesLocalOnlyFields(t *testing.T) {
 }
 
 // TestSynthesizeInterface_PopulatesBaseForFirstSync is the integration-level
-// regression test for the bootstrap-then-edit-then-sync flow. It asserts:
+// regression test for the bootstrap-then-edit-then-sync flow: the very first
+// sync must see an exact three-way base, never the legacy nil-base heuristic.
 //
-//  1. After SynthesizeInterface, every source-owned operation and binding has a
-//     populated x-ob.base (so GetBase returns non-nil).
-//  2. The base equals what ObjectToFieldMap(op) produces, so the very
-//     first ob sync sees an exact three-way merge instead of falling
-//     into the legacy nil-base heuristic.
-//
-// Combined with the merge3way fix, this means hand-edited local fields
-// are preserved by the FIRST sync after create — including hand-edits
-// to fields the source also has, which is the case the heuristic can't
-// handle on its own.
+// The base's STORAGE differs by lane. Location mode records x-ob.base on
+// every source-owned object. Embed mode (the flip's default for local files)
+// elides the copies — the embedded content IS the last-synced artifact — and
+// reconstructBases rebuilds an equivalent base on demand.
 func TestSynthesizeInterface_PopulatesBaseForFirstSync(t *testing.T) {
 	dir := t.TempDir()
 
@@ -303,55 +298,94 @@ cmd "greet" help="Say hello" {}
 `
 	writeUsageFile(t, dir, "cli.kdl", kdl)
 
-	iface, err := SynthesizeInterface(SynthesizeInterfaceInput{
+	// Location mode (explicit published pointer): bases are recorded.
+	locIface, err := SynthesizeInterface(SynthesizeInterfaceInput{
+		Sources: []SynthesizeInterfaceSource{
+			{Format: usageFormat, Location: filepath.Join(dir, "cli.kdl"), OutputLocation: "https://example.com/cli.kdl"},
+		},
+		Name: "app",
+	})
+	if err != nil {
+		t.Fatalf("create (location mode): %v", err)
+	}
+	for opKey, op := range locIface.Operations {
+		if !HasXOB(op.LosslessFields) {
+			t.Errorf("operation %q: expected x-ob marker after create", opKey)
+			continue
+		}
+		base, gerr := GetBase(op.LosslessFields)
+		if gerr != nil {
+			t.Errorf("operation %q: GetBase error: %v", opKey, gerr)
+			continue
+		}
+		if base == nil {
+			t.Errorf("operation %q: location mode must record x-ob.base", opKey)
+			continue
+		}
+		fields, ferr := ObjectToFieldMap(op)
+		if ferr != nil {
+			t.Fatalf("operation %q: ObjectToFieldMap: %v", opKey, ferr)
+		}
+		if len(base) != len(fields) {
+			t.Errorf("operation %q: base has %d fields, op has %d", opKey, len(base), len(fields))
+		}
+	}
+	for bindKey, b := range locIface.Bindings {
+		base, gerr := GetBase(b.LosslessFields)
+		if gerr != nil || base == nil {
+			t.Errorf("binding %q: location mode must record x-ob.base (err=%v)", bindKey, gerr)
+		}
+	}
+
+	// Embed mode (the default for a local file): bases are elided and
+	// reconstruct on demand, equal to the objects' own fields.
+	embIface, err := SynthesizeInterface(SynthesizeInterfaceInput{
 		Sources: []SynthesizeInterfaceSource{
 			{Format: usageFormat, Location: filepath.Join(dir, "cli.kdl")},
 		},
 		Name: "app",
 	})
 	if err != nil {
-		t.Fatalf("create: %v", err)
+		t.Fatalf("create (embed mode): %v", err)
 	}
-
-	// Every source-owned operation has a non-nil base after synthesis.
-	for opKey, op := range iface.Operations {
+	var srcKey string
+	for k := range embIface.Sources {
+		srcKey = k
+	}
+	if !sourceEmbedsContent(embIface, srcKey) {
+		t.Fatalf("local-file synthesis must embed by default")
+	}
+	rb, ok := reconstructBases(embIface, srcKey)
+	if !ok {
+		t.Fatal("embed-mode bases must reconstruct from the embedded content")
+	}
+	for opKey, op := range embIface.Operations {
 		if !HasXOB(op.LosslessFields) {
 			t.Errorf("operation %q: expected x-ob marker after create", opKey)
 			continue
 		}
-		base, err := GetBase(op.LosslessFields)
-		if err != nil {
-			t.Errorf("operation %q: GetBase error: %v", opKey, err)
+		if base, _ := GetBase(op.LosslessFields); base != nil {
+			t.Errorf("operation %q: embed mode must elide the recorded base", opKey)
+		}
+		recon := baseForOp(op.LosslessFields, opKey, &rb)
+		if recon == nil {
+			t.Errorf("operation %q: no reconstructed base", opKey)
 			continue
 		}
-		if base == nil {
-			t.Errorf("operation %q: x-ob.base is nil after create (legacy bug); want populated map", opKey)
-			continue
+		fields, ferr := ObjectToFieldMap(op)
+		if ferr != nil {
+			t.Fatalf("operation %q: ObjectToFieldMap: %v", opKey, ferr)
 		}
-		// The base should match what the operation actually contains
-		// (modulo x-ob itself, which ObjectToFieldMap strips).
-		fields, err := ObjectToFieldMap(op)
-		if err != nil {
-			t.Fatalf("operation %q: ObjectToFieldMap: %v", opKey, err)
-		}
-		if len(base) != len(fields) {
-			t.Errorf("operation %q: base has %d fields, op has %d", opKey, len(base), len(fields))
+		if len(recon) != len(fields) {
+			t.Errorf("operation %q: reconstructed base has %d fields, op has %d", opKey, len(recon), len(fields))
 		}
 	}
-
-	// Every source-owned binding has a non-nil base after synthesis.
-	for bindKey, b := range iface.Bindings {
-		if !HasXOB(b.LosslessFields) {
-			t.Errorf("binding %q: expected x-ob marker after create", bindKey)
-			continue
+	for bindKey, b := range embIface.Bindings {
+		if base, _ := GetBase(b.LosslessFields); base != nil {
+			t.Errorf("binding %q: embed mode must elide the recorded base", bindKey)
 		}
-		base, err := GetBase(b.LosslessFields)
-		if err != nil {
-			t.Errorf("binding %q: GetBase error: %v", bindKey, err)
-			continue
-		}
-		if base == nil {
-			t.Errorf("binding %q: x-ob.base is nil after create (legacy bug); want populated map", bindKey)
+		if rb.binds[bindKey] == nil {
+			t.Errorf("binding %q: no reconstructed base", bindKey)
 		}
 	}
 }

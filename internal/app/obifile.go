@@ -146,6 +146,12 @@ func WriteInterfaceFile(path string, iface *openbindings.Interface) error {
 		_, err := os.Stdout.Write(buf.Bytes())
 		return err
 	}
+	// Idempotent writes: identical semantics yield identical bytes (canonical
+	// marshal), and identical bytes leave the file untouched — a no-op pull
+	// neither dirties a git tree nor manufactures same-line merge conflicts.
+	if existing, rerr := os.ReadFile(path); rerr == nil && bytes.Equal(existing, buf.Bytes()) {
+		return nil
+	}
 	return AtomicWriteFile(path, buf.Bytes(), FilePerm)
 }
 
@@ -189,4 +195,55 @@ func buildNormalizerRoot(iface *openbindings.Interface) map[string]any {
 		root["schemas"] = schemas
 	}
 	return root
+}
+
+// OutputDocument emits a resulting OBI document through the one canonical
+// serializer every document-writing command shares (canonical key order,
+// two-space indent, trailing newline — the same bytes WriteInterfaceFile
+// produces), so WHICH command wrote a file never changes its bytes: a
+// synthesize followed by a no-op pull is byte-identical, with no one-time
+// key-reorder or EOF-newline churn in the first diff. YAML (explicit
+// -F yaml, or a .yaml/.yml output path) uses the YAML formatter; -F quiet
+// suppresses output.
+func OutputDocument(v any, format, outputPath string) error {
+	if format == "quiet" {
+		return ExitResult{Code: 0}
+	}
+	lowerPath := strings.ToLower(outputPath)
+	wantYAML := format == "yaml" || format == "yml" ||
+		strings.HasSuffix(lowerPath, ".yaml") || strings.HasSuffix(lowerPath, ".yml")
+	if wantYAML {
+		b, err := FormatOutput(v, OutputFormatYAML)
+		if err != nil {
+			return err
+		}
+		if outputPath != "" {
+			if werr := AtomicWriteFile(outputPath, b, FilePerm); werr != nil {
+				return ExitResult{Code: 1, Message: werr.Error(), ToStderr: true}
+			}
+			return ExitResult{Code: 0, Message: "Wrote " + outputPath}
+		}
+		return ExitResult{Code: 0, Message: strings.TrimRight(string(b), "\n")}
+	}
+
+	b, err := canonicaljson.Marshal(v)
+	if err != nil {
+		return fmt.Errorf("marshal document: %w", err)
+	}
+	var buf bytes.Buffer
+	if err := json.Indent(&buf, b, "", "  "); err != nil {
+		return fmt.Errorf("indent document: %w", err)
+	}
+	if outputPath != "" {
+		buf.WriteByte('\n')
+		// Idempotent, like WriteInterfaceFile: identical bytes, untouched file.
+		if existing, rerr := os.ReadFile(outputPath); rerr == nil && bytes.Equal(existing, buf.Bytes()) {
+			return ExitResult{Code: 0, Message: "Wrote " + outputPath}
+		}
+		if werr := AtomicWriteFile(outputPath, buf.Bytes(), FilePerm); werr != nil {
+			return ExitResult{Code: 1, Message: werr.Error(), ToStderr: true}
+		}
+		return ExitResult{Code: 0, Message: "Wrote " + outputPath}
+	}
+	return ExitResult{Code: 0, Message: buf.String()}
 }

@@ -6,11 +6,16 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"io"
+	"net/http"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
+	"sort"
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	"github.com/openbindings/ob/internal/execref"
 	"github.com/openbindings/openbindings-go"
@@ -365,6 +370,7 @@ func NowISO() string {
 
 // ReadSourceContent reads source content from a ref string.
 // For exec: refs, the command is executed and stdout is returned.
+// For http(s) URLs, the artifact is fetched (bounded, loud).
 // For file paths, the file is read. Relative paths are resolved against obiDir.
 func ReadSourceContent(ref string, obiDir string) ([]byte, error) {
 	if execref.IsExec(ref) {
@@ -382,6 +388,13 @@ func ReadSourceContent(ref string, obiDir string) ([]byte, error) {
 		return out, nil
 	}
 
+	// URL refs fetch: a tracked remote artifact embeds and pulls through the
+	// same read path as a local file, so `?embed` on a URL pins the remote
+	// descriptor and `ob source pull` refreshes the pinned copy.
+	if strings.HasPrefix(ref, "http://") || strings.HasPrefix(ref, "https://") {
+		return fetchSourceContent(ref)
+	}
+
 	// File path. Resolve relative to obiDir.
 	path := ref
 	if !filepath.IsAbs(path) && obiDir != "" {
@@ -393,6 +406,54 @@ func ReadSourceContent(ref string, obiDir string) ([]byte, error) {
 		return nil, fmt.Errorf("read %q: %w", ref, err)
 	}
 	return data, nil
+}
+
+// maxSourceFetchBytes caps a fetched source artifact (16 MiB). Exceeding it
+// is a loud error, never a truncation that would surface as a parse failure.
+const maxSourceFetchBytes = 16 << 20
+
+// fetchSourceContent GETs a source artifact over HTTP(S), bounded and loud.
+func fetchSourceContent(url string) ([]byte, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+	if err != nil {
+		return nil, fmt.Errorf("fetch %q: %w", url, err)
+	}
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("fetch %q: %w", url, err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		return nil, fmt.Errorf("fetch %q: HTTP %d", url, resp.StatusCode)
+	}
+	data, err := io.ReadAll(io.LimitReader(resp.Body, maxSourceFetchBytes+1))
+	if err != nil {
+		return nil, fmt.Errorf("fetch %q: %w", url, err)
+	}
+	if len(data) > maxSourceFetchBytes {
+		return nil, fmt.Errorf("fetch %q: artifact exceeds the %d-byte cap", url, maxSourceFetchBytes)
+	}
+	return data, nil
+}
+
+// IsEmbeddableLocalFile reports whether a source ref names a readable local
+// file artifact — the lane that embeds by default under the D-05 ruling: a
+// relative path in the spec-level location field can never be conformant
+// (OBI-D-05) and a file:// URL is machine-coupled, so the portable form
+// carries the artifact and the local path lives on in x-ob.ref as the pull
+// path. Exec refs, URLs, and host:port live addresses are not local files.
+func IsEmbeddableLocalFile(ref, baseDir string) bool {
+	if ref == "" || execref.IsExec(ref) || strings.Contains(ref, "://") || isHostPort(ref) {
+		return false
+	}
+	path := ref
+	if !filepath.IsAbs(path) && baseDir != "" {
+		path = filepath.Join(baseDir, path)
+	}
+	fi, err := os.Stat(path)
+	return err == nil && fi.Mode().IsRegular()
 }
 
 // ReadAndHashSource reads source content from a ref and returns the data and its content hash.
@@ -431,12 +492,50 @@ func ParseContentForEmbed(data []byte, format string) (any, error) {
 		}
 	}
 
+	// Binary artifacts cannot be embedded: the spec carries binaries via
+	// location only (§6.4), and a byte-for-string conversion silently mangles
+	// them into U+FFFD soup that still validates. Refuse loudly, naming the
+	// gap and the supported lanes.
+	if !utf8.Valid(data) {
+		return nil, fmt.Errorf(
+			"artifact is not valid UTF-8 and cannot be embedded: the OpenBindings spec carries binary artifacts via location only (a known gap for repo-local binaries). For protobuf, embed the .proto source or use a live reflection address (host:port); otherwise publish the artifact and point at it with --uri",
+		)
+	}
+
+	// Embedded content must be SELF-CONTAINED (§6.4): no base URI exists for
+	// references internal to an embedded artifact. A proto source with
+	// imports cannot resolve them from inside a document, so deriving from
+	// the embed fails later and cryptically — refuse now, naming the lanes
+	// that do work.
+	if strings.HasPrefix(strings.ToLower(strings.SplitN(format, "@", 2)[0]), "grpc") {
+		if imp := protoImportStatement(data); imp != "" {
+			return nil, fmt.Errorf(
+				"embedded content must be self-contained (spec §6.4): this .proto imports %s, which cannot resolve from inside a document — use a live reflection address (host:port), or keep the multi-file source via --resolve location with --uri",
+				imp)
+		}
+	}
+
 	// Default: return as string (works for KDL, protobuf, and other text formats).
 	return string(data), nil
 }
 
+// protoImportRe matches a protobuf import statement (incl. public/weak forms).
+var protoImportRe = regexp.MustCompile(`(?m)^\s*import\s+(?:public\s+|weak\s+)?"([^"]+)"`)
+
+// protoImportStatement returns the first import path in a .proto source, or
+// "" when the file is self-contained. The inline proto compile lane resolves
+// no imports (not even the google well-known types), so any import makes an
+// embedded proto underivable.
+func protoImportStatement(data []byte) string {
+	m := protoImportRe.FindSubmatch(data)
+	if m == nil {
+		return ""
+	}
+	return fmt.Sprintf("%q", string(m[1]))
+}
+
 // ResolveSourceSpec applies an x-ob ref to populate spec-level fields on a source.
-// Given raw source data and x-ob metadata, sets either Source.Location or Source.Content.
+// Given raw source data and x-ob metadata, sets Source.Location and/or Source.Content.
 func ResolveSourceSpec(src *openbindings.Source, meta SourceMeta, data []byte, obiDir string) error {
 	switch meta.Resolve {
 	case ResolveModeContent:
@@ -445,7 +544,11 @@ func ResolveSourceSpec(src *openbindings.Source, meta SourceMeta, data []byte, o
 			return fmt.Errorf("embed content: %w", err)
 		}
 		src.Content = content
-		src.Location = "" // clear location if switching modes
+		// A URI alongside embedded content is spec-legal and format-defined
+		// (§6.4): the artifact's canonical origin for document-located
+		// formats, the service's dial address for service-addressed formats
+		// (a gRPC host:port). Without one, embedding carries no location.
+		src.Location = meta.URI
 	case ResolveModeLocation, "":
 		// Use URI override if provided, otherwise derive from ref.
 		if meta.URI != "" {
@@ -482,4 +585,123 @@ func makeRelativeRef(ref string, obiDir string) string {
 	}
 	// Already relative — assumed to be relative to obiDir.
 	return ref
+}
+
+// FindXOBPaths walks a document value and returns the JSON paths of every
+// x-ob key, sorted — the mechanical purity check `purify --check` and
+// registry pre-publish gates key on.
+func FindXOBPaths(doc any) []string {
+	var paths []string
+	var walk func(v any, path string)
+	walk = func(v any, path string) {
+		switch t := v.(type) {
+		case map[string]any:
+			for k, child := range t {
+				childPath := path + "/" + k
+				if k == xobKey {
+					paths = append(paths, childPath)
+					continue
+				}
+				walk(child, childPath)
+			}
+		case []any:
+			for i, child := range t {
+				walk(child, fmt.Sprintf("%s/%d", path, i))
+			}
+		}
+	}
+	walk(doc, "")
+	sort.Strings(paths)
+	return paths
+}
+
+// ValidateDocumentValue runs the SDK's document validation over an untyped
+// JSON value (a purified graph output, say) and returns the problems, or nil
+// when the document is conformant. Unparseable input reports as one problem.
+func ValidateDocumentValue(doc any) []string {
+	data, err := json.Marshal(doc)
+	if err != nil {
+		return []string{fmt.Sprintf("marshal document: %v", err)}
+	}
+	iface, err := openbindings.ParseDocument(data)
+	if err != nil {
+		if ve, ok := err.(*openbindings.ValidationError); ok {
+			return ve.Problems
+		}
+		return []string{err.Error()}
+	}
+	if err := iface.Validate(); err != nil {
+		if ve, ok := err.(*openbindings.ValidationError); ok {
+			return ve.Problems
+		}
+		return []string{err.Error()}
+	}
+	return nil
+}
+
+// sourceEmbedsContent reports whether a tracked source stores its artifact as
+// embedded content (the D-05 ruling's local lane).
+func sourceEmbedsContent(iface *openbindings.Interface, sourceKey string) bool {
+	src, ok := iface.Sources[sourceKey]
+	if !ok || src.Content == nil {
+		return false
+	}
+	meta, err := GetSourceMeta(src)
+	return err == nil && meta != nil && meta.Resolve == ResolveModeContent
+}
+
+// reconstructedBases holds per-key base snapshots rebuilt from a source's
+// embedded content — the elided x-ob.base of the embed lane.
+type reconstructedBases struct {
+	ops   map[string]map[string]json.RawMessage
+	binds map[string]map[string]json.RawMessage
+}
+
+// reconstructBases re-derives the last-synced snapshot from a source's
+// embedded content. In embed mode the embedded artifact IS the last-synced
+// artifact, so per-object x-ob.base copies are redundant (measured at ~40%
+// of a committed document); they are elided at write time and rebuilt here
+// on demand. Returns ok=false when the source is not embed-mode or was last
+// synced by a DIFFERENT ob version (derivation rules may have changed;
+// callers fall back to base-less behavior, which preserves author data at
+// the cost of not detecting author-removals).
+func reconstructBases(iface *openbindings.Interface, sourceKey string) (reconstructedBases, bool) {
+	rb := reconstructedBases{}
+	if !sourceEmbedsContent(iface, sourceKey) {
+		return rb, false
+	}
+	src := iface.Sources[sourceKey]
+	meta, err := GetSourceMeta(src)
+	if err != nil || meta == nil || meta.OBVersion != OBVersion {
+		return rb, false
+	}
+	derived, err := DeriveFromSource(src, sourceKey, "")
+	if err != nil {
+		return rb, false
+	}
+	rb.ops = make(map[string]map[string]json.RawMessage, len(derived.Operations))
+	for k, op := range derived.Operations {
+		if m, merr := ObjectToFieldMap(op); merr == nil {
+			rb.ops[k] = m
+		}
+	}
+	rb.binds = make(map[string]map[string]json.RawMessage, len(derived.Bindings))
+	for k, b := range derived.Bindings {
+		if m, merr := ObjectToFieldMap(b); merr == nil {
+			rb.binds[k] = m
+		}
+	}
+	return rb, true
+}
+
+// baseForOp returns the recorded x-ob.base for an operation when present,
+// falling back to the reconstructed embed-lane base.
+func baseForOp(lf openbindings.LosslessFields, opKey string, rb *reconstructedBases) map[string]json.RawMessage {
+	if base, err := GetBase(lf); err == nil && base != nil {
+		return base
+	}
+	if rb != nil && rb.ops != nil {
+		return rb.ops[opKey]
+	}
+	return nil
 }

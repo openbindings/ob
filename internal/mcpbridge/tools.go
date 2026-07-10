@@ -9,13 +9,37 @@ import (
 	"io"
 	"sort"
 	"strings"
+	"time"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 	openbindings "github.com/openbindings/openbindings-go"
 )
 
+// DefaultToolDeadline bounds a single bridged tool/resource/prompt call when
+// the caller does not configure one. MCP primitives are request-scoped; an
+// operation whose binding streams without end (a subscription) can never
+// complete a tool call, so the drain is bounded rather than left hanging
+// until the agent's own client gives up.
+const DefaultToolDeadline = 60 * time.Second
+
+// RegisterOptions configures how an interface is bridged.
+type RegisterOptions struct {
+	// ToolDeadline bounds each bridged call's drain (zero = DefaultToolDeadline).
+	// The bridge adapts stream-scoped invocations to request-scoped MCP
+	// primitives; boundedness is that adapter's job, not a service timeout.
+	ToolDeadline time.Duration
+}
+
+func (o RegisterOptions) deadline() time.Duration {
+	if o.ToolDeadline > 0 {
+		return o.ToolDeadline
+	}
+	return DefaultToolDeadline
+}
+
 // drainOperation drives an operation invocation to completion: it writes the
-// input (when non-nil), closes the input side, and collects every output.
+// input (when non-nil), closes the input side, and collects every output,
+// bounded by the register options' tool deadline.
 //
 // MCP tool/resource/prompt results are request/response, so a streaming
 // operation's outputs are surfaced as a JSON array — a unary operation's single
@@ -23,15 +47,19 @@ import (
 // multi-output operation returns the FULL sequence rather than silently
 // dropping all but the last value. A terminal error before EOF surfaces as the
 // MCP error (collected outputs are discarded, matching how callers render it).
-func drainOperation(ctx context.Context, call openbindings.Invocation[any, any], input any) (any, *openbindings.InvocationError) {
+// A drain that outlives the deadline returns an honest refusal naming the
+// mismatch: a subscription-style operation cannot complete as a tool call.
+func drainOperation(ctx context.Context, call openbindings.Invocation[any, any], input any, opKey string, deadline time.Duration) (any, *openbindings.InvocationError) {
+	dctx, cancel := context.WithTimeout(ctx, deadline)
+	defer cancel()
 	if input != nil {
-		_ = call.Write(ctx, input)
+		_ = call.Write(dctx, input)
 	}
 	_ = call.Close()
 	out := call.Outputs()
 	var outputs []any
 	for {
-		v, err := out.Read(ctx)
+		v, err := out.Read(dctx)
 		if errors.Is(err, io.EOF) {
 			switch len(outputs) {
 			case 0:
@@ -43,6 +71,15 @@ func drainOperation(ctx context.Context, call openbindings.Invocation[any, any],
 			}
 		}
 		if err != nil {
+			if dctx.Err() == context.DeadlineExceeded && ctx.Err() == nil {
+				call.Cancel()
+				return nil, &openbindings.InvocationError{
+					Code: openbindings.ErrCodeTimeout,
+					Message: fmt.Sprintf(
+						"operation %q streamed for %s without completing (%d event(s) collected); MCP tool calls are request-scoped, and a subscription-style operation cannot complete as a tool — invoke it through an OpenBindings consumer that speaks streams (ob operation invoke, the SDKs)",
+						opKey, deadline, len(outputs)),
+				}
+			}
 			return nil, openbindings.AsInvocationError(err)
 		}
 		outputs = append(outputs, v)
@@ -66,6 +103,7 @@ func RegisterInterface(
 	iface *openbindings.Interface,
 	invoker *openbindings.OperationInvoker,
 	baseContext map[string]any,
+	opts RegisterOptions,
 ) int {
 	names := toolNames(iface)
 
@@ -84,11 +122,11 @@ func RegisterInterface(
 
 		switch kind {
 		case "resources":
-			registerResource(srv, name, op, iface, opKey, ref, invoker, baseContext)
+			registerResource(srv, name, op, iface, opKey, ref, invoker, baseContext, opts)
 		case "prompts":
-			registerPrompt(srv, name, op, iface, opKey, ref, invoker, baseContext)
+			registerPrompt(srv, name, op, iface, opKey, ref, invoker, baseContext, opts)
 		default:
-			registerTool(srv, name, op, iface, opKey, invoker, baseContext)
+			registerTool(srv, name, op, iface, opKey, invoker, baseContext, opts)
 		}
 		count++
 	}
@@ -184,6 +222,7 @@ func registerTool(
 	opKey string,
 	invoker *openbindings.OperationInvoker,
 	baseContext map[string]any,
+	opts RegisterOptions,
 ) {
 	srv.AddTool(&mcp.Tool{
 		Name:        toolName,
@@ -203,7 +242,7 @@ func registerTool(
 		call := openbindings.Invoke(ctx, invoker, iface,
 			openbindings.NewOperationSignature[any, any](opKey),
 			openbindings.WithContext(baseContext))
-		lastData, ierr := drainOperation(ctx, call, input)
+		lastData, ierr := drainOperation(ctx, call, input, opKey, opts.deadline())
 		if ierr != nil {
 			return &mcp.CallToolResult{
 				IsError: true,
@@ -233,6 +272,7 @@ func registerResource(
 	ref string,
 	invoker *openbindings.OperationInvoker,
 	baseContext map[string]any,
+	opts RegisterOptions,
 ) {
 	uri := strings.TrimPrefix(ref, "resources/")
 
@@ -245,7 +285,7 @@ func registerResource(
 		call := openbindings.Invoke(ctx, invoker, iface,
 			openbindings.NewOperationSignature[any, any](opKey),
 			openbindings.WithContext(baseContext))
-		lastData, ierr := drainOperation(ctx, call, map[string]any{"uri": req.Params.URI})
+		lastData, ierr := drainOperation(ctx, call, map[string]any{"uri": req.Params.URI}, opKey, opts.deadline())
 		if ierr != nil {
 			return nil, fmt.Errorf("%s: %s", ierr.Code, ierr.Message)
 		}
@@ -278,6 +318,7 @@ func registerPrompt(
 	ref string,
 	invoker *openbindings.OperationInvoker,
 	baseContext map[string]any,
+	opts RegisterOptions,
 ) {
 	promptName := strings.TrimPrefix(ref, "prompts/")
 
@@ -305,7 +346,7 @@ func registerPrompt(
 		call := openbindings.Invoke(ctx, invoker, iface,
 			openbindings.NewOperationSignature[any, any](opKey),
 			openbindings.WithContext(baseContext))
-		lastData, ierr := drainOperation(ctx, call, input)
+		lastData, ierr := drainOperation(ctx, call, input, opKey, opts.deadline())
 		if ierr != nil {
 			return nil, fmt.Errorf("%s: %s", ierr.Code, ierr.Message)
 		}

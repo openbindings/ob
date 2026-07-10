@@ -2,7 +2,6 @@
 package delegates
 
 import (
-
 	"bytes"
 	"context"
 	"encoding/json"
