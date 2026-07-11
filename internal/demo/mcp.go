@@ -86,9 +86,14 @@ func NewMCPHandler(store *Store) http.Handler {
 	)
 }
 
+// jsonResult returns structured data the modern-MCP way: structuredContent
+// carries the value (the declared structured lane), and the serialized JSON
+// rides a TextContent block as the backwards-compatibility shadow the MCP
+// spec recommends alongside it.
 func jsonResult(v any) *mcp.CallToolResult {
 	data, _ := json.Marshal(v)
 	return &mcp.CallToolResult{
+		StructuredContent: v,
 		Content: []mcp.Content{
 			&mcp.TextContent{Text: string(data)},
 		},
