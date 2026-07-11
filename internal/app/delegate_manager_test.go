@@ -140,6 +140,57 @@ func TestSetDelegatePreference_RequiresRegistration(t *testing.T) {
 	}
 }
 
+// TestSetDelegatePreference_FormatScopeSurfacesInSummary pins Fix B4-4:
+// DelegateRecord.FormatPreferences used to be write-only — set by
+// SetDelegatePreference's Format scope but never copied by
+// summaryFromRecord, so it never appeared in the summary SetDelegatePreference
+// itself returns, in listDelegates' output, or in the human-readable Render().
+func TestSetDelegatePreference_FormatScopeSurfacesInSummary(t *testing.T) {
+	dir := delegateTestEnv(t)
+	loc := writeFakeDelegate(t, dir, "fake-kv", fakeDelegateOBI)
+	if _, err := RegisterDelegate(loc, nil); err != nil {
+		t.Fatalf("register: %v", err)
+	}
+
+	op := "openbindings.key-value-store.get"
+	s, err := SetDelegatePreference(SetDelegatePreferenceInput{
+		Location: loc, Preference: prefOf(3), Operation: op, Format: "grpc",
+	})
+	if err != nil {
+		t.Fatalf("set format preference: %v", err)
+	}
+
+	// The summary SetDelegatePreference itself returns.
+	if len(s.FormatPreferences) != 1 {
+		t.Fatalf("summary.FormatPreferences = %+v, want exactly one entry", s.FormatPreferences)
+	}
+	fp := s.FormatPreferences[0]
+	if fp.Operation != op || fp.Format != "grpc" || fp.Preference != 3 {
+		t.Errorf("format preference = %+v, want {%s grpc 3}", fp, op)
+	}
+
+	// A fresh read through listDelegates (persisted registry -> summaryFromRecord).
+	var found bool
+	for _, d := range ListDelegates().Delegates {
+		if d.Location != loc {
+			continue
+		}
+		found = true
+		if len(d.FormatPreferences) != 1 || d.FormatPreferences[0].Format != "grpc" {
+			t.Errorf("listDelegates summary.FormatPreferences = %+v, want the grpc override", d.FormatPreferences)
+		}
+	}
+	if !found {
+		t.Fatalf("registered delegate missing from listDelegates")
+	}
+
+	// The human-readable rendering.
+	rendered := s.Render()
+	if !strings.Contains(rendered, op) || !strings.Contains(rendered, "grpc") || !strings.Contains(rendered, "3") {
+		t.Errorf("Render() missing the format-scoped preference; got:\n%s", rendered)
+	}
+}
+
 func TestUnregisterDelegate_Idempotent(t *testing.T) {
 	dir := delegateTestEnv(t)
 	loc := writeFakeDelegate(t, dir, "fake-kv", fakeDelegateOBI)

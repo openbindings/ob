@@ -175,6 +175,7 @@ func registerRoutes(srv *server.Server, logger *slog.Logger, port int, oauthSt *
 	mux.HandleFunc("GET /describe", handleDescribe)
 	mux.HandleFunc("GET /formats", handleFormats)
 	mux.HandleFunc("GET /delegates", handleDelegates)
+	mux.HandleFunc("GET /delegates/resolve/{operation}", handleResolveDelegate)
 
 	mux.HandleFunc("GET /environment", handleEnvironment)
 
@@ -316,6 +317,23 @@ func handleFormats(w http.ResponseWriter, r *http.Request) {
 func handleDelegates(w http.ResponseWriter, r *http.Request) {
 	// The contract's listDelegates output: {"delegates": [...]}.
 	writeJSON(w, http.StatusOK, app.ListDelegates())
+}
+
+// handleResolveDelegate serves the read-only counterpart of `ob delegate
+// resolve`: which registered delegates carry an operation identifier,
+// ordered by effective preference. Resolves candidates only — it does not
+// invoke anything — so an operation nothing carries is a literal 200 with an
+// empty candidate list, not an error. The three MUTATING delegate operations
+// (register/unregister/setPreference) stay CLI-only by design; only the
+// read-only surface (listDelegates, resolveDelegate,
+// getDelegateRequirements) is served over HTTP.
+func handleResolveDelegate(w http.ResponseWriter, r *http.Request) {
+	result, err := app.ResolveDelegate(r.PathValue("operation"))
+	if err != nil {
+		writeJSON(w, http.StatusBadRequest, ErrorResponse{Error: err.Error()})
+		return
+	}
+	writeJSON(w, http.StatusOK, result)
 }
 
 // --- Spec Resources ---

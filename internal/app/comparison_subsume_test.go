@@ -9,29 +9,31 @@ import (
 // The comparison's schema verdicts run the SDK's compatibility engine, so
 // `ob compat` and CheckInterfaceCompatibility reach the same verdict on the
 // same pair — the shared-semantics promise. Regression: the slot verdict
-// only distinguished identical-vs-different (no subsumption), so the
-// canonical breaking change — an output field's type flipping inside an
-// array item, where the structural walk does not descend — reported
-// "compatible" while the SDK said output_incompatible.
+// only distinguished identical-vs-different (no subsumption), so a breaking
+// change the structural walk does not descend into — a union combinator's
+// variant type flipping inside oneOf — reported "compatible" while the SDK
+// said output_incompatible.
+//
+// (Array items were the original vehicle for this regression; the
+// items-recursion fix in compareSchemaAt now catches that case directly via
+// a type.changed finding, so slotAlreadyFaulted correctly stops the engine
+// from double-reporting it — see TestComparisonItems_NestedArrayBreakCaught.
+// oneOf remains a position the structural walk deliberately does not
+// descend into, so it still isolates the subsumption-engine safety net this
+// test exists to cover.)
 func TestComparison_SubsumptionMatchesSDKVerdict(t *testing.T) {
 	contract := `{
 	  "openbindings": "0.2.0",
 	  "operations": { "getMenu": { "output": {
 	    "type": "object",
-	    "properties": { "items": { "type": "array", "items": {
-	      "type": "object",
-	      "properties": { "price": { "type": "number" } }
-	    } } }
+	    "properties": { "price": { "oneOf": [ { "type": "number" } ] } }
 	  } } }
 	}`
 	changed := `{
 	  "openbindings": "0.2.0",
 	  "operations": { "getMenu": { "output": {
 	    "type": "object",
-	    "properties": { "items": { "type": "array", "items": {
-	      "type": "object",
-	      "properties": { "price": { "type": "string" } }
-	    } } }
+	    "properties": { "price": { "oneOf": [ { "type": "string" } ] } }
 	  } } }
 	}`
 
@@ -62,17 +64,14 @@ func TestComparison_SubsumptionMatchesSDKVerdict(t *testing.T) {
 	}
 
 	// And a genuinely compatible widening (output narrows nothing; candidate
-	// output is a subset shape) must NOT be flagged: strictness parity, not
-	// just failure parity.
+	// output is the same oneOf shape) must NOT be flagged: strictness parity,
+	// not just failure parity.
 	widened := `{
 	  "openbindings": "0.2.0",
 	  "operations": { "getMenu": { "output": {
 	    "type": "object",
-	    "properties": { "items": { "type": "array", "items": {
-	      "type": "object",
-	      "properties": { "price": { "type": "number" } }
-	    } } },
-	    "required": ["items"]
+	    "properties": { "price": { "oneOf": [ { "type": "number" } ] } },
+	    "required": ["price"]
 	  } } }
 	}`
 	report2 := compareDocs(t, contract, widened)

@@ -81,6 +81,39 @@ paths:
                       $ref: "#/components/schemas/Delegate"
                 required: [delegates]
 
+  /delegates/resolve/{operation}:
+    get:
+      operationId: resolveDelegate
+      summary: Resolve an operation to the registered delegates that carry it
+      description: >
+        Read-only counterpart of `ob delegate resolve`: which registered
+        delegates carry the given operation identifier (a key or alias),
+        ordered by effective preference (best first). Does not invoke
+        anything; an operation nothing carries resolves to an empty
+        candidate list, not an error.
+      parameters:
+        - name: operation
+          in: path
+          required: true
+          description: The operation identifier a delegate is needed for
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Candidates carrying the operation, ordered by effective preference (best first); empty when none carry it
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  operation:
+                    type: string
+                  candidates:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/Delegate"
+                required: [operation, candidates]
+
   /delegate-requirements/{capability}:
     get:
       operationId: getDelegateRequirements

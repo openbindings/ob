@@ -86,6 +86,11 @@
       "ref": "#/paths/~1interfaces~1status/post",
       "source": "openapi"
     },
+    "openbindings.ob.resolveDelegate.openapi": {
+      "operation": "openbindings.ob.resolveDelegate",
+      "ref": "#/paths/~1delegates~1resolve~1{operation}/get",
+      "source": "openapi"
+    },
     "openbindings.ob.resolveInterface.openapi": {
       "operation": "openbindings.ob.resolveInterface",
       "ref": "#/paths/~1resolve/post",
@@ -318,6 +323,19 @@
       },
       "output": {
         "$ref": "#/schemas/InterfaceStatus"
+      }
+    },
+    "openbindings.ob.resolveDelegate": {
+      "aliases": [
+        "openbindings.delegate-manager.resolveDelegate"
+      ],
+      "description": "Resolve an operation to the registered delegates that carry it — those whose interface answers to the operation's key or an alias — ordered by effective preference: the per-operation override when set, else the delegate-level preference, else the baseline; ties favor the self-delegate, then registration order. Returns candidates only; it does not invoke anything, and ob's routing applies its own narrowing (format support) on top.",
+      "idempotent": true,
+      "input": {
+        "$ref": "#/schemas/ResolveDelegateInput"
+      },
+      "output": {
+        "$ref": "#/schemas/ResolveDelegateResult"
       }
     },
     "openbindings.ob.resolveInterface": {
@@ -1163,6 +1181,13 @@
           "description": "Digest of the delegate's interface document as last resolved (sha256: over its RFC 8785 canonical form). Pins the snapshot; opaque — compare for equality, don't recompute.",
           "type": "string"
         },
+        "formatPreferences": {
+          "description": "Preference overrides scoped to one (operation, format) pair — ob's extra granularity beyond the delegate-manager contract's per-operation index.",
+          "items": {
+            "$ref": "#/schemas/FormatPreference"
+          },
+          "type": "array"
+        },
         "formats": {
           "description": "The formats the delegate reported handling when last resolved.",
           "items": {
@@ -1347,6 +1372,30 @@
       },
       "required": [
         "token"
+      ],
+      "type": "object"
+    },
+    "FormatPreference": {
+      "additionalProperties": false,
+      "description": "A preference override scoped to one (operation, format) pair — ob's extra granularity beyond the delegate-manager contract's per-operation index. It replaces both the delegate-level and the per-operation preference when resolving that operation for that binding-source format.",
+      "properties": {
+        "format": {
+          "description": "The binding-source format this override is scoped to (e.g. grpc, openapi@3.1).",
+          "type": "string"
+        },
+        "operation": {
+          "description": "The operation identifier this override is scoped to.",
+          "type": "string"
+        },
+        "preference": {
+          "description": "The scoped preference value; higher is more preferred.",
+          "type": "number"
+        }
+      },
+      "required": [
+        "operation",
+        "format",
+        "preference"
       ],
       "type": "object"
     },

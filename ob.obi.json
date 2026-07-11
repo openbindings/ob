@@ -1995,6 +1995,13 @@
           },
           "description": "Per-operation preference overrides, keyed by operation identifier. The override replaces the delegate-level preference when resolving that operation."
         },
+        "formatPreferences": {
+          "type": "array",
+          "items": {
+            "$ref": "#/schemas/FormatPreference"
+          },
+          "description": "Preference overrides scoped to one (operation, format) pair \u2014 ob's extra granularity beyond the delegate-manager contract's per-operation index."
+        },
         "builtin": {
           "type": "boolean",
           "description": "True for ob's own native handling \u2014 the self-delegate."
@@ -2436,6 +2443,30 @@
       },
       "required": [
         "format"
+      ],
+      "additionalProperties": false
+    },
+    "FormatPreference": {
+      "type": "object",
+      "description": "A preference override scoped to one (operation, format) pair — ob's extra granularity beyond the delegate-manager contract's per-operation index. It replaces both the delegate-level and the per-operation preference when resolving that operation for that binding-source format.",
+      "properties": {
+        "operation": {
+          "type": "string",
+          "description": "The operation identifier this override is scoped to."
+        },
+        "format": {
+          "type": "string",
+          "description": "The binding-source format this override is scoped to (e.g. grpc, openapi@3.1)."
+        },
+        "preference": {
+          "type": "number",
+          "description": "The scoped preference value; higher is more preferred."
+        }
+      },
+      "required": [
+        "operation",
+        "format",
+        "preference"
       ],
       "additionalProperties": false
     },

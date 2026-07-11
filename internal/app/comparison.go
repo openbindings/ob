@@ -370,7 +370,15 @@ func compareSchemaSlot(direction string, left, right, leftRoot, rightRoot map[st
 		// reference is recognised as identical to its inline equivalent.
 		lr, ls, _ := derefSchema(leftRoot, left, map[string]bool{})
 		rr, rs, _ := derefSchema(rightRoot, right, map[string]bool{})
-		if ls == "" && rs == "" && strippedCanonicalEqual(lr, rr) {
+		// The fast path compares raw JSON, so on its own it is blind to any
+		// $ref left nested inside the resolved subtree: two documents can
+		// carry the identical $ref pointer at a nested position (e.g. inside
+		// "items") while each document's OWN schema registry binds that
+		// pointer to different content. Only take the identity shortcut when
+		// neither side has a $ref left to resolve anywhere in the subtree;
+		// otherwise fall through and let the structural/subsumption checks
+		// run the deep, ref-aware comparison.
+		if ls == "" && rs == "" && !containsRef(lr) && !containsRef(rr) && strippedCanonicalEqual(lr, rr) {
 			verdict = "identical"
 		}
 	}
@@ -380,7 +388,7 @@ func compareSchemaSlot(direction string, left, right, leftRoot, rightRoot map[st
 // subsumptionFindings runs the SDK's schema-compatibility engine over a
 // paired slot as the SAFETY NET behind the structural walk: the walk
 // (schemaFindings) reports precise per-keyword findings but does not
-// descend everywhere (array items, combinators), so a slot it cannot fault
+// descend into union combinators (oneOf/anyOf), so a slot it cannot fault
 // still needs a verdict. It is the same engine CheckInterfaceCompatibility
 // uses, so `ob compat` and the SDKs reach the same verdict on the same
 // pair — the shared-semantics promise.
@@ -403,7 +411,11 @@ func subsumptionFindings(opKey, direction string, left, right, leftRoot, rightRo
 	if ls != "" || rs != "" {
 		return nil // external/unresolved/cycle: the structural walk reports it
 	}
-	if strippedCanonicalEqual(lr, rr) {
+	// Same $ref-blindness guard as compareSchemaSlot's fast path: a nested
+	// $ref can bind divergent content per document even when the raw JSON is
+	// byte-identical, so the "identical slot, no engine needed" shortcut only
+	// applies when neither side has a $ref left anywhere in the subtree.
+	if !containsRef(lr) && !containsRef(rr) && strippedCanonicalEqual(lr, rr) {
 		return nil // identical slots need no engine
 	}
 
@@ -591,6 +603,25 @@ func compareSchemaAt(findings *[]Finding, opKey, direction string, left, right m
 		rm, rok := rightProps[prop].(map[string]any)
 		if lok && rok {
 			compareSchemaAt(findings, opKey, direction, lm, rm, ptr+"/properties/"+escapePointer(prop), leftRoot, rightRoot, leftSeen, rightSeen)
+		}
+	}
+
+	// Array items: the schema every element must satisfy. Profile v0.1 (like
+	// the engine's compatArray) treats "items" as one schema applied to every
+	// element, not JSON Schema's separate tuple ("prefixItems") form.
+	if li, lok := left["items"].(map[string]any); lok {
+		if ri, rok := right["items"].(map[string]any); rok {
+			compareSchemaAt(findings, opKey, direction, li, ri, ptr+"/items", leftRoot, rightRoot, leftSeen, rightSeen)
+		}
+	}
+
+	// additionalProperties as a schema (rather than a bare true/false): the
+	// boolean check above only catches a true<->false flip, so a schema-typed
+	// additionalProperties needs the same structural descent as
+	// "properties"/"items".
+	if lap, lok := left["additionalProperties"].(map[string]any); lok {
+		if rap, rok := right["additionalProperties"].(map[string]any); rok {
+			compareSchemaAt(findings, opKey, direction, lap, rap, ptr+"/additionalProperties", leftRoot, rightRoot, leftSeen, rightSeen)
 		}
 	}
 }
@@ -1046,6 +1077,34 @@ func strippedCanonicalEqual(left, right any) bool {
 	l := stripAnnotations(left)
 	r := stripAnnotations(right)
 	return canonicalString(l) == canonicalString(r)
+}
+
+// containsRef reports whether v (a decoded JSON value) carries a "$ref" key
+// anywhere in its structure. It gates the identity fast paths in
+// compareSchemaSlot and subsumptionFindings: comparing raw JSON is only safe
+// when there is no $ref left to resolve, because two documents can share the
+// exact same $ref pointer at a nested position while each document's own
+// schema registry binds that pointer to different content — byte-identical
+// wrapping JSON, divergent resolved meaning.
+func containsRef(v any) bool {
+	switch x := v.(type) {
+	case map[string]any:
+		if _, ok := x["$ref"]; ok {
+			return true
+		}
+		for _, child := range x {
+			if containsRef(child) {
+				return true
+			}
+		}
+	case []any:
+		for _, child := range x {
+			if containsRef(child) {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 func stripAnnotations(v any) any {

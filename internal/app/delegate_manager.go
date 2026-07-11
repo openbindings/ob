@@ -37,7 +37,12 @@ type DelegateSummary struct {
 	Formats              []DelegateFormatInfo `json:"formats,omitempty"`
 	Preference           *float64             `json:"preference,omitempty"`
 	OperationPreferences map[string]float64   `json:"operationPreferences,omitempty"`
-	Builtin              bool                 `json:"builtin,omitempty"`
+	// FormatPreferences is ob's extra granularity beyond the delegate-manager
+	// contract's per-operation index: a preference scoped to one (operation,
+	// format) pair, overriding both the delegate-level and the per-operation
+	// value when resolving that operation for that binding-source format.
+	FormatPreferences []FormatPreference `json:"formatPreferences,omitempty"`
+	Builtin           bool               `json:"builtin,omitempty"`
 }
 
 func summaryFromRecord(rec DelegateRecord) DelegateSummary {
@@ -50,6 +55,7 @@ func summaryFromRecord(rec DelegateRecord) DelegateSummary {
 		Formats:              rec.Formats,
 		Preference:           rec.Preference,
 		OperationPreferences: rec.OperationPreferences,
+		FormatPreferences:    rec.FormatPreferences,
 	}
 }
 
@@ -104,6 +110,16 @@ func (d DelegateSummary) Render() string {
 	sort.Strings(prefOps)
 	for _, op := range prefOps {
 		fmt.Fprintf(&sb, "\n  %s%s = %g", s.Dim.Render("preference "), op, d.OperationPreferences[op])
+	}
+	formatPrefs := append([]FormatPreference(nil), d.FormatPreferences...)
+	sort.Slice(formatPrefs, func(i, j int) bool {
+		if formatPrefs[i].Operation != formatPrefs[j].Operation {
+			return formatPrefs[i].Operation < formatPrefs[j].Operation
+		}
+		return formatPrefs[i].Format < formatPrefs[j].Format
+	})
+	for _, fp := range formatPrefs {
+		fmt.Fprintf(&sb, "\n  %s%s (%s) = %g", s.Dim.Render("preference "), fp.Operation, fp.Format, fp.Preference)
 	}
 	return sb.String()
 }
@@ -253,35 +269,42 @@ func RegisterDelegate(location string, preference *float64) (*DelegateSummary, e
 	if err != nil {
 		return nil, exitText(1, "no environment found; run 'ob init' first", true)
 	}
-	config, err := LoadEnvConfig(envPath)
-	if err != nil {
-		return nil, exitText(1, err.Error(), true)
-	}
 
-	rec, err := snapshotDelegate(location)
+	snapshot, err := snapshotDelegate(location)
 	if err != nil {
 		return nil, err
 	}
 
-	if idx := findDelegateRecord(config, location); idx >= 0 {
-		// Refresh: the snapshot is the delegate's data; the preferences are the
-		// registrar's and persist untouched.
-		existing := config.Delegates[idx]
-		rec.Preference = existing.Preference
-		rec.OperationPreferences = existing.OperationPreferences
-		rec.FormatPreferences = existing.FormatPreferences
-		config.Delegates[idx] = rec
-	} else {
-		config.Delegates = append(config.Delegates, rec)
-	}
-	if preference != nil {
-		idx := findDelegateRecord(config, location)
-		config.Delegates[idx].Preference = preference
-		rec = config.Delegates[idx]
-	}
-
-	if err := SaveEnvConfig(envPath, config); err != nil {
-		return nil, exitText(1, err.Error(), true)
+	// The load-mutate-save cycle runs under mutateEnvConfig's optimistic-
+	// concurrency guard (internal/app/init.go): a concurrent `ob` process
+	// registering, unregistering, or re-preferring the same registry between
+	// this cycle's load and save is detected and retried against the fresh
+	// state, rather than silently lost. snapshotDelegate above is the
+	// expensive, non-idempotent part (it resolves and probes the delegate) and
+	// deliberately runs once, outside the retry loop; only the registry
+	// mutation itself — which IS safe to reapply — retries.
+	rec, err := mutateEnvConfig(envPath, func(config *EnvConfig) (DelegateRecord, error) {
+		rec := snapshot
+		if idx := findDelegateRecord(config, location); idx >= 0 {
+			// Refresh: the snapshot is the delegate's data; the preferences are
+			// the registrar's and persist untouched.
+			existing := config.Delegates[idx]
+			rec.Preference = existing.Preference
+			rec.OperationPreferences = existing.OperationPreferences
+			rec.FormatPreferences = existing.FormatPreferences
+			config.Delegates[idx] = rec
+		} else {
+			config.Delegates = append(config.Delegates, rec)
+		}
+		if preference != nil {
+			idx := findDelegateRecord(config, location)
+			config.Delegates[idx].Preference = preference
+			rec = config.Delegates[idx]
+		}
+		return rec, nil
+	})
+	if err != nil {
+		return nil, err
 	}
 	summary := summaryFromRecord(rec)
 	return &summary, nil
@@ -303,20 +326,19 @@ func UnregisterDelegate(location string) (removed bool, err error) {
 	if err != nil {
 		return false, exitText(1, "no environment found; run 'ob init' first", true)
 	}
-	config, err := LoadEnvConfig(envPath)
-	if err != nil {
-		return false, exitText(1, err.Error(), true)
-	}
 
-	idx := findDelegateRecord(config, location)
-	if idx < 0 {
-		return false, nil
+	removed, err = mutateEnvConfig(envPath, func(config *EnvConfig) (bool, error) {
+		idx := findDelegateRecord(config, location)
+		if idx < 0 {
+			return false, errEnvConfigNoop
+		}
+		config.Delegates = append(config.Delegates[:idx], config.Delegates[idx+1:]...)
+		return true, nil
+	})
+	if err != nil {
+		return false, err
 	}
-	config.Delegates = append(config.Delegates[:idx], config.Delegates[idx+1:]...)
-	if err := SaveEnvConfig(envPath, config); err != nil {
-		return false, exitText(1, err.Error(), true)
-	}
-	return true, nil
+	return removed, nil
 }
 
 // DelegateListOutput is listDelegates' output: every registered delegate, the
@@ -453,40 +475,38 @@ func SetDelegatePreference(in SetDelegatePreferenceInput) (*DelegateSummary, err
 	if err != nil {
 		return nil, exitText(1, "no environment found; run 'ob init' first", true)
 	}
-	config, err := LoadEnvConfig(envPath)
-	if err != nil {
-		return nil, exitText(1, err.Error(), true)
-	}
 
-	idx := findDelegateRecord(config, location)
-	if idx < 0 {
-		return nil, exitText(1, fmt.Sprintf("delegate %q is not registered; register it first", location), true)
-	}
-	rec := &config.Delegates[idx]
-
-	switch {
-	case in.Operation == "":
-		rec.Preference = in.Preference // nil clears to the baseline
-	case in.Format != "":
-		setFormatPreference(rec, in.Operation, in.Format, in.Preference)
-	default:
-		if in.Preference == nil {
-			delete(rec.OperationPreferences, in.Operation)
-			if len(rec.OperationPreferences) == 0 {
-				rec.OperationPreferences = nil
-			}
-		} else {
-			if rec.OperationPreferences == nil {
-				rec.OperationPreferences = map[string]float64{}
-			}
-			rec.OperationPreferences[in.Operation] = *in.Preference
+	rec, err := mutateEnvConfig(envPath, func(config *EnvConfig) (DelegateRecord, error) {
+		idx := findDelegateRecord(config, location)
+		if idx < 0 {
+			return DelegateRecord{}, exitText(1, fmt.Sprintf("delegate %q is not registered; register it first", location), true)
 		}
-	}
+		rec := &config.Delegates[idx]
 
-	if err := SaveEnvConfig(envPath, config); err != nil {
-		return nil, exitText(1, err.Error(), true)
+		switch {
+		case in.Operation == "":
+			rec.Preference = in.Preference // nil clears to the baseline
+		case in.Format != "":
+			setFormatPreference(rec, in.Operation, in.Format, in.Preference)
+		default:
+			if in.Preference == nil {
+				delete(rec.OperationPreferences, in.Operation)
+				if len(rec.OperationPreferences) == 0 {
+					rec.OperationPreferences = nil
+				}
+			} else {
+				if rec.OperationPreferences == nil {
+					rec.OperationPreferences = map[string]float64{}
+				}
+				rec.OperationPreferences[in.Operation] = *in.Preference
+			}
+		}
+		return *rec, nil
+	})
+	if err != nil {
+		return nil, err
 	}
-	summary := summaryFromRecord(*rec)
+	summary := summaryFromRecord(rec)
 	return &summary, nil
 }
 
