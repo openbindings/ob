@@ -3,6 +3,7 @@ package cmd
 import (
 	"encoding/json"
 	"fmt"
+	"strings"
 
 	"github.com/openbindings/ob/internal/app"
 	"github.com/spf13/cobra"
@@ -71,6 +72,13 @@ Examples:
 					src, err := app.ParseSource(s)
 					if err != nil {
 						return app.ExitResult{Code: 2, Message: fmt.Sprintf("source %q: %v", s, err), ToStderr: true}
+					}
+					// USAGE-P-02: an operator-typed exec address is the
+					// explicit authorization; record it durably.
+					if strings.HasPrefix(src.Location, "exec:") {
+						if aerr := app.RecordAuthorizedExec(src.Location); aerr == nil {
+							fmt.Fprintf(cmd.ErrOrStderr(), "authorized exec address %q (recorded in environment config)\n", src.Location)
+						}
 					}
 					if src.BindingSpec == "" {
 						detected, derr := app.DetectSourceFormat(src.Location)

@@ -13,6 +13,13 @@ type EnvConfig struct {
 	// Delegates is the delegate registry: one record per registered delegate,
 	// in registration order. The self-delegate is builtin, never persisted.
 	Delegates []DelegateRecord `json:"delegates,omitempty"`
+
+	// AuthorizedExec is the USAGE-P-02 authorization list: exec addresses
+	// (exact strings, e.g. "exec:mytool usage") the operator has explicitly
+	// authorized this environment to dereference. Recorded by explicit
+	// operator action (typing the address at intake); the default for any
+	// unlisted address is refusal.
+	AuthorizedExec []string `json:"authorizedExec,omitempty"`
 }
 
 // Init creates an OpenBindings environment directory with a default config

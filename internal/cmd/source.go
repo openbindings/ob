@@ -166,6 +166,14 @@ Examples:
 				}
 			}
 
+			// USAGE-P-02: the operator typed this exec address — that is the
+			// explicit authorization; record it durably so later
+			// dereferences (pull, invoke) are authorized too.
+			if strings.HasPrefix(src.Location, "exec:") {
+				if aerr := app.RecordAuthorizedExec(src.Location); aerr == nil {
+					fmt.Fprintf(cmd.ErrOrStderr(), "authorized exec address %q (recorded in environment config)\n", src.Location)
+				}
+			}
 			result, err := app.SourceAdd(app.SourceAddInput{
 				OBIPath:     obiPath,
 				Format:      src.BindingSpec,
