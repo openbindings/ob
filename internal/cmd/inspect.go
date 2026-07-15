@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"strings"
 
 	"github.com/openbindings/ob/internal/app"
 	openbindings "github.com/openbindings/openbindings-go"
@@ -55,6 +56,13 @@ Examples:
 				parsed, err := app.ParseSource(args[0])
 				if err != nil {
 					return app.ExitResult{Code: 2, Message: err.Error(), ToStderr: true}
+				}
+				// USAGE-P-02: an operator-typed exec address is the explicit
+				// authorization; record it durably.
+				if strings.HasPrefix(parsed.Location, "exec:") {
+					if aerr := app.RecordAuthorizedExec(parsed.Location); aerr == nil {
+						fmt.Fprintf(cmd.ErrOrStderr(), "authorized exec address %q (recorded in environment config)\n", parsed.Location)
+					}
 				}
 				if parsed.BindingSpec == "" {
 					detected, derr := app.DetectSourceFormat(parsed.Location)

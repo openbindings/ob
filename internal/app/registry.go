@@ -3,6 +3,7 @@ package app
 import (
 	"context"
 	"fmt"
+	"strings"
 	"sync"
 
 	openbindings "github.com/openbindings/openbindings-go"
@@ -42,7 +43,7 @@ func newDefaultInvoker() *openbindings.OperationInvoker {
 		mcp.NewInvoker(mcp.WithClientVersion(OBVersion)),
 		asyncapi.NewInvoker(),
 		graphqlbinding.NewInvoker(),
-		usage.NewInvoker(),
+		newUsageInvoker(),
 		// workers-rpc invoker stub: ob recognizes the format token and
 		// codegen produces clients for workers-rpc OBIs, but actual
 		// dispatch is impossible from Go (Workers RPC requires the
@@ -85,7 +86,7 @@ func newDefaultSynthesizer() openbindings.InterfaceSynthesizer {
 		connectbinding.NewSynthesizer(),
 		mcp.NewSynthesizer(mcp.WithSynthesizerClientVersion(OBVersion)),
 		graphqlbinding.NewSynthesizer(),
-		usage.NewSynthesizer(),
+		newUsageSynthesizer(),
 		// workers-rpc synthesizer stub: workers-rpc OBIs are hand-authored
 		// (the contract is the WorkerEntrypoint TS class on the target
 		// Worker, not a machine-readable spec) so the synthesizer returns
@@ -164,4 +165,64 @@ func OverrideInvokerForTest(invoker *openbindings.OperationInvoker) func() {
 		ResetDefaultInvoker()
 		resetNativeTokens()
 	}
+}
+
+// authorizeExecAddress is ob's USAGE-P-02 policy: an exec address may be
+// dereferenced when the operator explicitly authorized it — recorded in the
+// environment config's authorizedExec list (intake records addresses the
+// operator types), or standing via delegate registration (a registered
+// delegate's own exec location, and exec sources in its pinned interface,
+// were authorized by the explicit act of registering it). Anything else is
+// refused, per the specification's default.
+func authorizeExecAddress(argv []string) bool {
+	address := "exec:" + strings.Join(argv, " ")
+	if envPath, err := FindEnvPath(); err == nil {
+		if config, err := LoadEnvConfig(envPath); err == nil {
+			for _, allowed := range config.AuthorizedExec {
+				if allowed == address {
+					return true
+				}
+			}
+			for _, rec := range config.Delegates {
+				if rec.Location == address {
+					return true
+				}
+			}
+		}
+	}
+	return false
+}
+
+func newUsageInvoker() *usage.Invoker {
+	inv := usage.NewInvoker()
+	inv.AuthorizeExec = authorizeExecAddress
+	return inv
+}
+
+func newUsageSynthesizer() *usage.Synthesizer {
+	s := usage.NewSynthesizer()
+	s.AuthorizeExec = authorizeExecAddress
+	return s
+}
+
+// RecordAuthorizedExec records an exec address in the environment config's
+// authorizedExec list — the durable form of the operator's explicit
+// USAGE-P-02 authorization. Idempotent; the CLI layer calls it exactly when
+// the OPERATOR typed the address (machine lanes never auto-authorize).
+func RecordAuthorizedExec(address string) error {
+	envPath, err := FindEnvPath()
+	if err != nil {
+		return err
+	}
+	config, err := LoadEnvConfig(envPath)
+	if err != nil {
+		return err
+	}
+	for _, existing := range config.AuthorizedExec {
+		if existing == address {
+			return nil
+		}
+	}
+	config.AuthorizedExec = append(config.AuthorizedExec, address)
+	return SaveEnvConfig(envPath, config)
 }
