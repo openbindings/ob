@@ -8,12 +8,35 @@ on:
 jobs:
   test:
     runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ob
     steps:
       - uses: actions/checkout@v4
+        with:
+          path: ob
+      # ob builds against SDK module versions that are not tagged yet; a
+      # sibling checkout plus a CI-local go.work with version-less replaces
+      # resolves them, exactly the way the local-dev go.work does. Release
+      # builds (release.yml) see no go.work and resolve tagged versions.
+      # Flip ref to main once the SDK's experiment line promotes.
+      - uses: actions/checkout@v4
+        with:
+          repository: openbindings/openbindings-go
+          ref: experiment/obi-first
+          path: openbindings-go
       - uses: actions/setup-go@v5
         with:
-          go-version-file: go.mod
+          go-version-file: ob/go.mod
           cache: false
+      - name: workspace (resolve untagged SDK modules from the sibling checkout)
+        run: |
+          go work init .
+          awk '$1 ~ /^github.com\/openbindings\/openbindings-go/ {print $1}' go.mod | sort -u | while read -r mod; do
+            rel="../openbindings-go${mod#github.com/openbindings/openbindings-go}"
+            go work edit -replace "$mod=$rel"
+          done
+          go work edit -json
       - run: go build ./...
       - run: go vet ./...
       - run: go test -race -short ./...
