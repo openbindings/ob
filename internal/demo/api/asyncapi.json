@@ -52,7 +52,7 @@
   },
   "operations": {
     "onOrderUpdate": {
-      "action": "receive",
+      "action": "send",
       "channel": {
         "$ref": "#/channels/orderUpdates"
       },
