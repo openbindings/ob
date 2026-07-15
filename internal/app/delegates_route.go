@@ -53,7 +53,7 @@ func synthesizeViaDelegate(ctx context.Context, input *openbindings.SynthesizeIn
 	if input == nil || len(input.Sources) != 1 {
 		return nil, false, nil // multi-source/mixed not routed; native handles or errors
 	}
-	format := input.Sources[0].Format
+	format := input.Sources[0].BindingSpec
 	if format == "" || BuiltinSupportsFormat(format) {
 		return nil, false, nil // native
 	}
@@ -84,10 +84,10 @@ func synthesizeViaDelegate(ctx context.Context, input *openbindings.SynthesizeIn
 // inspectViaDelegate routes a non-native inspectSource to an inspect-capable
 // delegate. routed reports whether a delegate handled it.
 func inspectViaDelegate(ctx context.Context, source *openbindings.Source) (ins *openbindings.SourceInspection, routed bool, err error) {
-	if source == nil || source.Format == "" || BuiltinSupportsFormat(source.Format) {
+	if source == nil || source.BindingSpec == "" || BuiltinSupportsFormat(source.BindingSpec) {
 		return nil, false, nil
 	}
-	chosen := selectDelegate(CapInspect, source.Format)
+	chosen := selectDelegate(CapInspect, source.BindingSpec)
 	if chosen == nil || chosen.builtin {
 		return nil, false, nil
 	}

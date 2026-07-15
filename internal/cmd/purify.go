@@ -59,7 +59,7 @@ gate a registry or CI pre-publish step needs (gofmt -l style).`,
 			}
 
 			result := app.InvokeOperationWithContext(context.Background(), app.InvocationInput{
-				Source: app.InvokeSource{Format: "openbindings.operation-graph@0.2.0", Content: purifyGraph},
+				Source: app.InvokeSource{BindingSpec: "openbindings.operation-graph@1", Content: purifyGraph},
 				Ref:    "#/graphs/purify",
 				Input:  doc,
 			})

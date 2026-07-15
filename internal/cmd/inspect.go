@@ -31,7 +31,7 @@ Examples:
   ob inspect openapi.json
   ob inspect usage@2.0.0:./cli.kdl
   ob inspect https://api.example.com/openapi.json
-  ob inspect --input '{"source":{"format":"openapi@3.1","location":"api.yaml"}}'`,
+  ob inspect --input '{"source":{"bindingSpec":"openbindings.openapi@1","location":"api.yaml"}}'`,
 		Args: cobra.MaximumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			var source *openbindings.Source
@@ -56,15 +56,15 @@ Examples:
 				if err != nil {
 					return app.ExitResult{Code: 2, Message: err.Error(), ToStderr: true}
 				}
-				if parsed.Format == "" {
+				if parsed.BindingSpec == "" {
 					detected, derr := app.DetectSourceFormat(parsed.Location)
 					if derr != nil {
 						return app.ExitResult{Code: 2, Message: derr.Error(), ToStderr: true}
 					}
-					parsed.Format = detected
+					parsed.BindingSpec = detected
 				}
 				source = &openbindings.Source{
-					Format:      parsed.Format,
+					BindingSpec: parsed.BindingSpec,
 					Location:    parsed.Location,
 					Description: parsed.Description,
 				}
@@ -83,7 +83,7 @@ Examples:
 				format = "json"
 			}
 			return app.OutputResultText(inspection, format, outputPath, func() string {
-				return app.RenderSourceInspection(source.Format, source.Location, inspection)
+				return app.RenderSourceInspection(source.BindingSpec, source.Location, inspection)
 			})
 		},
 	}

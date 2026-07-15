@@ -23,10 +23,10 @@ import (
 
 // InvokeSource represents the binding source for invocation.
 type InvokeSource struct {
-	Format   string `json:"format"`
-	Location string `json:"location,omitempty"`
-	Content  any    `json:"content,omitempty"`
-	Binary   string `json:"binary,omitempty"` // Optional: binary name hint for CLI invocation
+	BindingSpec string `json:"bindingSpec"`
+	Location    string `json:"location,omitempty"`
+	Content     any    `json:"content,omitempty"`
+	Binary      string `json:"binary,omitempty"` // Optional: binary name hint for CLI invocation
 }
 
 // InvocationInput is the app-level invocation carrier for both lanes:
@@ -176,7 +176,7 @@ func resolveBindingAndSource(iface *openbindings.Interface, opKey, bindingKey st
 // place and die with a bare file error everywhere else. The remedy is the
 // D-05 ruling's local lane — embed the artifact — or an absolute URI.
 func resolveSourceLocation(source openbindings.Source) (openbindings.InvocationSource, error) {
-	es := openbindings.InvocationSource{Format: source.Format}
+	es := openbindings.InvocationSource{BindingSpec: source.BindingSpec}
 	if source.Location != "" {
 		loc := source.Location
 		if !execref.IsExec(loc) && !strings.Contains(loc, "://") && !filepath.IsAbs(loc) && !isHostPort(loc) {
@@ -440,7 +440,7 @@ func invokeOnInterface(ctx context.Context, iface *openbindings.Interface, opKey
 	}
 
 	lowLevel := InvocationInput{
-		Source:      InvokeSource{Format: es.Format, Location: es.Location, Content: es.Content},
+		Source:      InvokeSource{BindingSpec: es.BindingSpec, Location: es.Location, Content: es.Content},
 		Ref:         resolved.binding.Ref,
 		Input:       resolved.input,
 		Interface:   iface,
@@ -452,13 +452,13 @@ func invokeOnInterface(ctx context.Context, iface *openbindings.Interface, opKey
 
 	// Pre-dispatch delegate selection (deterministic): the split is decided
 	// before any side effect.
-	chosen := selectDelegate(CapInvoke, es.Format)
+	chosen := selectDelegate(CapInvoke, es.BindingSpec)
 	if chosen != nil && !chosen.builtin {
 		// An external delegate owns the binding hop. Displaced FLAGS cannot
 		// apply across the boundary — refuse the explicit intent loudly.
 		if !config.empty() {
 			return nil, fmt.Errorf("op invoke: --decode/--ok-exit/--route configure ob's built-in handling, which delegate %q displaces for format %q (the delegate dispatches the binding itself); unset them, or run in-process with `ob delegate prefer ob --operation %s`",
-				chosen.name(), es.Format, opCanonical)
+				chosen.name(), es.BindingSpec, opCanonical)
 		}
 		// Displaced STANDING elections proceed with a loud attributed warning.
 		run.DisplacedWarning, run.DisplacedDetail = displacedElectionsWarning(opCanonical, chosen.name())
@@ -468,7 +468,7 @@ func invokeOnInterface(ctx context.Context, iface *openbindings.Interface, opKey
 			return nil, fmt.Errorf("resolve delegate %q: %w", chosen.name(), rerr)
 		}
 		out := invokeViaExternalDelegate(ctx, delegates.Resolved{
-			Format:   es.Format,
+			Format:   es.BindingSpec,
 			Delegate: chosen.name(),
 			Location: chosen.location(),
 			OBI:      &delegates.ResolvedOBI{Interface: *delegateIface},
@@ -482,7 +482,7 @@ func invokeOnInterface(ctx context.Context, iface *openbindings.Interface, opKey
 	lowLevel.Hooks = config.perInvocationHooks(DefaultInvoker())
 
 	// Streaming lane (builtin drivers only) when the self-delegate wins.
-	if BuiltinSupportsFormat(es.Format) {
+	if BuiltinSupportsFormat(es.BindingSpec) {
 		src, sErr := SubscribeOperationWithContext(ctx, lowLevel)
 		if sErr == nil {
 			run.Events = applyT08(transformEventStream(src, iface, resolved), outputSchema, iface.Schemas, resolved.bindingKey)
@@ -667,7 +667,7 @@ func PrepareOperation(ctx context.Context, obiPath string, opKey string, binding
 	}
 
 	return PrepareBinding(ctx, InvocationInput{
-		Source:      InvokeSource{Format: es.Format, Location: es.Location, Content: es.Content},
+		Source:      InvokeSource{BindingSpec: es.BindingSpec, Location: es.Location, Content: es.Content},
 		Ref:         resolved.binding.Ref,
 		Context:     callerContext,
 		Interface:   iface,
@@ -831,7 +831,7 @@ func InvokeOperationWithContext(ctx context.Context, input InvocationInput) Invo
 	start := time.Now()
 
 	// Validate input
-	if input.Source.Format == "" {
+	if input.Source.BindingSpec == "" {
 		return InvocationResult{
 			Error: &Error{
 				Code:    "invalid_input",
@@ -851,19 +851,19 @@ func InvokeOperationWithContext(ctx context.Context, input InvocationInput) Invo
 	// Unified delegate selection (capability + format, preference, self-first
 	// ties). Native formats select the self-delegate (iface nil → in-process);
 	// non-native formats select an external delegate when one is registered.
-	chosen := selectDelegate(CapInvoke, input.Source.Format)
+	chosen := selectDelegate(CapInvoke, input.Source.BindingSpec)
 
 	var output InvocationResult
 	if chosen == nil || chosen.builtin {
 		// Self-delegate or nothing: invoke in-process when ob supports the
 		// format natively, else there is nowhere to route.
-		if BuiltinSupportsFormat(input.Source.Format) {
+		if BuiltinSupportsFormat(input.Source.BindingSpec) {
 			output = invokeViaBuiltin(ctx, input)
 		} else {
 			return InvocationResult{
 				Error: &Error{
 					Code:    "delegate_resolution_failed",
-					Message: fmt.Sprintf("no invoker or delegate handles format %q", input.Source.Format),
+					Message: fmt.Sprintf("no invoker or delegate handles format %q", input.Source.BindingSpec),
 				},
 			}
 		}
@@ -877,7 +877,7 @@ func InvokeOperationWithContext(ctx context.Context, input InvocationInput) Invo
 			}
 		}
 		output = invokeViaExternalDelegate(ctx, delegates.Resolved{
-			Format:   input.Source.Format,
+			Format:   input.Source.BindingSpec,
 			Delegate: chosen.name(),
 			Location: chosen.location(),
 			OBI:      &delegates.ResolvedOBI{Interface: *iface},
@@ -893,24 +893,24 @@ func InvokeOperationWithContext(ctx context.Context, input InvocationInput) Invo
 // instead of a single output. External delegates are not supported (streaming
 // across process boundaries requires a transport protocol; use builtin drivers).
 func SubscribeOperationWithContext(ctx context.Context, input InvocationInput) (<-chan InvocationOutput, error) {
-	if input.Source.Format == "" {
+	if input.Source.BindingSpec == "" {
 		return nil, fmt.Errorf("source.format is required")
 	}
 	if input.Ref == "" {
 		return nil, fmt.Errorf("ref is required")
 	}
 
-	if !BuiltinSupportsFormat(input.Source.Format) {
-		return nil, fmt.Errorf("streaming not supported for format %q (no builtin invoker)", input.Source.Format)
+	if !BuiltinSupportsFormat(input.Source.BindingSpec) {
+		return nil, fmt.Errorf("streaming not supported for format %q (no builtin invoker)", input.Source.BindingSpec)
 	}
 
 	invoker := DefaultInvoker()
 	invoke := func(ctx context.Context, ctxData map[string]any) openbindings.Invocation[any, any] {
 		return invoker.InvokeBinding(ctx, &openbindings.BindingInvocationArgs{
 			Source: openbindings.InvocationSource{
-				Format:   input.Source.Format,
-				Location: input.Source.Location,
-				Content:  input.Source.Content,
+				BindingSpec: input.Source.BindingSpec,
+				Location:    input.Source.Location,
+				Content:     input.Source.Content,
 			},
 			Ref:         input.Ref,
 			Context:     ctxData,
@@ -934,9 +934,9 @@ func invokeViaBuiltin(ctx context.Context, input InvocationInput) InvocationResu
 	invoke := func(ctx context.Context, ctxData map[string]any) openbindings.Invocation[any, any] {
 		return invoker.InvokeBinding(ctx, &openbindings.BindingInvocationArgs{
 			Source: openbindings.InvocationSource{
-				Format:   input.Source.Format,
-				Location: input.Source.Location,
-				Content:  input.Source.Content,
+				BindingSpec: input.Source.BindingSpec,
+				Location:    input.Source.Location,
+				Content:     input.Source.Content,
 			},
 			Ref:         input.Ref,
 			Context:     ctxData,
@@ -999,9 +999,9 @@ func invokeViaExternalDelegate(ctx context.Context, resolved delegates.Resolved,
 	invoke := func(ctx context.Context, ctxData map[string]any) openbindings.Invocation[any, any] {
 		return delegateInvoker.InvokeBinding(ctx, &openbindings.BindingInvocationArgs{
 			Source: openbindings.InvocationSource{
-				Format:   input.Source.Format,
-				Location: input.Source.Location,
-				Content:  input.Source.Content,
+				BindingSpec: input.Source.BindingSpec,
+				Location:    input.Source.Location,
+				Content:     input.Source.Content,
 			},
 			Ref:     input.Ref,
 			Context: ctxData,

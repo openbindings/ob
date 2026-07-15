@@ -38,7 +38,7 @@ func TestSynthesizeMachineLane(t *testing.T) {
 	}
 	outPath := filepath.Join(dir, "out.obi.json")
 
-	input := fmt.Sprintf(`{"sources":[{"format":"openapi@3.1","location":%q}],"name":"Machine"}`, specPath)
+	input := fmt.Sprintf(`{"sources":[{"bindingSpec":"openbindings.openapi@1","location":%q}],"name":"Machine"}`, specPath)
 	if err := runOB(t, "synthesize", "--input", input, "-o", outPath); err != nil {
 		t.Fatalf("synthesize --input: %v", err)
 	}
@@ -69,7 +69,7 @@ func TestSynthesizeMachineLane_ContentSource(t *testing.T) {
 	dir := t.TempDir()
 	outPath := filepath.Join(dir, "out.obi.json")
 
-	input := fmt.Sprintf(`{"sources":[{"format":"openapi@3.1","content":%s}]}`, tinyOpenAPI)
+	input := fmt.Sprintf(`{"sources":[{"bindingSpec":"openbindings.openapi@1","content":%s}]}`, tinyOpenAPI)
 	if err := runOB(t, "synthesize", "--input", input, "-o", outPath); err != nil {
 		t.Fatalf("synthesize --input (content source): %v", err)
 	}
@@ -120,7 +120,7 @@ func TestInspectMachineLane(t *testing.T) {
 	}
 	outPath := filepath.Join(dir, "inspection.json")
 
-	input := fmt.Sprintf(`{"source":{"format":"openapi@3.1","location":%q}}`, specPath)
+	input := fmt.Sprintf(`{"source":{"bindingSpec":"openbindings.openapi@1","location":%q}}`, specPath)
 	if err := runOB(t, "inspect", "--input", input, "-o", outPath); err != nil {
 		t.Fatalf("inspect --input: %v", err)
 	}

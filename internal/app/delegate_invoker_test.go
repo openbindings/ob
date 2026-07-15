@@ -86,7 +86,7 @@ func TestDelegateFrameInvoker_UnaryRoundTrip(t *testing.T) {
 
 		open := readFrame()
 		if open.Kind != frames.KindOpen || open.Input == nil ||
-			open.Input.Source.Format != "thrift@1.0" || open.Input.Ref != "Service/method" {
+			open.Input.Source.BindingSpec != "thrift@1.0" || open.Input.Ref != "Service/method" {
 			t.Errorf("unexpected open frame: %#v", open)
 		}
 		input := readFrame()
@@ -106,7 +106,7 @@ func TestDelegateFrameInvoker_UnaryRoundTrip(t *testing.T) {
 		Location: ts.URL,
 		OBI: delegateOBI(
 			map[string]openbindings.Source{
-				"asyncapi": {Format: "asyncapi@3.0", Location: ts.URL + "/asyncapi.yaml"},
+				"asyncapi": {BindingSpec: "openbindings.asyncapi@1", Location: ts.URL + "/asyncapi.yaml"},
 			},
 			map[string]openbindings.BindingEntry{
 				"invokeBinding.asyncapi": {Operation: "invokeBinding", Ref: "#/operations/invokeBinding", Source: "asyncapi"},
@@ -124,7 +124,7 @@ func TestDelegateFrameInvoker_UnaryRoundTrip(t *testing.T) {
 
 	ctx := t.Context()
 	inv := invoker.InvokeBinding(ctx, &openbindings.BindingInvocationArgs{
-		Source: openbindings.InvocationSource{Format: "thrift@1.0", Location: "service.thrift"},
+		Source: openbindings.InvocationSource{BindingSpec: "thrift@1.0", Location: "service.thrift"},
 		Ref:    "Service/method",
 	})
 	if werr := inv.Write(ctx, "ping"); werr != nil {
@@ -153,8 +153,8 @@ func TestDelegateBindingInvoker_PrefersFramesOverCLI(t *testing.T) {
 		Delegate: "test-delegate",
 		OBI: delegateOBI(
 			map[string]openbindings.Source{
-				"asyncapi": {Format: "asyncapi@3.0", Location: "http://localhost:1/asyncapi.yaml"},
-				"usage":    {Format: "usage@2.0.0", Location: "exec:test-delegate --usage-spec"},
+				"asyncapi": {BindingSpec: "openbindings.asyncapi@1", Location: "http://localhost:1/asyncapi.yaml"},
+				"usage":    {BindingSpec: "openbindings.usage@1", Location: "exec:test-delegate --usage-spec"},
 			},
 			map[string]openbindings.BindingEntry{
 				"invokeBinding.asyncapi": {Operation: "invokeBinding", Ref: "#/operations/invokeBinding", Source: "asyncapi"},
@@ -179,8 +179,8 @@ func TestDelegateBindingInvoker_CLIWhenAsyncAPIUnreachable(t *testing.T) {
 		Delegate: "test-delegate",
 		OBI: delegateOBI(
 			map[string]openbindings.Source{
-				"asyncapi": {Format: "asyncapi@3.0", Location: "internal/server/asyncapi.yaml"},
-				"usage":    {Format: "usage@2.0.0", Location: "exec:test-delegate --usage-spec"},
+				"asyncapi": {BindingSpec: "openbindings.asyncapi@1", Location: "internal/server/asyncapi.yaml"},
+				"usage":    {BindingSpec: "openbindings.usage@1", Location: "exec:test-delegate --usage-spec"},
 			},
 			map[string]openbindings.BindingEntry{
 				"invokeBinding.asyncapi": {Operation: "invokeBinding", Ref: "#/operations/invokeBinding", Source: "asyncapi"},
@@ -203,7 +203,7 @@ func TestDelegateBindingInvoker_NoUsableBinding(t *testing.T) {
 		Delegate: "test-delegate",
 		OBI: delegateOBI(
 			map[string]openbindings.Source{
-				"openapi": {Format: "openapi@3.1", Location: "http://localhost:1/openapi.yaml"},
+				"openapi": {BindingSpec: "openbindings.openapi@1", Location: "http://localhost:1/openapi.yaml"},
 			},
 			map[string]openbindings.BindingEntry{
 				"invokeBinding.openapi": {Operation: "invokeBinding", Ref: "#/paths/~1bindings~1invoke/post", Source: "openapi"},
@@ -261,7 +261,7 @@ func TestDelegateBindingInvoker_MatchesKeyOrAlias(t *testing.T) {
 						tc.key: {Aliases: []string{"openbindings.binding-invoker.invokeBinding"}},
 					},
 					Sources: map[string]openbindings.Source{
-						"usage": {Format: "usage@2.0.0", Content: "bin \"acme\"\ncmd \"binding\" subcommand_required=#true { cmd \"invoke\" { flag \"--input <json>\" } }"},
+						"usage": {BindingSpec: "openbindings.usage@1", Content: "bin \"acme\"\ncmd \"binding\" subcommand_required=#true { cmd \"invoke\" { flag \"--input <json>\" } }"},
 					},
 					Bindings: map[string]openbindings.BindingEntry{
 						tc.key + ".usage": {Operation: tc.key, Source: "usage", Ref: "binding invoke"},
@@ -335,7 +335,7 @@ exit 1
 				"openbindings.ob.invokeBinding": {Aliases: []string{"openbindings.binding-invoker.invokeBinding"}},
 			},
 			Sources: map[string]openbindings.Source{
-				"usage": {Format: "usage@2.0.0", Content: usageSpec},
+				"usage": {BindingSpec: "openbindings.usage@1", Content: usageSpec},
 			},
 			Bindings: map[string]openbindings.BindingEntry{
 				"openbindings.ob.invokeBinding.usage": {
@@ -358,7 +358,7 @@ exit 1
 
 	ctx := t.Context()
 	inv := invoker.InvokeBinding(ctx, &openbindings.BindingInvocationArgs{
-		Source: openbindings.InvocationSource{Format: "thrift@1.0", Location: "service.thrift"},
+		Source: openbindings.InvocationSource{BindingSpec: "thrift@1.0", Location: "service.thrift"},
 		Ref:    "Service/method",
 	})
 	if werr := inv.Write(ctx, map[string]any{"limit": 10}); werr != nil {
@@ -389,7 +389,7 @@ exit 1
 		t.Errorf("ref = %v, want Service/method", received["ref"])
 	}
 	src, _ := received["source"].(map[string]any)
-	if src["format"] != "thrift@1.0" || src["location"] != "service.thrift" {
+	if src["bindingSpec"] != "thrift@1.0" || src["location"] != "service.thrift" {
 		t.Errorf("source = %#v, want thrift@1.0 / service.thrift", src)
 	}
 	input, _ := received["input"].(map[string]any)
@@ -421,7 +421,7 @@ func TestOpInvoke_ExternalDelegateDisplacesElections(t *testing.T) {
 	delegateIface := openbindings.Interface{
 		OpenBindings: "0.2.0",
 		Operations:   map[string]openbindings.Operation{"invokeBinding": {Aliases: []string{"openbindings.binding-invoker.invokeBinding"}}},
-		Sources:      map[string]openbindings.Source{"usage": {Format: "usage@2.0.0", Content: usageSpec}},
+		Sources:      map[string]openbindings.Source{"usage": {BindingSpec: "openbindings.usage@1", Content: usageSpec}},
 		Bindings: map[string]openbindings.BindingEntry{
 			"invokeBinding.usage": {
 				Operation:      "invokeBinding",
@@ -453,7 +453,7 @@ func TestOpInvoke_ExternalDelegateDisplacesElections(t *testing.T) {
 	invokedIface := openbindings.Interface{
 		OpenBindings: "0.2.0",
 		Operations:   map[string]openbindings.Operation{"openbindings.ob.validateInterface": {}},
-		Sources:      map[string]openbindings.Source{"usage": {Format: "usage@2.0.0", Location: "exec:" + cliPath}},
+		Sources:      map[string]openbindings.Source{"usage": {BindingSpec: "openbindings.usage@1", Location: "exec:" + cliPath}},
 		Bindings: map[string]openbindings.BindingEntry{
 			"openbindings.ob.validateInterface.usage": {Operation: "openbindings.ob.validateInterface", Source: "usage", Ref: "validate"},
 		},
@@ -475,7 +475,7 @@ func TestOpInvoke_ExternalDelegateDisplacesElections(t *testing.T) {
 			Location:             "exec:" + cliPath,
 			Name:                 "ext",
 			Capabilities:         []DelegateCapability{CapInvoke},
-			Formats:              []DelegateFormatInfo{{Format: "usage@2.0.0"}},
+			Formats:              []DelegateFormatInfo{{Format: "openbindings.usage@1"}},
 			OperationPreferences: map[string]float64{"openbindings.binding-invoker.invokeBinding": pref},
 		}}}
 	}

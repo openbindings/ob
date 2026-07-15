@@ -146,12 +146,11 @@ func TestGenerateBoundCLI_BindsOpsByShortName(t *testing.T) {
 	if err != nil {
 		t.Fatalf("read usage.kdl: %v", err)
 	}
-	kdlSpec, err := usage.ParseKDL(kdl)
-	if err != nil {
+	if _, err := usage.ParseKDL(kdl); err != nil {
 		t.Fatalf("parse usage.kdl: %v", err)
 	}
-	if want := "usage@" + kdlSpec.Meta().MinUsageVersion; src.Format != want {
-		t.Errorf("source format = %q, want the artifact's declared floor %q", src.Format, want)
+	if src.BindingSpec != usage.BindingSpec {
+		t.Errorf("source bindingSpec = %q, want the exact identifier %q", src.BindingSpec, usage.BindingSpec)
 	}
 	if text, _ := src.Content.(string); text == "" || !strings.Contains(text, `bin "ob"`) {
 		t.Error("expected the pristine kdl text as embedded content")
@@ -188,7 +187,7 @@ func TestGenerateBoundCLI_AttachesWireInputTransforms(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 	wire := map[string]any{
-		"source": map[string]any{"format": "openapi@3.1", "location": "api.yaml"},
+		"source": map[string]any{"bindingSpec": "openbindings.openapi@1", "location": "api.yaml"},
 		"ref":    "#/x",
 	}
 	for _, short := range []string{"invokeBinding", "prepareBinding", "synthesizeInterface", "inspectSource"} {
@@ -258,11 +257,11 @@ func TestGenerateBoundCLI_AttachesWireInputTransforms(t *testing.T) {
 	if b.InputTransform == nil {
 		t.Fatal("resolveDelegateForFormat: expected an adaptation transform")
 	}
-	out, terr = ApplyTransform(bound.Transforms, b.InputTransform, map[string]any{"format": "usage@2.0.0"})
+	out, terr = ApplyTransform(bound.Transforms, b.InputTransform, map[string]any{"format": "openbindings.usage@1"})
 	if terr != nil {
 		t.Fatalf("resolveDelegateForFormat: transform failed: %v", terr)
 	}
-	if m, ok := out.(map[string]any); !ok || m["format-token"] != "usage@2.0.0" || m["format"] != "json" {
+	if m, ok := out.(map[string]any); !ok || m["format-token"] != "openbindings.usage@1" || m["format"] != "json" {
 		t.Errorf("resolveDelegateForFormat: expected {format-token, format: json}, got %#v", out)
 	}
 	// setDelegatePreference: format scopes to --source-format; other fields

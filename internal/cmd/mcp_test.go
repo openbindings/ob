@@ -55,7 +55,7 @@ func TestMCPCommand_BridgesInterfaceToTools(t *testing.T) {
 			"echo.mock": {Operation: "echo", Source: "mock", Ref: "test"},
 		},
 		Sources: map[string]openbindings.Source{
-			"mock": {Format: "x-mock"},
+			"mock": {BindingSpec: "x-mock"},
 		},
 	}
 
@@ -191,8 +191,8 @@ func TestObStartServedInterfaceBridgesToMCP(t *testing.T) {
 // real mcpbridge → invoker flow without depending on a network protocol.
 type echoMockInvoker struct{}
 
-func (e *echoMockInvoker) Formats() []openbindings.FormatInfo {
-	return []openbindings.FormatInfo{{Token: "x-mock", Description: "echo mock"}}
+func (e *echoMockInvoker) BindingSpecs() []openbindings.BindingSpecInfo {
+	return []openbindings.BindingSpecInfo{{BindingSpec: "x-mock", Description: "echo mock"}}
 }
 
 func (e *echoMockInvoker) InvokeBinding(ctx context.Context, args *openbindings.BindingInvocationArgs) openbindings.Invocation[any, any] {

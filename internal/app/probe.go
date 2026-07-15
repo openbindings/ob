@@ -292,9 +292,9 @@ func normalizeOBIJSON(body []byte) (string, bool) {
 // the first successful synthesis.
 func trySynthesizeInterface(location, originalURL, obiDir string) (ProbeResult, bool) {
 	synthesizer := DefaultSynthesizer()
-	for _, fi := range synthesizer.Formats() {
+	for _, fi := range synthesizer.BindingSpecs() {
 		iface, err := synthesizer.SynthesizeInterface(context.Background(), &openbindings.SynthesizeInput{
-			Sources: []openbindings.SynthesizeSource{{Format: fi.Token, Location: location}},
+			Sources: []openbindings.SynthesizeSource{{BindingSpec: fi.BindingSpec, Location: location}},
 		})
 		if err != nil || iface == nil {
 			continue
@@ -326,8 +326,8 @@ func trySynthesizeInterface(location, originalURL, obiDir string) (ProbeResult, 
 
 func firstSourceFormat(iface *openbindings.Interface) string {
 	for _, src := range iface.Sources {
-		if src.Format != "" {
-			return src.Format
+		if src.BindingSpec != "" {
+			return src.BindingSpec
 		}
 	}
 	return ""

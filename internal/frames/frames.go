@@ -34,9 +34,9 @@ const (
 // InvokeSource is the binding source carried by the open frame, mirroring the
 // contract's InvokeSource schema (format plus location and/or content).
 type InvokeSource struct {
-	Format   string `json:"format"`
-	Location string `json:"location,omitempty"`
-	Content  any    `json:"content,omitempty"`
+	BindingSpec string `json:"bindingSpec"`
+	Location    string `json:"location,omitempty"`
+	Content     any    `json:"content,omitempty"`
 }
 
 // BindingInvocationInput is the payload of the open frame (and the input of
@@ -195,7 +195,7 @@ func DecodeInvocationInput(raw json.RawMessage) (*BindingInvocationInput, error)
 	}
 	for k := range srcFields {
 		switch k {
-		case "format", "location", "content":
+		case "bindingSpec", "location", "content":
 		default:
 			return nil, protocolErrorf("open frame: unknown source property %q", k)
 		}
@@ -205,7 +205,7 @@ func DecodeInvocationInput(raw json.RawMessage) (*BindingInvocationInput, error)
 	if err := json.Unmarshal(raw, &input); err != nil {
 		return nil, protocolErrorf("open frame: invalid input: %v", err)
 	}
-	if input.Source.Format == "" {
+	if input.Source.BindingSpec == "" {
 		return nil, protocolErrorf("open frame: source.format is required")
 	}
 	return &input, nil

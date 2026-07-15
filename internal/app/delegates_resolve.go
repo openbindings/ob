@@ -20,7 +20,7 @@ type ResolveDelegateForFormatResult struct {
 // Render returns a human-readable summary.
 func (r ResolveDelegateForFormatResult) Render() string {
 	var sb strings.Builder
-	fmt.Fprintf(&sb, "Format: %s\n", r.Format)
+	fmt.Fprintf(&sb, "BindingSpec: %s\n", r.Format)
 	fmt.Fprintf(&sb, "Delegate: %s", r.Name)
 	if r.Builtin {
 		sb.WriteString(" (builtin)")

@@ -8,12 +8,12 @@ import (
 )
 
 func TestParseSource_Basic(t *testing.T) {
-	src, err := ParseSource("usage@2.13.1:./cli.kdl")
+	src, err := ParseSource("openbindings.usage@1:./cli.kdl")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	if src.Format != "usage@2.13.1" {
-		t.Errorf("format = %q, want %q", src.Format, "usage@2.13.1")
+	if src.BindingSpec != "openbindings.usage@1" {
+		t.Errorf("format = %q, want %q", src.BindingSpec, "openbindings.usage@1")
 	}
 	if src.Location != "./cli.kdl" {
 		t.Errorf("location = %q, want %q", src.Location, "./cli.kdl")
@@ -21,12 +21,12 @@ func TestParseSource_Basic(t *testing.T) {
 }
 
 func TestParseSource_WithOptions(t *testing.T) {
-	src, err := ParseSource("usage@2.13.1:./cli.kdl?name=cli&embed&description=CLI spec")
+	src, err := ParseSource("openbindings.usage@1:./cli.kdl?name=cli&embed&description=CLI spec")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	if src.Format != "usage@2.13.1" {
-		t.Errorf("format = %q", src.Format)
+	if src.BindingSpec != "openbindings.usage@1" {
+		t.Errorf("format = %q", src.BindingSpec)
 	}
 	if src.Name != "cli" {
 		t.Errorf("name = %q, want %q", src.Name, "cli")
@@ -40,7 +40,7 @@ func TestParseSource_WithOptions(t *testing.T) {
 }
 
 func TestParseSource_OutputLocation(t *testing.T) {
-	src, err := ParseSource("openapi@3.1:/tmp/spec.json?outputLocation=./spec.json")
+	src, err := ParseSource("openbindings.openapi@1:/tmp/spec.json?outputLocation=./spec.json")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -54,8 +54,8 @@ func TestParseSource_BarePath(t *testing.T) {
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	if src.Format != "" {
-		t.Errorf("format = %q, want empty (auto-detect)", src.Format)
+	if src.BindingSpec != "" {
+		t.Errorf("format = %q, want empty (auto-detect)", src.BindingSpec)
 	}
 	if src.Location != "openapi.json" {
 		t.Errorf("location = %q, want %q", src.Location, "openapi.json")
@@ -67,8 +67,8 @@ func TestParseSource_BarePathRelative(t *testing.T) {
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	if src.Format != "" {
-		t.Errorf("format = %q, want empty", src.Format)
+	if src.BindingSpec != "" {
+		t.Errorf("format = %q, want empty", src.BindingSpec)
 	}
 	if src.Location != "./api.yaml" {
 		t.Errorf("location = %q, want %q", src.Location, "./api.yaml")
@@ -80,8 +80,8 @@ func TestParseSource_BarePathWithOptions(t *testing.T) {
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	if src.Format != "" {
-		t.Errorf("format = %q, want empty", src.Format)
+	if src.BindingSpec != "" {
+		t.Errorf("format = %q, want empty", src.BindingSpec)
 	}
 	if src.Location != "openapi.json" {
 		t.Errorf("location = %q, want %q", src.Location, "openapi.json")
@@ -126,7 +126,7 @@ func TestParseSource_Errors(t *testing.T) {
 }
 
 func TestDeriveSourceKey_ExplicitName(t *testing.T) {
-	src := SynthesizeInterfaceSource{Name: "myKey", Format: "usage@2.0.0", Location: "/foo/bar.kdl"}
+	src := SynthesizeInterfaceSource{Name: "myKey", BindingSpec: "openbindings.usage@1", Location: "/foo/bar.kdl"}
 	key := DeriveSourceKey(src, 0)
 	if key != "myKey" {
 		t.Errorf("key = %q, want %q", key, "myKey")
@@ -134,7 +134,7 @@ func TestDeriveSourceKey_ExplicitName(t *testing.T) {
 }
 
 func TestDeriveSourceKey_FromFileName(t *testing.T) {
-	src := SynthesizeInterfaceSource{Format: "usage@2.0.0", Location: "/project/cli.usage.kdl"}
+	src := SynthesizeInterfaceSource{BindingSpec: "openbindings.usage@1", Location: "/project/cli.usage.kdl"}
 	key := DeriveSourceKey(src, 0)
 	if key != "cliUsage" {
 		t.Errorf("key = %q, want %q", key, "cliUsage")
@@ -142,7 +142,7 @@ func TestDeriveSourceKey_FromFileName(t *testing.T) {
 }
 
 func TestDeriveSourceKey_NoStutter(t *testing.T) {
-	src := SynthesizeInterfaceSource{Format: "asyncapi@3.0", Location: "/project/asyncapi.json"}
+	src := SynthesizeInterfaceSource{BindingSpec: "openbindings.asyncapi@1", Location: "/project/asyncapi.json"}
 	key := DeriveSourceKey(src, 0)
 	if key != "asyncapi" {
 		t.Errorf("key = %q, want %q", key, "asyncapi")
@@ -150,7 +150,7 @@ func TestDeriveSourceKey_NoStutter(t *testing.T) {
 }
 
 func TestDeriveSourceKey_FallbackIndex(t *testing.T) {
-	src := SynthesizeInterfaceSource{Format: "openapi@3.1", Location: "/project/this-is-a-very-long-filename-that-exceeds-twenty-chars.json"}
+	src := SynthesizeInterfaceSource{BindingSpec: "openbindings.openapi@1", Location: "/project/this-is-a-very-long-filename-that-exceeds-twenty-chars.json"}
 	key := DeriveSourceKey(src, 2)
 	if key != "openapi2" {
 		t.Errorf("key = %q, want %q", key, "openapi2")
@@ -173,7 +173,7 @@ func TestEmbedLane_JSONFormat(t *testing.T) {
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	result, err := ParseContentForEmbed(raw, "openapi@3.1")
+	result, err := ParseContentForEmbed(raw, "openbindings.openapi@1")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -197,7 +197,7 @@ func TestEmbedLane_YAMLFormat(t *testing.T) {
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	result, err := ParseContentForEmbed(raw, "asyncapi@3.0")
+	result, err := ParseContentForEmbed(raw, "openbindings.asyncapi@1")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -221,7 +221,7 @@ func TestEmbedLane_TextFormat(t *testing.T) {
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	result, err := ParseContentForEmbed(raw, "usage@2.0")
+	result, err := ParseContentForEmbed(raw, "openbindings.usage@1")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -291,7 +291,7 @@ func TestSynthesizeInterface_Overrides(t *testing.T) {
 func TestSynthesizeInterface_BadSource(t *testing.T) {
 	_, err := SynthesizeInterface(SynthesizeInterfaceInput{
 		Sources: []SynthesizeInterfaceSource{
-			{Format: "usage@2.0.0", Location: "/nonexistent/spec.kdl"},
+			{BindingSpec: "openbindings.usage@1", Location: "/nonexistent/spec.kdl"},
 		},
 	})
 	if err == nil {

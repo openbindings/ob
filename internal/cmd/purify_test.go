@@ -19,7 +19,7 @@ const sourceOwnedFixture = `{
   "version": "0.1.0",
   "x-ob": {"obVersion": "0.1.0"},
   "sources": {
-    "api": {"format": "openapi@3.1", "location": "http://example.test/openapi.json", "x-ob": {"ref": "http://example.test/openapi.json"}}
+    "api": {"bindingSpec": "openbindings.openapi@1", "location": "http://example.test/openapi.json", "x-ob": {"ref": "http://example.test/openapi.json"}}
   },
   "operations": {
     "getThing": {"description": "d", "output": {"type": "object"}, "x-ob": {"base": {"description": "d"}}}
@@ -38,7 +38,7 @@ func TestPurifyGraphMatchesStripAllXOB(t *testing.T) {
 		t.Fatal(err)
 	}
 	result := app.InvokeOperationWithContext(context.Background(), app.InvocationInput{
-		Source: app.InvokeSource{Format: "openbindings.operation-graph@0.2.0", Content: purifyGraph},
+		Source: app.InvokeSource{BindingSpec: "openbindings.operation-graph@1", Content: purifyGraph},
 		Ref:    "#/graphs/purify",
 		Input:  doc,
 	})

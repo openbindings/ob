@@ -1,40 +1,40 @@
 {
     "openbindings": "0.2.0",
-    "name": "OpenBindings Source Inspector",
+    "name": "Source Inspector",
     "version": "0.1.0",
-    "description": "Interface for inspecting binding source artifacts before creating an OpenBindings interface. A source inspector reports supported source formats and discovers bindable targets that tooling can offer to users.",
+    "description": "Interface for inspecting binding source artifacts before an OpenBindings interface exists. A source inspector reports its supported binding specifications and discovers bindable targets that tooling can offer to users.",
     "schemas": {
-        "FormatInfo": {
+        "BindingSpecInfo": {
             "type": "object",
-            "description": "Information about a supported binding format.",
+            "description": "Information about a supported binding specification.",
             "properties": {
-                "token": {
+                "bindingSpec": {
                     "type": "string",
-                    "description": "Format token (e.g., openapi@3.1, asyncapi@3.0, grpc)."
+                    "description": "Binding specification identifier, exact and opaque (e.g., openbindings.openapi@1, openbindings.mcp@1)."
                 },
                 "description": {
                     "type": "string",
-                    "description": "Human-readable description of this format."
+                    "description": "Human-readable description of this binding specification."
                 }
             },
             "required": [
-                "token"
+                "bindingSpec"
             ]
         },
         "Source": {
             "type": "object",
-            "description": "Binding source artifact to inspect.",
+            "description": "A binding source (binding-specification identifier plus location or content), as an OpenBindings document carries it. Open to extension fields so a document's source entry forwards verbatim.",
             "properties": {
-                "format": {
+                "bindingSpec": {
                     "type": "string",
-                    "description": "Format token for this source."
+                    "description": "Binding specification identifier governing this source."
                 },
                 "location": {
                     "type": "string",
-                    "description": "Location to fetch content from (path or URL)."
+                    "description": "Absolute address of the source, per its binding specification (core OBI-D-05)."
                 },
                 "content": {
-                    "description": "Content provided directly."
+                    "description": "Embedded source-artifact representation, per its binding specification."
                 },
                 "description": {
                     "type": "string",
@@ -42,7 +42,7 @@
                 }
             },
             "required": [
-                "format"
+                "bindingSpec"
             ],
             "anyOf": [
                 {
@@ -56,7 +56,7 @@
                     ]
                 }
             ],
-            "additionalProperties": false
+            "additionalProperties": true
         },
         "Operation": {
             "type": "object",
@@ -133,13 +133,13 @@
         }
     },
     "operations": {
-        "openbindings.source-inspector.listFormats": {
-            "description": "List binding formats this inspector can inspect.",
+        "openbindings.source-inspector.listBindingSpecs": {
+            "description": "List the binding specifications this inspector can inspect, by exact identifier.",
             "idempotent": true,
             "output": {
                 "type": "array",
                 "items": {
-                    "$ref": "#/schemas/FormatInfo"
+                    "$ref": "#/schemas/BindingSpecInfo"
                 }
             }
         },

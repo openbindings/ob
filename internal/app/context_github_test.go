@@ -82,7 +82,7 @@ func TestContextGitHub_OperationInvokerDriven(t *testing.T) {
     "getAuthenticatedUser": { "description": "Get the authenticated user" }
   },
   "sources": {
-    "openapi": { "format": "openapi@3.0", "content": ` + string(embeddedJSON) + ` }
+    "openapi": { "bindingSpec": "openbindings.openapi@1", "content": ` + string(embeddedJSON) + ` }
   },
   "bindings": {
     "getAuthenticatedUser.openapi": {
@@ -216,8 +216,8 @@ func TestContextGitHub_SecuritySchemeApplication(t *testing.T) {
 
 	execInput := InvocationInput{
 		Source: InvokeSource{
-			Format:   "openapi@3.0",
-			Location: specPath,
+			BindingSpec: "openbindings.openapi@1",
+			Location:    specPath,
 		},
 		Ref:     "#/paths/~1user/get",
 		Input:   nil,
@@ -279,8 +279,8 @@ func TestContextGitHub_NoCredentialsFails(t *testing.T) {
 
 	execInput := InvocationInput{
 		Source: InvokeSource{
-			Format:   "openapi@3.0",
-			Location: specPath,
+			BindingSpec: "openbindings.openapi@1",
+			Location:    specPath,
 		},
 		Ref: "#/paths/~1user/get",
 	}

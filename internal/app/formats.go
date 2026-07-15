@@ -9,9 +9,10 @@ import (
 	openbindings "github.com/openbindings/openbindings-go"
 )
 
-// FormatInfo describes a supported binding format for display purposes.
+// FormatInfo describes a supported binding specification for display and
+// for the listBindingSpecs contract result (BindingSpecInfo shape).
 type FormatInfo struct {
-	Token       string `json:"token"`
+	BindingSpec string `json:"bindingSpec"`
 	Description string `json:"description,omitempty"`
 }
 
@@ -31,7 +32,7 @@ func RenderFormatList(formats []FormatInfo) string {
 		sb.WriteString("  ")
 		sb.WriteString(s.Bullet.Render("•"))
 		sb.WriteString(" ")
-		sb.WriteString(s.Key.Render(f.Token))
+		sb.WriteString(s.Key.Render(f.BindingSpec))
 		if f.Description != "" {
 			sb.WriteString(s.Dim.Render(" - " + f.Description))
 		}
@@ -46,7 +47,7 @@ func ListFormats() []FormatInfo {
 	var formats []FormatInfo
 
 	for _, tok := range getNativeTokens() {
-		formats = append(formats, FormatInfo{Token: tok})
+		formats = append(formats, FormatInfo{BindingSpec: tok})
 	}
 
 	// Delegate formats come from the registry's registration-time snapshots —
@@ -54,7 +55,7 @@ func ListFormats() []FormatInfo {
 	// route-to-one, and no live probing.
 	for _, rec := range GetDelegateContext().Delegates {
 		for _, f := range rec.Formats {
-			formats = append(formats, FormatInfo{Token: f.Format, Description: f.Description})
+			formats = append(formats, FormatInfo{BindingSpec: f.Format, Description: f.Description})
 		}
 	}
 
@@ -64,8 +65,8 @@ func ListFormats() []FormatInfo {
 func getNativeTokens() []string {
 	nativeTokensOnce.Do(func() {
 		nativeTokens = []string{"openbindings@" + openbindings.MaxTestedVersion}
-		for _, fi := range DefaultInvoker().Formats() {
-			nativeTokens = append(nativeTokens, fi.Token)
+		for _, fi := range DefaultInvoker().BindingSpecs() {
+			nativeTokens = append(nativeTokens, fi.BindingSpec)
 		}
 	})
 	return nativeTokens
@@ -93,11 +94,11 @@ func uniqueSortedFormats(in []FormatInfo) []FormatInfo {
 	}
 	seen := make(map[string]FormatInfo, len(in))
 	for _, f := range in {
-		if f.Token == "" {
+		if f.BindingSpec == "" {
 			continue
 		}
-		if _, exists := seen[f.Token]; !exists {
-			seen[f.Token] = f
+		if _, exists := seen[f.BindingSpec]; !exists {
+			seen[f.BindingSpec] = f
 		}
 	}
 	out := make([]FormatInfo, 0, len(seen))
@@ -105,7 +106,20 @@ func uniqueSortedFormats(in []FormatInfo) []FormatInfo {
 		out = append(out, f)
 	}
 	sort.Slice(out, func(i, j int) bool {
-		return out[i].Token < out[j].Token
+		return out[i].BindingSpec < out[j].BindingSpec
 	})
 	return out
+}
+
+// SpecFamily extracts the lowercase family name from a binding-specification
+// identifier ("openbindings.openapi@1" → "openapi"; a pre-promotion draft
+// token like "graphql" passes through). Identifiers themselves stay exact
+// and opaque for matching (core §6); this is dispatch/display convenience.
+func SpecFamily(identifier string) string {
+	name := strings.TrimSpace(identifier)
+	if at := strings.IndexByte(name, '@'); at > 0 {
+		name = name[:at]
+	}
+	name = strings.TrimPrefix(name, "openbindings.")
+	return strings.ToLower(name)
 }

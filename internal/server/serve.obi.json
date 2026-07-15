@@ -113,7 +113,7 @@
       "source": "openapi"
     }
   },
-  "description": "The complete interface implemented by ob, the OpenBindings reference tool. One unbound contract describing everything ob does: authoring, inspecting, editing, validating, comparing, and invoking OpenBindings interfaces, plus context storage and environment management. This document carries no bindings or sources; it is the single source of truth from which the per-surface realizations (CLI via usage, server via OpenAPI/AsyncAPI/MCP) are derived, so they cannot drift. Every operation is keyed under ob's own namespace (e.g. openbindings.ob.pullSource). An operation that satisfies a published OpenBindings interface carries that contract's operation key as an alias (openbindings.ob.setContext carries openbindings.key-value-store.set), and one operation may satisfy several contracts this way, as listFormats does.",
+  "description": "The complete interface implemented by ob, the OpenBindings reference tool. One unbound contract describing everything ob does: authoring, inspecting, editing, validating, comparing, and invoking OpenBindings interfaces, plus context storage and environment management. This document carries no bindings or sources; it is the single source of truth from which the per-surface realizations (CLI via usage, server via OpenAPI/AsyncAPI/MCP) are derived, so they cannot drift. Every operation is keyed under ob's own namespace (e.g. openbindings.ob.pullSource). An operation that corresponds to a published OpenBindings interface carries that contract's operation key as an alias (openbindings.ob.setContext carries openbindings.key-value-store.set), and one operation may correspond to several contracts this way, as listFormats does.",
   "name": "ob",
   "openbindings": "0.2.0",
   "operations": {
@@ -246,11 +246,11 @@
     },
     "openbindings.ob.listFormats": {
       "aliases": [
-        "openbindings.binding-invoker.listFormats",
-        "openbindings.interface-synthesizer.listFormats",
-        "openbindings.source-inspector.listFormats"
+        "openbindings.binding-invoker.listBindingSpecs",
+        "openbindings.interface-synthesizer.listBindingSpecs",
+        "openbindings.source-inspector.listBindingSpecs"
       ],
-      "description": "List the binding formats this instance can handle. One operation satisfies the listFormats slot of every interface that has one, since the answer is the same regardless of which capability is asking.",
+      "description": "List the binding specifications this instance can handle, by exact identifier. One operation answers the listBindingSpecs slot of every interface that has one, since the answer is the same regardless of which capability is asking.",
       "idempotent": true,
       "output": {
         "items": {
@@ -1361,17 +1361,17 @@
       "additionalProperties": false,
       "description": "Information about a supported binding format.",
       "properties": {
-        "description": {
-          "description": "Human-readable description of this format.",
+        "bindingSpec": {
+          "description": "Binding specification identifier, exact and opaque (e.g. openbindings.openapi@1).",
           "type": "string"
         },
-        "token": {
-          "description": "Format token (e.g. openapi@3.1, asyncapi@3.0, grpc).",
+        "description": {
+          "description": "Human-readable description of this format.",
           "type": "string"
         }
       },
       "required": [
-        "token"
+        "bindingSpec"
       ],
       "type": "object"
     },
@@ -2440,14 +2440,14 @@
       ],
       "description": "A binding source artifact, referenced by location or carried inline.",
       "properties": {
+        "bindingSpec": {
+          "description": "Binding specification identifier, exact and opaque (e.g. openbindings.openapi@1).",
+          "type": "string"
+        },
         "content": {
           "description": "Source content provided directly."
         },
         "description": {
-          "type": "string"
-        },
-        "format": {
-          "description": "Format token (e.g. openapi@3.1).",
           "type": "string"
         },
         "location": {
@@ -2456,7 +2456,7 @@
         }
       },
       "required": [
-        "format"
+        "bindingSpec"
       ],
       "type": "object"
     },
@@ -2768,6 +2768,10 @@
       ],
       "description": "A binding source to extract operations from.",
       "properties": {
+        "bindingSpec": {
+          "description": "Binding specification identifier, exact and opaque (e.g. openbindings.openapi@1).",
+          "type": "string"
+        },
         "content": {
           "description": "Content provided directly."
         },
@@ -2778,10 +2782,6 @@
         "embed": {
           "description": "If true, embed content inline in the output interface.",
           "type": "boolean"
-        },
-        "format": {
-          "description": "Format token (e.g. openapi@3.1, usage@2.13.1).",
-          "type": "string"
         },
         "location": {
           "description": "Location to fetch content from (path or URL).",
@@ -2797,7 +2797,7 @@
         }
       },
       "required": [
-        "format"
+        "bindingSpec"
       ],
       "type": "object"
     },
@@ -2864,11 +2864,11 @@
   },
   "sources": {
     "asyncapi": {
-      "format": "asyncapi@3.0",
+      "bindingSpec": "openbindings.asyncapi@1",
       "location": "http://127.0.0.1:20290/asyncapi.yaml"
     },
     "openapi": {
-      "format": "openapi@3.1",
+      "bindingSpec": "openbindings.openapi@1",
       "location": "http://127.0.0.1:20290/openapi.yaml"
     }
   },

@@ -38,10 +38,10 @@ func DetectSourceCandidates(location string) ([]DelegateClaim, error) {
 	}
 
 	var claims []DelegateClaim
-	for _, fi := range DefaultSynthesizer().Formats() {
+	for _, fi := range DefaultSynthesizer().BindingSpecs() {
 		probeCtx, cancel := context.WithTimeout(context.Background(), probeTimeout)
 		iface, err := SynthesizeInterfaceFromSource(probeCtx, &openbindings.SynthesizeInput{
-			Sources: []openbindings.SynthesizeSource{{Format: fi.Token, Location: location}},
+			Sources: []openbindings.SynthesizeSource{{BindingSpec: fi.BindingSpec, Location: location}},
 		})
 		cancel()
 		if err != nil {
@@ -50,8 +50,8 @@ func DetectSourceCandidates(location string) ([]DelegateClaim, error) {
 
 		var formatToken string
 		for _, src := range iface.Sources {
-			if src.Format != "" {
-				formatToken = src.Format
+			if src.BindingSpec != "" {
+				formatToken = src.BindingSpec
 				break
 			}
 		}

@@ -488,10 +488,10 @@ func reReadAndDerive(iface *openbindings.Interface, key, obiDir string) (DeriveR
 		return DeriveResult{}, false, "" // hand-authored source: silently skip
 	}
 
-	if needsLiveDiscovery(src.Format, meta.Ref) {
+	if needsLiveDiscovery(src.BindingSpec, meta.Ref) {
 		ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
 		derivedIface, derr := SynthesizeInterfaceFromSource(ctx, &openbindings.SynthesizeInput{
-			Sources: []openbindings.SynthesizeSource{{Format: src.Format, Location: meta.Ref}},
+			Sources: []openbindings.SynthesizeSource{{BindingSpec: src.BindingSpec, Location: meta.Ref}},
 		})
 		cancel()
 		if derr != nil {
@@ -583,7 +583,7 @@ func resolveTargetKeys(iface *openbindings.Interface, sourceKeys []string) ([]st
 // re-derives an interface and embeds THAT marshaled interface in place of
 // the artifact text — corrupting an embedded source on every pull.
 func needsLiveDiscovery(format, ref string) bool {
-	name := strings.ToLower(strings.SplitN(format, "@", 2)[0])
+	name := SpecFamily(format)
 	switch name {
 	case "mcp":
 		// MCP source locations are always live HTTP(S) endpoints.

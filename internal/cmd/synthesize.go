@@ -49,7 +49,7 @@ Examples:
   ob synthesize openapi.json -o api.obi.json
   ob synthesize usage@2.0.0:./cli.kdl?name=cli --name "Acme CLI"
   ob synthesize api.yaml?embed --name "Acme API" --version 1.0.0
-  ob synthesize --input '{"sources":[{"format":"openapi@3.1","location":"api.yaml"}]}'`,
+  ob synthesize --input '{"sources":[{"bindingSpec":"openbindings.openapi@1","location":"api.yaml"}]}'`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			var input app.SynthesizeInterfaceInput
 
@@ -72,12 +72,12 @@ Examples:
 					if err != nil {
 						return app.ExitResult{Code: 2, Message: fmt.Sprintf("source %q: %v", s, err), ToStderr: true}
 					}
-					if src.Format == "" {
+					if src.BindingSpec == "" {
 						detected, derr := app.DetectSourceFormat(src.Location)
 						if derr != nil {
 							return app.ExitResult{Code: 2, Message: derr.Error(), ToStderr: true}
 						}
-						src.Format = detected
+						src.BindingSpec = detected
 					}
 					input.Sources = append(input.Sources, src)
 				}

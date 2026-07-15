@@ -72,7 +72,7 @@ func mustWrite(t *testing.T, ctx context.Context, conn *websocket.Conn, frame Ou
 
 func testInput() *BindingInvocationInput {
 	return &BindingInvocationInput{
-		Source: InvokeSource{Format: "openapi@3.1", Location: "https://x/openapi.yaml"},
+		Source: InvokeSource{BindingSpec: "openbindings.openapi@1", Location: "https://x/openapi.yaml"},
 		Ref:    "#/paths/~1t/get",
 	}
 }

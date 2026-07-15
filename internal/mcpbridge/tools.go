@@ -200,7 +200,7 @@ func findMCPBinding(iface *openbindings.Interface, opKey string) (ref string, ki
 		if !ok {
 			continue
 		}
-		if !strings.HasPrefix(src.Format, "mcp") {
+		if !strings.HasPrefix(src.BindingSpec, "mcp") {
 			continue
 		}
 		// Found an MCP binding. Parse the ref prefix.
