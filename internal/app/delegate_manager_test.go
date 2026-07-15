@@ -141,7 +141,7 @@ func TestSetDelegatePreference_RequiresRegistration(t *testing.T) {
 }
 
 // TestSetDelegatePreference_FormatScopeSurfacesInSummary pins Fix B4-4:
-// DelegateRecord.FormatPreferences used to be write-only — set by
+// DelegateRecord.BindingSpecPreferences used to be write-only — set by
 // SetDelegatePreference's Format scope but never copied by
 // summaryFromRecord, so it never appeared in the summary SetDelegatePreference
 // itself returns, in listDelegates' output, or in the human-readable Render().
@@ -154,18 +154,18 @@ func TestSetDelegatePreference_FormatScopeSurfacesInSummary(t *testing.T) {
 
 	op := "openbindings.key-value-store.get"
 	s, err := SetDelegatePreference(SetDelegatePreferenceInput{
-		Location: loc, Preference: prefOf(3), Operation: op, Format: "grpc",
+		Location: loc, Preference: prefOf(3), Operation: op, BindingSpec: "grpc",
 	})
 	if err != nil {
 		t.Fatalf("set format preference: %v", err)
 	}
 
 	// The summary SetDelegatePreference itself returns.
-	if len(s.FormatPreferences) != 1 {
-		t.Fatalf("summary.FormatPreferences = %+v, want exactly one entry", s.FormatPreferences)
+	if len(s.BindingSpecPreferences) != 1 {
+		t.Fatalf("summary.BindingSpecPreferences = %+v, want exactly one entry", s.BindingSpecPreferences)
 	}
-	fp := s.FormatPreferences[0]
-	if fp.Operation != op || fp.Format != "grpc" || fp.Preference != 3 {
+	fp := s.BindingSpecPreferences[0]
+	if fp.Operation != op || fp.BindingSpec != "grpc" || fp.Preference != 3 {
 		t.Errorf("format preference = %+v, want {%s grpc 3}", fp, op)
 	}
 
@@ -176,8 +176,8 @@ func TestSetDelegatePreference_FormatScopeSurfacesInSummary(t *testing.T) {
 			continue
 		}
 		found = true
-		if len(d.FormatPreferences) != 1 || d.FormatPreferences[0].Format != "grpc" {
-			t.Errorf("listDelegates summary.FormatPreferences = %+v, want the grpc override", d.FormatPreferences)
+		if len(d.BindingSpecPreferences) != 1 || d.BindingSpecPreferences[0].BindingSpec != "grpc" {
+			t.Errorf("listDelegates summary.BindingSpecPreferences = %+v, want the grpc override", d.BindingSpecPreferences)
 		}
 	}
 	if !found {

@@ -50,8 +50,8 @@ func (c *delegateCandidate) resolveInterface() (*openbindings.Interface, error) 
 // operation ob delegates for it (capabilityOperation).
 func (c *delegateCandidate) effectivePreference(cap DelegateCapability, format string) float64 {
 	operation := capabilityOperation[cap]
-	for _, fp := range c.record.FormatPreferences {
-		if fp.Operation == operation && delegates.SupportsFormat(fp.Format, format) {
+	for _, fp := range c.record.BindingSpecPreferences {
+		if fp.Operation == operation && delegates.SupportsFormat(fp.BindingSpec, format) {
 			return fp.Preference
 		}
 	}
@@ -68,8 +68,8 @@ func (c *delegateCandidate) provides(cap DelegateCapability) bool {
 }
 
 func (c *delegateCandidate) handles(format string) bool {
-	for _, f := range c.record.Formats {
-		if delegates.SupportsFormat(f.Format, format) {
+	for _, f := range c.record.BindingSpecs {
+		if delegates.SupportsFormat(f.BindingSpec, format) {
 			return true
 		}
 	}

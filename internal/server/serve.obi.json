@@ -41,6 +41,11 @@
       "ref": "#/operations/invokeBinding",
       "source": "asyncapi"
     },
+    "openbindings.ob.listBindingSpecs.openapi": {
+      "operation": "openbindings.ob.listBindingSpecs",
+      "ref": "#/paths/~1binding-specs/get",
+      "source": "openapi"
+    },
     "openbindings.ob.listContexts.openapi": {
       "operation": "openbindings.ob.listContexts",
       "ref": "#/paths/~1contexts/get",
@@ -49,11 +54,6 @@
     "openbindings.ob.listDelegates.openapi": {
       "operation": "openbindings.ob.listDelegates",
       "ref": "#/paths/~1delegates/get",
-      "source": "openapi"
-    },
-    "openbindings.ob.listFormats.openapi": {
-      "operation": "openbindings.ob.listFormats",
-      "ref": "#/paths/~1formats/get",
       "source": "openapi"
     },
     "openbindings.ob.mergeInterfaces.openapi": {
@@ -113,7 +113,7 @@
       "source": "openapi"
     }
   },
-  "description": "The complete interface implemented by ob, the OpenBindings reference tool. One unbound contract describing everything ob does: authoring, inspecting, editing, validating, comparing, and invoking OpenBindings interfaces, plus context storage and environment management. This document carries no bindings or sources; it is the single source of truth from which the per-surface realizations (CLI via usage, server via OpenAPI/AsyncAPI/MCP) are derived, so they cannot drift. Every operation is keyed under ob's own namespace (e.g. openbindings.ob.pullSource). An operation that corresponds to a published OpenBindings interface carries that contract's operation key as an alias (openbindings.ob.setContext carries openbindings.key-value-store.set), and one operation may correspond to several contracts this way, as listFormats does.",
+  "description": "The complete interface implemented by ob, the OpenBindings reference tool. One unbound contract describing everything ob does: authoring, inspecting, editing, validating, comparing, and invoking OpenBindings interfaces, plus context storage and environment management. This document carries no bindings or sources; it is the single source of truth from which the per-surface realizations (CLI via usage, server via OpenAPI/AsyncAPI/MCP) are derived, so they cannot drift. Every operation is keyed under ob's own namespace (e.g. openbindings.ob.pullSource). An operation that corresponds to a published OpenBindings interface carries that contract's operation key as an alias (openbindings.ob.setContext carries openbindings.key-value-store.set), and one operation may correspond to several contracts this way, as listBindingSpecs does.",
   "name": "ob",
   "openbindings": "0.2.0",
   "operations": {
@@ -211,6 +211,21 @@
         "$ref": "#/schemas/BindingInvokerOutputFrame"
       }
     },
+    "openbindings.ob.listBindingSpecs": {
+      "aliases": [
+        "openbindings.binding-invoker.listBindingSpecs",
+        "openbindings.interface-synthesizer.listBindingSpecs",
+        "openbindings.source-inspector.listBindingSpecs"
+      ],
+      "description": "List the binding specifications this instance can handle, by exact identifier. One operation answers the listBindingSpecs slot of every interface that has one, since the answer is the same regardless of which capability is asking.",
+      "idempotent": true,
+      "output": {
+        "items": {
+          "$ref": "#/schemas/BindingSpecInfo"
+        },
+        "type": "array"
+      }
+    },
     "openbindings.ob.listContexts": {
       "description": "List non-secret metadata summaries for all stored contexts; never returns secret values. Completes the context surface with listing and inspection: the generic key-value-store substrate these contexts are stored under (satisfied by getContext/setContext/removeContext) standardizes only opaque get/set/delete, so this management view is ob's own.",
       "idempotent": true,
@@ -242,21 +257,6 @@
           "delegates"
         ],
         "type": "object"
-      }
-    },
-    "openbindings.ob.listFormats": {
-      "aliases": [
-        "openbindings.binding-invoker.listBindingSpecs",
-        "openbindings.interface-synthesizer.listBindingSpecs",
-        "openbindings.source-inspector.listBindingSpecs"
-      ],
-      "description": "List the binding specifications this instance can handle, by exact identifier. One operation answers the listBindingSpecs slot of every interface that has one, since the answer is the same regardless of which capability is asking.",
-      "idempotent": true,
-      "output": {
-        "items": {
-          "$ref": "#/schemas/FormatInfo"
-        },
-        "type": "array"
       }
     },
     "openbindings.ob.mergeInterfaces": {
@@ -684,6 +684,48 @@
           "type": "object"
         }
       ]
+    },
+    "BindingSpecInfo": {
+      "additionalProperties": false,
+      "description": "Information about a supported binding format.",
+      "properties": {
+        "bindingSpec": {
+          "description": "Binding specification identifier, exact and opaque (e.g. openbindings.openapi@1).",
+          "type": "string"
+        },
+        "description": {
+          "description": "Human-readable description of this format.",
+          "type": "string"
+        }
+      },
+      "required": [
+        "bindingSpec"
+      ],
+      "type": "object"
+    },
+    "BindingSpecPreference": {
+      "additionalProperties": false,
+      "description": "A preference override scoped to one (operation, format) pair — ob's extra granularity beyond the delegate-manager contract's per-operation index. It replaces both the delegate-level and the per-operation preference when resolving that operation for that binding-source format.",
+      "properties": {
+        "bindingSpec": {
+          "description": "The binding-source format this override is scoped to (e.g. grpc, openapi@3.1).",
+          "type": "string"
+        },
+        "operation": {
+          "description": "The operation identifier this override is scoped to.",
+          "type": "string"
+        },
+        "preference": {
+          "description": "The scoped preference value; higher is more preferred.",
+          "type": "number"
+        }
+      },
+      "required": [
+        "operation",
+        "bindingSpec",
+        "preference"
+      ],
+      "type": "object"
     },
     "CodegenInput": {
       "additionalProperties": false,
@@ -1123,6 +1165,23 @@
       ],
       "type": "object"
     },
+    "DelegateBindingSpecInfo": {
+      "additionalProperties": false,
+      "properties": {
+        "bindingSpec": {
+          "description": "Format token the delegate handles (e.g. grpc, openapi@3.1).",
+          "type": "string"
+        },
+        "description": {
+          "description": "Human-readable description of the format, when the delegate provides one.",
+          "type": "string"
+        }
+      },
+      "required": [
+        "bindingSpec"
+      ],
+      "type": "object"
+    },
     "DelegateCapability": {
       "description": "One of ob's three format-handling needs, mapping to the published interface a delegate satisfies for it: invoke (binding-invoker), synthesize (interface-synthesizer), inspect (source-inspector). A capability is ob's shorthand for the operation it delegates; a delegate offers whichever subset it satisfies.",
       "enum": [
@@ -1131,23 +1190,6 @@
         "inspect"
       ],
       "type": "string"
-    },
-    "DelegateFormatInfo": {
-      "additionalProperties": false,
-      "properties": {
-        "description": {
-          "description": "Human-readable description of the format, when the delegate provides one.",
-          "type": "string"
-        },
-        "format": {
-          "description": "Format token the delegate handles (e.g. grpc, openapi@3.1).",
-          "type": "string"
-        }
-      },
-      "required": [
-        "format"
-      ],
-      "type": "object"
     },
     "DelegateLocationInput": {
       "additionalProperties": false,
@@ -1166,6 +1208,20 @@
       "additionalProperties": false,
       "description": "A registered delegate: its identity, the snapshot of what it carries, ob's derived routing data, and its selection preferences.",
       "properties": {
+        "bindingSpecPreferences": {
+          "description": "Preference overrides scoped to one (operation, format) pair — ob's extra granularity beyond the delegate-manager contract's per-operation index.",
+          "items": {
+            "$ref": "#/schemas/BindingSpecPreference"
+          },
+          "type": "array"
+        },
+        "bindingSpecs": {
+          "description": "The formats the delegate reported handling when last resolved.",
+          "items": {
+            "$ref": "#/schemas/DelegateBindingSpecInfo"
+          },
+          "type": "array"
+        },
         "builtin": {
           "description": "True for ob's own native handling — the self-delegate.",
           "type": "boolean"
@@ -1180,20 +1236,6 @@
         "contentHash": {
           "description": "Digest of the delegate's interface document as last resolved (sha256: over its RFC 8785 canonical form). Pins the snapshot; opaque — compare for equality, don't recompute.",
           "type": "string"
-        },
-        "formatPreferences": {
-          "description": "Preference overrides scoped to one (operation, format) pair — ob's extra granularity beyond the delegate-manager contract's per-operation index.",
-          "items": {
-            "$ref": "#/schemas/FormatPreference"
-          },
-          "type": "array"
-        },
-        "formats": {
-          "description": "The formats the delegate reported handling when last resolved.",
-          "items": {
-            "$ref": "#/schemas/DelegateFormatInfo"
-          },
-          "type": "array"
         },
         "location": {
           "description": "The reference the delegate is registered under (exec: or http(s) URL). The self-delegate's location is \"ob\".",
@@ -1319,7 +1361,7 @@
     "DriftSource": {
       "additionalProperties": false,
       "properties": {
-        "format": {
+        "bindingSpec": {
           "type": "string"
         },
         "key": {
@@ -1354,48 +1396,6 @@
       "required": [
         "environmentType",
         "environmentPath"
-      ],
-      "type": "object"
-    },
-    "FormatInfo": {
-      "additionalProperties": false,
-      "description": "Information about a supported binding format.",
-      "properties": {
-        "bindingSpec": {
-          "description": "Binding specification identifier, exact and opaque (e.g. openbindings.openapi@1).",
-          "type": "string"
-        },
-        "description": {
-          "description": "Human-readable description of this format.",
-          "type": "string"
-        }
-      },
-      "required": [
-        "bindingSpec"
-      ],
-      "type": "object"
-    },
-    "FormatPreference": {
-      "additionalProperties": false,
-      "description": "A preference override scoped to one (operation, format) pair — ob's extra granularity beyond the delegate-manager contract's per-operation index. It replaces both the delegate-level and the per-operation preference when resolving that operation for that binding-source format.",
-      "properties": {
-        "format": {
-          "description": "The binding-source format this override is scoped to (e.g. grpc, openapi@3.1).",
-          "type": "string"
-        },
-        "operation": {
-          "description": "The operation identifier this override is scoped to.",
-          "type": "string"
-        },
-        "preference": {
-          "description": "The scoped preference value; higher is more preferred.",
-          "type": "number"
-        }
-      },
-      "required": [
-        "operation",
-        "format",
-        "preference"
       ],
       "type": "object"
     },
@@ -2100,22 +2100,26 @@
       ],
       "type": "object"
     },
-    "ResolveDelegateForFormatInput": {
+    "ResolveDelegateForBindingSpecInput": {
       "additionalProperties": false,
       "properties": {
-        "format": {
-          "description": "Format token to resolve to a delegate.",
+        "bindingSpec": {
+          "description": "Binding specification identifier to resolve to a delegate.",
           "type": "string"
         }
       },
       "required": [
-        "format"
+        "bindingSpec"
       ],
       "type": "object"
     },
-    "ResolveDelegateForFormatResult": {
+    "ResolveDelegateForBindingSpecResult": {
       "additionalProperties": false,
       "properties": {
+        "bindingSpec": {
+          "description": "The requested format token.",
+          "type": "string"
+        },
         "builtin": {
           "description": "True when ob's own native handling is selected for the format.",
           "type": "boolean"
@@ -2127,10 +2131,6 @@
           },
           "type": "array"
         },
-        "format": {
-          "description": "The requested format token.",
-          "type": "string"
-        },
         "location": {
           "description": "The delegate's location.",
           "type": "string"
@@ -2141,7 +2141,7 @@
         }
       },
       "required": [
-        "format"
+        "bindingSpec"
       ],
       "type": "object"
     },
@@ -2245,7 +2245,7 @@
     "SetDelegatePreferenceInput": {
       "additionalProperties": false,
       "properties": {
-        "format": {
+        "bindingSpec": {
           "description": "Optional binding-source format scope for an operation entry (requires operation) — ob's extra granularity beyond the delegate-manager contract.",
           "type": "string"
         },
@@ -2588,6 +2588,9 @@
       "additionalProperties": false,
       "description": "Drift status of one source on an interface: what `ob source pull` would add/update/remove, plus custodial drift on hand-authored bindings whose target is gone.",
       "properties": {
+        "bindingSpec": {
+          "type": "string"
+        },
         "bindingsAdded": {
           "items": {
             "type": "string"
@@ -2614,9 +2617,6 @@
           "type": "array"
         },
         "error": {
-          "type": "string"
-        },
-        "format": {
           "type": "string"
         },
         "inSync": {
@@ -2663,7 +2663,7 @@
       },
       "required": [
         "key",
-        "format",
+        "bindingSpec",
         "inSync",
         "tracked"
       ],

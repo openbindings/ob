@@ -1,5 +1,10 @@
 package app
 
+import (
+	"encoding/json"
+	"fmt"
+)
+
 // SelfDelegateLocation is the self-delegate's registration identity: the
 // opaque location ob resolves to itself, in-process. It is the same "ob"
 // identifier recorded in x-ob.delegate.
@@ -16,33 +21,57 @@ type DelegateRecord struct {
 	Location string `json:"location"`
 
 	// Snapshot — replaced on (re-)registration.
-	Name         string               `json:"name,omitempty"`
-	Operations   []string             `json:"operations"`
-	ContentHash  string               `json:"contentHash,omitempty"`
-	Capabilities []DelegateCapability `json:"capabilities,omitempty"`
-	Formats      []DelegateFormatInfo `json:"formats,omitempty"`
+	Name         string                    `json:"name,omitempty"`
+	Operations   []string                  `json:"operations"`
+	ContentHash  string                    `json:"contentHash,omitempty"`
+	Capabilities []DelegateCapability      `json:"capabilities,omitempty"`
+	BindingSpecs []DelegateBindingSpecInfo `json:"bindingSpecs,omitempty"`
 
 	// Preferences — the registrar's, survive refresh. Preference is the
 	// delegate-level default (absent = the baseline 0); OperationPreferences
-	// overrides it per operation identifier; FormatPreferences is ob's extra
+	// overrides it per operation identifier; BindingSpecPreferences is ob's extra
 	// axis, overriding an operation entry for one binding-source format.
-	Preference           *float64           `json:"preference,omitempty"`
-	OperationPreferences map[string]float64 `json:"operationPreferences,omitempty"`
-	FormatPreferences    []FormatPreference `json:"formatPreferences,omitempty"`
+	Preference             *float64                `json:"preference,omitempty"`
+	OperationPreferences   map[string]float64      `json:"operationPreferences,omitempty"`
+	BindingSpecPreferences []BindingSpecPreference `json:"bindingSpecPreferences,omitempty"`
 }
 
-// DelegateFormatInfo is one format a delegate reported handling.
-type DelegateFormatInfo struct {
-	Format      string `json:"format"`
+// UnmarshalJSON refuses registry records written under the retired
+// format vocabulary loudly — never silent non-matching: a record whose
+// snapshot keys predate the binding-spec rename would otherwise load with
+// empty claims and quietly stop matching.
+func (r *DelegateRecord) UnmarshalJSON(b []byte) error {
+	var raw map[string]json.RawMessage
+	if err := json.Unmarshal(b, &raw); err != nil {
+		return err
+	}
+	for _, retired := range []string{"formats", "formatPreferences"} {
+		if _, has := raw[retired]; has {
+			return fmt.Errorf("delegate registry record %s uses the retired %q vocabulary; re-register the delegate (`ob delegate register <location>`) to refresh its snapshot", string(raw["location"]), retired)
+		}
+	}
+	type plain DelegateRecord
+	var p plain
+	if err := json.Unmarshal(b, &p); err != nil {
+		return err
+	}
+	*r = DelegateRecord(p)
+	return nil
+}
+
+// DelegateBindingSpecInfo is one binding specification a delegate reported handling.
+type DelegateBindingSpecInfo struct {
+	BindingSpec string `json:"bindingSpec"`
 	Description string `json:"description,omitempty"`
 }
 
-// FormatPreference is a preference override scoped to (operation, format) —
-// ob's granularity beyond the delegate-manager contract's per-operation index.
-type FormatPreference struct {
-	Operation  string  `json:"operation"`
-	Format     string  `json:"format"`
-	Preference float64 `json:"preference"`
+// BindingSpecPreference is a preference override scoped to (operation,
+// binding specification) — ob's granularity beyond the delegate-manager
+// contract's per-operation index.
+type BindingSpecPreference struct {
+	Operation   string  `json:"operation"`
+	BindingSpec string  `json:"bindingSpec"`
+	Preference  float64 `json:"preference"`
 }
 
 // capabilityOperation maps each of ob's format capabilities to the published

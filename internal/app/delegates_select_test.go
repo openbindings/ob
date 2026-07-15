@@ -11,17 +11,17 @@ func TestSelectDelegateFrom(t *testing.T) {
 	self := cand(DelegateRecord{
 		Location: SelfDelegateLocation, Name: "ob",
 		Capabilities: []DelegateCapability{CapInvoke, CapSynthesize, CapInspect},
-		Formats:      []DelegateFormatInfo{{Format: "openbindings.openapi@1"}, {Format: "grpc"}},
+		BindingSpecs: []DelegateBindingSpecInfo{{BindingSpec: "openbindings.openapi@1"}, {BindingSpec: "grpc"}},
 	}, true)
 	extInvoke := cand(DelegateRecord{
 		Location: "exec:x", Name: "x",
 		Capabilities: []DelegateCapability{CapInvoke},
-		Formats:      []DelegateFormatInfo{{Format: "grpc"}},
+		BindingSpecs: []DelegateBindingSpecInfo{{BindingSpec: "grpc"}},
 	}, false)
 	extSynth := cand(DelegateRecord{
 		Location: "exec:y", Name: "y",
 		Capabilities: []DelegateCapability{CapSynthesize},
-		Formats:      []DelegateFormatInfo{{Format: "thrift"}},
+		BindingSpecs: []DelegateBindingSpecInfo{{BindingSpec: "thrift"}},
 	}, false)
 
 	invokeOp := capabilityOperation[CapInvoke]
@@ -69,13 +69,13 @@ func TestSelectDelegateFrom(t *testing.T) {
 		x := cand(DelegateRecord{
 			Location: "exec:x", Name: "x",
 			Capabilities:         []DelegateCapability{CapSynthesize, CapInvoke},
-			Formats:              []DelegateFormatInfo{{Format: "grpc"}},
+			BindingSpecs:         []DelegateBindingSpecInfo{{BindingSpec: "grpc"}},
 			OperationPreferences: map[string]float64{synthOp: 10},
 		}, false)
 		y := cand(DelegateRecord{
 			Location: "exec:y", Name: "y",
 			Capabilities:         []DelegateCapability{CapSynthesize, CapInvoke},
-			Formats:              []DelegateFormatInfo{{Format: "grpc"}},
+			BindingSpecs:         []DelegateBindingSpecInfo{{BindingSpec: "grpc"}},
 			OperationPreferences: map[string]float64{invokeOp: 10},
 		}, false)
 		set := []delegateCandidate{x, y}
@@ -90,10 +90,10 @@ func TestSelectDelegateFrom(t *testing.T) {
 	t.Run("format-scoped entry beats operation entry beats delegate-level", func(t *testing.T) {
 		c := cand(DelegateRecord{
 			Location: "exec:z", Name: "z", Preference: prefOf(1),
-			Capabilities:         []DelegateCapability{CapInvoke},
-			Formats:              []DelegateFormatInfo{{Format: "grpc"}},
-			OperationPreferences: map[string]float64{invokeOp: 3},
-			FormatPreferences:    []FormatPreference{{Operation: invokeOp, Format: "grpc", Preference: 9}},
+			Capabilities:           []DelegateCapability{CapInvoke},
+			BindingSpecs:           []DelegateBindingSpecInfo{{BindingSpec: "grpc"}},
+			OperationPreferences:   map[string]float64{invokeOp: 3},
+			BindingSpecPreferences: []BindingSpecPreference{{Operation: invokeOp, BindingSpec: "grpc", Preference: 9}},
 		}, false)
 		if got := c.effectivePreference(CapInvoke, "grpc"); got != 9 {
 			t.Errorf("expected the format-scoped entry (9), got %v", got)

@@ -29,33 +29,33 @@ import (
 // it carries, ob's derived routing data, and its selection preferences. It is
 // the wire shape of the contract's DelegateSummary plus ob's extras.
 type DelegateSummary struct {
-	Name                 string               `json:"name,omitempty"`
-	Location             string               `json:"location"`
-	Operations           []string             `json:"operations"`
-	ContentHash          string               `json:"contentHash,omitempty"`
-	Capabilities         []DelegateCapability `json:"capabilities,omitempty"`
-	Formats              []DelegateFormatInfo `json:"formats,omitempty"`
-	Preference           *float64             `json:"preference,omitempty"`
-	OperationPreferences map[string]float64   `json:"operationPreferences,omitempty"`
-	// FormatPreferences is ob's extra granularity beyond the delegate-manager
+	Name                 string                    `json:"name,omitempty"`
+	Location             string                    `json:"location"`
+	Operations           []string                  `json:"operations"`
+	ContentHash          string                    `json:"contentHash,omitempty"`
+	Capabilities         []DelegateCapability      `json:"capabilities,omitempty"`
+	BindingSpecs         []DelegateBindingSpecInfo `json:"bindingSpecs,omitempty"`
+	Preference           *float64                  `json:"preference,omitempty"`
+	OperationPreferences map[string]float64        `json:"operationPreferences,omitempty"`
+	// BindingSpecPreferences is ob's extra granularity beyond the delegate-manager
 	// contract's per-operation index: a preference scoped to one (operation,
 	// format) pair, overriding both the delegate-level and the per-operation
 	// value when resolving that operation for that binding-source format.
-	FormatPreferences []FormatPreference `json:"formatPreferences,omitempty"`
-	Builtin           bool               `json:"builtin,omitempty"`
+	BindingSpecPreferences []BindingSpecPreference `json:"bindingSpecPreferences,omitempty"`
+	Builtin                bool                    `json:"builtin,omitempty"`
 }
 
 func summaryFromRecord(rec DelegateRecord) DelegateSummary {
 	return DelegateSummary{
-		Name:                 rec.Name,
-		Location:             rec.Location,
-		Operations:           rec.Operations,
-		ContentHash:          rec.ContentHash,
-		Capabilities:         rec.Capabilities,
-		Formats:              rec.Formats,
-		Preference:           rec.Preference,
-		OperationPreferences: rec.OperationPreferences,
-		FormatPreferences:    rec.FormatPreferences,
+		Name:                   rec.Name,
+		Location:               rec.Location,
+		Operations:             rec.Operations,
+		ContentHash:            rec.ContentHash,
+		Capabilities:           rec.Capabilities,
+		BindingSpecs:           rec.BindingSpecs,
+		Preference:             rec.Preference,
+		OperationPreferences:   rec.OperationPreferences,
+		BindingSpecPreferences: rec.BindingSpecPreferences,
 	}
 }
 
@@ -91,10 +91,10 @@ func (d DelegateSummary) Render() string {
 		sb.WriteString(s.Warning.Render("! inert for ob — carries none of invoke/synthesize/inspect (other software may still use it)"))
 	}
 
-	if len(d.Formats) > 0 {
-		toks := make([]string, len(d.Formats))
-		for i, f := range d.Formats {
-			toks[i] = f.Format
+	if len(d.BindingSpecs) > 0 {
+		toks := make([]string, len(d.BindingSpecs))
+		for i, f := range d.BindingSpecs {
+			toks[i] = f.BindingSpec
 		}
 		sb.WriteString("\n  ")
 		sb.WriteString(s.Dim.Render("formats: "))
@@ -111,15 +111,15 @@ func (d DelegateSummary) Render() string {
 	for _, op := range prefOps {
 		fmt.Fprintf(&sb, "\n  %s%s = %g", s.Dim.Render("preference "), op, d.OperationPreferences[op])
 	}
-	formatPrefs := append([]FormatPreference(nil), d.FormatPreferences...)
-	sort.Slice(formatPrefs, func(i, j int) bool {
-		if formatPrefs[i].Operation != formatPrefs[j].Operation {
-			return formatPrefs[i].Operation < formatPrefs[j].Operation
+	specPrefs := append([]BindingSpecPreference(nil), d.BindingSpecPreferences...)
+	sort.Slice(specPrefs, func(i, j int) bool {
+		if specPrefs[i].Operation != specPrefs[j].Operation {
+			return specPrefs[i].Operation < specPrefs[j].Operation
 		}
-		return formatPrefs[i].Format < formatPrefs[j].Format
+		return specPrefs[i].BindingSpec < specPrefs[j].BindingSpec
 	})
-	for _, fp := range formatPrefs {
-		fmt.Fprintf(&sb, "\n  %s%s (%s) = %g", s.Dim.Render("preference "), fp.Operation, fp.Format, fp.Preference)
+	for _, fp := range specPrefs {
+		fmt.Fprintf(&sb, "\n  %s%s (%s) = %g", s.Dim.Render("preference "), fp.Operation, fp.BindingSpec, fp.Preference)
 	}
 	return sb.String()
 }
@@ -143,7 +143,7 @@ func selfDelegateRecord() DelegateRecord {
 			Capabilities: []DelegateCapability{CapInvoke, CapSynthesize, CapInspect},
 		}
 		for _, tok := range getNativeTokens() {
-			selfRecord.Formats = append(selfRecord.Formats, DelegateFormatInfo{Format: tok})
+			selfRecord.BindingSpecs = append(selfRecord.BindingSpecs, DelegateBindingSpecInfo{BindingSpec: tok})
 		}
 		if iface, err := OpenBindingsInterface(); err == nil {
 			selfRecord.Operations = operationIdentifiers(&iface)
@@ -224,11 +224,11 @@ func snapshotDelegate(location string) (DelegateRecord, error) {
 	}
 	rec.Capabilities = delegateCapabilities(iface)
 
-	// Formats are a best-effort probe of the delegate's listFormats; a delegate
+	// BindingSpecs are a best-effort probe of the delegate's listBindingSpecs; a delegate
 	// that does not answer simply snapshots with none.
 	if fmts, err := delegates.ProbeFormats(location, delegates.DefaultProbeTimeout); err == nil {
 		for _, f := range fmts {
-			rec.Formats = append(rec.Formats, DelegateFormatInfo{Format: f})
+			rec.BindingSpecs = append(rec.BindingSpecs, DelegateBindingSpecInfo{BindingSpec: f})
 		}
 	}
 	return rec, nil
@@ -291,7 +291,7 @@ func RegisterDelegate(location string, preference *float64) (*DelegateSummary, e
 			existing := config.Delegates[idx]
 			rec.Preference = existing.Preference
 			rec.OperationPreferences = existing.OperationPreferences
-			rec.FormatPreferences = existing.FormatPreferences
+			rec.BindingSpecPreferences = existing.BindingSpecPreferences
 			config.Delegates[idx] = rec
 		} else {
 			config.Delegates = append(config.Delegates, rec)
@@ -446,13 +446,14 @@ func carriesOperation(operations []string, operation string) bool {
 
 // SetDelegatePreferenceInput configures a preference update. A nil Preference
 // clears: with an Operation it removes that entry from the index; without one
-// it resets the delegate-level value to the unset baseline. Format scopes an
-// operation entry to one binding-source format (ob's extra granularity).
+// it resets the delegate-level value to the unset baseline. BindingSpec
+// scopes an operation entry to one binding specification (ob's extra
+// granularity).
 type SetDelegatePreferenceInput struct {
-	Location   string   `json:"location"`
-	Preference *float64 `json:"preference"`
-	Operation  string   `json:"operation,omitempty"`
-	Format     string   `json:"format,omitempty"`
+	Location    string   `json:"location"`
+	Preference  *float64 `json:"preference"`
+	Operation   string   `json:"operation,omitempty"`
+	BindingSpec string   `json:"bindingSpec,omitempty"`
 }
 
 // SetDelegatePreference sets or clears a registered delegate's selection
@@ -467,7 +468,7 @@ func SetDelegatePreference(in SetDelegatePreferenceInput) (*DelegateSummary, err
 	if location == SelfDelegateLocation || isSelf(location) {
 		return nil, exitText(1, "the self-delegate sits at the baseline; prefer or bury external delegates relative to it", true)
 	}
-	if in.Format != "" && in.Operation == "" {
+	if in.BindingSpec != "" && in.Operation == "" {
 		return nil, exitText(2, "a format scope requires an operation", true)
 	}
 
@@ -486,8 +487,8 @@ func SetDelegatePreference(in SetDelegatePreferenceInput) (*DelegateSummary, err
 		switch {
 		case in.Operation == "":
 			rec.Preference = in.Preference // nil clears to the baseline
-		case in.Format != "":
-			setFormatPreference(rec, in.Operation, in.Format, in.Preference)
+		case in.BindingSpec != "":
+			setFormatPreference(rec, in.Operation, in.BindingSpec, in.Preference)
 		default:
 			if in.Preference == nil {
 				delete(rec.OperationPreferences, in.Operation)
@@ -511,13 +512,13 @@ func SetDelegatePreference(in SetDelegatePreferenceInput) (*DelegateSummary, err
 }
 
 func setFormatPreference(rec *DelegateRecord, operation, format string, preference *float64) {
-	for i := range rec.FormatPreferences {
-		fp := &rec.FormatPreferences[i]
-		if fp.Operation == operation && fp.Format == format {
+	for i := range rec.BindingSpecPreferences {
+		fp := &rec.BindingSpecPreferences[i]
+		if fp.Operation == operation && fp.BindingSpec == format {
 			if preference == nil {
-				rec.FormatPreferences = append(rec.FormatPreferences[:i], rec.FormatPreferences[i+1:]...)
-				if len(rec.FormatPreferences) == 0 {
-					rec.FormatPreferences = nil
+				rec.BindingSpecPreferences = append(rec.BindingSpecPreferences[:i], rec.BindingSpecPreferences[i+1:]...)
+				if len(rec.BindingSpecPreferences) == 0 {
+					rec.BindingSpecPreferences = nil
 				}
 			} else {
 				fp.Preference = *preference
@@ -526,8 +527,8 @@ func setFormatPreference(rec *DelegateRecord, operation, format string, preferen
 		}
 	}
 	if preference != nil {
-		rec.FormatPreferences = append(rec.FormatPreferences, FormatPreference{
-			Operation: operation, Format: format, Preference: *preference,
+		rec.BindingSpecPreferences = append(rec.BindingSpecPreferences, BindingSpecPreference{
+			Operation: operation, BindingSpec: format, Preference: *preference,
 		})
 	}
 }

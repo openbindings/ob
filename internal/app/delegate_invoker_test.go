@@ -475,7 +475,7 @@ func TestOpInvoke_ExternalDelegateDisplacesElections(t *testing.T) {
 			Location:             "exec:" + cliPath,
 			Name:                 "ext",
 			Capabilities:         []DelegateCapability{CapInvoke},
-			Formats:              []DelegateFormatInfo{{Format: "openbindings.usage@1"}},
+			BindingSpecs:         []DelegateBindingSpecInfo{{BindingSpec: "openbindings.usage@1"}},
 			OperationPreferences: map[string]float64{"openbindings.binding-invoker.invokeBinding": pref},
 		}}}
 	}

@@ -272,7 +272,7 @@ func TestServeFormats(t *testing.T) {
 	ts := testEnv(t)
 	defer ts.Close()
 
-	resp, err := authedGet(ts.URL+"/formats", "test-token")
+	resp, err := authedGet(ts.URL+"/binding-specs", "test-token")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -287,7 +287,7 @@ func TestServeAuthRequired(t *testing.T) {
 	ts := testEnv(t)
 	defer ts.Close()
 
-	paths := []string{"/describe", "/formats", "/environment"}
+	paths := []string{"/describe", "/binding-specs", "/environment"}
 	for _, path := range paths {
 		t.Run(path, func(t *testing.T) {
 			resp, err := http.Get(ts.URL + path)
@@ -1273,7 +1273,7 @@ func TestServeAuthRequired_AllProtectedEndpoints(t *testing.T) {
 	defer ts.Close()
 
 	getPaths := []string{
-		"/describe", "/formats", "/delegates", "/environment", "/contexts",
+		"/describe", "/binding-specs", "/delegates", "/environment", "/contexts",
 	}
 	for _, path := range getPaths {
 		t.Run("GET "+path, func(t *testing.T) {
@@ -1552,7 +1552,7 @@ func TestSpecHandlerConformance(t *testing.T) {
 		{"GET", "/.well-known/openbindings"},
 		{"GET", "/openapi.yaml"},
 		{"GET", "/describe"},
-		{"GET", "/formats"},
+		{"GET", "/binding-specs"},
 		{"GET", "/delegates"},
 		{"GET", "/environment"},
 		{"GET", "/contexts"},

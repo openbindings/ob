@@ -2,7 +2,7 @@
   "openbindings": "0.2.0",
   "name": "ob",
   "version": "0.1.0",
-  "description": "The complete interface implemented by ob, the OpenBindings reference tool. One unbound contract describing everything ob does: authoring, inspecting, editing, validating, comparing, and invoking OpenBindings interfaces, plus context storage and environment management. This document carries no bindings or sources; it is the single source of truth from which the per-surface realizations (CLI via usage, server via OpenAPI/AsyncAPI/MCP) are derived, so they cannot drift. Every operation is keyed under ob's own namespace (e.g. openbindings.ob.pullSource). An operation that corresponds to a published OpenBindings interface carries that contract's operation key as an alias (openbindings.ob.setContext carries openbindings.key-value-store.set), and one operation may correspond to several contracts this way, as listFormats does.",
+  "description": "The complete interface implemented by ob, the OpenBindings reference tool. One unbound contract describing everything ob does: authoring, inspecting, editing, validating, comparing, and invoking OpenBindings interfaces, plus context storage and environment management. This document carries no bindings or sources; it is the single source of truth from which the per-surface realizations (CLI via usage, server via OpenAPI/AsyncAPI/MCP) are derived, so they cannot drift. Every operation is keyed under ob's own namespace (e.g. openbindings.ob.pullSource). An operation that corresponds to a published OpenBindings interface carries that contract's operation key as an alias (openbindings.ob.setContext carries openbindings.key-value-store.set), and one operation may correspond to several contracts this way, as listBindingSpecs does.",
   "operations": {
     "openbindings.ob.describe": {
       "description": "Return identity and metadata about ob: name, version, description, homepage, repository, maintainer.",
@@ -14,7 +14,7 @@
         "openbindings.software-descriptor.describe"
       ]
     },
-    "openbindings.ob.listFormats": {
+    "openbindings.ob.listBindingSpecs": {
       "description": "List the binding specifications this instance can handle, by exact identifier. One operation answers the listBindingSpecs slot of every interface that has one, since the answer is the same regardless of which capability is asking.",
       "aliases": [
         "openbindings.binding-invoker.listBindingSpecs",
@@ -25,7 +25,7 @@
       "output": {
         "type": "array",
         "items": {
-          "$ref": "#/schemas/FormatInfo"
+          "$ref": "#/schemas/BindingSpecInfo"
         }
       }
     },
@@ -350,14 +350,14 @@
         "$ref": "#/schemas/ResolveDelegateResult"
       }
     },
-    "openbindings.ob.resolveDelegateForFormat": {
+    "openbindings.ob.resolveDelegateForBindingSpec": {
       "description": "Report which delegate ob's routing would select for a format token, and the capabilities it offers for it — ob's format-narrowing diagnostic, layered on top of the operation-keyed resolveDelegate.",
       "idempotent": true,
       "input": {
-        "$ref": "#/schemas/ResolveDelegateForFormatInput"
+        "$ref": "#/schemas/ResolveDelegateForBindingSpecInput"
       },
       "output": {
-        "$ref": "#/schemas/ResolveDelegateForFormatResult"
+        "$ref": "#/schemas/ResolveDelegateForBindingSpecResult"
       }
     },
     "openbindings.ob.getDelegateRequirements": {
@@ -636,7 +636,7 @@
       ],
       "additionalProperties": true
     },
-    "FormatInfo": {
+    "BindingSpecInfo": {
       "type": "object",
       "description": "Information about a supported binding format.",
       "properties": {
@@ -1266,7 +1266,7 @@
         "key": {
           "type": "string"
         },
-        "format": {
+        "bindingSpec": {
           "type": "string"
         }
       },
@@ -1977,10 +1977,10 @@
           },
           "description": "Which of ob's format capabilities the delegate satisfies, checked by conformance at registration."
         },
-        "formats": {
+        "bindingSpecs": {
           "type": "array",
           "items": {
-            "$ref": "#/schemas/DelegateFormatInfo"
+            "$ref": "#/schemas/DelegateBindingSpecInfo"
           },
           "description": "The formats the delegate reported handling when last resolved."
         },
@@ -1995,10 +1995,10 @@
           },
           "description": "Per-operation preference overrides, keyed by operation identifier. The override replaces the delegate-level preference when resolving that operation."
         },
-        "formatPreferences": {
+        "bindingSpecPreferences": {
           "type": "array",
           "items": {
-            "$ref": "#/schemas/FormatPreference"
+            "$ref": "#/schemas/BindingSpecPreference"
           },
           "description": "Preference overrides scoped to one (operation, format) pair — ob's extra granularity beyond the delegate-manager contract's per-operation index."
         },
@@ -2047,23 +2047,23 @@
       ],
       "additionalProperties": false
     },
-    "ResolveDelegateForFormatInput": {
+    "ResolveDelegateForBindingSpecInput": {
       "type": "object",
       "properties": {
-        "format": {
+        "bindingSpec": {
           "type": "string",
-          "description": "Format token to resolve to a delegate."
+          "description": "Binding specification identifier to resolve to a delegate."
         }
       },
       "required": [
-        "format"
+        "bindingSpec"
       ],
       "additionalProperties": false
     },
-    "ResolveDelegateForFormatResult": {
+    "ResolveDelegateForBindingSpecResult": {
       "type": "object",
       "properties": {
-        "format": {
+        "bindingSpec": {
           "type": "string",
           "description": "The requested format token."
         },
@@ -2088,7 +2088,7 @@
         }
       },
       "required": [
-        "format"
+        "bindingSpec"
       ],
       "additionalProperties": false
     },
@@ -2429,10 +2429,10 @@
       ],
       "description": "One of ob's three format-handling needs, mapping to the published interface a delegate satisfies for it: invoke (binding-invoker), synthesize (interface-synthesizer), inspect (source-inspector). A capability is ob's shorthand for the operation it delegates; a delegate offers whichever subset it satisfies."
     },
-    "DelegateFormatInfo": {
+    "DelegateBindingSpecInfo": {
       "type": "object",
       "properties": {
-        "format": {
+        "bindingSpec": {
           "type": "string",
           "description": "Format token the delegate handles (e.g. grpc, openapi@3.1)."
         },
@@ -2442,11 +2442,11 @@
         }
       },
       "required": [
-        "format"
+        "bindingSpec"
       ],
       "additionalProperties": false
     },
-    "FormatPreference": {
+    "BindingSpecPreference": {
       "type": "object",
       "description": "A preference override scoped to one (operation, format) pair — ob's extra granularity beyond the delegate-manager contract's per-operation index. It replaces both the delegate-level and the per-operation preference when resolving that operation for that binding-source format.",
       "properties": {
@@ -2454,7 +2454,7 @@
           "type": "string",
           "description": "The operation identifier this override is scoped to."
         },
-        "format": {
+        "bindingSpec": {
           "type": "string",
           "description": "The binding-source format this override is scoped to (e.g. grpc, openapi@3.1)."
         },
@@ -2465,7 +2465,7 @@
       },
       "required": [
         "operation",
-        "format",
+        "bindingSpec",
         "preference"
       ],
       "additionalProperties": false
@@ -2500,7 +2500,7 @@
           "type": "string",
           "description": "When present, the preference applies only to resolving this operation; otherwise it is the delegate-level default."
         },
-        "format": {
+        "bindingSpec": {
           "type": "string",
           "description": "Optional binding-source format scope for an operation entry (requires operation) — ob's extra granularity beyond the delegate-manager contract."
         }
@@ -2606,7 +2606,7 @@
         "key": {
           "type": "string"
         },
-        "format": {
+        "bindingSpec": {
           "type": "string"
         },
         "ref": {
@@ -2678,7 +2678,7 @@
       },
       "required": [
         "key",
-        "format",
+        "bindingSpec",
         "inSync",
         "tracked"
       ],

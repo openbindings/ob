@@ -9,9 +9,9 @@ import (
 	openbindings "github.com/openbindings/openbindings-go"
 )
 
-// FormatInfo describes a supported binding specification for display and
+// BindingSpecInfo describes a supported binding specification for display and
 // for the listBindingSpecs contract result (BindingSpecInfo shape).
-type FormatInfo struct {
+type BindingSpecInfo struct {
 	BindingSpec string `json:"bindingSpec"`
 	Description string `json:"description,omitempty"`
 }
@@ -22,7 +22,7 @@ var (
 )
 
 // RenderFormatList returns a human-friendly styled representation of a format list.
-func RenderFormatList(formats []FormatInfo) string {
+func RenderBindingSpecList(formats []BindingSpecInfo) string {
 	s := Styles
 	var sb strings.Builder
 
@@ -43,19 +43,19 @@ func RenderFormatList(formats []FormatInfo) string {
 
 // ListFormats returns all formats that ob can handle, both built-in (native
 // Go SDK drivers) and external delegates.
-func ListFormats() []FormatInfo {
-	var formats []FormatInfo
+func ListBindingSpecs() []BindingSpecInfo {
+	var formats []BindingSpecInfo
 
 	for _, tok := range getNativeTokens() {
-		formats = append(formats, FormatInfo{BindingSpec: tok})
+		formats = append(formats, BindingSpecInfo{BindingSpec: tok})
 	}
 
 	// Delegate formats come from the registry's registration-time snapshots —
 	// the aggregate-across-all composition (native ∪ every delegate), never a
 	// route-to-one, and no live probing.
 	for _, rec := range GetDelegateContext().Delegates {
-		for _, f := range rec.Formats {
-			formats = append(formats, FormatInfo{BindingSpec: f.Format, Description: f.Description})
+		for _, f := range rec.BindingSpecs {
+			formats = append(formats, BindingSpecInfo{BindingSpec: f.BindingSpec, Description: f.Description})
 		}
 	}
 
@@ -88,11 +88,11 @@ func BuiltinSupportsFormat(format string) bool {
 	return false
 }
 
-func uniqueSortedFormats(in []FormatInfo) []FormatInfo {
+func uniqueSortedFormats(in []BindingSpecInfo) []BindingSpecInfo {
 	if len(in) == 0 {
-		return []FormatInfo{} // wire shape: always an array, never null
+		return []BindingSpecInfo{} // wire shape: always an array, never null
 	}
-	seen := make(map[string]FormatInfo, len(in))
+	seen := make(map[string]BindingSpecInfo, len(in))
 	for _, f := range in {
 		if f.BindingSpec == "" {
 			continue
@@ -101,7 +101,7 @@ func uniqueSortedFormats(in []FormatInfo) []FormatInfo {
 			seen[f.BindingSpec] = f
 		}
 	}
-	out := make([]FormatInfo, 0, len(seen))
+	out := make([]BindingSpecInfo, 0, len(seen))
 	for _, f := range seen {
 		out = append(out, f)
 	}

@@ -31,20 +31,21 @@ Examples:
 	return c
 }
 
-func newDelegateResolveFormatCmd() *cobra.Command {
+func newDelegateResolveBindingSpecCmd() *cobra.Command {
 	c := &cobra.Command{
-		Use:   "resolve-format <format-token>",
-		Short: "Show which delegate ob's routing would select for a format",
-		Long: `Report which delegate ob's routing would select for a binding format
-token, and the capabilities it offers for it — ob's format-narrowing
-diagnostic, layered on top of the operation-keyed resolve.
+		Use:   "resolve-binding-spec <binding-spec>",
+		Short: "Show which delegate ob's routing would select for a binding specification",
+		Long: `Report which delegate ob's routing would select for a binding
+specification (by exact identifier), and the capabilities it offers for
+it — ob's spec-narrowing diagnostic, layered on top of the operation-keyed
+resolve.
 
 Examples:
-  ob delegate resolve-format usage@2.0.0
-  ob delegate resolve-format openapi@3.1.0 -o result.json`,
+  ob delegate resolve-binding-spec openbindings.usage@1
+  ob delegate resolve-binding-spec openbindings.openapi@1 -o result.json`,
 		Args: cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			result, err := app.ResolveDelegateForFormat(args[0])
+			result, err := app.ResolveDelegateForBindingSpec(args[0])
 			if err != nil {
 				return err
 			}

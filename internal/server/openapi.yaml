@@ -49,13 +49,13 @@ paths:
               schema:
                 $ref: "#/components/schemas/AppInfo"
 
-  /formats:
+  /binding-specs:
     get:
-      operationId: listFormats
-      summary: List format tokens this ob instance can handle
+      operationId: listBindingSpecs
+      summary: List the binding specifications this ob instance can handle
       responses:
         "200":
-          description: Format list
+          description: Binding-specification list
           content:
             application/json:
               schema:

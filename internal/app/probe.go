@@ -33,9 +33,9 @@ type ProbeResult struct {
 	// Synthesized is true when the interface was created from a raw spec
 	// (e.g. OpenAPI, AsyncAPI) rather than loaded from a published OBI.
 	Synthesized bool
-	// SourceFormat is the detected binding format token (e.g. "openapi@3.0.3")
+	// SourceBindingSpec is the detected binding specification identifier
 	// when the interface was synthesized. Empty for native OBIs.
-	SourceFormat string
+	SourceBindingSpec string
 }
 
 // NormalizeURL trims input and canonicalises the scheme.
@@ -219,7 +219,7 @@ func probeHTTP(u string, timeout time.Duration) ProbeResult {
 
 	if fetched.Synthesized {
 		srcFormat := firstSourceFormat(fetched.Interface)
-		result.SourceFormat = srcFormat
+		result.SourceBindingSpec = srcFormat
 		result.Detail = "synthesized"
 		if srcFormat != "" {
 			result.Detail = "synthesized:" + srcFormat
@@ -312,13 +312,13 @@ func trySynthesizeInterface(location, originalURL, obiDir string) (ProbeResult, 
 			detail = "synthesized:" + srcFormat
 		}
 		return ProbeResult{
-			Status:       ProbeStatusOK,
-			Detail:       detail,
-			OBI:          string(data),
-			OBIURL:       originalURL,
-			OBIDir:       obiDir,
-			Synthesized:  true,
-			SourceFormat: srcFormat,
+			Status:            ProbeStatusOK,
+			Detail:            detail,
+			OBI:               string(data),
+			OBIURL:            originalURL,
+			OBIDir:            obiDir,
+			Synthesized:       true,
+			SourceBindingSpec: srcFormat,
 		}, true
 	}
 	return ProbeResult{}, false

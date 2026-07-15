@@ -20,7 +20,7 @@ import (
 var ErrCommandTimeout = errors.New("command timeout")
 
 // ProbeFormats fetches the supported formats from a delegate
-// by running its listFormats operation.
+// by running its listBindingSpecs operation.
 func ProbeFormats(path string, timeout time.Duration) ([]string, error) {
 	if IsHTTPURL(path) {
 		return nil, fmt.Errorf("formats require operation invoker")
@@ -64,28 +64,35 @@ func RunCLIOpenBindings(path string, timeout time.Duration) (openbindings.Interf
 	return iface, nil
 }
 
-// probeFormatsFromInterface executes the listFormats binding from an interface.
+// probeFormatsFromInterface executes the listBindingSpecs binding from an interface.
 func probeFormatsFromInterface(path string, timeout time.Duration, iface openbindings.Interface) ([]string, error) {
 	var (
 		formatsRef string
 		sourceKey  string
 	)
+	// Resolve by name against the flat key+aliases namespace (OBI-T-12):
+	// the delegate's spec-listing operation carries the contract key as an
+	// alias, keyed under its own namespace.
+	opKey, _, resolved := openbindings.ResolveOperation(&iface, OpListBindingSpecs)
+	if !resolved {
+		return nil, fmt.Errorf("no operation corresponds to %s", OpListBindingSpecs)
+	}
 	for _, b := range iface.Bindings {
-		if b.Operation == OpListFormats {
+		if b.Operation == opKey {
 			formatsRef = b.Ref
 			sourceKey = b.Source
 			break
 		}
 	}
 	if formatsRef == "" || sourceKey == "" {
-		return nil, fmt.Errorf("missing binding for %s", OpListFormats)
+		return nil, fmt.Errorf("missing binding for %s", opKey)
 	}
 	src, ok := iface.Sources[sourceKey]
 	if !ok {
-		return nil, fmt.Errorf("binding source not found for %s", OpListFormats)
+		return nil, fmt.Errorf("binding source not found for %s", opKey)
 	}
-	if !strings.HasPrefix(src.BindingSpec, "usage@") {
-		return nil, fmt.Errorf("unsupported binding format for %s", OpListFormats)
+	if src.BindingSpec != "openbindings.usage@1" && !strings.HasPrefix(src.BindingSpec, "usage@") {
+		return nil, fmt.Errorf("unsupported binding spec for %s", opKey)
 	}
 
 	// The ref is the format's own grammar: a space-separated command path
