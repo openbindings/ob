@@ -67,7 +67,7 @@ func bindFixture(t *testing.T, withBinding bool) string {
 	data := map[string]any{
 		"openbindings": "0.2.0", "name": "T", "version": "0.1.0",
 		"operations": map[string]any{"greet": map[string]any{}},
-		"sources":    map[string]any{"api": map[string]any{"format": "openapi@3.1", "location": "nope.yaml"}},
+		"sources":    map[string]any{"api": map[string]any{"bindingSpec": "openbindings.openapi@1", "location": "nope.yaml"}},
 	}
 	if withBinding {
 		data["bindings"] = map[string]any{

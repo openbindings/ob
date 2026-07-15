@@ -7,6 +7,8 @@ import (
 	"strings"
 
 	openbindings "github.com/openbindings/openbindings-go"
+	asyncapiformat "github.com/openbindings/openbindings-go/formats/asyncapi"
+	openapiformat "github.com/openbindings/openbindings-go/formats/openapi"
 	"github.com/openbindings/openbindings-go/formats/usage"
 )
 
@@ -158,7 +160,7 @@ func GenerateBoundCLI(contractPath, usagePath string) (*openbindings.Interface, 
 	// are spec-level and stay on the OBI entry; transport mechanics
 	// (routing, decode, classify) are the hook table's.
 	adaptationByShort := map[string]string{
-		// resolveDelegateForFormat: wire `format` → the <format-token> arg
+		// resolveDelegateForBindingSpec: wire `format` → the <format-token> arg
 		// (the bare name would map to the root --format flag).
 		"resolveDelegateForFormat": `{"format-token": $$.format, "format": "json"}`,
 		// setDelegatePreference: wire `format` → --source-format, same shadow.
@@ -228,7 +230,7 @@ func GenerateBoundCLI(contractPath, usagePath string) (*openbindings.Interface, 
 		// (moot on the non-TTY wire, but explicit). A content-provided source
 		// (inline `content`, no location) has no CLI carriage yet and fails
 		// loudly at the empty-location token — see the tracker's batch-5 note.
-		"addSource": `$merge([{"obi-path": $$.interface, "source": $$.source.format & ":" & $$.source.location, "key": $$.source.name, "uri": $$.source.outputLocation, "description": $$.source.description, "yes": true}, $$.source.embed ? {"resolve": "content"} : {}])`,
+		"addSource": `$merge([{"obi-path": $$.interface, "source": $$.source.bindingSpec & ":" & $$.source.location, "key": $$.source.name, "uri": $$.source.outputLocation, "description": $$.source.description, "yes": true}, $$.source.embed ? {"resolve": "content"} : {}])`,
 		// removeSource: the wire key is the CLI's <key> argument.
 		"removeSource": `{"obi-path": $$.interface, "key": $$.key}`,
 		// pullSource: the ONE editing op whose contract output is a report
@@ -306,8 +308,8 @@ func GenerateBoundCLI(contractPath, usagePath string) (*openbindings.Interface, 
 		return nil, fmt.Errorf("usage artifact declares no min_usage_version; cannot stamp the source token")
 	}
 	bound.Sources["usage"] = openbindings.Source{
-		Format:  "usage@" + minVer,
-		Content: usageText, // the pristine artifact, verbatim
+		BindingSpec: usage.BindingSpec,
+		Content:     usageText, // the pristine artifact, verbatim
 	}
 
 	return bound, nil
@@ -365,7 +367,7 @@ func GenerateBoundServe(contractPath, openapiPath, existingServePath, servedBase
 		return nil, fmt.Errorf("load existing serve OBI: %w", err)
 	}
 
-	httpDerived, err := DeriveFromSource(openbindings.Source{Format: "openapi@3.1", Location: openapiPath}, "openapi", "")
+	httpDerived, err := DeriveFromSource(openbindings.Source{BindingSpec: openapiformat.BindingSpec, Location: openapiPath}, "openapi", "")
 	if err != nil {
 		return nil, fmt.Errorf("derive openapi: %w", err)
 	}
@@ -384,13 +386,22 @@ func GenerateBoundServe(contractPath, openapiPath, existingServePath, servedBase
 	// Point each served source at this server's own live spec endpoint via an
 	// absolute URL (default port; handleOBI rewrites it to the request address).
 	// No embedded content: the served OBI is always fetched from a running
-	// server, so a frozen inline copy would only bloat the discovery document and,
-	// per spec §6.4 / OBI-T-15 (embedded content is authoritative over an
-	// artifact location), shadow the live location. MCP is bridged at runtime
-	// (`ob mcp <url>`), not a served transport, so its source is dropped.
+	// server, so a frozen inline copy would only bloat the discovery document
+	// and, per the core's embedded-content-authoritative doctrine (§6.4),
+	// shadow the live location. MCP is bridged at runtime (`ob mcp <url>`),
+	// not a served transport, so its source is dropped. The identifiers come
+	// from the format packages, never the prior file, so regeneration
+	// self-heals vocabulary migrations.
+	servedSpecs := map[string]string{
+		"openapi":  openapiformat.BindingSpec,
+		"asyncapi": asyncapiformat.BindingSpec,
+	}
 	for key, src := range existing.Sources {
 		if key == "mcp" {
 			continue
+		}
+		if spec, ok := servedSpecs[key]; ok {
+			src.BindingSpec = spec
 		}
 		src.Location = servedBaseURL + "/" + key + ".yaml"
 		src.Content = nil
@@ -531,7 +542,7 @@ func BoundCLIHookTable(contract *openbindings.Interface) usage.HookTable {
 func InstallBoundCLIHooks(inv *openbindings.OperationInvoker, contract *openbindings.Interface) {
 	decode, classify, route := BoundCLIHookTable(contract).Hooks()
 	guard := func(site openbindings.InvokeSite) bool {
-		return site.FormatName() == "usage" && (site.Target == "ob" || strings.HasSuffix(site.Target, "/ob"))
+		return site.FamilyName() == "usage" && (site.Target == "ob" || strings.HasSuffix(site.Target, "/ob"))
 	}
 	inv.OutputDecoder = func(site openbindings.InvokeSite, raw openbindings.RawResult) (any, error) {
 		if !guard(site) {
@@ -580,7 +591,7 @@ func GenerateBoundCLIRecipe(contract *openbindings.Interface) string {
 	sb.WriteString("# ob bound-CLI invocation recipe\n\n")
 	sb.WriteString("<!-- GENERATED by `go generate ./internal/app` (genbound) from the\n")
 	sb.WriteString("     internal hook table — do not edit by hand. -->\n\n")
-	fmt.Fprintf(&sb, "Derived from ob contract version **%s** (usage artifact `%s`).\n\n", contract.Version, contract.Sources["usage"].Format)
+	fmt.Fprintf(&sb, "Derived from ob contract version **%s** (usage artifact `%s`).\n\n", contract.Version, contract.Sources["usage"].BindingSpec)
 	sb.WriteString("ob's CLI is described by a pristine [jdx usage](https://usage.jdx.dev) artifact; the\n")
 	sb.WriteString("wire questions the artifact cannot answer are answered by ob's own consumer\n")
 	sb.WriteString("configuration (specification + configuration = complete invocation). This table\n")

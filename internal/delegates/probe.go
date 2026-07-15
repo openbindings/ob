@@ -84,7 +84,7 @@ func probeFormatsFromInterface(path string, timeout time.Duration, iface openbin
 	if !ok {
 		return nil, fmt.Errorf("binding source not found for %s", OpListFormats)
 	}
-	if !strings.HasPrefix(src.Format, "usage@") {
+	if !strings.HasPrefix(src.BindingSpec, "usage@") {
 		return nil, fmt.Errorf("unsupported binding format for %s", OpListFormats)
 	}
 

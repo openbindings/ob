@@ -28,7 +28,7 @@ func TestRegisterInterface_ToolsFromNonMCPBindings(t *testing.T) {
 			"getPet":   {Description: "Get a pet"},
 		},
 		Sources: map[string]openbindings.Source{
-			"rest": {Format: "openapi@3.1", Location: "./api.yaml"},
+			"rest": {BindingSpec: "openbindings.openapi@1", Location: "./api.yaml"},
 		},
 		Bindings: map[string]openbindings.BindingEntry{
 			"listPets.rest": {Operation: "listPets", Source: "rest", Ref: "#/paths/~1pets/get"},
@@ -51,7 +51,7 @@ func TestRegisterInterface_ResourceFromMCPBinding(t *testing.T) {
 			"readSpec": {Description: "Read the spec doc"},
 		},
 		Sources: map[string]openbindings.Source{
-			"mcpServer": {Format: "mcp", Location: "http://localhost:8080"},
+			"mcpServer": {BindingSpec: "mcp", Location: "http://localhost:8080"},
 		},
 		Bindings: map[string]openbindings.BindingEntry{
 			"readSpec.mcp": {
@@ -85,7 +85,7 @@ func TestRegisterInterface_PromptFromMCPBinding(t *testing.T) {
 			},
 		},
 		Sources: map[string]openbindings.Source{
-			"mcpServer": {Format: "mcp", Location: "http://localhost:8080"},
+			"mcpServer": {BindingSpec: "mcp", Location: "http://localhost:8080"},
 		},
 		Bindings: map[string]openbindings.BindingEntry{
 			"codeReview.mcp": {
@@ -113,7 +113,7 @@ func TestRegisterInterface_MixedPrimitives(t *testing.T) {
 			"askQuestion": {Description: "A prompt"},
 		},
 		Sources: map[string]openbindings.Source{
-			"mcpServer": {Format: "mcp", Location: "http://localhost:8080"},
+			"mcpServer": {BindingSpec: "mcp", Location: "http://localhost:8080"},
 		},
 		Bindings: map[string]openbindings.BindingEntry{
 			"callTool.mcp":    {Operation: "callTool", Source: "mcpServer", Ref: "tools/callTool"},
@@ -132,7 +132,7 @@ func TestRegisterInterface_MixedPrimitives(t *testing.T) {
 func TestFindMCPBinding_NoMCPSource(t *testing.T) {
 	iface := &openbindings.Interface{
 		Sources: map[string]openbindings.Source{
-			"rest": {Format: "openapi@3.1"},
+			"rest": {BindingSpec: "openbindings.openapi@1"},
 		},
 		Bindings: map[string]openbindings.BindingEntry{
 			"op.rest": {Operation: "op", Source: "rest", Ref: "#/paths/~1op/get"},
@@ -147,7 +147,7 @@ func TestFindMCPBinding_NoMCPSource(t *testing.T) {
 func TestFindMCPBinding_ResourceRef(t *testing.T) {
 	iface := &openbindings.Interface{
 		Sources: map[string]openbindings.Source{
-			"mcp": {Format: "mcp"},
+			"mcp": {BindingSpec: "mcp"},
 		},
 		Bindings: map[string]openbindings.BindingEntry{
 			"doc.mcp": {Operation: "doc", Source: "mcp", Ref: "resources/file:///readme.md"},
@@ -284,8 +284,8 @@ func TestBundleInputSchema_HandlesCycle(t *testing.T) {
 // binding bridged into a request-scoped MCP tool call.
 type neverEndingInvoker struct{}
 
-func (n *neverEndingInvoker) Formats() []openbindings.FormatInfo {
-	return []openbindings.FormatInfo{{Token: "test-stream", Description: "unbounded stream"}}
+func (n *neverEndingInvoker) BindingSpecs() []openbindings.BindingSpecInfo {
+	return []openbindings.BindingSpecInfo{{BindingSpec: "test-stream", Description: "unbounded stream"}}
 }
 
 func (n *neverEndingInvoker) InvokeBinding(ctx context.Context, args *openbindings.BindingInvocationArgs) openbindings.Invocation[any, any] {
@@ -317,7 +317,7 @@ func TestDrainOperation_UnboundedStreamHitsDeadline(t *testing.T) {
 		OpenBindings: "0.2.0",
 		Name:         "streams",
 		Operations:   map[string]openbindings.Operation{"orderUpdates": {Description: "subscription"}},
-		Sources:      map[string]openbindings.Source{"s": {Format: "test-stream", Location: "https://example.com/stream"}},
+		Sources:      map[string]openbindings.Source{"s": {BindingSpec: "test-stream", Location: "https://example.com/stream"}},
 		Bindings: map[string]openbindings.BindingEntry{
 			"orderUpdates.s": {Operation: "orderUpdates", Source: "s", Ref: "updates"},
 		},

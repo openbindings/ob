@@ -273,7 +273,7 @@ func OBIStatus(input OBIStatusInput) (OBIStatusOutput, error) {
 		src := iface.Sources[key]
 		ss := SourceStatus{
 			Key:    key,
-			Format: src.Format,
+			Format: src.BindingSpec,
 		}
 
 		meta, err := GetSourceMeta(src)
@@ -304,7 +304,7 @@ func OBIStatus(input OBIStatusInput) (OBIStatusOutput, error) {
 		// corrupted embed alters invocation without touching any operation.
 		// The recorded contentHash seals the pull-path file; the embedded
 		// copy is verified against a fresh parse of those bytes.
-		if !needsLiveDiscovery(src.Format, meta.Ref) {
+		if !needsLiveDiscovery(src.BindingSpec, meta.Ref) {
 			data, rerr := ReadSourceContent(meta.Ref, obiDir)
 			if rerr != nil {
 				if meta.Resolve == ResolveModeContent && src.Content != nil {
@@ -327,7 +327,7 @@ func OBIStatus(input OBIStatusInput) (OBIStatusOutput, error) {
 				// File unchanged: verify the embedded copy still matches it.
 				// A hand-edited or corrupted embed is invisible to the hash,
 				// which covers the file, not the copy.
-				if fresh, perr := ParseContentForEmbed(data, src.Format); perr == nil && !sameContentValue(src.Content, fresh) {
+				if fresh, perr := ParseContentForEmbed(data, src.BindingSpec); perr == nil && !sameContentValue(src.Content, fresh) {
 					ss.ContentDrift = true
 				}
 			}

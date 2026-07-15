@@ -188,8 +188,8 @@ func TestInvokeOBIOperation_BindingKeyResolvesOperation(t *testing.T) {
 		},
 		"sources": map[string]any{
 			"usage1": map[string]any{
-				"format":   "usage@2.0.0",
-				"location": "./cli.kdl",
+				"bindingSpec": "openbindings.usage@1",
+				"location":    "./cli.kdl",
 			},
 		},
 		"bindings": map[string]any{
@@ -246,8 +246,8 @@ func TestInvokeOBIOperation_InputTransformError(t *testing.T) {
 		},
 		"sources": map[string]any{
 			"usage1": map[string]any{
-				"format":   "usage@2.0.0",
-				"location": "./cli.kdl",
+				"bindingSpec": "openbindings.usage@1",
+				"location":    "./cli.kdl",
 			},
 		},
 		"bindings": map[string]any{
@@ -338,8 +338,8 @@ func TestInvokeOBIOperation_InvalidInputNeverReachesWire(t *testing.T) {
 		},
 		"sources": map[string]any{
 			"api": map[string]any{
-				"format":  "openapi@3.0",
-				"content": map[string]any{"openapi": "3.0.3", "info": map[string]any{"title": "t", "version": "1"}, "servers": []any{map[string]any{"url": srv.URL}}, "paths": map[string]any{"/orders": map[string]any{"post": map[string]any{"operationId": "createOrder", "responses": map[string]any{"200": map[string]any{"description": "ok"}}}}}},
+				"bindingSpec": "openbindings.openapi@1",
+				"content":     map[string]any{"openapi": "3.0.3", "info": map[string]any{"title": "t", "version": "1"}, "servers": []any{map[string]any{"url": srv.URL}}, "paths": map[string]any{"/orders": map[string]any{"post": map[string]any{"operationId": "createOrder", "responses": map[string]any{"200": map[string]any{"description": "ok"}}}}}},
 			},
 		},
 		"bindings": map[string]any{

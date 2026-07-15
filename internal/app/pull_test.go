@@ -171,16 +171,16 @@ cmd "two" help="Second" {}
 		"operations":   map[string]any{},
 		"sources": map[string]any{
 			"srcA": map[string]any{
-				"format":   "usage@2.0.0",
-				"location": "./a.kdl",
+				"bindingSpec": "openbindings.usage@1",
+				"location":    "./a.kdl",
 				"x-ob": map[string]any{
 					"ref":     "./a.kdl",
 					"resolve": "location",
 				},
 			},
 			"srcB": map[string]any{
-				"format":   "usage@2.0.0",
-				"location": "./b.kdl",
+				"bindingSpec": "openbindings.usage@1",
+				"location":    "./b.kdl",
 				"x-ob": map[string]any{
 					"ref":     "./b.kdl",
 					"resolve": "location",
@@ -211,8 +211,8 @@ func TestSourcePull_SkipsHandAuthored(t *testing.T) {
 		"operations":   map[string]any{},
 		"sources": map[string]any{
 			"manual": map[string]any{
-				"format":   "openapi@3.1",
-				"location": "https://api.example.com/openapi.json",
+				"bindingSpec": "openbindings.openapi@1",
+				"location":    "https://api.example.com/openapi.json",
 				// No x-ob — hand-authored.
 			},
 		},
@@ -248,8 +248,8 @@ cmd "hello" help="Say hello" {}
 		},
 		"sources": map[string]any{
 			"usage": map[string]any{
-				"format":   "usage@2.0.0",
-				"location": "./cli.kdl",
+				"bindingSpec": "openbindings.usage@1",
+				"location":    "./cli.kdl",
 				"x-ob": map[string]any{
 					"ref":     "./cli.kdl",
 					"resolve": "location",
@@ -322,8 +322,8 @@ cmd "greet" help="Say hi" {}
 		"operations":   map[string]any{},
 		"sources": map[string]any{
 			"usage": map[string]any{
-				"format":  "usage@2.0.0",
-				"content": "old content",
+				"bindingSpec": "openbindings.usage@1",
+				"content":     "old content",
 				"x-ob": map[string]any{
 					"ref":     "./cli.kdl",
 					"resolve": "content",
@@ -383,8 +383,8 @@ cmd "greet" help="Say hello" {}
 		"operations":   map[string]any{},
 		"sources": map[string]any{
 			"usage": map[string]any{
-				"format":   "usage@2.0.0",
-				"location": "./cli.kdl",
+				"bindingSpec": "openbindings.usage@1",
+				"location":    "./cli.kdl",
 				"x-ob": map[string]any{
 					"ref":     "./cli.kdl",
 					"resolve": "location",
@@ -522,12 +522,12 @@ func TestNeedsLiveDiscovery_ClassifiesByRefShape(t *testing.T) {
 		want        bool
 	}{
 		{"grpc", "./blend.proto", false},
-		{"grpc@1.0", "proto/blend.proto", false},
+		{"openbindings.grpc@1", "proto/blend.proto", false},
 		{"grpc", "localhost:9090", true},
 		{"grpc", "internal.host:8443", true},
-		{"mcp@2025-11-25", "https://mcp.example.com", true},
-		{"openapi@3.1", "./openapi.json", false},
-		{"usage@2.0", "./cli.usage.kdl", false},
+		{"openbindings.mcp@1", "https://mcp.example.com", true},
+		{"openbindings.openapi@1", "./openapi.json", false},
+		{"openbindings.usage@1", "./cli.usage.kdl", false},
 	}
 	for _, c := range cases {
 		if got := needsLiveDiscovery(c.format, c.ref); got != c.want {
@@ -562,8 +562,8 @@ message PingReply { string msg = 1; }
 		"bindings":     map[string]any{},
 		"sources": map[string]any{
 			"svc": map[string]any{
-				"format":  "grpc",
-				"content": "stale embedded text",
+				"bindingSpec": "openbindings.grpc@1",
+				"content":     "stale embedded text",
 				"x-ob": map[string]any{
 					"ref":         "tiny.proto",
 					"resolve":     "content",
@@ -618,7 +618,7 @@ func TestSourcePull_EmbedLane_ReconstructedBaseOverlay(t *testing.T) {
 	}
 
 	iface, err := SynthesizeInterface(SynthesizeInterfaceInput{
-		Sources: []SynthesizeInterfaceSource{{Format: "openapi@3.1", Location: specPath}},
+		Sources: []SynthesizeInterfaceSource{{BindingSpec: "openbindings.openapi@1", Location: specPath}},
 		Name:    "t",
 	})
 	if err != nil {

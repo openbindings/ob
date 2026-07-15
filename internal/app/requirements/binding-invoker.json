@@ -1,44 +1,48 @@
 {
     "openbindings": "0.2.0",
-    "name": "OpenBindings Binding Invoker",
+    "name": "Binding Invoker",
     "version": "0.1.0",
-    "description": "Interface for invoking bindings in specific formats across a service boundary. A binding invoker interprets one or more binding formats (e.g., OpenAPI, AsyncAPI, gRPC, MCP) and knows how to invoke operations through them. This contract is the wire form of binding invocation: it governs remote invokers (delegates, hosted invokers, anything reached over a transport). In-process implementations (the SDKs' invocation handles) realize the same semantics natively and are not required to expose frames; the frame protocol is the handle, serialized. invokeBinding is a typed bidirectional I/O operation: the caller streams BindingInvokerInputFrame messages in (starting with an `open` frame that carries the BindingInvocationInput, followed by zero or more `input` frames and a terminating `close`), and the service streams BindingInvokerOutputFrame messages back (zero or more `output` frames plus a single terminal `complete` or `error` frame). The same shape covers unary, server-streaming, client-streaming, and bidirectional bindings; cardinality is observed by how the caller drives the frames, not declared in the contract. Authentication and other runtime prerequisites are not carried in the OBI document; instead, when a binding cannot proceed because required context is missing, invokeBinding fails with a CONTEXT_REQUIRED error enumerating what must be satisfied, and the runtime resolves it into context and retries. This keeps prerequisites out of the static interface and uniform across every binding format.",
+    "description": "Interface for invoking bindings governed by specific binding specifications across a service boundary. A binding invoker implements one or more binding specifications (e.g., openbindings.openapi@1, openbindings.mcp@1) and knows how to invoke operations through them. This contract is the project's published wire form of binding invocation, for remote invokers that adopt it (delegates, hosted invokers, anything reached over a transport wanting a shared frame shape). In-process implementations (the SDKs' invocation handles) realize the same semantics natively and are not required to expose frames; the frame protocol is the handle, serialized. invokeBinding is a typed bidirectional I/O operation: the caller streams BindingInvokerInputFrame messages in (starting with an `open` frame that carries the BindingInvocationInput, followed by zero or more `input` frames and a terminating `close`), and the service streams BindingInvokerOutputFrame messages back (zero or more `output` frames plus a single terminal `complete` or `error` frame). The same shape covers unary, server-streaming, client-streaming, and bidirectional bindings; cardinality is observed by how the caller drives the frames, not declared in the contract. Authentication and other runtime prerequisites are not carried in the OBI document; instead, when a binding cannot proceed because required context is missing, invokeBinding fails with a CONTEXT_REQUIRED error enumerating what must be satisfied, and the runtime resolves it into context and retries. This keeps prerequisites out of the static interface and uniform across every binding specification.",
     "schemas": {
-        "FormatInfo": {
+        "BindingSpecInfo": {
             "type": "object",
-            "description": "Information about a supported binding format.",
+            "description": "Information about a supported binding specification.",
             "properties": {
-                "token": {
+                "bindingSpec": {
                     "type": "string",
-                    "description": "Format token (e.g., openapi@3.1, asyncapi@3.0, grpc)."
+                    "description": "Binding specification identifier, exact and opaque (e.g., openbindings.openapi@1, openbindings.mcp@1)."
                 },
                 "description": {
                     "type": "string",
-                    "description": "Human-readable description of this format."
+                    "description": "Human-readable description of this binding specification."
                 }
             },
             "required": [
-                "token"
+                "bindingSpec"
             ]
         },
-        "InvokeSource": {
+        "Source": {
             "type": "object",
-            "description": "Binding source for invocation.",
+            "description": "A binding source (binding-specification identifier plus location or content), as an OpenBindings document carries it. Open to extension fields so a document's source entry forwards verbatim.",
             "properties": {
-                "format": {
+                "bindingSpec": {
                     "type": "string",
-                    "description": "Format token."
+                    "description": "Binding specification identifier governing this source."
                 },
                 "location": {
                     "type": "string",
-                    "description": "Location of the binding source (path or URL)."
+                    "description": "Absolute address of the source, per its binding specification (core OBI-D-05)."
                 },
                 "content": {
-                    "description": "Binding source content directly."
+                    "description": "Embedded source-artifact representation, per its binding specification."
+                },
+                "description": {
+                    "type": "string",
+                    "description": "Human-readable description for this source."
                 }
             },
             "required": [
-                "format"
+                "bindingSpec"
             ],
             "anyOf": [
                 {
@@ -52,20 +56,24 @@
                     ]
                 }
             ],
-            "additionalProperties": false
+            "additionalProperties": true
         },
         "BindingContext": {
             "type": "object",
-            "description": "Opaque runtime context for binding invocation, typically supplied by the runtime from its store. Well-known credential fields: 'bearerToken' (string), 'apiKey' (string), 'basic' (object with 'username' and 'password'), 'accessToken' / 'refreshToken' / 'expiresAt' for OAuth. Well-known transport fields: 'headers' / 'cookies' / 'environment' (objects with string values) and 'metadata' (object with arbitrary values). Implementations and callers MAY add additional fields for session state, consent flags, or any other invoker-managed runtime data; drivers SHOULD ignore fields they don't recognize.",
+            "description": "Opaque runtime context for binding invocation, typically supplied by the runtime from its store. Well-known credential fields: 'bearerToken' (string), 'apiKey' (string), 'apiKeys' (object mapping a requirement's 'name' to its key — the scheme-scoped form for the alternative that carries several API keys at once; a scheme looks up its named entry first and falls back to the single 'apiKey' convenience), 'basic' (object with 'username' and 'password'), 'accessToken' / 'refreshToken' / 'expiresAt' for OAuth. Well-known transport fields: 'headers' / 'cookies' / 'environment' (objects with string values) and 'metadata' (object with arbitrary values). Well-known configuration field: 'configuration' (object) — per-invocation configuration-point values, keyed by point name: the operation-invoker's 'selection' point, and the named points each governing binding specification defines (decode, classify, route, solicit, server, address, target, transport, per family), with values as each point's definition specifies; entries are consulted at the per-invocation tier of the point's consultation order. Implementations and callers MAY add additional fields for session state, consent flags, or any other invoker-managed runtime data; drivers SHOULD ignore fields they don't recognize.",
             "additionalProperties": true
         },
         "ContextRequirement": {
             "type": "object",
-            "description": "One prerequisite that must be satisfied before a binding can be invoked, resolved into context. `type` names the requirement family; the remaining fields are type-specific. The well-known `auth.*` family resolves into BindingContext credential fields: `auth.bearer` produces 'bearerToken', `auth.apiKey` produces 'apiKey', `auth.basic` produces 'basic', and `auth.oauth2` produces 'accessToken' (carrying flow fields such as 'authorizeUrl', 'tokenUrl', and 'scopes'). Other families (e.g. 'approval.user', 'config.value', 'account.link') resolve into their own context fields. A runtime dispatches each requirement to a resolver registered for its `type`.",
+            "description": "One prerequisite that must be satisfied before a binding can be invoked, resolved into context. `type` names the requirement family; the remaining fields are type-specific. The well-known `auth.*` family resolves into BindingContext credential fields: `auth.bearer` produces 'bearerToken', `auth.apiKey` produces 'apiKey' (or a scheme-keyed entry in 'apiKeys' when the requirement carries a `name`), `auth.basic` produces 'basic', and `auth.oauth2` produces 'accessToken' (carrying flow fields such as 'grantType', 'authorizeUrl', 'tokenUrl', and 'scopes'). Other families (e.g. 'approval.user', 'config.value', 'account.link') resolve into their own context fields. A runtime dispatches each requirement to a resolver registered for its `type`.",
             "properties": {
                 "type": {
                     "type": "string",
-                    "description": "Requirement type identifier, e.g. 'auth.bearer', 'auth.oauth2', 'auth.basic', 'auth.apiKey', 'approval.user', 'config.value'. Resolvers register against these; an unrecognized type is unsatisfiable by a runtime that has no resolver for it."
+                    "description": "Requirement type identifier, e.g. 'auth.bearer', 'auth.oauth2', 'auth.basic', 'auth.apiKey', 'approval.user', 'config.value'. Resolvers register against these; an unrecognized type is unsatisfiable by a runtime that has no resolver for it. An invoker whose source artifact declares a scheme it cannot itself apply still surfaces the requirement with a type derived from the artifact's scheme (e.g. 'auth.http.digest'), so the alternative stays discoverable rather than silently dropped — the surfaced-never-skipped rule each binding specification pins for its own credential carriage."
+                },
+                "name": {
+                    "type": "string",
+                    "description": "The scheme name as the source artifact declares it (e.g. an OpenAPI securitySchemes key). Distinguishes two requirements of the same type within one alternative — two ANDed API keys are otherwise indistinguishable — and keys scheme-scoped credential lookup (see BindingContext's 'apiKeys')."
                 },
                 "description": {
                     "type": "string",
@@ -73,7 +81,7 @@
                 },
                 "durable": {
                     "type": "boolean",
-                    "description": "Whether resolved context for this requirement MAY be cached under the challenge `key` and reused for later invocations (true; e.g. credentials), or MUST be satisfied freshly for every invocation and MUST NOT be cached (false; e.g. a one-shot user approval). Defaults to true. A requirement family typically fixes this value."
+                    "description": "Whether resolved context for this requirement MAY be persisted under a storage key the runtime derives from the challenge `target` and reused for later invocations (true; e.g. credentials), or MUST be satisfied freshly for every invocation and MUST NOT be persisted (false; e.g. a one-shot user approval). Defaults to true. A requirement family typically fixes this value."
                 }
             },
             "required": [
@@ -87,7 +95,7 @@
             "properties": {
                 "target": {
                     "type": "string",
-                    "description": "The target the binding addresses — typically its endpoint URL or host. The runtime uses this to locate and store any context it resolves; how it derives a storage key from the target (for example, normalizing to host[:port] so formats sharing a host share context) is the runtime's policy, not part of this contract. The invoker reports the target and neither keys nor stores."
+                    "description": "The target the binding addresses — typically its endpoint URL or host. The runtime uses this to locate and store any context it resolves; how it derives a storage key from the target (for example, normalizing to host[:port] so families sharing a host share context) is the runtime's policy, not part of this contract. The invoker reports the target and neither keys nor stores."
                 },
                 "alternatives": {
                     "type": "array",
@@ -118,7 +126,7 @@
         },
         "InvocationError": {
             "type": "object",
-            "description": "Structured error carried by an `error` output frame. Indicates terminal failure of the invocation.",
+            "description": "Structured error carried by an `error` output frame. Indicates terminal failure of the invocation. Codes named by a normative rule of either invoker contract — binding-invoker or its operation-invoker peer — (CONTEXT_REQUIRED, ERR_PROTOCOL, ERR_TRANSPORT_CLOSED, ERR_CANCELLED, ERR_VALIDATION_FAILED, ERR_BINDING_NOT_FOUND) are normative where named; other codes are recommended conventions (see the binding-invoker README's registry), and consumers SHOULD handle unknown codes gracefully.",
             "properties": {
                 "code": {
                     "type": "string",
@@ -142,7 +150,7 @@
             "description": "Initial payload carried by the `open` input frame: identifies the binding to invoke and provides context.",
             "properties": {
                 "source": {
-                    "$ref": "#/schemas/InvokeSource"
+                    "$ref": "#/schemas/Source"
                 },
                 "ref": {
                     "type": "string",
@@ -290,13 +298,13 @@
         }
     },
     "operations": {
-        "openbindings.binding-invoker.listFormats": {
-            "description": "List binding formats this invoker supports.",
+        "openbindings.binding-invoker.listBindingSpecs": {
+            "description": "List the binding specifications this invoker supports, by exact identifier.",
             "idempotent": true,
             "output": {
                 "type": "array",
                 "items": {
-                    "$ref": "#/schemas/FormatInfo"
+                    "$ref": "#/schemas/BindingSpecInfo"
                 }
             }
         },
@@ -310,7 +318,7 @@
             }
         },
         "openbindings.binding-invoker.prepareBinding": {
-            "description": "Preflight: report the context a binding would require before invocation, without invoking it or causing side effects. Returns a ContextRequiredDetails the runtime can resolve proactively (good for UX, e.g. prompting for auth before a user acts), or null when the invoker cannot determine requirements without invoking (some targets only reveal them via a live CONTEXT_REQUIRED challenge). Every service implementation provides this operation; returning null is the conformant answer whenever requirements cannot be determined statically, so the operation is always satisfiable. prepareBinding is advisory: the reactive CONTEXT_REQUIRED error from invokeBinding is the authoritative source of requirements. When `context` is supplied on the input, the result reports only the requirements still unsatisfied by that context.",
+            "description": "Preflight: report the context a binding would require before invocation, without invoking it or causing side effects. Returns a ContextRequiredDetails the runtime can resolve proactively (good for UX, e.g. prompting for auth before a user acts), or null when the invoker cannot determine requirements without invoking (some targets only reveal them via a live CONTEXT_REQUIRED challenge). The operation is always implementable — returning null is the conformant answer whenever requirements cannot be determined statically, so no capability prevents a service from carrying it (correspondence remains per-operation, as for every contract operation). prepareBinding is advisory: the reactive CONTEXT_REQUIRED error from invokeBinding is the authoritative source of requirements. When `context` is supplied on the input, the result reports only the requirements still unsatisfied by that context.",
             "idempotent": true,
             "input": {
                 "$ref": "#/schemas/BindingInvocationInput"

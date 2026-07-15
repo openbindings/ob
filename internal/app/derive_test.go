@@ -11,7 +11,7 @@ func TestDetectCrossSourceDrift_NoDrift(t *testing.T) {
 	perSource := []perSourceDerivation{
 		{
 			key:    "sourceA",
-			format: "usage@2.0.0",
+			format: "openbindings.usage@1",
 			result: DeriveResult{
 				Operations: map[string]openbindings.Operation{
 					"greet": {
@@ -22,7 +22,7 @@ func TestDetectCrossSourceDrift_NoDrift(t *testing.T) {
 		},
 		{
 			key:    "sourceB",
-			format: "openapi@3.1",
+			format: "openbindings.openapi@1",
 			result: DeriveResult{
 				Operations: map[string]openbindings.Operation{
 					"greet": {
@@ -44,7 +44,7 @@ func TestDetectCrossSourceDrift_SchemaDiffers(t *testing.T) {
 	perSource := []perSourceDerivation{
 		{
 			key:    "restApi",
-			format: "openapi@3.1",
+			format: "openbindings.openapi@1",
 			result: DeriveResult{
 				Operations: map[string]openbindings.Operation{
 					"createUser": {
@@ -61,7 +61,7 @@ func TestDetectCrossSourceDrift_SchemaDiffers(t *testing.T) {
 		},
 		{
 			key:    "mcpTools",
-			format: "mcp@1.0",
+			format: "openbindings.mcp@1",
 			result: DeriveResult{
 				Operations: map[string]openbindings.Operation{
 					"createUser": {
@@ -100,7 +100,7 @@ func TestDetectCrossSourceDrift_SingleSource(t *testing.T) {
 	perSource := []perSourceDerivation{
 		{
 			key:    "sourceA",
-			format: "usage@2.0.0",
+			format: "openbindings.usage@1",
 			result: DeriveResult{
 				Operations: map[string]openbindings.Operation{
 					"greet": {},
@@ -120,7 +120,7 @@ func TestDetectCrossSourceDrift_DisjointOperations(t *testing.T) {
 	perSource := []perSourceDerivation{
 		{
 			key:    "sourceA",
-			format: "usage@2.0.0",
+			format: "openbindings.usage@1",
 			result: DeriveResult{
 				Operations: map[string]openbindings.Operation{
 					"greet": {},
@@ -129,7 +129,7 @@ func TestDetectCrossSourceDrift_DisjointOperations(t *testing.T) {
 		},
 		{
 			key:    "sourceB",
-			format: "openapi@3.1",
+			format: "openbindings.openapi@1",
 			result: DeriveResult{
 				Operations: map[string]openbindings.Operation{
 					"farewell": {},
@@ -147,8 +147,8 @@ func TestDetectCrossSourceDrift_DisjointOperations(t *testing.T) {
 func TestDeriveFromAllSources_OnlySourceFilter(t *testing.T) {
 	iface := &openbindings.Interface{
 		Sources: map[string]openbindings.Source{
-			"src1": {Format: "usage@2.0.0", Location: "cli.kdl"},
-			"src2": {Format: "openapi@3.1", Location: "api.json"},
+			"src1": {BindingSpec: "openbindings.usage@1", Location: "cli.kdl"},
+			"src2": {BindingSpec: "openbindings.openapi@1", Location: "api.json"},
 		},
 	}
 
@@ -162,7 +162,7 @@ func TestDeriveFromAllSources_OnlySourceFilter(t *testing.T) {
 func TestDeriveFromAllSources_EmptySources(t *testing.T) {
 	iface := &openbindings.Interface{
 		Sources: map[string]openbindings.Source{
-			"empty": {Format: "usage@2.0.0"}, // no location or content
+			"empty": {BindingSpec: "openbindings.usage@1"}, // no location or content
 		},
 	}
 

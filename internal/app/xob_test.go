@@ -33,7 +33,7 @@ func TestHashContent(t *testing.T) {
 }
 
 func TestGetSetSourceMeta(t *testing.T) {
-	src := openbindings.Source{Format: "usage@2.0.0"}
+	src := openbindings.Source{BindingSpec: "openbindings.usage@1"}
 
 	// No metadata initially.
 	meta, err := GetSourceMeta(src)
@@ -104,7 +104,7 @@ func TestStripAllXOB(t *testing.T) {
 	iface := &openbindings.Interface{
 		Sources: map[string]openbindings.Source{
 			"src1": {
-				Format:         "usage@2.0.0",
+				BindingSpec:    "openbindings.usage@1",
 				LosslessFields: openbindings.LosslessFields{Extensions: map[string]json.RawMessage{xobKey: json.RawMessage(`{"ref":"./x"}`)}},
 			},
 		},
@@ -210,13 +210,13 @@ func TestParseContentForEmbed(t *testing.T) {
 		{
 			name:       "JSON format returns object",
 			data:       `{"key": "value"}`,
-			format:     "openapi@3.1",
+			format:     "openbindings.openapi@1",
 			wantString: false,
 		},
 		{
 			name:       "KDL format returns string",
 			data:       `bin "hello" { cmd "greet" }`,
-			format:     "usage@2.0.0",
+			format:     "openbindings.usage@1",
 			wantString: true,
 		},
 		{
@@ -268,7 +268,7 @@ func TestReadSourceContent_File(t *testing.T) {
 
 func TestResolveSourceSpec_Location(t *testing.T) {
 	dir := t.TempDir()
-	src := openbindings.Source{Format: "usage@2.0.0"}
+	src := openbindings.Source{BindingSpec: "openbindings.usage@1"}
 	meta := SourceMeta{Ref: "./usage.kdl", Resolve: ResolveModeLocation}
 	data := []byte("irrelevant for location mode")
 
@@ -285,7 +285,7 @@ func TestResolveSourceSpec_Location(t *testing.T) {
 }
 
 func TestResolveSourceSpec_LocationWithURI(t *testing.T) {
-	src := openbindings.Source{Format: "usage@2.0.0"}
+	src := openbindings.Source{BindingSpec: "openbindings.usage@1"}
 	meta := SourceMeta{
 		Ref:     "./usage.kdl",
 		Resolve: ResolveModeLocation,
@@ -303,7 +303,7 @@ func TestResolveSourceSpec_LocationWithURI(t *testing.T) {
 }
 
 func TestResolveSourceSpec_Content(t *testing.T) {
-	src := openbindings.Source{Format: "usage@2.0.0"}
+	src := openbindings.Source{BindingSpec: "openbindings.usage@1"}
 	meta := SourceMeta{Ref: "./usage.kdl", Resolve: ResolveModeContent}
 	data := []byte(`bin "hello" { }`)
 

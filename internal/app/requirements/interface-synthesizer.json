@@ -1,33 +1,33 @@
 {
     "openbindings": "0.2.0",
-    "name": "OpenBindings Interface Synthesizer",
+    "name": "Interface Synthesizer",
     "version": "0.2.0",
-    "description": "Interface for creating OpenBindings interfaces from binding artifacts. Given a binding specification (e.g., an OpenAPI spec), an interface synthesizer extracts operations, schemas, sources, and bindings into an OBI document.",
+    "description": "Interface for synthesizing OpenBindings interfaces from binding artifacts. Given a binding specification (e.g., an OpenAPI spec), an interface synthesizer extracts operations, schemas, sources, and bindings into an OBI document.",
     "schemas": {
-        "FormatInfo": {
+        "BindingSpecInfo": {
             "type": "object",
-            "description": "Information about a supported binding format.",
+            "description": "Information about a supported binding specification.",
             "properties": {
-                "token": {
+                "bindingSpec": {
                     "type": "string",
-                    "description": "Format token (e.g., openapi@3.1, asyncapi@3.0, grpc)."
+                    "description": "Binding specification identifier, exact and opaque (e.g., openbindings.openapi@1, openbindings.mcp@1)."
                 },
                 "description": {
                     "type": "string",
-                    "description": "Human-readable description of this format."
+                    "description": "Human-readable description of this binding specification."
                 }
             },
             "required": [
-                "token"
+                "bindingSpec"
             ]
         },
         "SynthesizeInterfaceSource": {
             "type": "object",
             "description": "A binding source to synthesize an interface from.",
             "properties": {
-                "format": {
+                "bindingSpec": {
                     "type": "string",
-                    "description": "Format token for this source."
+                    "description": "Binding specification identifier governing this source."
                 },
                 "name": {
                     "type": "string",
@@ -54,7 +54,7 @@
                 }
             },
             "required": [
-                "format"
+                "bindingSpec"
             ],
             "anyOf": [
                 {
@@ -106,13 +106,13 @@
         }
     },
     "operations": {
-        "openbindings.interface-synthesizer.listFormats": {
-            "description": "List binding formats this synthesizer can produce interfaces from.",
+        "openbindings.interface-synthesizer.listBindingSpecs": {
+            "description": "List the binding specifications this synthesizer can synthesize interfaces from, by exact identifier.",
             "idempotent": true,
             "output": {
                 "type": "array",
                 "items": {
-                    "$ref": "#/schemas/FormatInfo"
+                    "$ref": "#/schemas/BindingSpecInfo"
                 }
             }
         },

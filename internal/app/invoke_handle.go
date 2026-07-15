@@ -22,7 +22,7 @@ import (
 // runtime owns reactive resolution (binding-invoker rule 9); a frame server
 // never prompts.
 func InvokeBindingHandle(ctx context.Context, input InvocationInput) openbindings.Invocation[any, any] {
-	if input.Source.Format == "" {
+	if input.Source.BindingSpec == "" {
 		return openbindings.NewErroredInvocation[any, any](&Error{
 			Code: openbindings.ErrCodeValidationFailed, Message: "source.format is required",
 		})
@@ -39,22 +39,22 @@ func InvokeBindingHandle(ctx context.Context, input InvocationInput) openbinding
 	}
 	args := &openbindings.BindingInvocationArgs{
 		Source: openbindings.InvocationSource{
-			Format:   input.Source.Format,
-			Location: input.Source.Location,
-			Content:  input.Source.Content,
+			BindingSpec: input.Source.BindingSpec,
+			Location:    input.Source.Location,
+			Content:     input.Source.Content,
 		},
 		Ref:       input.Ref,
 		Context:   bindCtx,
 		Interface: input.Interface,
 	}
 
-	if BuiltinSupportsFormat(input.Source.Format) {
+	if BuiltinSupportsFormat(input.Source.BindingSpec) {
 		invoker := DefaultInvoker()
 		args.Context = withStoredContext(ctx, invoker, args)
 		return invoker.InvokeBinding(ctx, args)
 	}
 
-	delegateInvoker, err := resolveDelegateInvoker(input.Source.Format)
+	delegateInvoker, err := resolveDelegateInvoker(input.Source.BindingSpec)
 	if err != nil {
 		return openbindings.NewErroredInvocation[any, any](&Error{
 			Code:    openbindings.ErrCodeBindingNotFound,
@@ -126,20 +126,20 @@ func withStoredContext(ctx context.Context, invoker *openbindings.OperationInvok
 // always-satisfiable conformant answer; invokeBinding's reactive
 // CONTEXT_REQUIRED challenge remains authoritative.
 func PrepareBinding(ctx context.Context, input InvocationInput) (*openbindings.ContextRequiredDetails, error) {
-	if input.Source.Format == "" {
+	if input.Source.BindingSpec == "" {
 		return nil, fmt.Errorf("source.format is required")
 	}
 	if input.Ref == "" {
 		return nil, fmt.Errorf("ref is required")
 	}
-	if !BuiltinSupportsFormat(input.Source.Format) {
+	if !BuiltinSupportsFormat(input.Source.BindingSpec) {
 		return nil, nil
 	}
 	return DefaultInvoker().PrepareBinding(ctx, &openbindings.BindingInvocationArgs{
 		Source: openbindings.InvocationSource{
-			Format:   input.Source.Format,
-			Location: input.Source.Location,
-			Content:  input.Source.Content,
+			BindingSpec: input.Source.BindingSpec,
+			Location:    input.Source.Location,
+			Content:     input.Source.Content,
 		},
 		Ref:     input.Ref,
 		Context: input.Context,

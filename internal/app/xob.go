@@ -468,12 +468,12 @@ func ReadAndHashSource(ref string, obiDir string) (data []byte, hash string, err
 // ParseContentForEmbed reads raw bytes and returns an appropriate value for Source.Content.
 // For JSON/YAML files, returns map[string]any (native object). For all other formats, returns string.
 func ParseContentForEmbed(data []byte, format string) (any, error) {
-	// Determine if the format is JSON or YAML-based by looking at the format token.
+	// Determine the artifact family from the binding-specification identifier.
+	family := SpecFamily(format)
 	formatLower := strings.ToLower(format)
 
 	isJSON := strings.Contains(formatLower, "json") ||
-		strings.HasPrefix(formatLower, "openapi") ||
-		strings.HasPrefix(formatLower, "asyncapi")
+		family == "openapi" || family == "asyncapi" || family == "mcp"
 	isYAML := strings.Contains(formatLower, "yaml") || strings.Contains(formatLower, "yml")
 
 	if isJSON || isYAML {
@@ -507,7 +507,7 @@ func ParseContentForEmbed(data []byte, format string) (any, error) {
 	// imports cannot resolve them from inside a document, so deriving from
 	// the embed fails later and cryptically — refuse now, naming the lanes
 	// that do work.
-	if strings.HasPrefix(strings.ToLower(strings.SplitN(format, "@", 2)[0]), "grpc") {
+	if strings.HasPrefix(SpecFamily(format), "grpc") {
 		if imp := protoImportStatement(data); imp != "" {
 			return nil, fmt.Errorf(
 				"embedded content must be self-contained (spec §6.4): this .proto imports %s, which cannot resolve from inside a document — use a live reflection address (host:port), or keep the multi-file source via --resolve location with --uri",
@@ -539,7 +539,7 @@ func protoImportStatement(data []byte) string {
 func ResolveSourceSpec(src *openbindings.Source, meta SourceMeta, data []byte, obiDir string) error {
 	switch meta.Resolve {
 	case ResolveModeContent:
-		content, err := ParseContentForEmbed(data, src.Format)
+		content, err := ParseContentForEmbed(data, src.BindingSpec)
 		if err != nil {
 			return fmt.Errorf("embed content: %w", err)
 		}

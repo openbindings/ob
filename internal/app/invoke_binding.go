@@ -48,7 +48,7 @@ func InvokeBinding(ctx context.Context, in InvokeBindingInput) InvokeBindingResu
 	}
 
 	execInput := InvocationInput{
-		Source: InvokeSource{Format: es.Format, Location: es.Location, Content: es.Content},
+		Source: InvokeSource{BindingSpec: es.BindingSpec, Location: es.Location, Content: es.Content},
 		Ref:    resolved.binding.Ref,
 		Input:  resolved.input,
 	}
@@ -142,7 +142,7 @@ func ResolveBindingInvocation(obiPath, bindingKey string, input any) (Invocation
 		return InvocationInput{}, err
 	}
 	return InvocationInput{
-		Source: InvokeSource{Format: es.Format, Location: es.Location, Content: es.Content},
+		Source: InvokeSource{BindingSpec: es.BindingSpec, Location: es.Location, Content: es.Content},
 		Ref:    resolved.binding.Ref,
 		Input:  resolved.input,
 	}, nil

@@ -45,8 +45,8 @@ func DeriveFromSource(source openbindings.Source, sourceKey string, obiDir strin
 	}
 
 	createSrc := openbindings.SynthesizeSource{
-		Format:   source.Format,
-		Location: locationPath,
+		BindingSpec: source.BindingSpec,
+		Location:    locationPath,
 	}
 	if source.Content != nil {
 		createSrc.Content = source.Content
@@ -127,7 +127,7 @@ func deriveFromAllSources(iface *openbindings.Interface, obiDir string, onlySour
 
 		perSource = append(perSource, perSourceDerivation{
 			key:    key,
-			format: src.Format,
+			format: src.BindingSpec,
 			result: result,
 		})
 	}

@@ -19,6 +19,7 @@ import (
 
 	"github.com/openbindings/ob/internal/delegates"
 	"github.com/openbindings/ob/internal/frames"
+	"github.com/openbindings/openbindings-go/formats/usage"
 )
 
 // Delegate-backed binding invocation. A resolved delegate's OBI declares how
@@ -66,22 +67,23 @@ func DelegateBindingInvoker(resolved delegates.Resolved) (openbindings.BindingIn
 			continue
 		}
 		switch {
-		case strings.HasPrefix(source.Format, "asyncapi") && delegates.IsHTTPURL(source.Location):
+		case (strings.HasPrefix(source.BindingSpec, "openbindings.asyncapi") || strings.HasPrefix(source.BindingSpec, "asyncapi")) && delegates.IsHTTPURL(source.Location):
 			if frameBinding == nil {
 				bc := b
 				frameBinding = &bc
 			}
-		case strings.HasPrefix(source.Format, "openbindings.usage"):
-			// Wrapper-era registration (the retired openbindings.usage
-			// format): loud migration, never silent non-matching — the
-			// delegate must be re-registered so its pinned OBI carries the
-			// bare usage source the current dispatch speaks.
-			return nil, fmt.Errorf("delegate %q was registered under the retired openbindings.usage wrapper format; re-register it (`ob delegate register %s`) to refresh its pinned interface", resolved.Delegate, resolved.Location)
-		case strings.HasPrefix(source.Format, "usage@") || source.Format == "usage":
+		case source.BindingSpec == usage.BindingSpec || strings.HasPrefix(source.BindingSpec, "usage@") || source.BindingSpec == "usage":
 			if cliBinding == nil {
 				bc := b
 				cliBinding = &bc
 			}
+		case strings.HasPrefix(source.BindingSpec, "openbindings.usage"):
+			// Wrapper-era registration (the retired openbindings.usage@0.x
+			// WRAPPER format — distinct from the published openbindings.usage@1
+			// bare-artifact spec matched exactly above): loud migration, never
+			// silent non-matching — the delegate must be re-registered so its
+			// pinned OBI carries the source the current dispatch speaks.
+			return nil, fmt.Errorf("delegate %q was registered under the retired openbindings.usage wrapper format; re-register it (`ob delegate register %s`) to refresh its pinned interface", resolved.Delegate, resolved.Location)
 		}
 	}
 
@@ -131,16 +133,16 @@ type delegateFrameInvoker struct {
 	ref      string // e.g. #/operations/invokeBinding
 }
 
-func (d *delegateFrameInvoker) Formats() []openbindings.FormatInfo {
-	return []openbindings.FormatInfo{{Token: d.format}}
+func (d *delegateFrameInvoker) BindingSpecs() []openbindings.BindingSpecInfo {
+	return []openbindings.BindingSpecInfo{{BindingSpec: d.format}}
 }
 
 func (d *delegateFrameInvoker) InvokeBinding(ctx context.Context, args *openbindings.BindingInvocationArgs) openbindings.Invocation[any, any] {
 	input := &frames.BindingInvocationInput{
 		Source: frames.InvokeSource{
-			Format:   args.Source.Format,
-			Location: args.Source.Location,
-			Content:  args.Source.Content,
+			BindingSpec: args.Source.BindingSpec,
+			Location:    args.Source.Location,
+			Content:     args.Source.Content,
 		},
 		Ref: args.Ref,
 		// Caller's per-call context only. ob does not pre-load the store for
@@ -320,7 +322,7 @@ type delegateCLIInvoker struct {
 func delegateExecInvoker(delegate string) *openbindings.OperationInvoker {
 	lane := DefaultInvoker().WithRuntime(nil) // blessed shallow copy; runtime fields ride
 	lane.OutputDecoder = func(site openbindings.InvokeSite, raw openbindings.RawResult) (any, error) {
-		if site.FormatName() != "usage" {
+		if site.FamilyName() != "usage" {
 			return nil, openbindings.ErrUseDefault
 		}
 		if len(raw.Body) == 0 {
@@ -339,8 +341,8 @@ func delegateExecInvoker(delegate string) *openbindings.OperationInvoker {
 	return lane
 }
 
-func (d *delegateCLIInvoker) Formats() []openbindings.FormatInfo {
-	return []openbindings.FormatInfo{{Token: d.format}}
+func (d *delegateCLIInvoker) BindingSpecs() []openbindings.BindingSpecInfo {
+	return []openbindings.BindingSpecInfo{{BindingSpec: d.format}}
 }
 
 func (d *delegateCLIInvoker) InvokeBinding(ctx context.Context, args *openbindings.BindingInvocationArgs) openbindings.Invocation[any, any] {
@@ -364,9 +366,9 @@ func (d *delegateCLIInvoker) InvokeBinding(ctx context.Context, args *openbindin
 		// The delegate's invokeBinding payload, shaped by its inputTransform.
 		var payload any = InvocationInput{
 			Source: InvokeSource{
-				Format:   args.Source.Format,
-				Location: args.Source.Location,
-				Content:  args.Source.Content,
+				BindingSpec: args.Source.BindingSpec,
+				Location:    args.Source.Location,
+				Content:     args.Source.Content,
 			},
 			Ref:     args.Ref,
 			Input:   input,

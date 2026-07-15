@@ -105,12 +105,12 @@ Examples:
 
 			delegateID := delegateArg
 
-			if src.Format == "" {
+			if src.BindingSpec == "" {
 				claim, claimErr := selectDelegate(cmd, src.Location, delegateArg, yes)
 				if claimErr != nil {
 					return claimErr
 				}
-				src.Format = claim.FormatToken
+				src.BindingSpec = claim.FormatToken
 				delegateID = claim.DelegateID
 				fmt.Fprintf(cmd.ErrOrStderr(), "detected format: %s (via %s)\n", claim.FormatToken, claim.DelegateName)
 			} else if delegateID == "" {
@@ -118,7 +118,7 @@ Examples:
 				// delegate registry. Probe-detection is for format-less adds
 				// only (a probe would try every synthesizer against the
 				// location — including ones that dial it as an endpoint).
-				resolved, resErr := app.ResolveDelegateForFormat(src.Format)
+				resolved, resErr := app.ResolveDelegateForFormat(src.BindingSpec)
 				if resErr != nil {
 					return resErr
 				}
@@ -157,8 +157,8 @@ Examples:
 			}
 			if sourceKey == "" {
 				derived := app.DeriveSourceKey(app.SynthesizeInterfaceSource{
-					Format:   src.Format,
-					Location: src.Location,
+					BindingSpec: src.BindingSpec,
+					Location:    src.Location,
 				}, 0)
 				sourceKey, err = promptSourceName(derived, yes)
 				if err != nil {
@@ -168,7 +168,7 @@ Examples:
 
 			result, err := app.SourceAdd(app.SourceAddInput{
 				OBIPath:     obiPath,
-				Format:      src.Format,
+				Format:      src.BindingSpec,
 				Location:    src.Location,
 				Key:         sourceKey,
 				Resolve:     resolve,

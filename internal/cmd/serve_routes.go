@@ -145,13 +145,13 @@ func serveFrameStream(ctx context.Context, cancel context.CancelFunc, conn *webs
 		return
 	}
 
-	logger.Info("bindings/invoke (frames)", "format", open.Input.Source.Format, "ref", open.Input.Ref)
+	logger.Info("bindings/invoke (frames)", "format", open.Input.Source.BindingSpec, "ref", open.Input.Ref)
 
 	inv := app.InvokeBindingHandle(ctx, app.InvocationInput{
 		Source: app.InvokeSource{
-			Format:   open.Input.Source.Format,
-			Location: open.Input.Source.Location,
-			Content:  open.Input.Source.Content,
+			BindingSpec: open.Input.Source.BindingSpec,
+			Location:    open.Input.Source.Location,
+			Content:     open.Input.Source.Content,
 		},
 		Ref:     open.Input.Ref,
 		Context: open.Input.Context,
@@ -308,13 +308,13 @@ func handleBindingPrepare(logger *slog.Logger) http.HandlerFunc {
 			return
 		}
 
-		logger.Info("bindings/prepare", "format", input.Source.Format, "ref", input.Ref)
+		logger.Info("bindings/prepare", "format", input.Source.BindingSpec, "ref", input.Ref)
 
 		details, perr := app.PrepareBinding(r.Context(), app.InvocationInput{
 			Source: app.InvokeSource{
-				Format:   input.Source.Format,
-				Location: input.Source.Location,
-				Content:  input.Source.Content,
+				BindingSpec: input.Source.BindingSpec,
+				Location:    input.Source.Location,
+				Content:     input.Source.Content,
 			},
 			Ref:     input.Ref,
 			Context: input.Context,
@@ -364,7 +364,7 @@ func handleSourceInspect(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusBadRequest, ErrorResponse{Error: "invalid request body"})
 		return
 	}
-	if body.Source.Format == "" {
+	if body.Source.BindingSpec == "" {
 		writeJSON(w, http.StatusBadRequest, ErrorResponse{Error: "source.format is required"})
 		return
 	}

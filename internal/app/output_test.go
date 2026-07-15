@@ -19,8 +19,8 @@ func TestFormatOutput_YAML_SerializesXOBAsObject(t *testing.T) {
 		},
 		"sources": map[string]any{
 			"usage": map[string]any{
-				"format":   "usage@2.0.0",
-				"location": "./cli.kdl",
+				"bindingSpec": "openbindings.usage@1",
+				"location":    "./cli.kdl",
 				"x-ob": map[string]any{
 					"ref":     "./cli.kdl",
 					"resolve": "location",

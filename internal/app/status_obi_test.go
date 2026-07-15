@@ -29,8 +29,8 @@ func statusTestOBI(t *testing.T, dir string) string {
 		"bindings":     map[string]any{},
 		"sources": map[string]any{
 			"api": map[string]any{
-				"format":  "openapi@3.1",
-				"content": content,
+				"bindingSpec": "openbindings.openapi@1",
+				"content":     content,
 				"x-ob": map[string]any{
 					"ref":         "spec.json",
 					"resolve":     "content",
@@ -149,8 +149,8 @@ func TestOBIStatus_LocationModeMissingFileIsError(t *testing.T) {
 		"bindings":     map[string]any{},
 		"sources": map[string]any{
 			"api": map[string]any{
-				"format":   "openapi@3.1",
-				"location": "spec.json",
+				"bindingSpec": "openbindings.openapi@1",
+				"location":    "spec.json",
 				"x-ob": map[string]any{
 					"ref":         "spec.json",
 					"resolve":     "location",

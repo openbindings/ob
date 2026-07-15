@@ -138,7 +138,7 @@ func TestContextE2E_AutoResolution(t *testing.T) {
 			"listPets": {},
 		},
 		Sources: map[string]openbindings.Source{
-			"petstore": {Format: "openapi@3", Location: "https://petstore.swagger.io/v2/swagger.json"},
+			"petstore": {BindingSpec: "openbindings.openapi@1", Location: "https://petstore.swagger.io/v2/swagger.json"},
 		},
 		Bindings: map[string]openbindings.BindingEntry{
 			"listPets.petstore": {
@@ -252,7 +252,7 @@ func TestContextE2E_NoContextReturnsEmptyResolvedBinding(t *testing.T) {
 			"hello": {},
 		},
 		Sources: map[string]openbindings.Source{
-			"usage": {Format: "usage@1"},
+			"usage": {BindingSpec: "openbindings.usage@1"},
 		},
 		Bindings: map[string]openbindings.BindingEntry{
 			"hello.usage": {

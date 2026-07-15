@@ -19,8 +19,9 @@ type ResolvedOBI struct {
 	Interface openbindings.Interface
 }
 
-// SupportsFormat checks if a delegate's format token supports a requested format.
-// This handles version matching (e.g., "usage@^2.0.0" supports "usage@2.1.0").
+// SupportsFormat checks if a delegate's claimed binding specification
+// supports a requested one. Identifiers are exact and opaque (core §6):
+// matching is string equality, never version-range interpretation.
 func SupportsFormat(delegateFormat, requestedFormat string) bool {
-	return supportsFormatToken(delegateFormat, requestedFormat)
+	return delegateFormat == requestedFormat
 }

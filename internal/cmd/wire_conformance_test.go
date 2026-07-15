@@ -102,7 +102,7 @@ func TestWireConformance_ExecLane(t *testing.T) {
 			"pong": map[string]any{},
 		},
 		"sources": map[string]any{
-			"s": map[string]any{"format": "openapi@3.1", "location": "https://example.com/openapi.yaml"},
+			"s": map[string]any{"bindingSpec": "openbindings.openapi@1", "location": "https://example.com/openapi.yaml"},
 		},
 		"bindings": map[string]any{
 			"ping.s": map[string]any{"operation": "ping", "source": "s", "ref": "#/paths/~1ping/get"},
@@ -173,7 +173,7 @@ func TestWireConformance_ExecLane(t *testing.T) {
 			}
 		}},
 		{"removeContext", "openbindings.ob.removeContext", map[string]any{"key": "https://wire.example.com"}, nil},
-		{"resolveDelegateForFormat", "openbindings.ob.resolveDelegateForFormat", map[string]any{"format": "usage@2.13.1"}, nil},
+		{"resolveDelegateForFormat", "openbindings.ob.resolveDelegateForFormat", map[string]any{"format": "openbindings.usage@1"}, nil},
 		{"registerDelegate", "openbindings.ob.registerDelegate", map[string]any{"location": "exec:ob-fixture", "preference": 5}, nil},
 		{"setDelegatePreference", "openbindings.ob.setDelegatePreference", map[string]any{"location": "exec:ob-fixture", "preference": 10}, nil},
 		{"unregisterDelegate", "openbindings.ob.unregisterDelegate", map[string]any{"location": "exec:ob-fixture"}, nil},
@@ -270,7 +270,7 @@ func TestWireConformance_ExecLane(t *testing.T) {
 		// transport cannot carry the frame grammar, so they are excluded
 		// like cohort F, with the note stamped on their binding entries.
 		{"inspectSource", "openbindings.ob.inspectSource", map[string]any{
-			"source": map[string]any{"format": "openapi@3.1", "location": "openapi.json"},
+			"source": map[string]any{"bindingSpec": "openbindings.openapi@1", "location": "openapi.json"},
 		}, func(t *testing.T, output any) {
 			m, _ := output.(map[string]any)
 			if targets, _ := m["targets"].([]any); len(targets) != 1 {
@@ -279,7 +279,7 @@ func TestWireConformance_ExecLane(t *testing.T) {
 		}},
 		{"synthesizeInterface", "openbindings.ob.synthesizeInterface", map[string]any{
 			"name":    "synth-fixture",
-			"sources": []any{map[string]any{"format": "openapi@3.1", "location": "openapi.json"}},
+			"sources": []any{map[string]any{"bindingSpec": "openbindings.openapi@1", "location": "openapi.json"}},
 		}, func(t *testing.T, output any) {
 			m, _ := output.(map[string]any)
 			ops, _ := m["operations"].(map[string]any)
@@ -289,8 +289,8 @@ func TestWireConformance_ExecLane(t *testing.T) {
 		}},
 		{"prepareBinding", "openbindings.ob.prepareBinding", map[string]any{
 			"source": map[string]any{
-				"format":  "openbindings.operation-graph@0.2.0",
-				"content": map[string]any{"graphs": map[string]any{"echo": map[string]any{"openbindings.operation-graph": "0.2.0", "nodes": map[string]any{"in": map[string]any{"type": "input"}, "out": map[string]any{"type": "output"}}, "edges": []any{map[string]any{"from": "in", "to": "out"}}}}},
+				"bindingSpec": "openbindings.operation-graph@1",
+				"content":     map[string]any{"graphs": map[string]any{"echo": map[string]any{"openbindings.operation-graph": "0.2.0", "nodes": map[string]any{"in": map[string]any{"type": "input"}, "out": map[string]any{"type": "output"}}, "edges": []any{map[string]any{"from": "in", "to": "out"}}}}},
 			},
 			"ref": "#/graphs/echo",
 		}, func(t *testing.T, output any) {
@@ -479,7 +479,7 @@ func TestWireConformance_ExecLane(t *testing.T) {
 		}},
 		{"addSource", "openbindings.ob.addSource", func() any {
 			return map[string]any{"interface": doc, "source": map[string]any{
-				"format":      "openapi@3.1",
+				"bindingSpec": "openbindings.openapi@1",
 				"location":    "openapi.json",
 				"name":        "api",
 				"description": "Wire fixture API",
@@ -487,7 +487,7 @@ func TestWireConformance_ExecLane(t *testing.T) {
 		}, func(t *testing.T, out any) {
 			doc = child(t, out)
 			src := child(t, doc, "sources", "api")
-			if src["format"] != "openapi@3.1" || src["description"] != "Wire fixture API" {
+			if src["bindingSpec"] != "openbindings.openapi@1" || src["description"] != "Wire fixture API" {
 				t.Errorf("expected the registered source back, got %#v", src)
 			}
 		}},

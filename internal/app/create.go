@@ -22,7 +22,7 @@ const (
 // (interface-synthesizer requirement), so machine callers — the serve route,
 // `ob synthesize --input`, delegate invocations — decode without an adapter.
 type SynthesizeInterfaceSource struct {
-	Format         string `json:"format"`
+	BindingSpec    string `json:"bindingSpec"`
 	Location       string `json:"location,omitempty"`
 	Name           string `json:"name,omitempty"` // key in sources
 	Content        any    `json:"content,omitempty"`
@@ -82,7 +82,7 @@ func ParseSource(s string) (SynthesizeInterfaceSource, error) {
 	if colonIdx > 0 {
 		prefix := mainPart[:colonIdx]
 		if strings.Contains(prefix, "@") || !strings.ContainsAny(prefix, "/.\\ ") {
-			src.Format = prefix
+			src.BindingSpec = prefix
 			src.Location = mainPart[colonIdx+1:]
 		} else {
 			src.Location = mainPart
@@ -165,7 +165,7 @@ func DeriveSourceKey(src SynthesizeInterfaceSource, index int) string {
 		}
 	}
 
-	formatName := strings.Split(src.Format, "@")[0]
+	formatName := SpecFamily(src.BindingSpec)
 	if index == 0 {
 		return formatName
 	}
@@ -194,7 +194,7 @@ func SynthesizeInterface(input SynthesizeInterfaceInput) (*openbindings.Interfac
 
 	for i, src := range input.Sources {
 		if err := processSource(&iface, src, i); err != nil {
-			return nil, fmt.Errorf("source %s (%s): %w", src.Location, src.Format, err)
+			return nil, fmt.Errorf("source %s (%s): %w", src.Location, src.BindingSpec, err)
 		}
 	}
 
@@ -231,9 +231,9 @@ func processSource(iface *openbindings.Interface, src SynthesizeInterfaceSource,
 	generated, err := SynthesizeInterfaceFromSource(context.Background(), &openbindings.SynthesizeInput{
 		Sources: []openbindings.SynthesizeSource{
 			{
-				Format:   src.Format,
-				Location: src.Location,
-				Content:  src.Content,
+				BindingSpec: src.BindingSpec,
+				Location:    src.Location,
+				Content:     src.Content,
 			},
 		},
 		OnWarning: printSynthesizerWarning,
@@ -327,7 +327,7 @@ func mergeGeneratedSource(iface *openbindings.Interface, generated *openbindings
 
 	// Create source entry.
 	bsrc := openbindings.Source{
-		Format:      src.Format,
+		BindingSpec: src.BindingSpec,
 		Description: src.Description,
 	}
 
@@ -355,7 +355,7 @@ func mergeGeneratedSource(iface *openbindings.Interface, generated *openbindings
 		if err != nil {
 			return fmt.Errorf("embed content: %w", err)
 		}
-		content, err := ParseContentForEmbed(data, src.Format)
+		content, err := ParseContentForEmbed(data, src.BindingSpec)
 		if err != nil {
 			return fmt.Errorf("embed content: %w", err)
 		}

@@ -11,7 +11,7 @@ func TestSelectDelegateFrom(t *testing.T) {
 	self := cand(DelegateRecord{
 		Location: SelfDelegateLocation, Name: "ob",
 		Capabilities: []DelegateCapability{CapInvoke, CapSynthesize, CapInspect},
-		Formats:      []DelegateFormatInfo{{Format: "openapi@3.1"}, {Format: "grpc"}},
+		Formats:      []DelegateFormatInfo{{Format: "openbindings.openapi@1"}, {Format: "grpc"}},
 	}, true)
 	extInvoke := cand(DelegateRecord{
 		Location: "exec:x", Name: "x",
@@ -58,7 +58,7 @@ func TestSelectDelegateFrom(t *testing.T) {
 
 	t.Run("capability present but format absent yields nil", func(t *testing.T) {
 		// extSynth can synthesize, but only thrift — not openapi.
-		if got := selectDelegateFrom([]delegateCandidate{extSynth}, CapSynthesize, "openapi@3.1"); got != nil {
+		if got := selectDelegateFrom([]delegateCandidate{extSynth}, CapSynthesize, "openbindings.openapi@1"); got != nil {
 			t.Fatalf("expected nil (synthesize-capable but wrong format), got %+v", got)
 		}
 	})

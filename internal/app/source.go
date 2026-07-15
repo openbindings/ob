@@ -42,7 +42,7 @@ func (o SourceAddOutput) Render() string {
 	sb.WriteString(s.Dim.Render("Key:      "))
 	sb.WriteString(s.Key.Render(o.Key))
 	sb.WriteString("\n")
-	sb.WriteString(s.Dim.Render("Format:   "))
+	sb.WriteString(s.Dim.Render("BindingSpec:  "))
 	sb.WriteString(o.Format)
 	sb.WriteString("\n")
 	sb.WriteString(s.Dim.Render("Ref:      "))
@@ -87,7 +87,7 @@ func (o SourceListOutput) Render() string {
 		sb.WriteString("\n  ")
 		sb.WriteString(s.Key.Render(src.Key))
 		sb.WriteString(s.Dim.Render("  "))
-		sb.WriteString(src.Source.Format)
+		sb.WriteString(src.Source.BindingSpec)
 		if src.Source.Location != "" {
 			sb.WriteString(s.Dim.Render("  → "))
 			sb.WriteString(src.Source.Location)
@@ -167,8 +167,8 @@ func SourceAdd(input SourceAddInput) (SourceAddOutput, error) {
 	key := input.Key
 	if key == "" {
 		key = DeriveSourceKey(SynthesizeInterfaceSource{
-			Format:   input.Format,
-			Location: input.Location,
+			BindingSpec: input.Format,
+			Location:    input.Location,
 		}, 0)
 	}
 
@@ -209,7 +209,7 @@ func SourceAdd(input SourceAddInput) (SourceAddOutput, error) {
 
 	// Build the source entry.
 	src := openbindings.Source{
-		Format:      input.Format,
+		BindingSpec: input.Format,
 		Description: input.Description,
 	}
 

@@ -301,7 +301,7 @@ cmd "greet" help="Say hello" {}
 	// Location mode (explicit published pointer): bases are recorded.
 	locIface, err := SynthesizeInterface(SynthesizeInterfaceInput{
 		Sources: []SynthesizeInterfaceSource{
-			{Format: usageFormat, Location: filepath.Join(dir, "cli.kdl"), OutputLocation: "https://example.com/cli.kdl"},
+			{BindingSpec: usageFormat, Location: filepath.Join(dir, "cli.kdl"), OutputLocation: "https://example.com/cli.kdl"},
 		},
 		Name: "app",
 	})
@@ -341,7 +341,7 @@ cmd "greet" help="Say hello" {}
 	// reconstruct on demand, equal to the objects' own fields.
 	embIface, err := SynthesizeInterface(SynthesizeInterfaceInput{
 		Sources: []SynthesizeInterfaceSource{
-			{Format: usageFormat, Location: filepath.Join(dir, "cli.kdl")},
+			{BindingSpec: usageFormat, Location: filepath.Join(dir, "cli.kdl")},
 		},
 		Name: "app",
 	})

@@ -12,7 +12,7 @@ import (
 // --from-sources, and ensure hand-authored parts are preserved.
 // Only the usage invoker is used; other format invokers can be added later.
 
-const usageFormat = "usage@2.0.0"
+const usageFormat = "openbindings.usage@1"
 
 // writeUsageFile writes a usage spec to dir/name and returns the full path.
 func writeUsageFile(t *testing.T, dir, name, content string) string {
@@ -46,8 +46,8 @@ cmd "help" help="Show help" {
 
 	iface, err := SynthesizeInterface(SynthesizeInterfaceInput{
 		Sources: []SynthesizeInterfaceSource{
-			{Format: usageFormat, Location: filepath.Join(dir, "greet.usage.kdl")},
-			{Format: usageFormat, Location: filepath.Join(dir, "tools.usage.kdl")},
+			{BindingSpec: usageFormat, Location: filepath.Join(dir, "greet.usage.kdl")},
+			{BindingSpec: usageFormat, Location: filepath.Join(dir, "tools.usage.kdl")},
 		},
 		Name: "multi",
 	})
@@ -112,7 +112,7 @@ cmd "greet" help="Say hello" {
 
 	iface, err := SynthesizeInterface(SynthesizeInterfaceInput{
 		Sources: []SynthesizeInterfaceSource{
-			{Format: usageFormat, Location: path1},
+			{BindingSpec: usageFormat, Location: path1},
 		},
 		Name: "app",
 	})
@@ -168,7 +168,7 @@ cmd "run" help="Run something" {}
 `)
 	iface, err := SynthesizeInterface(SynthesizeInterfaceInput{
 		Sources: []SynthesizeInterfaceSource{
-			{Format: usageFormat, Location: filepath.Join(dir, "main.usage.kdl")},
+			{BindingSpec: usageFormat, Location: filepath.Join(dir, "main.usage.kdl")},
 		},
 		Name: "svc",
 	})
@@ -236,7 +236,7 @@ cmd "greet" help="From spec" {}
 
 	iface, err := SynthesizeInterface(SynthesizeInterfaceInput{
 		Sources: []SynthesizeInterfaceSource{
-			{Format: usageFormat, Location: filepath.Join(dir, "cli.kdl")},
+			{BindingSpec: usageFormat, Location: filepath.Join(dir, "cli.kdl")},
 		},
 		Name: "app",
 	})
@@ -312,8 +312,8 @@ cmd "two" help="Second" {}
 
 	iface, err := SynthesizeInterface(SynthesizeInterfaceInput{
 		Sources: []SynthesizeInterfaceSource{
-			{Format: usageFormat, Location: filepath.Join(dir, "a.kdl")},
-			{Format: usageFormat, Location: filepath.Join(dir, "b.kdl")},
+			{BindingSpec: usageFormat, Location: filepath.Join(dir, "a.kdl")},
+			{BindingSpec: usageFormat, Location: filepath.Join(dir, "b.kdl")},
 		},
 		Name: "multi",
 	})
@@ -336,7 +336,7 @@ cmd "two" help="Second" {}
 
 	var removeKey string
 	for _, e := range listOut {
-		if e.Source.Format == usageFormat {
+		if e.Source.BindingSpec == usageFormat {
 			removeKey = e.Key
 			break
 		}

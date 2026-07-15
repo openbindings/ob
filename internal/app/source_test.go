@@ -23,14 +23,14 @@ func TestSourceAdd_Basic(t *testing.T) {
 
 	result, err := SourceAdd(SourceAddInput{
 		OBIPath:  obiPath,
-		Format:   "usage@2.13.1",
+		Format:   "openbindings.usage@1",
 		Location: artifactPath,
 	})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	if result.Format != "usage@2.13.1" {
+	if result.Format != "openbindings.usage@1" {
 		t.Errorf("expected format usage@2.13.1, got %q", result.Format)
 	}
 	if result.Key == "" {
@@ -60,8 +60,8 @@ func TestSourceAdd_KeyCollision(t *testing.T) {
 		"operations":   map[string]any{},
 		"sources": map[string]any{
 			"myKey": map[string]any{
-				"format":   "usage@2.0.0",
-				"location": "existing.kdl",
+				"bindingSpec": "openbindings.usage@1",
+				"location":    "existing.kdl",
 			},
 		},
 	}
@@ -69,7 +69,7 @@ func TestSourceAdd_KeyCollision(t *testing.T) {
 
 	_, err := SourceAdd(SourceAddInput{
 		OBIPath:  obiPath,
-		Format:   "usage@2.13.1",
+		Format:   "openbindings.usage@1",
 		Location: "other.kdl",
 		Key:      "myKey", // collides with existing
 	})
@@ -90,7 +90,7 @@ func TestSourceAdd_ExplicitKey(t *testing.T) {
 
 	result, err := SourceAdd(SourceAddInput{
 		OBIPath:  obiPath,
-		Format:   "usage@2.13.1",
+		Format:   "openbindings.usage@1",
 		Location: srcPath,
 		Key:      "myCli",
 	})
@@ -136,12 +136,12 @@ func TestSourceList_WithSources(t *testing.T) {
 		"operations":   map[string]any{},
 		"sources": map[string]any{
 			"restApi": map[string]any{
-				"format":   "openapi@3.1",
-				"location": "api.yaml",
+				"bindingSpec": "openbindings.openapi@1",
+				"location":    "api.yaml",
 			},
 			"cliSpec": map[string]any{
-				"format":   "usage@2.0.0",
-				"location": "cli.kdl",
+				"bindingSpec": "openbindings.usage@1",
+				"location":    "cli.kdl",
 			},
 		},
 	}
@@ -174,8 +174,8 @@ func TestSourceRemove_Basic(t *testing.T) {
 		"operations":   map[string]any{},
 		"sources": map[string]any{
 			"myApi": map[string]any{
-				"format":   "openapi@3.1",
-				"location": "api.yaml",
+				"bindingSpec": "openbindings.openapi@1",
+				"location":    "api.yaml",
 			},
 		},
 	}
@@ -225,8 +225,8 @@ func TestSourceRemove_CleansUpBindings(t *testing.T) {
 		},
 		"sources": map[string]any{
 			"myApi": map[string]any{
-				"format":   "openapi@3.1",
-				"location": "api.yaml",
+				"bindingSpec": "openbindings.openapi@1",
+				"location":    "api.yaml",
 			},
 		},
 		"bindings": map[string]any{
@@ -268,12 +268,12 @@ func TestSourceRemove_WarnsUnboundOps(t *testing.T) {
 		},
 		"sources": map[string]any{
 			"rest": map[string]any{
-				"format":   "openapi@3.1",
-				"location": "api.yaml",
+				"bindingSpec": "openbindings.openapi@1",
+				"location":    "api.yaml",
 			},
 			"events": map[string]any{
-				"format":   "asyncapi@3.0",
-				"location": "events.yaml",
+				"bindingSpec": "openbindings.asyncapi@1",
+				"location":    "events.yaml",
 			},
 		},
 		"bindings": map[string]any{
@@ -325,7 +325,7 @@ func TestSourceAdd_RelativePath(t *testing.T) {
 
 	result, err := SourceAdd(SourceAddInput{
 		OBIPath:  obiPath,
-		Format:   "usage@2.13.1",
+		Format:   "openbindings.usage@1",
 		Location: artifactPath,
 	})
 	if err != nil {
@@ -340,8 +340,8 @@ func TestSourceAdd_RelativePath(t *testing.T) {
 
 func TestSourceList_RenderOutput(t *testing.T) {
 	output := SourceListOutput{
-		{Key: "cliSpec", Source: openbindings.Source{Format: "usage@2.0.0", Location: "cli.kdl"}},
-		{Key: "restApi", Source: openbindings.Source{Format: "openapi@3.1", Location: "api.yaml"}},
+		{Key: "cliSpec", Source: openbindings.Source{BindingSpec: "openbindings.usage@1", Location: "cli.kdl"}},
+		{Key: "restApi", Source: openbindings.Source{BindingSpec: "openbindings.openapi@1", Location: "api.yaml"}},
 	}
 
 	rendered := output.Render()
@@ -371,7 +371,7 @@ func TestSourceAdd_LocalFileEmbedsByDefault(t *testing.T) {
 
 	result, err := SourceAdd(SourceAddInput{
 		OBIPath:  obiPath,
-		Format:   "usage@2.0.0",
+		Format:   "openbindings.usage@1",
 		Location: artifactPath,
 	})
 	if err != nil {
@@ -416,7 +416,7 @@ func TestSourceAdd_ExplicitLocationHonored(t *testing.T) {
 
 	result, err := SourceAdd(SourceAddInput{
 		OBIPath:  obiPath,
-		Format:   "usage@2.0.0",
+		Format:   "openbindings.usage@1",
 		Location: artifactPath,
 		Resolve:  ResolveModeLocation,
 	})
@@ -439,7 +439,7 @@ func TestSourceAdd_URIKeepsLocationMode(t *testing.T) {
 
 	result, err := SourceAdd(SourceAddInput{
 		OBIPath:  obiPath,
-		Format:   "openapi@3.1",
+		Format:   "openbindings.openapi@1",
 		Location: artifactPath,
 		URI:      "https://cdn.example.com/api.json",
 	})
@@ -470,7 +470,7 @@ func TestSourceAdd_URLFetchEmbed(t *testing.T) {
 
 	result, err := SourceAdd(SourceAddInput{
 		OBIPath:  obiPath,
-		Format:   "openapi@3.1",
+		Format:   "openbindings.openapi@1",
 		Location: srv.URL + "/openapi.json",
 		Key:      "api",
 		Resolve:  ResolveModeContent,
@@ -506,7 +506,7 @@ func TestSourceAdd_URLDefaultsToLocation(t *testing.T) {
 
 	result, err := SourceAdd(SourceAddInput{
 		OBIPath:  obiPath,
-		Format:   "openapi@3.1",
+		Format:   "openbindings.openapi@1",
 		Location: srv.URL + "/openapi.json",
 		Key:      "api",
 	})
