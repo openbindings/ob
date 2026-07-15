@@ -35,7 +35,7 @@ channels:
 
 operations:
   invokeBinding:
-    action: send
+    action: receive
     channel:
       $ref: "#/channels/bindingsInvoke"
     summary: Invoke a binding via the binding-invoker frame protocol
