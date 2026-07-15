@@ -110,15 +110,15 @@ Examples:
 				if claimErr != nil {
 					return claimErr
 				}
-				src.BindingSpec = claim.FormatToken
+				src.BindingSpec = claim.BindingSpec
 				delegateID = claim.DelegateID
-				fmt.Fprintf(cmd.ErrOrStderr(), "detected format: %s (via %s)\n", claim.FormatToken, claim.DelegateName)
+				fmt.Fprintf(cmd.ErrOrStderr(), "detected format: %s (via %s)\n", claim.BindingSpec, claim.DelegateName)
 			} else if delegateID == "" {
 				// The format is explicit: route by the token through the
 				// delegate registry. Probe-detection is for format-less adds
 				// only (a probe would try every synthesizer against the
 				// location — including ones that dial it as an endpoint).
-				resolved, resErr := app.ResolveDelegateForFormat(src.BindingSpec)
+				resolved, resErr := app.ResolveDelegateForBindingSpec(src.BindingSpec)
 				if resErr != nil {
 					return resErr
 				}
@@ -240,7 +240,7 @@ func promptDelegateSelection(claims []app.DelegateClaim) (app.DelegateClaim, err
 	options := make([]huh.Option[int], len(claims))
 	for i, c := range claims {
 		label := fmt.Sprintf("%s — %s (%d ops, %d bindings)",
-			c.DelegateID, c.FormatToken, c.OperationCount, c.BindingCount)
+			c.DelegateID, c.BindingSpec, c.OperationCount, c.BindingCount)
 		options[i] = huh.NewOption(label, i)
 	}
 

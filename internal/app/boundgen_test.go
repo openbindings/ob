@@ -253,16 +253,16 @@ func TestGenerateBoundCLI_AttachesWireInputTransforms(t *testing.T) {
 	// Ops whose wire field names the CLI spells differently (or that a root
 	// flag shadows) carry an adaptation transform: the BINDING adapts the
 	// wire shape to the CLI's natural surface, leaving the CLI untouched.
-	b = bound.Bindings["openbindings.ob.resolveDelegateForFormat.usage"]
+	b = bound.Bindings["openbindings.ob.resolveDelegateForBindingSpec.usage"]
 	if b.InputTransform == nil {
-		t.Fatal("resolveDelegateForFormat: expected an adaptation transform")
+		t.Fatal("resolveDelegateForBindingSpec: expected an adaptation transform")
 	}
-	out, terr = ApplyTransform(bound.Transforms, b.InputTransform, map[string]any{"format": "openbindings.usage@1"})
+	out, terr = ApplyTransform(bound.Transforms, b.InputTransform, map[string]any{"bindingSpec": "openbindings.usage@1"})
 	if terr != nil {
-		t.Fatalf("resolveDelegateForFormat: transform failed: %v", terr)
+		t.Fatalf("resolveDelegateForBindingSpec: transform failed: %v", terr)
 	}
-	if m, ok := out.(map[string]any); !ok || m["format-token"] != "openbindings.usage@1" || m["format"] != "json" {
-		t.Errorf("resolveDelegateForFormat: expected {format-token, format: json}, got %#v", out)
+	if m, ok := out.(map[string]any); !ok || m["binding-spec"] != "openbindings.usage@1" || m["format"] != "json" {
+		t.Errorf("resolveDelegateForBindingSpec: expected {binding-spec, format: json}, got %#v", out)
 	}
 	// setDelegatePreference: format scopes to --source-format; other fields
 	// pass through untouched.
@@ -271,12 +271,12 @@ func TestGenerateBoundCLI_AttachesWireInputTransforms(t *testing.T) {
 		t.Fatal("setDelegatePreference: expected an adaptation transform")
 	}
 	out, terr = ApplyTransform(bound.Transforms, b.InputTransform, map[string]any{
-		"location": "exec:x", "preference": 5, "operation": "op.key", "format": "grpc",
+		"location": "exec:x", "preference": 5, "operation": "op.key", "bindingSpec": "openbindings.grpc@1",
 	})
 	if terr != nil {
 		t.Fatalf("setDelegatePreference: transform failed: %v", terr)
 	}
-	if m, ok := out.(map[string]any); !ok || m["source-format"] != "grpc" || m["location"] != "exec:x" ||
+	if m, ok := out.(map[string]any); !ok || m["binding-spec"] != "openbindings.grpc@1" || m["location"] != "exec:x" ||
 		m["operation"] != "op.key" || m["format"] != "json" {
 		t.Errorf("setDelegatePreference: unexpected adaptation output %#v", out)
 	}

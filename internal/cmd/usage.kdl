@@ -90,10 +90,10 @@ cmd "delegate" help="Manage delegates" subcommand_required=true {
     flag "-F --format <format>" help="Output format: json|yaml|text"
     arg "<operation>" help="Operation identifier to resolve"
   }
-  cmd "resolve-format" help="Show which delegate ob's routing would select for a format" {
+  cmd "resolve-binding-spec" help="Show which delegate ob's routing would select for a binding specification" {
     flag "-o --output <path>" help="Write output to file"
     flag "-F --format <format>" help="Output format: json|yaml|text"
-    arg "<format-token>" help="Format token to resolve"
+    arg "<binding-spec>" help="Binding specification identifier to resolve"
   }
   cmd "requirements" help="Print the interface a delegate must satisfy for a capability" {
     arg "<capability>" help="Capability: invoke, synthesize, or inspect"
@@ -101,7 +101,7 @@ cmd "delegate" help="Manage delegates" subcommand_required=true {
   cmd "prefer" help="Set or clear a delegate's selection preference (higher = more preferred)" {
     flag "--operation <op>" help="Scope to one operation identifier"
     flag "--capability <cap>" help="Shorthand for the operation of an ob capability: invoke, synthesize, or inspect"
-    flag "--source-format <format>" help="Scope an operation entry to a binding-source format (requires --operation or --capability)"
+    flag "--binding-spec <identifier>" help="Scope an operation entry to one binding specification (requires --operation or --capability)"
     flag "--clear" help="Remove the targeted preference entry instead of setting it"
     flag "-o --output <path>" help="Write output to file"
     flag "-F --format <format>" help="Output format: json|yaml|text"
@@ -110,8 +110,8 @@ cmd "delegate" help="Manage delegates" subcommand_required=true {
   }
 }
 
-cmd "formats" help="List format tokens this ob instance can handle" {
-  alias "format"
+cmd "binding-specs" help="List the binding specifications this ob instance can handle" {
+  alias "binding-spec"
   flag "-o --output <path>" help="Write output to file"
   flag "-F --format <format>" help="Output format: json|yaml|text"
 }

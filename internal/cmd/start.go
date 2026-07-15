@@ -173,7 +173,7 @@ func registerRoutes(srv *server.Server, logger *slog.Logger, port int, oauthSt *
 	mux.HandleFunc("GET /openapi.yaml", handleOpenAPISpec(port))
 	mux.HandleFunc("GET /asyncapi.yaml", handleAsyncAPISpec(port))
 	mux.HandleFunc("GET /describe", handleDescribe)
-	mux.HandleFunc("GET /formats", handleFormats)
+	mux.HandleFunc("GET /binding-specs", handleBindingSpecs)
 	mux.HandleFunc("GET /delegates", handleDelegates)
 	mux.HandleFunc("GET /delegates/resolve/{operation}", handleResolveDelegate)
 
@@ -310,8 +310,8 @@ func handleDescribe(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, app.Info())
 }
 
-func handleFormats(w http.ResponseWriter, r *http.Request) {
-	writeJSON(w, http.StatusOK, app.ListFormats())
+func handleBindingSpecs(w http.ResponseWriter, r *http.Request) {
+	writeJSON(w, http.StatusOK, app.ListBindingSpecs())
 }
 
 func handleDelegates(w http.ResponseWriter, r *http.Request) {
@@ -489,7 +489,7 @@ func handleResolve(w http.ResponseWriter, r *http.Request) {
 	// was synthesized from (absent for native OBIs), and where it was fetched.
 	resp := map[string]any{"interface": iface}
 	if result.Synthesized {
-		resp["synthesizedFrom"] = result.SourceFormat
+		resp["synthesizedFrom"] = result.SourceBindingSpec
 	}
 	if result.OBIURL != "" {
 		resp["resolvedUrl"] = result.OBIURL

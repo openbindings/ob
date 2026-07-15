@@ -22,7 +22,7 @@ handling), and negatives rank a delegate below that baseline.
 With no scope, sets the delegate-level preference (the default for every
 operation it carries). With --operation (or the --capability shorthand for
 ob's three format needs), sets that operation's entry in the delegate's
-preference index; --source-format additionally scopes an operation entry to
+preference index; --binding-spec additionally scopes an operation entry to
 one binding-source format. --clear removes the targeted entry instead.
 
 Preference orders the candidates 'ob delegate resolve' returns; which
@@ -32,7 +32,7 @@ Examples:
   ob delegate prefer exec:acme 5
   ob delegate prefer exec:acme 10 --capability synthesize
   ob delegate prefer exec:acme 10 --operation openbindings.key-value-store.get
-  ob delegate prefer exec:acme 10 --capability invoke --source-format grpc
+  ob delegate prefer exec:acme 10 --capability invoke --binding-spec openbindings.grpc@1
   ob delegate prefer exec:acme --clear --capability synthesize`,
 		Args: cobra.RangeArgs(1, 2),
 		RunE: func(cmd *cobra.Command, args []string) error {
@@ -65,10 +65,10 @@ Examples:
 			}
 
 			result, err := app.SetDelegatePreference(app.SetDelegatePreferenceInput{
-				Location:   args[0],
-				Preference: pref,
-				Operation:  op,
-				Format:     sourceFormat,
+				Location:    args[0],
+				Preference:  pref,
+				Operation:   op,
+				BindingSpec: sourceFormat,
 			})
 			if err != nil {
 				return err
@@ -80,7 +80,7 @@ Examples:
 
 	cmd.Flags().StringVar(&operation, "operation", "", "scope to one operation identifier")
 	cmd.Flags().StringVar(&capability, "capability", "", "shorthand for the operation of an ob capability: invoke, synthesize, or inspect")
-	cmd.Flags().StringVar(&sourceFormat, "source-format", "", "scope an operation entry to a binding-source format (requires --operation or --capability)")
+	cmd.Flags().StringVar(&sourceFormat, "binding-spec", "", "scope an operation entry to one binding specification (requires --operation or --capability)")
 	cmd.Flags().BoolVar(&clear, "clear", false, "remove the targeted preference entry instead of setting it")
 
 	return cmd

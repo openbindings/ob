@@ -21,7 +21,7 @@ self-delegate.`,
 		newDelegateUnregisterCmd(),
 		newDelegateListCmd(),
 		newDelegateResolveCmd(),
-		newDelegateResolveFormatCmd(),
+		newDelegateResolveBindingSpecCmd(),
 		newDelegateRequirementsCmd(),
 		newDelegatePreferCmd(),
 	)

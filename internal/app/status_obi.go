@@ -25,15 +25,15 @@ type OBIStatusInput struct {
 // `source add` / synthesize); untracked sources are hand-authored and pull
 // skips them.
 type SourceStatus struct {
-	Key        string `json:"key"`
-	Format     string `json:"format"`
-	Ref        string `json:"ref,omitempty"`
-	Resolve    string `json:"resolve,omitempty"`
-	InSync     bool   `json:"inSync"`
-	Tracked    bool   `json:"tracked"`
-	LastSynced string `json:"lastSynced,omitempty"`
-	OBVersion  string `json:"obVersion,omitempty"`
-	Error      string `json:"error,omitempty"`
+	Key         string `json:"key"`
+	BindingSpec string `json:"bindingSpec"`
+	Ref         string `json:"ref,omitempty"`
+	Resolve     string `json:"resolve,omitempty"`
+	InSync      bool   `json:"inSync"`
+	Tracked     bool   `json:"tracked"`
+	LastSynced  string `json:"lastSynced,omitempty"`
+	OBVersion   string `json:"obVersion,omitempty"`
+	Error       string `json:"error,omitempty"`
 
 	// ContentDrift reports that the artifact's bytes have diverged from the
 	// last-synced state (the recorded contentHash — and in embed mode, the
@@ -115,7 +115,7 @@ func (o OBIStatusOutput) Render() string {
 	for _, src := range o.Sources {
 		sb.WriteString("  ")
 		sb.WriteString(s.Key.Render(padRight(src.Key, 18)))
-		sb.WriteString(padRight(src.Format, 16))
+		sb.WriteString(padRight(src.BindingSpec, 16))
 		if src.Ref != "" {
 			sb.WriteString(padRight(src.Ref, 24))
 		}
@@ -272,8 +272,8 @@ func OBIStatus(input OBIStatusInput) (OBIStatusOutput, error) {
 	for _, key := range srcKeys {
 		src := iface.Sources[key]
 		ss := SourceStatus{
-			Key:    key,
-			Format: src.BindingSpec,
+			Key:         key,
+			BindingSpec: src.BindingSpec,
 		}
 
 		meta, err := GetSourceMeta(src)

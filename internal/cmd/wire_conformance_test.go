@@ -150,7 +150,7 @@ func TestWireConformance_ExecLane(t *testing.T) {
 		check func(t *testing.T, output any)
 	}{
 		{"describe", "openbindings.ob.describe", nil, nil},
-		{"listFormats", "openbindings.ob.listFormats", nil, nil},
+		{"listBindingSpecs", "openbindings.ob.listBindingSpecs", nil, nil},
 		{"initializeEnvironment", "openbindings.ob.initializeEnvironment", map[string]any{"global": true}, nil},
 		{"reportEnvironmentStatus", "openbindings.ob.reportEnvironmentStatus", nil, nil},
 		{"listContexts", "openbindings.ob.listContexts", nil, nil},
@@ -173,7 +173,7 @@ func TestWireConformance_ExecLane(t *testing.T) {
 			}
 		}},
 		{"removeContext", "openbindings.ob.removeContext", map[string]any{"key": "https://wire.example.com"}, nil},
-		{"resolveDelegateForFormat", "openbindings.ob.resolveDelegateForFormat", map[string]any{"format": "openbindings.usage@1"}, nil},
+		{"resolveDelegateForBindingSpec", "openbindings.ob.resolveDelegateForBindingSpec", map[string]any{"bindingSpec": "openbindings.usage@1"}, nil},
 		{"registerDelegate", "openbindings.ob.registerDelegate", map[string]any{"location": "exec:ob-fixture", "preference": 5}, nil},
 		{"setDelegatePreference", "openbindings.ob.setDelegatePreference", map[string]any{"location": "exec:ob-fixture", "preference": 10}, nil},
 		{"unregisterDelegate", "openbindings.ob.unregisterDelegate", map[string]any{"location": "exec:ob-fixture"}, nil},

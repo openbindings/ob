@@ -31,9 +31,9 @@ success = exit 0, fields ride argv).
 | `openbindings.ob.inspectSource` | `ob inspect` | json | 0 (assumption) | — |
 | `openbindings.ob.invokeBinding` | `ob binding invoke` | json | 0 (assumption) | — |
 | `openbindings.ob.invokeOperation` | `ob operation invoke` | json | 0 (assumption) | — |
+| `openbindings.ob.listBindingSpecs` | `ob binding-specs` | json | 0 (assumption) | — |
 | `openbindings.ob.listContexts` | `ob context list` | json | 0 (assumption) | — |
 | `openbindings.ob.listDelegates` | `ob delegate list` | json | 0 (assumption) | — |
-| `openbindings.ob.listFormats` | `ob formats` | json | 0 (assumption) | — |
 | `openbindings.ob.listOperationAliases` | `ob operation alias list` | json | 0 (assumption) | obi=stdin-dash |
 | `openbindings.ob.listOperations` | `ob operation list` | json | 0 (assumption) | obi=stdin-dash |
 | `openbindings.ob.listSources` | `ob source list` | json | 0 (assumption) | obi-path=stdin-dash |
@@ -53,7 +53,7 @@ success = exit 0, fields ride argv).
 | `openbindings.ob.reportEnvironmentStatus` | `ob environment` | json | 0 (assumption) | — |
 | `openbindings.ob.reportInterfaceStatus` | `ob status` | json | 0 (assumption) | obi-path=stdin-dash |
 | `openbindings.ob.resolveDelegate` | `ob delegate resolve` | json | 0 (assumption) | — |
-| `openbindings.ob.resolveDelegateForFormat` | `ob delegate resolve-format` | json | 0 (assumption) | — |
+| `openbindings.ob.resolveDelegateForBindingSpec` | `ob delegate resolve-binding-spec` | json | 0 (assumption) | — |
 | `openbindings.ob.resolveInterface` | `ob resolve` | json | 0 (assumption) | — |
 | `openbindings.ob.setContext` | `ob context set` | json | 0 (assumption) | value=stdin-dash |
 | `openbindings.ob.setDelegatePreference` | `ob delegate prefer` | json | 0 (assumption) | — |

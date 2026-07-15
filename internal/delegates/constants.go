@@ -24,8 +24,10 @@ const WellKnownPath = openbindings.WellKnownPath
 
 // Standard operation names from the OpenBindings binding invoker interface.
 const (
-	// OpListFormats is the listFormats operation.
-	OpListFormats = "listFormats"
+	// OpListBindingSpecs is the binding-invoker contract's listBindingSpecs
+	// operation key; a delegate's spec-listing operation corresponds to it
+	// by key or alias (OBI-T-12).
+	OpListBindingSpecs = "openbindings.binding-invoker.listBindingSpecs"
 )
 
 // Timeouts for network and probe operations.

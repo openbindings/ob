@@ -21,7 +21,7 @@ const probeTimeout = 5 * time.Second
 type DelegateClaim struct {
 	DelegateName   string // human-friendly name (e.g. "ob", "acme-openapi")
 	DelegateID     string // identifier stored in x-ob.delegate: "ob" for builtin, location for external
-	FormatToken    string // e.g. "openapi@3.1"
+	BindingSpec    string // exact identifier, e.g. "openbindings.openapi@1"
 	OperationCount int
 	BindingCount   int
 }
@@ -62,7 +62,7 @@ func DetectSourceCandidates(location string) ([]DelegateClaim, error) {
 		claims = append(claims, DelegateClaim{
 			DelegateName:   "ob",
 			DelegateID:     "ob",
-			FormatToken:    formatToken,
+			BindingSpec:    formatToken,
 			OperationCount: len(iface.Operations),
 			BindingCount:   len(iface.Bindings),
 		})
@@ -86,7 +86,7 @@ func DetectSourceFormat(location string) (string, error) {
 
 	distinct := map[string][]string{}
 	for _, c := range claims {
-		distinct[c.FormatToken] = append(distinct[c.FormatToken], c.DelegateName)
+		distinct[c.BindingSpec] = append(distinct[c.BindingSpec], c.DelegateName)
 	}
 
 	if len(distinct) == 1 {

@@ -44,8 +44,8 @@ type DriftEntry struct {
 
 // DriftSource identifies which source produced a particular version of an operation.
 type DriftSource struct {
-	Key    string `json:"key"`
-	Format string `json:"format"`
+	Key         string `json:"key"`
+	BindingSpec string `json:"bindingSpec"`
 }
 
 // DiffReport is the full diff result between two OBIs. It reports only
@@ -294,8 +294,8 @@ func detectCrossSourceDrift(perSource []perSourceDerivation) []DriftEntry {
 		if hasDrift {
 			for _, s := range sources {
 				driftSources = append(driftSources, DriftSource{
-					Key:    s.sourceKey,
-					Format: s.format,
+					Key:         s.sourceKey,
+					BindingSpec: s.format,
 				})
 			}
 			drift = append(drift, DriftEntry{
