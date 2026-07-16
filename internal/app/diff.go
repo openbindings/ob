@@ -388,13 +388,18 @@ func diffMetadata(a, b *openbindings.Interface) []MetadataDiff {
 func diffOperation(a, b openbindings.Operation, aRoot, bRoot map[string]any) []string {
 	var details []string
 
-	// Compare schemas (input, output) using normalization.
+	// Compare schemas (input, output) using normalization. Boolean schemas
+	// take their equivalent object spellings (true = {}, false = {"not": {}}).
+	aIn, _ := openbindings.SchemaObjectForm(a.Input)
+	bIn, _ := openbindings.SchemaObjectForm(b.Input)
+	aOut, _ := openbindings.SchemaObjectForm(a.Output)
+	bOut, _ := openbindings.SchemaObjectForm(b.Output)
 	for _, slot := range []struct {
 		name string
 		a, b map[string]any
 	}{
-		{"input", a.Input, b.Input},
-		{"output", a.Output, b.Output},
+		{"input", aIn, bIn},
+		{"output", aOut, bOut},
 	} {
 		if !schemasEqual(slot.a, slot.b, aRoot, bRoot) {
 			details = append(details, fmt.Sprintf("%s schema differs", slot.name))

@@ -74,15 +74,17 @@ func Generate(iface *openbindings.Interface) (*CodegenResult, error) {
 
 		pathPrefix := toPascalCase(sig.Name)
 
-		// Convert input schema.
-		if op.Input != nil && len(op.Input) > 0 {
-			inputRef := conv.convert(op.Input, pathPrefix+"Input")
+		// Convert input schema. Boolean schemas take their equivalent
+		// object spellings (true = {}, which stays untyped like an empty
+		// schema; false = {"not": {}}).
+		if in, ok := openbindings.SchemaObjectForm(op.Input); ok && len(in) > 0 {
+			inputRef := conv.convert(in, pathPrefix+"Input")
 			sig.Input = &inputRef
 		}
 
 		// Convert output schema.
-		if op.Output != nil && len(op.Output) > 0 {
-			outputRef := conv.convert(op.Output, pathPrefix+"Output")
+		if out, ok := openbindings.SchemaObjectForm(op.Output); ok && len(out) > 0 {
+			outputRef := conv.convert(out, pathPrefix+"Output")
 			sig.Output = &outputRef
 		}
 

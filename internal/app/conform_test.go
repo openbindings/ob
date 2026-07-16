@@ -138,7 +138,7 @@ func TestConform_ReplaceAddsAliasWhenKeysDiffer(t *testing.T) {
 	}
 
 	// The schema was replaced with the contract's (now requires "key", not "identifier").
-	props, _ := op.Input["properties"].(map[string]any)
+	props, _ := op.Input.(map[string]any)["properties"].(map[string]any)
 	if _, ok := props["key"]; !ok {
 		t.Errorf("expected input schema replaced with contract's (key property), got %v", op.Input)
 	}
@@ -275,7 +275,7 @@ func TestConform_ReplaceDetailsIncompatible(t *testing.T) {
 	if out.Result == nil {
 		t.Fatal("expected conformed document in Result for doc-in conform")
 	}
-	props, _ := out.Result.Operations["greet"].Input["properties"].(map[string]any)
+	props, _ := out.Result.Operations["greet"].Input.(map[string]any)["properties"].(map[string]any)
 	if _, ok := props["tone"]; ok {
 		t.Error("expected input schema replaced with the contract's (no tone property)")
 	}

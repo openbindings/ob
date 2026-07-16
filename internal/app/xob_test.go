@@ -112,7 +112,7 @@ func TestStripAllXOB(t *testing.T) {
 			"hello": {
 				// A floor-stamped output schema (x-ob INSIDE the schema body)
 				// plus a nested floor-stamp reached through properties.
-				Output: openbindings.JSONSchema{
+				Output: map[string]any{
 					"type": "object",
 					"x-ob": map[string]any{"floor": "text"},
 					"properties": map[string]any{
@@ -128,7 +128,7 @@ func TestStripAllXOB(t *testing.T) {
 			},
 		},
 		Schemas: map[string]openbindings.JSONSchema{
-			"Pet": {"type": "object", "x-ob": map[string]any{"floor": "text"}},
+			"Pet": map[string]any{"type": "object", "x-ob": map[string]any{"floor": "text"}},
 		},
 	}
 
@@ -146,14 +146,14 @@ func TestStripAllXOB(t *testing.T) {
 	}
 	// The in-schema floor-stamp must be stripped at every level (the doc
 	// comment's "recursively" is load-bearing now).
-	out := iface.Operations["hello"].Output
+	out := iface.Operations["hello"].Output.(map[string]any)
 	if _, ok := out["x-ob"]; ok {
 		t.Error("expected in-schema x-ob stripped from operation output")
 	}
 	if inner, _ := out["properties"].(map[string]any)["inner"].(map[string]any); inner["x-ob"] != nil {
 		t.Error("expected in-schema x-ob stripped from a nested subschema")
 	}
-	if _, ok := iface.Schemas["Pet"]["x-ob"]; ok {
+	if _, ok := iface.Schemas["Pet"].(map[string]any)["x-ob"]; ok {
 		t.Error("expected in-schema x-ob stripped from the shared schemas section")
 	}
 }
@@ -162,7 +162,7 @@ func TestStripAllXOB(t *testing.T) {
 // a pull re-applies it onto a floor derivation but a grown source schema
 // displaces it; purify strips the marker while the elected value stays.
 func TestOutputSchemaElection(t *testing.T) {
-	elected := openbindings.JSONSchema{"type": "array", "items": map[string]any{"type": "object"}}
+	elected := map[string]any{"type": "array", "items": map[string]any{"type": "object"}}
 
 	var lf openbindings.LosslessFields
 	if err := SetOutputSchemaElection(&lf, elected); err != nil {
@@ -172,16 +172,16 @@ func TestOutputSchemaElection(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got["type"] != "array" {
+	if got.(map[string]any)["type"] != "array" {
 		t.Errorf("round-trip = %#v", got)
 	}
 
 	// Pull re-application onto a floor derivation.
 	existing := openbindings.Operation{LosslessFields: lf}
-	fresh := openbindings.Operation{Output: openbindings.JSONSchema{"type": "string", "x-ob": map[string]any{"floor": "text"}}}
+	fresh := openbindings.Operation{Output: map[string]any{"type": "string", "x-ob": map[string]any{"floor": "text"}}}
 	var warns []string
 	carryOutputSchemaElection(existing, &fresh, "op", &warns)
-	if fresh.Output["type"] != "array" {
+	if fresh.Output.(map[string]any)["type"] != "array" {
 		t.Errorf("election should re-apply onto a floor derivation, got %#v", fresh.Output)
 	}
 	if len(warns) != 0 {
@@ -189,10 +189,10 @@ func TestOutputSchemaElection(t *testing.T) {
 	}
 
 	// A grown, non-floor source schema wins and displaces the election.
-	fresh2 := openbindings.Operation{Output: openbindings.JSONSchema{"type": "object", "properties": map[string]any{"id": map[string]any{"type": "integer"}}}}
+	fresh2 := openbindings.Operation{Output: map[string]any{"type": "object", "properties": map[string]any{"id": map[string]any{"type": "integer"}}}}
 	var warns2 []string
 	carryOutputSchemaElection(existing, &fresh2, "op", &warns2)
-	if fresh2.Output["type"] != "object" {
+	if fresh2.Output.(map[string]any)["type"] != "object" {
 		t.Errorf("a grown source schema must win, got %#v", fresh2.Output)
 	}
 	if len(warns2) == 0 {

@@ -557,9 +557,12 @@ func migrateSchemaRefs(target, source *openbindings.Interface, op openbindings.O
 		return
 	}
 
-	// Collect all $ref keys from the operation's schema slots.
-	refs := collectRefs(op.Input)
-	refs = append(refs, collectRefs(op.Output)...)
+	// Collect all $ref keys from the operation's schema slots (boolean
+	// schemas carry no refs).
+	opInput, _ := op.Input.(map[string]any)
+	opOutput, _ := op.Output.(map[string]any)
+	refs := collectRefs(opInput)
+	refs = append(refs, collectRefs(opOutput)...)
 
 	if len(refs) == 0 {
 		return

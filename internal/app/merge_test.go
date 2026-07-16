@@ -172,7 +172,7 @@ func TestMerge_UpdateOperation_PreservesUserFields(t *testing.T) {
 	if op.Input == nil {
 		t.Fatal("expected input schema")
 	}
-	props, ok := op.Input["properties"].(map[string]any)
+	props, ok := op.Input.(map[string]any)["properties"].(map[string]any)
 	if !ok {
 		t.Fatal("expected properties in input")
 	}
