@@ -214,10 +214,13 @@ func TestContextGitHub_SecuritySchemeApplication(t *testing.T) {
 		t.Fatalf("write spec: %v", err)
 	}
 
+	// The invoke lane takes the conformant file:// spelling for a local
+	// artifact (OAPI-D-02): bare filesystem paths are relative in form and
+	// refused by the loader.
 	execInput := InvocationInput{
 		Source: InvokeSource{
 			BindingSpec: "openbindings.openapi@1",
-			Location:    specPath,
+			Location:    "file://" + specPath,
 		},
 		Ref:     "#/paths/~1user/get",
 		Input:   nil,
@@ -277,10 +280,13 @@ func TestContextGitHub_NoCredentialsFails(t *testing.T) {
 		t.Fatalf("write spec: %v", err)
 	}
 
+	// The invoke lane takes the conformant file:// spelling for a local
+	// artifact (OAPI-D-02): bare filesystem paths are relative in form and
+	// refused by the loader.
 	execInput := InvocationInput{
 		Source: InvokeSource{
 			BindingSpec: "openbindings.openapi@1",
-			Location:    specPath,
+			Location:    "file://" + specPath,
 		},
 		Ref: "#/paths/~1user/get",
 	}
