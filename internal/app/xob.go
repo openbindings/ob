@@ -324,11 +324,12 @@ func StripAllXOB(iface *openbindings.Interface) {
 // $defs, items/prefixItems, additionalProperties, oneOf/anyOf/allOf/not,
 // if/then/else). Content-independent: it deletes only the extension key.
 func stripXOBFromSchema(schema openbindings.JSONSchema) {
-	if schema == nil {
+	schemaObj, isObj := schema.(map[string]any)
+	if !isObj {
 		return
 	}
-	delete(schema, xobKey)
-	for key, v := range schema {
+	delete(schemaObj, xobKey)
+	for key, v := range schemaObj {
 		switch key {
 		case "properties", "patternProperties", "definitions", "$defs":
 			if sub, ok := v.(map[string]any); ok {

@@ -320,17 +320,17 @@ func GenerateBoundCLI(contractPath, usagePath string) (*openbindings.Interface, 
 // to the CLI's root -F/--format flag under the usage transport's field-name
 // mapping, so the -F json forcing transform must not clobber it.
 func inputHasFormatField(contract *openbindings.Interface, op openbindings.Operation) bool {
-	schema := map[string]any(op.Input)
+	schema, _ := op.Input.(map[string]any)
 	if schema == nil {
 		return false
 	}
 	if ref, ok := schema["$ref"].(string); ok && strings.HasPrefix(ref, "#/schemas/") {
 		name := strings.TrimPrefix(ref, "#/schemas/")
-		resolved, ok := contract.Schemas[name]
+		resolved, ok := contract.Schemas[name].(map[string]any)
 		if !ok {
 			return false
 		}
-		schema = map[string]any(resolved)
+		schema = resolved
 	}
 	props, _ := schema["properties"].(map[string]any)
 	_, has := props["format"]

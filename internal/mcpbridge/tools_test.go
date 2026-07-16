@@ -76,7 +76,7 @@ func TestRegisterInterface_PromptFromMCPBinding(t *testing.T) {
 		Operations: map[string]openbindings.Operation{
 			"codeReview": {
 				Description: "Review code",
-				Input: openbindings.JSONSchema{
+				Input: map[string]any{
 					"type": "object",
 					"properties": map[string]any{
 						"code": map[string]any{"type": "string"},
@@ -219,7 +219,7 @@ func TestBundleInputSchema_Empty(t *testing.T) {
 }
 
 func TestBundleInputSchema_NoRefsPassThrough(t *testing.T) {
-	input := openbindings.JSONSchema{"type": "object", "properties": map[string]any{"a": map[string]any{"type": "string"}}}
+	input := map[string]any{"type": "object", "properties": map[string]any{"a": map[string]any{"type": "string"}}}
 	m := bundleInputSchema(input, nil).(map[string]any)
 	if m["type"] != "object" || m["properties"] == nil {
 		t.Fatalf("type+properties should be preserved, got %v", m)
@@ -231,7 +231,7 @@ func TestBundleInputSchema_NoRefsPassThrough(t *testing.T) {
 
 func TestBundleInputSchema_BundlesAndRewritesRefs(t *testing.T) {
 	schemas := map[string]openbindings.JSONSchema{
-		"ValidateInput": {
+		"ValidateInput": map[string]any{
 			"type": "object",
 			"properties": map[string]any{
 				"interface": map[string]any{"$ref": "#/schemas/Iface"},
@@ -239,12 +239,12 @@ func TestBundleInputSchema_BundlesAndRewritesRefs(t *testing.T) {
 			},
 			"required": []any{"interface"},
 		},
-		"Iface": {
+		"Iface": map[string]any{
 			"type":       "object",
 			"properties": map[string]any{"name": map[string]any{"type": "string"}},
 		},
 	}
-	got := bundleInputSchema(openbindings.JSONSchema{"$ref": "#/schemas/ValidateInput"}, schemas).(map[string]any)
+	got := bundleInputSchema(map[string]any{"$ref": "#/schemas/ValidateInput"}, schemas).(map[string]any)
 
 	// The top-level ref is resolved to a concrete object schema.
 	if got["type"] != "object" || got["properties"] == nil {
@@ -267,13 +267,13 @@ func TestBundleInputSchema_BundlesAndRewritesRefs(t *testing.T) {
 
 func TestBundleInputSchema_HandlesCycle(t *testing.T) {
 	schemas := map[string]openbindings.JSONSchema{
-		"Node": {
+		"Node": map[string]any{
 			"type":       "object",
 			"properties": map[string]any{"child": map[string]any{"$ref": "#/schemas/Node"}},
 		},
 	}
 	// Must terminate despite the self-reference.
-	got := bundleInputSchema(openbindings.JSONSchema{"$ref": "#/schemas/Node"}, schemas).(map[string]any)
+	got := bundleInputSchema(map[string]any{"$ref": "#/schemas/Node"}, schemas).(map[string]any)
 	defs, _ := got["$defs"].(map[string]any)
 	if _, ok := defs["Node"]; !ok {
 		t.Errorf("expected Node in $defs, got %v", defs)

@@ -190,7 +190,7 @@ func buildNormalizerRoot(iface *openbindings.Interface) map[string]any {
 	if len(iface.Schemas) > 0 {
 		schemas := map[string]any{}
 		for k, v := range iface.Schemas {
-			schemas[k] = map[string]any(v)
+			schemas[k] = v
 		}
 		root["schemas"] = schemas
 	}

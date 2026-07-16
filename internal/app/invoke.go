@@ -1021,7 +1021,7 @@ func effectiveInputSchema(iface *openbindings.Interface, binding *openbindings.B
 		return schema
 	}
 	if transformedInput != nil {
-		return openbindings.JSONSchema{}
+		return map[string]any{}
 	}
 	return nil
 }

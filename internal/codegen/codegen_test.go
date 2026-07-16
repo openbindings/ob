@@ -190,7 +190,7 @@ func TestCodegenNameOverride(t *testing.T) {
 			// Overridden: verbose key, friendly symbol name, inline input so the
 			// I/O type name follows the override too.
 			"openbindings.binding-invoker.invokeBinding": {
-				Input: openbindings.JSONSchema{
+				Input: map[string]any{
 					"type":       "object",
 					"properties": map[string]any{"format": map[string]any{"type": "string"}},
 				},
@@ -202,7 +202,7 @@ func TestCodegenNameOverride(t *testing.T) {
 			},
 			// No override: keeps the verbose full-key derivation.
 			"openbindings.binding-invoker.listFormats": {
-				Output: openbindings.JSONSchema{"type": "object"},
+				Output: map[string]any{"type": "object"},
 			},
 		},
 	}

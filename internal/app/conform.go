@@ -325,9 +325,15 @@ func copySchema(schema openbindings.JSONSchema, contractIface, target *openbindi
 		return nil
 	}
 
+	// Boolean schemas reference nothing; copy by value.
+	schemaObj, isObj := schema.(map[string]any)
+	if !isObj {
+		return schema
+	}
+
 	// If the schema is a $ref to a contract schema, copy the referenced schema
 	// into the target's schemas pool and return the same $ref.
-	if ref, ok := schema["$ref"].(string); ok {
+	if ref, ok := schemaObj["$ref"].(string); ok {
 		if strings.HasPrefix(ref, "#/schemas/") {
 			schemaName := strings.TrimPrefix(ref, "#/schemas/")
 			if contractSchema, ok := contractIface.Schemas[schemaName]; ok {
@@ -342,7 +348,7 @@ func copySchema(schema openbindings.JSONSchema, contractIface, target *openbindi
 				}
 			}
 		}
-		return openbindings.JSONSchema{"$ref": ref}
+		return map[string]any{"$ref": ref}
 	}
 
 	// For inline schemas, deep copy and handle nested $refs.
@@ -366,7 +372,11 @@ func deepCopySchema(schema openbindings.JSONSchema) openbindings.JSONSchema {
 
 // copyNestedRefs walks a schema and copies any $ref'd schemas from the contract.
 func copyNestedRefs(schema openbindings.JSONSchema, contractIface, target *openbindings.Interface) {
-	for _, v := range schema {
+	schemaObj, isObj := schema.(map[string]any)
+	if !isObj {
+		return
+	}
+	for _, v := range schemaObj {
 		switch val := v.(type) {
 		case map[string]any:
 			if ref, ok := val["$ref"].(string); ok && strings.HasPrefix(ref, "#/schemas/") {

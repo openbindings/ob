@@ -325,16 +325,23 @@ func compareOperationDeltas(left, right resolvedComparisonInput, mode string) []
 			Match:    &MatchRecord{Strategy: strategy, Left: key, Right: matchKey},
 			Findings: []Finding{},
 		}
+		// Boolean schemas take their equivalent object spellings (true = {},
+		// false = {"not": {}}) so the slot comparators see one form; a nil
+		// (absent) slot stays nil.
+		leftIn, _ := openbindings.SchemaObjectForm(leftOp.Input)
+		rightIn, _ := openbindings.SchemaObjectForm(rightOp.Input)
+		leftOut, _ := openbindings.SchemaObjectForm(leftOp.Output)
+		rightOut, _ := openbindings.SchemaObjectForm(rightOp.Output)
 		if leftOp.Input != nil || rightOp.Input != nil {
-			delta.Input = compareSchemaSlot("input", leftOp.Input, rightOp.Input, leftRoot, rightRoot)
-			delta.Findings = append(delta.Findings, schemaFindings(key, "input", leftOp.Input, rightOp.Input, leftRoot, rightRoot)...)
-			delta.Findings = append(delta.Findings, subsumptionFindings(key, "input", leftOp.Input, rightOp.Input, leftRoot, rightRoot, delta.Findings)...)
+			delta.Input = compareSchemaSlot("input", leftIn, rightIn, leftRoot, rightRoot)
+			delta.Findings = append(delta.Findings, schemaFindings(key, "input", leftIn, rightIn, leftRoot, rightRoot)...)
+			delta.Findings = append(delta.Findings, subsumptionFindings(key, "input", leftIn, rightIn, leftRoot, rightRoot, delta.Findings)...)
 			delta.Input = compatibilityForFindings("input", delta.Input.Verdict, delta.Findings)
 		}
 		if leftOp.Output != nil || rightOp.Output != nil {
-			delta.Output = compareSchemaSlot("output", leftOp.Output, rightOp.Output, leftRoot, rightRoot)
-			delta.Findings = append(delta.Findings, schemaFindings(key, "output", leftOp.Output, rightOp.Output, leftRoot, rightRoot)...)
-			delta.Findings = append(delta.Findings, subsumptionFindings(key, "output", leftOp.Output, rightOp.Output, leftRoot, rightRoot, delta.Findings)...)
+			delta.Output = compareSchemaSlot("output", leftOut, rightOut, leftRoot, rightRoot)
+			delta.Findings = append(delta.Findings, schemaFindings(key, "output", leftOut, rightOut, leftRoot, rightRoot)...)
+			delta.Findings = append(delta.Findings, subsumptionFindings(key, "output", leftOut, rightOut, leftRoot, rightRoot, delta.Findings)...)
 			delta.Output = compatibilityForFindings("output", delta.Output.Verdict, delta.Findings)
 		}
 		deltas = append(deltas, delta)
@@ -632,7 +639,7 @@ func compareSchemaAt(findings *[]Finding, opKey, direction string, left, right m
 func schemaRoot(iface *openbindings.Interface) map[string]any {
 	schemas := make(map[string]any, len(iface.Schemas))
 	for name, s := range iface.Schemas {
-		schemas[name] = map[string]any(s)
+		schemas[name] = s
 	}
 	return map[string]any{"schemas": schemas}
 }

@@ -323,7 +323,8 @@ func registerPrompt(
 	promptName := strings.TrimPrefix(ref, "prompts/")
 
 	var args []*mcp.PromptArgument
-	if props, ok := op.Input["properties"].(map[string]any); ok {
+	inputObj, _ := op.Input.(map[string]any)
+	if props, ok := inputObj["properties"].(map[string]any); ok {
 		for k := range props {
 			args = append(args, &mcp.PromptArgument{Name: k})
 		}
@@ -382,10 +383,14 @@ func guessMIME(uri string) string {
 // every transitively-referenced shared schema under "$defs", rewriting
 // "#/schemas/X" -> "#/$defs/X". Cyclic schemas are handled (each is added once).
 func bundleInputSchema(input openbindings.JSONSchema, schemas map[string]openbindings.JSONSchema) any {
-	if len(input) == 0 {
+	// Boolean and non-object schema forms carry no refs to bundle; MCP tool
+	// schemas want a concrete object root, so treat them like an absent
+	// contract (true/{} accept everything; false has no MCP rendering).
+	inputObj, isObj := input.(map[string]any)
+	if !isObj || len(inputObj) == 0 {
 		return map[string]any{"type": "object"}
 	}
-	root, ok := deepCopyJSON(map[string]any(input)).(map[string]any)
+	root, ok := deepCopyJSON(inputObj).(map[string]any)
 	if !ok {
 		return map[string]any{"type": "object"}
 	}
@@ -393,8 +398,8 @@ func bundleInputSchema(input openbindings.JSONSchema, schemas map[string]openbin
 	// Resolve a top-level $ref to a shared schema so the root is concrete
 	// (type/properties/required), which is the most broadly-accepted tool shape.
 	if name, ok := schemaRefName(root["$ref"]); ok {
-		if target, ok := schemas[name]; ok {
-			if cp, ok := deepCopyJSON(map[string]any(target)).(map[string]any); ok {
+		if target, ok := schemas[name].(map[string]any); ok {
+			if cp, ok := deepCopyJSON(target).(map[string]any); ok {
 				root = cp
 			}
 		}
@@ -409,8 +414,8 @@ func bundleInputSchema(input openbindings.JSONSchema, schemas map[string]openbin
 			if name, ok := schemaRefName(n["$ref"]); ok {
 				n["$ref"] = "#/$defs/" + name
 				if _, seen := defs[name]; !seen {
-					if target, ok := schemas[name]; ok {
-						cp, _ := deepCopyJSON(map[string]any(target)).(map[string]any)
+					if target, ok := schemas[name].(map[string]any); ok {
+						cp, _ := deepCopyJSON(target).(map[string]any)
 						defs[name] = cp
 						walk(cp)
 					}
