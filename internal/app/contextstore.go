@@ -5,7 +5,6 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -13,7 +12,6 @@ import (
 	"strings"
 
 	openbindings "github.com/openbindings/openbindings-go"
-	"github.com/zalando/go-keyring"
 )
 
 // ContextConfig holds the non-secret fields of a URL-keyed context.
@@ -140,66 +138,40 @@ func SaveContextConfig(rawURL string, cfg ContextConfig) error {
 	return AtomicWriteFile(path, data, FilePerm)
 }
 
-// LoadContextCredentials reads credentials from the OS keychain for a URL.
-// Returns nil (not an error) if no credentials are stored.
-// The returned map uses well-known field names (bearerToken, apiKey, basic).
-// The key is normalized (http → https) at this boundary, matching the
-// config-file store, so credentials set with an http:// target resolve when
-// the same origin is looked up under either scheme.
+// LoadContextCredentials reads a URL's credentials from the active credential
+// backend (OS keychain by default; a JSON file when OB_CREDENTIALS_FILE is
+// set). Returns nil (not an error) if no credentials are stored. The returned
+// map uses well-known field names (bearerToken, apiKey, basic). The key is
+// normalized (http → https) at this boundary, matching the config-file store,
+// so credentials set with an http:// target resolve when the same origin is
+// looked up under either scheme.
 func LoadContextCredentials(url string) (map[string]any, error) {
-	return loadKeychainCredentials(normalizeContextKey(url))
+	return activeCredentialBackend().Load(normalizeContextKey(url))
 }
 
-func loadKeychainCredentials(key string) (map[string]any, error) {
-	secret, err := keyring.Get(KeychainService, key)
-	if err != nil {
-		if err == keyring.ErrNotFound {
-			return nil, nil
-		}
-		return nil, fmt.Errorf("reading keychain for context %q: %w", key, err)
-	}
-	var cred map[string]any
-	if err := json.Unmarshal([]byte(secret), &cred); err != nil {
-		return nil, fmt.Errorf("parsing keychain credentials for context %q: %w", key, err)
-	}
-	return cred, nil
-}
-
-// SaveContextCredentials writes credentials to the OS keychain for a URL.
-// The map should use well-known field names (bearerToken, apiKey, basic).
-// The key is normalized (http → https) at this boundary; see
+// SaveContextCredentials writes a URL's credentials to the active credential
+// backend (OS keychain by default; a JSON file when OB_CREDENTIALS_FILE is
+// set). The map should use well-known field names (bearerToken, apiKey,
+// basic). The key is normalized (http → https) at this boundary; see
 // LoadContextCredentials.
 func SaveContextCredentials(url string, cred map[string]any) error {
-	return saveKeychainCredentials(normalizeContextKey(url), cred)
+	return activeCredentialBackend().Save(normalizeContextKey(url), cred)
 }
 
-func saveKeychainCredentials(key string, cred map[string]any) error {
-	if len(cred) == 0 {
-		return deleteKeychainCredentials(key)
-	}
-	data, err := json.Marshal(cred)
-	if err != nil {
-		return fmt.Errorf("marshaling credentials: %w", err)
-	}
-	if err := keyring.Set(KeychainService, key, string(data)); err != nil {
-		return fmt.Errorf("writing keychain for context %q: %w", key, err)
-	}
-	return nil
-}
-
-// DeleteContextCredentials removes credentials from the OS keychain.
-// The key is normalized (http → https) at this boundary; see
-// LoadContextCredentials.
+// DeleteContextCredentials removes a URL's credentials from the active
+// credential backend. The key is normalized (http → https) at this boundary;
+// see LoadContextCredentials.
 func DeleteContextCredentials(url string) error {
-	return deleteKeychainCredentials(normalizeContextKey(url))
+	return activeCredentialBackend().Delete(normalizeContextKey(url))
 }
 
-func deleteKeychainCredentials(key string) error {
-	err := keyring.Delete(KeychainService, key)
-	if err != nil && !errors.Is(err, keyring.ErrNotFound) {
-		return fmt.Errorf("deleting keychain for context %q: %w", key, err)
-	}
-	return nil
+// credentialsExist reports whether the active backend holds credentials for a
+// URL. It never surfaces a backend error: an unavailable keychain or
+// unreadable credentials file reports "no credentials" here, and the loud
+// error is reserved for the Load/Save/Delete paths that actually move a
+// secret. Used by the has-credentials flags of the listing/summary lanes.
+func credentialsExist(url string) bool {
+	return activeCredentialBackend().Has(normalizeContextKey(url))
 }
 
 // LoadContext returns the unified context payload for a target URL, matching
@@ -336,8 +308,7 @@ func ContextExists(url string) bool {
 	if _, err := os.Stat(path); err == nil {
 		return true
 	}
-	_, err = keyring.Get(KeychainService, url)
-	return err == nil
+	return credentialsExist(url)
 }
 
 // ListContexts returns summaries of all URL-keyed contexts. The result is
@@ -376,13 +347,9 @@ func ListContexts() ([]ContextSummary, error) {
 		if cfg.URL == "" {
 			cfg.URL = strings.TrimSuffix(e.Name(), ".json")
 		}
-		hasCreds := false
-		if _, kerr := keyring.Get(KeychainService, cfg.URL); kerr == nil {
-			hasCreds = true
-		}
 		summaries = append(summaries, ContextSummary{
 			URL:            cfg.URL,
-			HasCredentials: hasCreds,
+			HasCredentials: credentialsExist(cfg.URL),
 			HeaderCount:    len(cfg.Headers),
 			CookieCount:    len(cfg.Cookies),
 			EnvCount:       len(cfg.Environment),
@@ -403,24 +370,16 @@ func GetContextSummary(rawURL string) (ContextSummary, error) {
 	cfg, err := LoadContextConfig(targetURL)
 	if err != nil {
 		if os.IsNotExist(err) {
-			hasCreds := false
-			if _, kerr := keyring.Get(KeychainService, targetURL); kerr == nil {
-				hasCreds = true
-			}
-			if hasCreds {
+			if credentialsExist(targetURL) {
 				return ContextSummary{URL: targetURL, HasCredentials: true}, nil
 			}
 			return ContextSummary{URL: targetURL}, nil
 		}
 		return ContextSummary{URL: targetURL, LoadError: err.Error()}, err
 	}
-	hasCreds := false
-	if _, kerr := keyring.Get(KeychainService, targetURL); kerr == nil {
-		hasCreds = true
-	}
 	return ContextSummary{
 		URL:            targetURL,
-		HasCredentials: hasCreds,
+		HasCredentials: credentialsExist(targetURL),
 		HeaderCount:    len(cfg.Headers),
 		CookieCount:    len(cfg.Cookies),
 		EnvCount:       len(cfg.Environment),
