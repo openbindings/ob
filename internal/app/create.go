@@ -2,6 +2,7 @@ package app
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -22,14 +23,14 @@ const (
 // (interface-synthesizer requirement), so machine callers — the serve route,
 // `ob synthesize --input`, delegate invocations — decode without an adapter.
 type SynthesizeInterfaceSource struct {
-	BindingSpec    string `json:"bindingSpec"`
-	Location       string `json:"location,omitempty"`
-	Name           string `json:"name,omitempty"` // key in sources
-	Content        any    `json:"content,omitempty"`
-	OutputLocation string `json:"outputLocation,omitempty"`
-	Description    string `json:"description,omitempty"`
-	Embed          bool   `json:"embed,omitempty"`
-	Delegate       string `json:"-"` // delegate identifier to store in x-ob; not part of the wire contract
+	BindingSpec    string          `json:"bindingSpec"`
+	Location       string          `json:"location,omitempty"`
+	Name           string          `json:"name,omitempty"` // key in sources
+	Content        json.RawMessage `json:"content,omitempty"`
+	OutputLocation string          `json:"outputLocation,omitempty"`
+	Description    string          `json:"description,omitempty"`
+	Embed          bool            `json:"embed,omitempty"`
+	Delegate       string          `json:"-"` // delegate identifier to store in x-ob; not part of the wire contract
 }
 
 // SynthesizeInterfaceInput represents input for the synthesizeInterface operation.

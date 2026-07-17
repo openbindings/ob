@@ -207,9 +207,10 @@ func handleHealthz(w http.ResponseWriter, r *http.Request) {
 // --- Root ---
 
 // handleRoot serves a minimal human-facing landing page. The machine-readable
-// interface lives at /.well-known/openbindings (spec §7); root is deliberately
+// interface lives at /.well-known/openbindings (http-discovery companion,
+// DISC-S-01); root is deliberately
 // NOT an OBI discovery location, so this returns a non-OBI page. That keeps
-// discovery consistent with the spec and the registry (both well-known only),
+// discovery consistent with the companion and the registry (both well-known only),
 // and avoids the SDK direct-fetch branch treating root as canonical: a non-OBI
 // body fails tryFetchOBI, so a bare base URL correctly falls through to
 // well-known discovery.
@@ -593,10 +594,11 @@ func writeJSON(w http.ResponseWriter, status int, v any) {
 }
 
 // writeOBI writes an OBI document using the vendor-registered media type
-// (application/vnd.openbindings+json) per spec §7.1 (Discovery response
-// contract) and §12.2 (IANA media-type registration). Clients that send
-// only Accept: application/json still receive the same body; per §7.1 the
-// vendor type is SHOULD-level, not a hard requirement.
+// (application/vnd.openbindings+json) per the http-discovery companion's
+// DISC-S-02 (response Content-Type) and core §11 (IANA media-type
+// registration). Clients that send only Accept: application/json still
+// receive the same body; per DISC-S-02 the vendor type is SHOULD-level,
+// not a hard requirement.
 func writeOBI(w http.ResponseWriter, status int, v any) {
 	w.Header().Set("Content-Type", "application/vnd.openbindings+json; charset=utf-8")
 	w.WriteHeader(status)

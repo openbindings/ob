@@ -21,12 +21,14 @@ import (
 	"github.com/openbindings/ob/internal/execref"
 )
 
-// InvokeSource represents the binding source for invocation.
+// InvokeSource represents the binding source for invocation. Content is
+// raw JSON with the core's presence semantics (nil = absent member, a
+// `null` literal = present null), mirroring the SDK's InvocationSource.
 type InvokeSource struct {
-	BindingSpec string `json:"bindingSpec"`
-	Location    string `json:"location,omitempty"`
-	Content     any    `json:"content,omitempty"`
-	Binary      string `json:"binary,omitempty"` // Optional: binary name hint for CLI invocation
+	BindingSpec string          `json:"bindingSpec"`
+	Location    string          `json:"location,omitempty"`
+	Content     json.RawMessage `json:"content,omitempty"`
+	Binary      string          `json:"binary,omitempty"` // Optional: binary name hint for CLI invocation
 }
 
 // InvocationInput is the app-level invocation carrier for both lanes:
@@ -662,7 +664,9 @@ func PrepareOperation(ctx context.Context, obiPath string, opKey string, binding
 	// against the materialized content.
 	if es.Content == nil && es.Location != "" {
 		if data := acquireSourceDocument(ctx, es.Location); data != nil {
-			es.Content = data
+			// The acquired document is artifact TEXT; text rides the content
+			// member as a JSON string (the carrier every family decodes).
+			es.Content = openbindings.TextContent(string(data))
 		}
 	}
 

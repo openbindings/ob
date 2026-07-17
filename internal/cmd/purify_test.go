@@ -38,7 +38,7 @@ func TestPurifyGraphMatchesStripAllXOB(t *testing.T) {
 		t.Fatal(err)
 	}
 	result := app.InvokeOperationWithContext(context.Background(), app.InvocationInput{
-		Source: app.InvokeSource{BindingSpec: "openbindings.operation-graph@1", Content: purifyGraph},
+		Source: app.InvokeSource{BindingSpec: "openbindings.operation-graph@1", Content: json.RawMessage(purifyGraph)},
 		Ref:    "#/graphs/purify",
 		Input:  doc,
 	})

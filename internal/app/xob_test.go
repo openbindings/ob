@@ -233,9 +233,10 @@ func TestParseContentForEmbed(t *testing.T) {
 			if err != nil {
 				t.Fatalf("unexpected error: %v", err)
 			}
-			_, isString := result.(string)
+			var s string
+			isString := json.Unmarshal(result, &s) == nil
 			if isString != tt.wantString {
-				t.Errorf("isString: got %v, want %v (value: %v)", isString, tt.wantString, result)
+				t.Errorf("isString: got %v, want %v (value: %s)", isString, tt.wantString, result)
 			}
 		})
 	}
@@ -314,9 +315,9 @@ func TestResolveSourceSpec_Content(t *testing.T) {
 	if src.Content == nil {
 		t.Fatal("expected content to be set")
 	}
-	str, ok := src.Content.(string)
-	if !ok {
-		t.Fatalf("expected string content, got %T", src.Content)
+	var str string
+	if err := json.Unmarshal(src.Content, &str); err != nil {
+		t.Fatalf("expected a JSON string content, got %s", src.Content)
 	}
 	if str != `bin "hello" { }` {
 		t.Errorf("unexpected content: %q", str)
@@ -368,7 +369,8 @@ service A { rpc Go(B) returns (B); }
 	if err != nil {
 		t.Fatalf("a self-contained proto must embed: %v", err)
 	}
-	if _, ok := content.(string); !ok {
-		t.Errorf("proto embeds as source text, got %T", content)
+	var protoText string
+	if err := json.Unmarshal(content, &protoText); err != nil {
+		t.Errorf("proto embeds as source text (a JSON string), got %s", content)
 	}
 }

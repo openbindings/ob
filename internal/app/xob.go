@@ -466,9 +466,12 @@ func ReadAndHashSource(ref string, obiDir string) (data []byte, hash string, err
 	return data, HashContent(data), nil
 }
 
-// ParseContentForEmbed reads raw bytes and returns an appropriate value for Source.Content.
-// For JSON/YAML files, returns map[string]any (native object). For all other formats, returns string.
-func ParseContentForEmbed(data []byte, format string) (any, error) {
+// ParseContentForEmbed reads raw bytes and returns the raw-JSON value for
+// Source.Content (the SDK's presence-aware carrier). For JSON/YAML files it
+// embeds the parsed document (normalized JSON — the same bytes the previous
+// map-typed carrier wrote); for all other formats it embeds the artifact
+// text as a JSON string.
+func ParseContentForEmbed(data []byte, format string) (json.RawMessage, error) {
 	// Determine the artifact family from the binding-specification identifier.
 	family := SpecFamily(format)
 	formatLower := strings.ToLower(format)
@@ -483,10 +486,10 @@ func ParseContentForEmbed(data []byte, format string) (any, error) {
 		// (every JSON document is also valid YAML, but JSON is the cheaper parse).
 		var obj map[string]any
 		if err := json.Unmarshal(data, &obj); err == nil {
-			return obj, nil
+			return json.Marshal(obj)
 		}
 		if err := yaml.Unmarshal(data, &obj); err == nil {
-			return obj, nil
+			return json.Marshal(obj)
 		}
 		if isJSON {
 			return nil, fmt.Errorf("parse content for format %q: not valid JSON or YAML", format)
@@ -516,8 +519,8 @@ func ParseContentForEmbed(data []byte, format string) (any, error) {
 		}
 	}
 
-	// Default: return as string (works for KDL, protobuf, and other text formats).
-	return string(data), nil
+	// Default: embed as a JSON string (works for KDL, protobuf, and other text formats).
+	return openbindings.TextContent(string(data)), nil
 }
 
 // protoImportRe matches a protobuf import statement (incl. public/weak forms).

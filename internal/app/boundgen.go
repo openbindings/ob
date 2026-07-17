@@ -309,7 +309,7 @@ func GenerateBoundCLI(contractPath, usagePath string) (*openbindings.Interface, 
 	}
 	bound.Sources["usage"] = openbindings.Source{
 		BindingSpec: usage.BindingSpec,
-		Content:     usageText, // the pristine artifact, verbatim
+		Content:     openbindings.TextContent(usageText), // the pristine artifact, verbatim
 	}
 
 	return bound, nil

@@ -177,9 +177,9 @@ func TestEmbedLane_JSONFormat(t *testing.T) {
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	obj, ok := result.(map[string]any)
-	if !ok {
-		t.Fatalf("expected map, got %T", result)
+	var obj map[string]any
+	if err := json.Unmarshal(result, &obj); err != nil || obj == nil {
+		t.Fatalf("expected an embedded JSON object, got %s", result)
 	}
 	if obj["hello"] != "world" {
 		t.Errorf("result = %v", obj)
@@ -201,9 +201,9 @@ func TestEmbedLane_YAMLFormat(t *testing.T) {
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	obj, ok := result.(map[string]any)
-	if !ok {
-		t.Fatalf("expected map, got %T", result)
+	var obj map[string]any
+	if err := json.Unmarshal(result, &obj); err != nil || obj == nil {
+		t.Fatalf("expected an embedded JSON object, got %s", result)
 	}
 	if obj["greeting"] != "hello" {
 		t.Errorf("result = %v", obj)
@@ -225,9 +225,9 @@ func TestEmbedLane_TextFormat(t *testing.T) {
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	str, ok := result.(string)
-	if !ok {
-		t.Fatalf("expected string for a text format, got %T", result)
+	var str string
+	if err := json.Unmarshal(result, &str); err != nil {
+		t.Fatalf("expected a JSON string for a text format, got %s", result)
 	}
 	if str != "node \"value\"" {
 		t.Errorf("result = %q", str)

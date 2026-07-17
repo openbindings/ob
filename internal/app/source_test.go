@@ -389,8 +389,8 @@ func TestSourceAdd_LocalFileEmbedsByDefault(t *testing.T) {
 	if src.Location != "" {
 		t.Errorf("embedded source must carry no spec location, got %q", src.Location)
 	}
-	if s, ok := src.Content.(string); !ok || s != "name \"tool\"" {
-		t.Errorf("artifact text must be embedded, got %T %v", src.Content, src.Content)
+	if s, err := openbindings.ContentToBytes(src.Content); err != nil || string(s) != "name \"tool\"" {
+		t.Errorf("artifact text must be embedded, got %s", src.Content)
 	}
 	meta, err := GetSourceMeta(src)
 	if err != nil || meta == nil {
@@ -480,9 +480,9 @@ func TestSourceAdd_URLFetchEmbed(t *testing.T) {
 	}
 	iface, _ := loadInterfaceFile(obiPath)
 	src := iface.Sources[result.Key]
-	obj, ok := src.Content.(map[string]any)
-	if !ok || obj["openapi"] != "3.1.0" {
-		t.Fatalf("remote artifact must be fetched and embedded, got %T", src.Content)
+	var obj map[string]any
+	if err := json.Unmarshal(src.Content, &obj); err != nil || obj["openapi"] != "3.1.0" {
+		t.Fatalf("remote artifact must be fetched and embedded, got %s", src.Content)
 	}
 	meta, _ := GetSourceMeta(src)
 	if meta.Ref != srv.URL+"/openapi.json" {
@@ -551,8 +551,8 @@ func TestSourceAdd_ContentWithURIPairsBoth(t *testing.T) {
 		t.Fatal(err)
 	}
 	src := iface.Sources["svc"]
-	if s, ok := src.Content.(string); !ok || s != proto {
-		t.Errorf("content must pin the artifact text, got %T", src.Content)
+	if s, err := openbindings.ContentToBytes(src.Content); err != nil || string(s) != proto {
+		t.Errorf("content must pin the artifact text, got %s", src.Content)
 	}
 	if src.Location != "api.example.com:443" {
 		t.Errorf("location must carry the service address, got %q", src.Location)

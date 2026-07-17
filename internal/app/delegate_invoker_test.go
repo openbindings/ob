@@ -261,7 +261,7 @@ func TestDelegateBindingInvoker_MatchesKeyOrAlias(t *testing.T) {
 						tc.key: {Aliases: []string{"openbindings.binding-invoker.invokeBinding"}},
 					},
 					Sources: map[string]openbindings.Source{
-						"usage": {BindingSpec: "openbindings.usage@1", Content: "bin \"acme\"\ncmd \"binding\" subcommand_required=#true { cmd \"invoke\" { flag \"--input <json>\" } }"},
+						"usage": {BindingSpec: "openbindings.usage@1", Content: openbindings.TextContent("bin \"acme\"\ncmd \"binding\" subcommand_required=#true { cmd \"invoke\" { flag \"--input <json>\" } }")},
 					},
 					Bindings: map[string]openbindings.BindingEntry{
 						tc.key + ".usage": {Operation: tc.key, Source: "usage", Ref: "binding invoke"},
@@ -335,7 +335,7 @@ exit 1
 				"openbindings.ob.invokeBinding": {Aliases: []string{"openbindings.binding-invoker.invokeBinding"}},
 			},
 			Sources: map[string]openbindings.Source{
-				"usage": {BindingSpec: "openbindings.usage@1", Content: usageSpec},
+				"usage": {BindingSpec: "openbindings.usage@1", Content: openbindings.TextContent(usageSpec)},
 			},
 			Bindings: map[string]openbindings.BindingEntry{
 				"openbindings.ob.invokeBinding.usage": {
@@ -421,7 +421,7 @@ func TestOpInvoke_ExternalDelegateDisplacesElections(t *testing.T) {
 	delegateIface := openbindings.Interface{
 		OpenBindings: "0.2.0",
 		Operations:   map[string]openbindings.Operation{"invokeBinding": {Aliases: []string{"openbindings.binding-invoker.invokeBinding"}}},
-		Sources:      map[string]openbindings.Source{"usage": {BindingSpec: "openbindings.usage@1", Content: usageSpec}},
+		Sources:      map[string]openbindings.Source{"usage": {BindingSpec: "openbindings.usage@1", Content: openbindings.TextContent(usageSpec)}},
 		Bindings: map[string]openbindings.BindingEntry{
 			"invokeBinding.usage": {
 				Operation:      "invokeBinding",
