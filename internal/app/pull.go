@@ -528,7 +528,7 @@ func reReadAndDerive(iface *openbindings.Interface, key, obiDir string) (DeriveR
 	// Derive from a copy carrying fresh inline content, to bypass the invoker's
 	// in-process spec cache without persisting content into the stored source.
 	deriveSrc := src
-	deriveSrc.Content = string(data)
+	deriveSrc.Content = openbindings.TextContent(string(data))
 	derived, derr := DeriveFromSource(deriveSrc, key, obiDir)
 	if derr != nil {
 		return DeriveResult{}, false, fmt.Sprintf("source %q: derive failed: %v", key, derr)

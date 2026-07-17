@@ -33,10 +33,12 @@ const (
 
 // InvokeSource is the binding source carried by the open frame, mirroring the
 // contract's InvokeSource schema (format plus location and/or content).
+// Content is raw JSON with the core's presence semantics (nil = absent
+// member, a `null` literal = present null).
 type InvokeSource struct {
-	BindingSpec string `json:"bindingSpec"`
-	Location    string `json:"location,omitempty"`
-	Content     any    `json:"content,omitempty"`
+	BindingSpec string          `json:"bindingSpec"`
+	Location    string          `json:"location,omitempty"`
+	Content     json.RawMessage `json:"content,omitempty"`
 }
 
 // BindingInvocationInput is the payload of the open frame (and the input of

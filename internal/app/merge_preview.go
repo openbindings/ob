@@ -117,7 +117,7 @@ func PreviewSourceMerge(src openbindings.Source, srcKey string, iface *openbindi
 		if rerr != nil {
 			return MergePreview{}, fmt.Errorf("source %q: read failed: %w", srcKey, rerr)
 		}
-		deriveSrc.Content = string(data)
+		deriveSrc.Content = openbindings.TextContent(string(data))
 	}
 	derived, err := DeriveFromSource(deriveSrc, srcKey, obiDir)
 	if err != nil {

@@ -6,6 +6,7 @@ import (
 	"strings"
 	"testing"
 
+	openbindings "github.com/openbindings/openbindings-go"
 	"github.com/openbindings/openbindings-go/formats/usage"
 )
 
@@ -152,7 +153,7 @@ func TestGenerateBoundCLI_BindsOpsByShortName(t *testing.T) {
 	if src.BindingSpec != usage.BindingSpec {
 		t.Errorf("source bindingSpec = %q, want the exact identifier %q", src.BindingSpec, usage.BindingSpec)
 	}
-	if text, _ := src.Content.(string); text == "" || !strings.Contains(text, `bin "ob"`) {
+	if text, err := openbindings.ContentToBytes(src.Content); err != nil || !strings.Contains(string(text), `bin "ob"`) {
 		t.Error("expected the pristine kdl text as embedded content")
 	}
 	// The elections the document no longer carries live in ob's own

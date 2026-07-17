@@ -582,9 +582,9 @@ message PingReply { string msg = 1; }
 		t.Fatal(err)
 	}
 	src := iface.Sources["svc"]
-	content, ok := src.Content.(string)
-	if !ok {
-		t.Fatalf("embedded grpc content must remain artifact TEXT, got %T", src.Content)
+	var content string
+	if err := json.Unmarshal(src.Content, &content); err != nil {
+		t.Fatalf("embedded grpc content must remain artifact TEXT, got %s", src.Content)
 	}
 	if content != proto {
 		if strings.Contains(content, `"openbindings"`) {
