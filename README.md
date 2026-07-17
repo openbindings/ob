@@ -142,6 +142,23 @@ OBIs are format-agnostic. The same operation can be bound to an OpenAPI endpoint
 
 `ob operation detach` converts a source-owned operation into a hand-authored one — the operation stays; `ob` just stops refreshing it on pull.
 
+### Context
+
+Credentials, headers, cookies, environment variables: everything an invocation needs beyond the operation input is **context**, stored per target URL (`ob context set/get/list/remove`). Credential fields land in the OS keychain; non-secret fields live in config files. At invocation time the store resolves hierarchically — the exact target first, then up the URL path to the most specific stored prefix — and per-call context layers on top.
+
+Context is an open object, but invokers share the well-known fields defined by the [binding-invoker interface](https://openbindings.com/interfaces/binding-invoker): `bearerToken`, `apiKey` (and scheme-scoped `apiKeys`), `basic`, `accessToken`, `headers`, `cookies`, `environment`, `metadata`. How a credential rides the wire is each binding specification's business, read from the source artifact — never from the OBI, which carries no security metadata.
+
+When a binding needs context it doesn't have, invocation stops before any side effect with a `CONTEXT_REQUIRED` error enumerating requirement alternatives. Each requirement's type says what satisfies it:
+
+| Requirement type | Satisfy with |
+| --- | --- |
+| `auth.bearer` | `ob context set <target> --bearer-token -` |
+| `auth.basic` | `ob context set <target> --basic` (prompts) |
+| `auth.apiKey` | `ob context set <target> --api-key -`; a requirement carrying a scheme `name` reads `apiKeys[<name>]` first, settable via `--value` |
+| `auth.oauth2` | a token obtained through the flow the requirement names, stored as `bearerToken`/`accessToken` (`--bearer-token`, or the full shape via `--value`) |
+
+Then retry the invocation. `--from-curl` imports credentials from a working curl command; `--header`, `--cookie`, `--env`, and `--meta` cover the non-credential fields. The same store backs the HTTP surface (`/contexts`, with `POST /bindings/prepare` reporting requirements proactively) and everything routed through delegates.
+
 ## Code Generation
 
 `ob codegen` generates typed client code from OBIs:
