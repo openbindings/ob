@@ -78,7 +78,7 @@ func newContextGetCmd() *cobra.Command {
 Resolution is hierarchical for URL keys, like invocation-time matching: the
 exact URL wins, then the store walks up the URL path to the most specific
 stored prefix (e.g. https://api.example.com/v1/spec.json falls back to
-https://api.example.com). Exact keys behave as a plain key-value get.
+https://api.example.com). Exact keys behave as a plain document get.
 
 Text output masks secret values. JSON output (-F json) returns the raw
 payload, credentials included.`,
@@ -130,7 +130,7 @@ Use --from-curl to import credentials from a curl command.
 
 Machine callers pass the full Context value with --value instead: the <url>
 is the key, --value takes the Context ({...}) as JSON and REPLACES the whole
-context (the key-value-store set contract), exclusive with the field flags.
+context (the document-store set contract), exclusive with the field flags.
 Pass "-" to read the value from stdin, so credentials never ride argv.
 
 Examples:
@@ -232,7 +232,7 @@ Examples:
 }
 
 // runContextSetValue is the machine lane: full-replacement of a URL-keyed
-// context (the key-value-store set contract). The key rides the <url>
+// context (the document-store set contract). The key rides the <url>
 // argument; the Context value rides --value, or its stdin (`-`) so credentials
 // never touch argv. The operation declares no output; the lane prints null.
 func runContextSetValue(cmd *cobra.Command, args []string, valueJSON string) error {

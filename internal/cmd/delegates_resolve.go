@@ -17,7 +17,7 @@ caller. An empty list is an answer, not an error.
 
 Examples:
   ob delegate resolve openbindings.binding-invoker.invokeBinding
-  ob delegate resolve openbindings.key-value-store.get -F json`,
+  ob delegate resolve openbindings.document-store.get -F json`,
 		Args: cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			result, err := app.ResolveDelegate(args[0])

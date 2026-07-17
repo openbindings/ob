@@ -31,7 +31,7 @@ candidate is used stays with the caller.
 Examples:
   ob delegate prefer exec:acme 5
   ob delegate prefer exec:acme 10 --capability synthesize
-  ob delegate prefer exec:acme 10 --operation openbindings.key-value-store.get
+  ob delegate prefer exec:acme 10 --operation openbindings.document-store.get
   ob delegate prefer exec:acme 10 --capability invoke --binding-spec openbindings.grpc@1
   ob delegate prefer exec:acme --clear --capability synthesize`,
 		Args: cobra.RangeArgs(1, 2),
