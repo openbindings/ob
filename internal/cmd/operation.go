@@ -28,6 +28,7 @@ func newOperationCmd() *cobra.Command {
 Operations define the abstract methods and events that an interface
 exposes. Use subcommands to list, rename, remove, or invoke operations.`,
 	}
+	markCommandGroup(cmd)
 
 	cmd.AddCommand(
 		newOperationListCmd(),
@@ -52,21 +53,21 @@ func newOperationOutputSchemaCmd() *cobra.Command {
 	var clear bool
 	cmd := &cobra.Command{
 		Use:   "output-schema <obi-path> <operation> [schema]",
-		Short: "Elect an operation's real output schema (the non-detaching remedy for a floor)",
-		Long: `Elect the output schema for an operation.
+		Short: "Set an operation's output schema when its source can't declare one",
+		Long: `Set the output schema for an operation.
 
-When a source cannot declare an operation's output shape, synthesis derives
-a FLOOR-TRUE schema — {"type":"string"} carrying an in-schema x-ob
-floor-stamp — so the derived contract never lies. Once you know the real
-shape, elect it here: the elected schema is written into the operation's
-output, and an election marker is stamped in x-ob so it survives
-'ob source pull' (re-applied onto each fresh derivation, compared modulo the
-election). A grown, non-floor-stamped SOURCE output schema WINS and the
-prior election is displaced loudly on the next pull.
+When a source cannot declare an operation's output shape, synthesis records
+a permissive placeholder — {"type":"string"}, marked in x-ob as a "floor" —
+so the derived contract never claims to know more than it does. Once you
+know the real shape, set it here: the schema is written into the operation's
+output and remembered in x-ob so it survives 'ob source pull' (re-applied
+onto each fresh derivation). If a later pull finds that the SOURCE now
+declares its own real output schema, that source schema wins and your
+override is dropped with a warning on the next pull.
 
 The schema is inline JSON, @file, or - (stdin). Use --clear to remove the
-election (the elected value stays until the next pull re-derives it).
-'ob purify' strips the election marker and the floor-stamp alike.
+override (the value you set stays until the next pull re-derives it).
+'ob purify' strips the override marker and the floor placeholder alike.
 
 Pass '-' as <obi-path> to read the document from stdin and write the
 modified document to stdout (the summary moves to stderr).
@@ -97,7 +98,7 @@ Examples:
 			return outputEditResult(cmd, args[0], result)
 		},
 	}
-	cmd.Flags().BoolVar(&clear, "clear", false, "remove the output-schema election")
+	cmd.Flags().BoolVar(&clear, "clear", false, "remove the output-schema override")
 	return cmd
 }
 
@@ -141,8 +142,8 @@ and these flags refuse (its own handling governs).
 --input accepts inline JSON, @file (read from a file), or - (read from
 stdin) — so credentials never sit on ob's own argv.
 
-Use -v/--verbose to emit binding key, duration, and any displaced
-elections on stderr.
+Use -v/--verbose to emit the binding key, duration, and any displaced
+output-schema overrides on stderr.
 
 Examples:
   ob op invoke interface.json listPets --input '{"limit":10}'
@@ -233,7 +234,7 @@ Examples:
 
 	cmd.Flags().StringVar(&bindingKey, "binding", "", "binding key to invoke (operation is derived from the entry)")
 	cmd.Flags().StringVar(&inputArg, "input", "", "operation input: inline JSON, @file, or - (stdin)")
-	cmd.Flags().BoolVarP(&verbose, "verbose", "v", false, "show binding key, duration, and displaced elections on stderr")
+	cmd.Flags().BoolVarP(&verbose, "verbose", "v", false, "show binding key, duration, and displaced output-schema overrides on stderr")
 	cmd.Flags().StringVar(&decode, "decode", "", "output decode lane: json|text|none")
 	cmd.Flags().StringVar(&okExits, "ok-exit", "", "exit codes classified as success, comma-separated (e.g. 0,1)")
 	cmd.Flags().StringArrayVar(&routes, "route", nil, "field routing: field=argv|stdin|stdin-dash|file (repeatable)")
@@ -547,7 +548,7 @@ func newOperationAddCmd() *cobra.Command {
 		Long: `Add a new operation to an OpenBindings interface document.
 
 Creates a bare operation with the given key. Use flags to set
-description, satisfaction aliases, tags, and schemas. The operation is
+description, correspondence aliases, tags, and schemas. The operation is
 added without any bindings — bind it to a source with 'ob operation bind'.
 
 Schema flags accept inline JSON, '@path' to read a file, or '-' for stdin.
@@ -598,7 +599,7 @@ Examples:
 	}
 
 	cmd.Flags().StringVar(&description, "description", "", "operation description")
-	cmd.Flags().StringArrayVar(&aliases, "alias", nil, "satisfaction alias: another interface's operation key this satisfies (repeatable)")
+	cmd.Flags().StringArrayVar(&aliases, "alias", nil, "correspondence alias: another interface's operation key this operation also answers to (repeatable)")
 	cmd.Flags().StringArrayVar(&tags, "tag", nil, "operation tag (repeatable)")
 	cmd.Flags().StringVar(&inputJSON, "input-schema", "", "input schema: inline JSON, @file, or - for stdin")
 	cmd.Flags().StringVar(&outputJSON, "output-schema", "", "output schema: inline JSON, @file, or - for stdin")
@@ -637,14 +638,15 @@ func newOperationAliasCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:     "alias",
 		Aliases: []string{"aliases"},
-		Short:   "Manage an operation's satisfaction aliases",
-		Long: `Manage the satisfaction aliases on an operation.
+		Short:   "Manage an operation's correspondence aliases",
+		Long: `Manage the correspondence aliases on an operation.
 
 An alias is another interface's operation key that this operation also
 answers to. Key and aliases form one flat, document-unique namespace
-(OBI-T-12): an operation satisfies a published interface by carrying that
-interface's operation key as an alias.`,
+(OBI-T-12): an operation corresponds to a published interface by carrying
+that interface's operation key as an alias.`,
 	}
+	markCommandGroup(cmd)
 
 	cmd.AddCommand(
 		newOperationAliasAddCmd(),
@@ -658,8 +660,8 @@ interface's operation key as an alias.`,
 func newOperationAliasAddCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "add <obi-path> <operation> <alias>...",
-		Short: "Add satisfaction alias(es) to an operation",
-		Long: `Add one or more satisfaction aliases to an operation.
+		Short: "Add correspondence alias(es) to an operation",
+		Long: `Add one or more correspondence aliases to an operation.
 
 The operation may be referenced by its key or any existing identifier.
 Each alias must be free in the document's flat key+alias namespace.
@@ -686,8 +688,8 @@ func newOperationAliasRemoveCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:     "remove <obi-path> <operation> <alias>...",
 		Aliases: []string{"rm"},
-		Short:   "Remove satisfaction alias(es) from an operation",
-		Long: `Remove one or more satisfaction aliases from an operation.
+		Short:   "Remove correspondence alias(es) from an operation",
+		Long: `Remove one or more correspondence aliases from an operation.
 
 Pass '-' as <obi-path> to read the document from stdin and write the
 modified document to stdout (the summary moves to stderr).
@@ -710,11 +712,11 @@ func newOperationAliasListCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:     "list <obi> [operation]",
 		Aliases: []string{"ls"},
-		Short:   "Show the satisfaction map (which ops satisfy which interfaces)",
-		Long: `List the satisfaction aliases in an interface — each operation and the
-interface operations it satisfies. With no operation argument, shows every
-operation that carries aliases (a quick "what does this OBI satisfy?").
-Scoped to one operation when given.
+		Short:   "Show the correspondence map (which ops correspond to which interfaces)",
+		Long: `List the correspondence aliases in an interface — each operation and the
+interface operations it corresponds to. With no operation argument, shows
+every operation that carries aliases (a quick "what does this OBI correspond
+to?"). Scoped to one operation when given.
 
 Examples:
   ob op alias list interface.json

@@ -69,7 +69,7 @@ func DetectSourceCandidates(location string) ([]DelegateClaim, error) {
 	}
 
 	if len(claims) == 0 {
-		return nil, fmt.Errorf("could not detect the format of %q; specify it explicitly (e.g. openapi@3.1:%s)", location, location)
+		return nil, fmt.Errorf("could not detect the format of %q; specify it explicitly (e.g. openbindings.openapi@1:%s)", location, location)
 	}
 
 	return claims, nil

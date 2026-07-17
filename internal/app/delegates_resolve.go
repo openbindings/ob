@@ -42,7 +42,7 @@ func (r ResolveDelegateForBindingSpecResult) Render() string {
 // ties favor the self-delegate, then registration order) that handles it.
 func ResolveDelegateForBindingSpec(format string) (*ResolveDelegateForBindingSpecResult, error) {
 	if strings.TrimSpace(format) == "" {
-		return nil, usageExit("delegate resolve <format>")
+		return nil, usageExit("delegate resolve-binding-spec <binding-spec>")
 	}
 
 	candidates := gatherDelegates()

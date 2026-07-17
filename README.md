@@ -35,12 +35,12 @@ Starts OpenBlendings, a coffee-shop demo service exposing six operations across 
 An OBI starts empty and is populated from sources. Given an OpenAPI spec at `./openapi.json`:
 
 ```bash
-ob new interface.json                                    # empty OBI (name, version, no ops)
-ob source add interface.json openapi@3.1:./openapi.json  # register the spec as a source
-ob source pull interface.json                            # derive operations + bindings from it
+ob new interface.json                        # empty OBI (name, version, no ops)
+ob source add interface.json ./openapi.json  # register the spec as a source
+ob source pull interface.json                # derive operations + bindings from it
 ```
 
-`ob source add` accepts a bare path (`./openapi.json`) and auto-detects the format, or an explicit `format@version:path`. `ob source pull` reads the source, extracts operations and schemas, and writes the operations and their bindings back into the OBI.
+`ob source add` accepts a bare path (`./openapi.json`) and auto-detects the format, or an explicit binding-spec identifier (`openbindings.openapi@1:./openapi.json`). `ob source pull` reads the source, extracts operations and schemas, and writes the operations and their bindings back into the OBI.
 
 For a one-shot derivation (no ongoing sync), `ob synthesize` collapses the three steps into one:
 
@@ -55,7 +55,7 @@ Use `synthesize` when you just want the OBI once; use `source add` + `source pul
 Your service also has a CLI described by a usage spec:
 
 ```bash
-ob source add interface.json usage@2.0:./cli.usage.kdl
+ob source add interface.json ./cli.usage.kdl
 ob source pull interface.json
 ```
 
@@ -73,10 +73,10 @@ ob status interface.json
 myservice 1.0.0  (openbindings 0.2.0)
 
 Sources (2)
-  openapi           openapi@3.1     ./openapi.json          out of sync (synced 3d ago, ob 0.2.0)
+  openapi           openbindings.openapi@1   ./openapi.json       out of sync (synced 3d ago, ob 0.2.0)
     ↳ operations to add: deletePet
     ↳ bindings to add: deletePet.openapi
-  cli               usage@2.0       ./cli.usage.kdl         in sync (synced 3d ago, ob 0.2.0)
+  cli               openbindings.usage@1     ./cli.usage.kdl      in sync (synced 3d ago, ob 0.2.0)
 
 Operations (8)  — 8 source-owned
 
@@ -137,7 +137,7 @@ OBIs are format-agnostic. The same operation can be bound to an OpenAPI endpoint
 
 `ob` tracks provenance via `x-ob` metadata:
 
-- **Source-owned** (`x-ob` marker present): derived by `ob source pull` from a registered source. A later pull refreshes them when the source changes — but never your overlay: satisfaction aliases, curated tags, codegen-name overrides, and output-schema elections all survive the refresh.
+- **Source-owned** (`x-ob` marker present): derived by `ob source pull` from a registered source. A later pull refreshes them when the source changes — but never your overlay: correspondence aliases, curated tags, codegen-name overrides, and output-schema overrides all survive the refresh.
 - **Hand-authored** (no `x-ob`): added manually with `ob operation add` / `ob operation bind`. Pull never touches them.
 
 `ob operation detach` converts a source-owned operation into a hand-authored one — the operation stays; `ob` just stops refreshing it on pull.
@@ -190,7 +190,7 @@ ob codegen https://api.example.com/openapi.json --lang typescript
 
 ## Interface Conformance
 
-`ob conform` scaffolds operations in your OBI so it satisfies another interface (such as one of the project's published interfaces). Correspondence is expressed through the operation key+alias namespace — an operation satisfies a contract operation by carrying its name as the key or an alias (spec OBI-T-12).
+`ob conform` scaffolds operations in your OBI so it corresponds to another interface (such as one of the project's published interfaces). Correspondence is expressed through the operation key+alias namespace — an operation corresponds to a contract operation by carrying its name as the key or an alias (spec OBI-T-12).
 
 ```bash
 ob conform key-value-store.json my-service.obi.json
@@ -227,7 +227,7 @@ Delegates extend `ob` with binding format support — `ob`'s application of the 
 ```bash
 ob delegate register exec:thrift-ob-delegate
 ob delegate list
-ob formats        # should now include the formats the delegate handles
+ob binding-specs  # should now include the binding specifications the delegate handles
 
 ob new interface.json
 ob source add interface.json thrift@1.0:./service.thrift
@@ -237,21 +237,21 @@ ob operation invoke interface.json getUser
 
 Registration resolves the location to the delegate's OBI (via `--openbindings` for exec:, well-known discovery for http) and records a **snapshot**: the operations it carries, a content digest pinning the resolved document, and the capabilities and formats `ob` derives for routing. **Registration fails when the location cannot be resolved** — a delegate is its interface. When a delegate changes, re-register it: the snapshot refreshes, your preferences persist, and until then invocation detects the drift (digest mismatch) and asks for an explicit re-registration rather than silently running a document you never saw.
 
-How much of an operation's cardinality crosses a delegate boundary depends on the delegate's transport: a delegate that exposes `invokeBinding` over the frame protocol (an `asyncapi` source at an http(s) URL) carries every cardinality — including server-streaming and bidirectional — while a `usage`/CLI delegate is bounded by its one-shot input (no client-streaming or bidi). `ob` prefers the frame transport when a delegate advertises both. Use `ob delegate prefer <location> <n>` to bias selection when several delegates handle the same format (scope with `--operation`/`--capability` and `--source-format`; `--clear` removes an entry), and `ob delegate resolve <operation>` to see which delegates carry an operation, best first.
+How much of an operation's cardinality crosses a delegate boundary depends on the delegate's transport: a delegate that exposes `invokeBinding` over the frame protocol (an `asyncapi` source at an http(s) URL) carries every cardinality — including server-streaming and bidirectional — while a `usage`/CLI delegate is bounded by its one-shot input (no client-streaming or bidi). `ob` prefers the frame transport when a delegate advertises both. Use `ob delegate prefer <location> <n>` to bias selection when several delegates handle the same format (scope with `--operation`/`--capability` and `--binding-spec`; `--clear` removes an entry), and `ob delegate resolve <operation>` to see which delegates carry an operation, best first.
 
 ### Building a delegate
 
 The simplest path: scaffold the binding-invoker interface into a new OBI and implement the operations.
 
 ```bash
-ob delegate requirements invoke > binding-invoker.json   # the exact contract to satisfy
+ob delegate requirements invoke > binding-invoker.json   # the exact contract to correspond to
 ob conform binding-invoker.json my-delegate.obi.json --yes
 ```
 
 A minimal `exec:` delegate is a CLI that:
 
 1. Responds to `--openbindings` by printing its OBI to stdout.
-2. Binds `listFormats` via a `usage@…` source so `ob` can enumerate supported format tokens at registration.
+2. Binds `listBindingSpecs` via an `openbindings.usage@1` source so `ob` can enumerate the binding specifications it supports at registration.
 3. Implements `invokeBinding` (and optionally `synthesizeInterface`) as its OBI declares.
 
 ## Source Resolution
@@ -263,8 +263,8 @@ How a source is stored in the OBI follows from what you point at; `--resolve` ov
 A local file artifact embeds directly in the OBI: the document is conformant (a relative path can never be, per OBI-D-05) and works from anywhere — registry, stdin, a colleague's clone. The local path is recorded in x-ob metadata as the pull path `ob source pull` refreshes from:
 
 ```bash
-ob source add interface.json openapi@3.1:./api.yaml          # embeds by default
-ob source add interface.json 'openapi@3.1:https://example.com/api.yaml?embed'  # fetch and pin a remote artifact
+ob source add interface.json openbindings.openapi@1:./api.yaml          # embeds by default
+ob source add interface.json 'openbindings.openapi@1:https://example.com/api.yaml?embed'  # fetch and pin a remote artifact
 ```
 
 JSON/YAML formats embed as native objects. Text formats (KDL, protobuf source) embed as strings and must be self-contained (a `.proto` with imports refuses). Binary artifacts cannot be embedded.
@@ -274,13 +274,13 @@ JSON/YAML formats embed as native objects. Text formats (KDL, protobuf source) e
 Stores a URI or format-defined address (a gRPC `host:port`, an MCP endpoint) in the spec `location` field:
 
 ```bash
-ob source add interface.json openapi@3.1:https://example.com/api.yaml
+ob source add interface.json openbindings.openapi@1:https://example.com/api.yaml
 ```
 
 To keep a local working file but publish a pointer, pair `--resolve location` with `--uri`:
 
 ```bash
-ob source add interface.json openapi@3.1:./api.yaml --resolve location --uri https://cdn.example.com/api.yaml
+ob source add interface.json openbindings.openapi@1:./api.yaml --resolve location --uri https://cdn.example.com/api.yaml
 ```
 
 ## Drift Detection and Pull
@@ -325,7 +325,7 @@ ob source pull interface.json -o dist/interface.json --pure # publish clean
 | `ob meta ...` | Manage interface-level metadata (name, version, description, …) |
 | `ob diff <obi> [comparison]` | Structural comparison of two OBIs (or `--from-sources`) |
 | `ob merge <target> [source]` | Selectively apply changes from one OBI into another |
-| `ob conform <contract> <target-obi>` | Scaffold or update operations so the target satisfies a contract interface |
+| `ob conform <contract> <target-obi>` | Scaffold or update operations so the target corresponds to a contract interface |
 | `ob codegen <source> --lang <lang>` | Generate a typed invoker (typescript, go) |
 | `ob purify <obi>` | Strip `x-ob` vendor metadata, yielding a spec-only interface |
 
@@ -338,10 +338,10 @@ ob source pull interface.json -o dist/interface.json --pure # publish clean
 | `ob operation add <obi> <name>` | Add a hand-authored operation |
 | `ob operation set <obi> <operation>` | Edit an operation's fields |
 | `ob operation bind/unbind <obi> …` | Wire an operation to a source ref, or remove the binding |
-| `ob operation alias <obi> …` | Manage an operation's satisfaction aliases |
+| `ob operation alias <obi> …` | Manage an operation's correspondence aliases |
 | `ob operation rename/remove/detach <obi> …` | Rename, remove, or detach operations |
 | `ob operation codegen-name <obi> <operation> [name]` | Set/clear the symbol name `ob codegen` emits for an operation |
-| `ob binding invoke <obi> <binding-key>` | Invoke a binding directly: the wire lane — output as the source produced it, unvalidated (also the machine lane via `--input`) |
+| `ob binding invoke <obi> <binding-key>` | Invoke a binding directly, below the operation layer — output exactly as the source produced it, unvalidated (also a machine lane via `--input`) |
 
 ### Delegates and formats
 
@@ -350,10 +350,10 @@ ob source pull interface.json -o dist/interface.json --pure # publish clean
 | `ob delegate register/unregister <location>` | Register or unregister a delegate (aliases: `add`, `remove`) |
 | `ob delegate list` | List the registry: every delegate, its operations snapshot, pin, and preferences |
 | `ob delegate resolve <operation>` | Resolve an operation to the delegates that carry it, best first |
-| `ob delegate resolve-format <format>` | Show which delegate ob's routing would select for a format |
+| `ob delegate resolve-binding-spec <binding-spec>` | Show which delegate ob's routing would select for a binding specification |
 | `ob delegate prefer <location> [n]` | Set or clear (`--clear`) a delegate's preference, optionally per-operation |
-| `ob delegate requirements <capability>` | Print the interface a delegate must satisfy for a capability |
-| `ob formats` | List all format tokens this `ob` instance handles |
+| `ob delegate requirements <capability>` | Print the interface a delegate must correspond to for a capability |
+| `ob binding-specs` | List the binding specifications this `ob` instance can handle |
 
 ### Serve
 
@@ -402,7 +402,7 @@ The complete API is described by [`internal/server/openapi.yaml`](https://github
 | `/healthz` | GET | Health probe (no auth) |
 | `/.well-known/openbindings` | GET | OBI for `ob start` itself (no auth) |
 | `/describe` | GET | Identity and version metadata |
-| `/formats` | GET | Format tokens this `ob` can handle |
+| `/binding-specs` | GET | Binding specifications this `ob` can handle |
 | `/delegates` | GET | Registered delegates |
 | `/environment` | GET | Environment status |
 | `/contexts` | GET | List per-host context entries |
@@ -414,7 +414,7 @@ The complete API is described by [`internal/server/openapi.yaml`](https://github
 | `/sources/inspect` | POST | Enumerate bindable targets in a source |
 | `/resolve` | POST | Fetch an OBI from a URL (synthesizes if served raw) |
 | `/codegen` | POST | Generate typed client code from an OBI |
-| `/conform` | POST | Scaffold operations to satisfy a contract interface |
+| `/conform` | POST | Scaffold operations to correspond to a contract interface |
 | `/validate` | POST | Validate an OBI |
 | `/diff` | POST | Structural diff between two OBIs |
 | `/merge` | POST | Merge one OBI into another |
@@ -431,7 +431,7 @@ curl -X POST https://localhost:20291/bindings/prepare \
   -H "Authorization: Bearer $TOKEN" \
   -H "Content-Type: application/json" \
   -d '{
-    "source": { "format": "openapi@3.1", "location": "https://api.example.com/openapi.json" },
+    "source": { "format": "openbindings.openapi@1", "location": "https://api.example.com/openapi.json" },
     "ref":    "#/paths/~1users/get"
   }'
 ```

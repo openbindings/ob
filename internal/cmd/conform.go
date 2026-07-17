@@ -18,10 +18,10 @@ func newConformCmd() *cobra.Command {
 
 	cmd := &cobra.Command{
 		Use:   "conform <interface> <target-obi>",
-		Short: "Scaffold or update operations so the target satisfies another interface",
-		Long: `Scaffold or update operations in a target OBI so it satisfies another interface.
+		Short: "Scaffold or update operations so the target corresponds to another interface",
+		Long: `Scaffold or update operations in a target OBI so it corresponds to another interface.
 
-For each operation in the interface being satisfied:
+For each operation in the reference interface:
   - If missing from the target: scaffolds it (keyed by the contract operation
     name, copying its schemas)
   - If present but incompatible: offers to replace the schema, declaring the
@@ -29,8 +29,8 @@ For each operation in the interface being satisfied:
   - If present and compatible: reports "in sync"
 
 Correspondence is expressed purely through the operation key+alias namespace
-(spec OBI-T-12): an operation satisfies a contract operation by carrying its
-name as the key or an alias.
+(spec OBI-T-12): an operation corresponds to a contract operation by carrying
+its name as the key or an alias.
 
 Use --yes to auto-accept all changes (for CI/scripting).
 Use --dry-run to preview changes without modifying the file.

@@ -14,24 +14,24 @@ func newBindingInvokeCmd() *cobra.Command {
 
 	c := &cobra.Command{
 		Use:   "invoke [obi-path] [binding-key]",
-		Short: "Invoke a binding directly (the wire lane)",
-		Long: `Invoke a binding directly — the wire lane, below the operation contract.
+		Short: "Invoke a binding directly, below the operation layer",
+		Long: `Invoke a binding directly, below the operation layer.
 
 With an OBI path and a binding key, resolves the named binding from the
-document (embedded content or location) and drives it. This sits BELOW the
-operation boundary: it is not an operation invocation, so OBI-T-07/T-08,
-which apply when invoking an operation, have no subject here. The binding's
-declared inputTransform still applies — it is part of the binding itself,
-not of operation validation. The output is the source's own value,
-post-decode and pre-outputTransform. This is how you read what a drifted
-service actually returns while 'ob operation invoke' correctly refuses it.
---input carries the binding's input value.
+document (embedded content or location) and drives it. Because this is not
+an operation invocation, the operation-level input/output checks (spec
+OBI-T-07/T-08) do not apply here. The binding's own declared inputTransform
+still runs — it is part of the binding itself, not of operation validation.
+The output is exactly what the source returned: decoded, but NOT reshaped by
+the operation's output transform and NOT validated. This is how you read
+what a drifted service actually returns while 'ob operation invoke' correctly
+refuses it. --input carries the binding's input value.
 
 With no positional arguments (machine-to-machine), --input carries a
 BindingInvocationInput envelope wholesale; the result envelope
 ({"output": ...} or {"error": ...}) is written as one JSON line to stdout.
-This lane satisfies the invokeBinding operation from the binding-invoker
-interface.
+This machine lane corresponds to the invokeBinding operation from the
+binding-invoker interface.
 
 Examples:
   ob binding invoke orders.obi.json listOrders.api

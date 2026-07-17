@@ -67,7 +67,9 @@ func (d DelegateSummary) Render() string {
 	sb.WriteString(s.Header.Render("Delegate"))
 	sb.WriteString(" ")
 	sb.WriteString(s.Key.Render(d.Name))
-	sb.WriteString(s.Dim.Render(" " + d.Location))
+	if d.Location != "" && d.Location != d.Name {
+		sb.WriteString(s.Dim.Render(" " + d.Location))
+	}
 	if d.Builtin {
 		sb.WriteString(s.Dim.Render(" (builtin)"))
 	}
@@ -390,7 +392,9 @@ func (o ResolveDelegateOutput) Render() string {
 	sb.WriteString(s.Key.Render(o.Operation))
 	for i, d := range o.Candidates {
 		fmt.Fprintf(&sb, "\n  %d. %s", i+1, d.Name)
-		sb.WriteString(s.Dim.Render(" " + d.Location))
+		if d.Location != "" && d.Location != d.Name {
+			sb.WriteString(s.Dim.Render(" " + d.Location))
+		}
 		if d.Builtin {
 			sb.WriteString(s.Dim.Render(" (builtin)"))
 		}

@@ -22,6 +22,7 @@ Sources are registered references to binding specification artifacts
 (e.g., OpenAPI specs, usage specs). Adding a source does not derive
 operations — use 'ob source pull' for that.`,
 	}
+	markCommandGroup(cmd)
 
 	cmd.AddCommand(
 		newSourceAddCmd(),
@@ -82,7 +83,7 @@ embedded artifact (spec §6.4): the artifact's canonical origin for
 document formats, or the service's dial address for service-addressed
 formats — e.g. pin a .proto and carry its server:
 
-  ob source add my.obi.json grpc:./svc.proto --resolve content --uri api.example.com:443
+  ob source add my.obi.json openbindings.grpc@1:./svc.proto --resolve content --uri api.example.com:443
 
 Pass '-' as <obi-path> to read the document from stdin and write the
 modified document to stdout (the summary moves to stderr).
@@ -90,10 +91,10 @@ modified document to stdout (the summary moves to stderr).
 Examples:
   ob source add my.obi.json openapi.json
   ob source add my.obi.json ./api.yaml --key restApi
-  ob source add my.obi.json openapi@3.1:./api.yaml
+  ob source add my.obi.json openbindings.openapi@1:./api.yaml
   ob source add my.obi.json openapi.json --delegate ob
-  ob source add my.obi.json 'openapi@3.1:https://example.com/openapi.json?embed'
-  ob source add my.obi.json openapi@3.1:./api.yaml --uri https://cdn.example.com/api.yaml`,
+  ob source add my.obi.json 'openbindings.openapi@1:https://example.com/openapi.json?embed'
+  ob source add my.obi.json openbindings.openapi@1:./api.yaml --uri https://cdn.example.com/api.yaml`,
 		Args: cobra.ExactArgs(2),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			obiPath := args[0]
@@ -193,7 +194,7 @@ Examples:
 	}
 
 	cmd.Flags().StringVar(&key, "key", "", "explicit source key (default: derived from format and path)")
-	cmd.Flags().StringVar(&resolveArg, "resolve", "", "resolution mode: location (default) or content")
+	cmd.Flags().StringVar(&resolveArg, "resolve", "", "resolution mode: content (default for local files) or location (default for URLs)")
 	cmd.Flags().StringVar(&uriArg, "uri", "", "explicit published URI for location mode")
 	cmd.Flags().StringVar(&delegateArg, "delegate", "", "delegate to use for this source (skips detection)")
 	cmd.Flags().StringVar(&description, "description", "", "human-readable description for this source")

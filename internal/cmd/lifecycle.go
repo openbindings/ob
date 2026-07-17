@@ -25,7 +25,7 @@ func newNewCmd() *cobra.Command {
 This is the authorship entry point. Populate the new interface with
 'ob operation add' (hand-authored ops), 'ob source add' + 'ob source pull'
 (derive from a binding source), and 'ob operation bind' (wire an op to a
-source). To satisfy a published interface, see 'ob operation alias add'.
+source). To correspond to a published interface, see 'ob operation alias add'.
 
 Pass '-' as <path> to write the new document to stdout instead of a file
 (the summary moves to stderr), ready to pipe into further edits.
@@ -70,6 +70,7 @@ Note: homepage/repository/maintainer are software-descriptor fields
 (see 'ob operation alias add ... openbindings.software-descriptor.describe'),
 not interface metadata.`,
 	}
+	markCommandGroup(cmd)
 	cmd.AddCommand(newMetaSetCmd())
 	return cmd
 }

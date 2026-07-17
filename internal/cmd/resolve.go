@@ -26,9 +26,9 @@ By default the resolved document is written to a file: use -o/--output to
 set it, or the filename is derived from the host (e.g. localhost:8080 →
 localhost_8080.obi.json).
 
-With -F json (the wire lane), no interface file is written: the
-ResolveInterfaceOutput envelope ({"interface": ..., "synthesizedFrom":
-...}) is printed instead, and -o writes that envelope.
+With -F json (or yaml), no interface file is written: the resolved
+interface and what it was synthesized from are printed to stdout instead
+(as {"interface": ..., "synthesizedFrom": ...}), and -o writes that JSON.
 
 Examples:
   ob resolve localhost:8080

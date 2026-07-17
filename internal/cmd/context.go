@@ -33,6 +33,7 @@ Examples:
   ob context set exec:kubectl --env KUBECONFIG=/home/me/.kube/prod
   ob context set https://api.github.com --from-curl 'curl -H "Authorization: Bearer ghp_..."'`,
 	}
+	markCommandGroup(cmd)
 
 	cmd.AddCommand(
 		newContextListCmd(),

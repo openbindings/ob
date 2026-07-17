@@ -48,7 +48,7 @@ source arguments and metadata flags; formats must be explicit).
 
 Examples:
   ob synthesize openapi.json -o api.obi.json
-  ob synthesize usage@2.0.0:./cli.kdl?name=cli --name "Acme CLI"
+  ob synthesize openbindings.usage@1:./cli.kdl?name=cli --name "Acme CLI"
   ob synthesize api.yaml?embed --name "Acme API" --version 1.0.0
   ob synthesize --input '{"sources":[{"bindingSpec":"openbindings.openapi@1","location":"api.yaml"}]}'`,
 		RunE: func(cmd *cobra.Command, args []string) error {
