@@ -12,7 +12,7 @@ import (
 )
 
 // CLIContextResolver returns the context resolver for interactive CLI usage:
-// the composition of the binding-invoker and key-value-store interfaces. When a
+// the composition of the binding-invoker and document-store interfaces. When a
 // binding raises CONTEXT_REQUIRED, the resolver derives a store key from the
 // challenge's target and first consults the CLI context store under it; if the
 // stored context can't satisfy the challenge, it prompts for the missing

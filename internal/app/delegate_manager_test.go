@@ -8,12 +8,12 @@ import (
 )
 
 // fakeDelegateOBI is a minimal delegate interface: it carries the
-// key-value-store get operation by alias (and a couple of local ops), but
+// document-store get operation by alias (and a couple of local ops), but
 // satisfies none of ob's three format capabilities — an inert-for-ob delegate.
-const fakeDelegateOBI = `{"openbindings":"0.2.0","name":"fake-kv","version":"0.1.0","operations":{"get":{"aliases":["openbindings.key-value-store.get"]},"translate":{"aliases":["acme.fake.translate"]}}}`
+const fakeDelegateOBI = `{"openbindings":"0.2.0","name":"fake-kv","version":"0.1.0","operations":{"get":{"aliases":["openbindings.document-store.get"]},"translate":{"aliases":["acme.fake.translate"]}}}`
 
 // fakeDelegateOBIv2 is the same delegate after a change (an extra operation).
-const fakeDelegateOBIv2 = `{"openbindings":"0.2.0","name":"fake-kv","version":"0.1.0","operations":{"get":{"aliases":["openbindings.key-value-store.get"]},"translate":{"aliases":["acme.fake.translate"]},"delete":{}}}`
+const fakeDelegateOBIv2 = `{"openbindings":"0.2.0","name":"fake-kv","version":"0.1.0","operations":{"get":{"aliases":["openbindings.document-store.get"]},"translate":{"aliases":["acme.fake.translate"]},"delete":{}}}`
 
 // writeFakeDelegate writes an executable that answers --openbindings with the
 // given OBI, returning its exec: location.
@@ -61,7 +61,7 @@ func TestRegisterDelegate_SnapshotsAndPins(t *testing.T) {
 		t.Errorf("name = %q, want the delegate OBI's name", summary.Name)
 	}
 	// The snapshot's operations are keys AND aliases — the flat identifier set.
-	for _, want := range []string{"get", "openbindings.key-value-store.get", "acme.fake.translate"} {
+	for _, want := range []string{"get", "openbindings.document-store.get", "acme.fake.translate"} {
 		if !carriesOperation(summary.Operations, want) {
 			t.Errorf("snapshot should carry %q; got %v", want, summary.Operations)
 		}
@@ -84,7 +84,7 @@ func TestRegisterDelegate_RefreshPreservesPreferences(t *testing.T) {
 
 	// The registrar builds a preference index...
 	if _, err := SetDelegatePreference(SetDelegatePreferenceInput{
-		Location: loc, Preference: prefOf(7), Operation: "openbindings.key-value-store.get",
+		Location: loc, Preference: prefOf(7), Operation: "openbindings.document-store.get",
 	}); err != nil {
 		t.Fatalf("set operation preference: %v", err)
 	}
@@ -98,7 +98,7 @@ func TestRegisterDelegate_RefreshPreservesPreferences(t *testing.T) {
 		t.Errorf("refresh should replace the snapshot; operations = %v", before.Operations)
 	}
 	// The preferences are the registrar's data: untouched.
-	if got := before.OperationPreferences["openbindings.key-value-store.get"]; got != 7 {
+	if got := before.OperationPreferences["openbindings.document-store.get"]; got != 7 {
 		t.Errorf("refresh must preserve the preference index; got %v", before.OperationPreferences)
 	}
 }
@@ -120,7 +120,7 @@ func TestSetDelegatePreference_NullClears(t *testing.T) {
 	}
 
 	// Set then remove an operation entry.
-	op := "openbindings.key-value-store.get"
+	op := "openbindings.document-store.get"
 	if _, err := SetDelegatePreference(SetDelegatePreferenceInput{Location: loc, Preference: prefOf(9), Operation: op}); err != nil {
 		t.Fatalf("set op preference: %v", err)
 	}
@@ -152,7 +152,7 @@ func TestSetDelegatePreference_FormatScopeSurfacesInSummary(t *testing.T) {
 		t.Fatalf("register: %v", err)
 	}
 
-	op := "openbindings.key-value-store.get"
+	op := "openbindings.document-store.get"
 	s, err := SetDelegatePreference(SetDelegatePreferenceInput{
 		Location: loc, Preference: prefOf(3), Operation: op, BindingSpec: "grpc",
 	})
@@ -211,8 +211,8 @@ func TestUnregisterDelegate_Idempotent(t *testing.T) {
 func TestResolveDelegate_OrdersByEffectivePreference(t *testing.T) {
 	dir := delegateTestEnv(t)
 	// An operation ob itself does not carry, so the candidates are exactly the
-	// two externals. (Resolving openbindings.key-value-store.get would return
-	// three: ob's own context store carries the kv-store keys by alias.)
+	// two externals. (Resolving openbindings.document-store.get would return
+	// three: ob's own context store carries the document-store keys by alias.)
 	op := "acme.fake.translate"
 	locA := writeFakeDelegate(t, dir, "kv-a", fakeDelegateOBI)
 	locB := writeFakeDelegate(t, dir, "kv-b", fakeDelegateOBI)

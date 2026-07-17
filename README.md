@@ -193,7 +193,7 @@ ob codegen https://api.example.com/openapi.json --lang typescript
 `ob conform` scaffolds operations in your OBI so it corresponds to another interface (such as one of the project's published interfaces). Correspondence is expressed through the operation key+alias namespace — an operation corresponds to a contract operation by carrying its name as the key or an alias (spec OBI-T-12).
 
 ```bash
-ob conform key-value-store.json my-service.obi.json
+ob conform document-store.json my-service.obi.json
 ```
 
 For each operation in the contract interface:
