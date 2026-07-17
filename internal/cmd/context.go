@@ -25,8 +25,11 @@ A context is scoped to a target URL and contains credentials, headers,
 cookies, environment variables, and metadata. When invoking an operation,
 context is automatically resolved from the target URL — no manual flag needed.
 
-Credentials are stored securely in the OS keychain. Non-secret
-fields (headers, environment, metadata) are stored in config files.
+Credentials are stored in the OS keychain by default. Set
+OB_CREDENTIALS_FILE=<path> to store them in a JSON file instead, for headless
+environments with no keychain (CI, containers, sandboxes) — see the README's
+"Headless / CI" section. Non-secret fields (headers, environment, metadata)
+are stored in config files.
 
 Examples:
   ob context set https://api.stripe.com/openapi.json --bearer-token
@@ -119,9 +122,10 @@ The URL is the target that this context applies to (e.g., an OpenAPI spec
 URL, an exec: reference, or any binding source URL). Context is automatically
 matched when invoking operations against this target.
 
-Credential flags (--bearer-token, --api-key, --basic) store values
-securely in the OS keychain. Pass "-" to read from stdin without
-echoing (keeps secrets out of shell history).
+Credential flags (--bearer-token, --api-key, --basic) store values in the OS
+keychain by default, or in the file named by OB_CREDENTIALS_FILE when it is
+set (headless / CI). Pass "-" to read from stdin without echoing (keeps
+secrets out of shell history).
 
 Non-secret flags (--header, --cookie, --env, --meta) are stored in
 a config file and can be specified multiple times.

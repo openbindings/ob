@@ -159,6 +159,30 @@ When a binding needs context it doesn't have, invocation stops before any side e
 
 Then retry the invocation. `--from-curl` imports credentials from a working curl command; `--header`, `--cookie`, `--env`, and `--meta` cover the non-credential fields. The same store backs the HTTP surface (`/contexts`, with `POST /bindings/prepare` reporting requirements proactively) and everything routed through delegates.
 
+#### Headless / CI
+
+By default credentials live in the OS keychain, which is unreachable in CI, containers, and sandboxes (a keychain write there fails, and `ob` tells you the escape hatch below rather than dying opaquely). Set `OB_CREDENTIALS_FILE` to an explicit path to store credentials in a JSON file instead:
+
+```bash
+export OB_CREDENTIALS_FILE="$HOME/.config/openbindings/credentials.json"
+ob context set https://api.example.com --bearer-token ci-token
+# storing credentials unencrypted at /home/you/.config/openbindings/credentials.json at your request
+```
+
+The file maps each target-URL key to its credential field-bag:
+
+```json
+{
+  "https://api.example.com": { "bearerToken": "ci-token" }
+}
+```
+
+The env var is the only selector: when it is unset the keychain is used, and a keychain failure never silently falls through to a file. Rules:
+
+- The file is created `0600` (owner read/write only). If an existing file is group- or world-accessible, `ob` refuses to read it and tells you to `chmod 600 <path>`.
+- On its first write each process prints the notice above once: the file is **unencrypted**, plaintext on disk like `~/.aws/credentials`. Protect it with filesystem permissions and treat it like any other secret file. The OS keychain remains the default for exactly this reason.
+- Non-secret context (headers, cookies, environment, metadata) is unaffected — it always lives in the config files under the config directory.
+
 ## Code Generation
 
 `ob codegen` generates typed client code from OBIs:
