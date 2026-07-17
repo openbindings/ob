@@ -10,10 +10,10 @@ import (
 func newDelegateRequirementsCmd() *cobra.Command {
 	return &cobra.Command{
 		Use:   "requirements <invoke|synthesize|inspect>",
-		Short: "Print the interface a delegate must satisfy for a capability",
-		Long: `Print the OpenBindings interface a delegate must satisfy to provide a
-capability, so a prospective delegate can be checked against the exact
-contract:
+		Short: "Print the interface a delegate must correspond to for a capability",
+		Long: `Print the OpenBindings interface a delegate must correspond to in order to
+provide a capability, so a prospective delegate can be checked against the
+exact contract:
 
   ob compat <(ob delegate requirements invoke) my-tool.obi.json
 

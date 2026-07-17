@@ -24,7 +24,7 @@ cmd "status" help="Report an OBI's drift against its sources (read-only)" {
 
 cmd "resolve" help="Resolve an OpenBindings interface from a URL or host" {
   flag "-o --output <path>" help="Write output to file (default: derived from host)"
-  flag "-F --format <format>" help="Output format: json|yaml|text (json = wire lane: print the ResolveInterfaceOutput envelope, write no file)"
+  flag "-F --format <format>" help="Output format: json|yaml|text (json/yaml prints the resolved interface and its origin to stdout instead of writing a file)"
   arg "<address>" help="Base URL or host (e.g. localhost:8080)"
 }
 
@@ -95,7 +95,7 @@ cmd "delegate" help="Manage delegates" subcommand_required=true {
     flag "-F --format <format>" help="Output format: json|yaml|text"
     arg "<binding-spec>" help="Binding specification identifier to resolve"
   }
-  cmd "requirements" help="Print the interface a delegate must satisfy for a capability" {
+  cmd "requirements" help="Print the interface a delegate must correspond to for a capability" {
     arg "<capability>" help="Capability: invoke, synthesize, or inspect"
   }
   cmd "prefer" help="Set or clear a delegate's selection preference (higher = more preferred)" {
@@ -160,7 +160,7 @@ cmd "source" help="Manage source references on an OBI" subcommand_required=true 
   alias "src" "sources"
   cmd "add" help="Register a source reference on an OBI" {
     flag "--key <name>" help="Explicit source key (default: derived from format and path)"
-    flag "--resolve <mode>" help="Resolution mode: location (default) or content"
+    flag "--resolve <mode>" help="Resolution mode: content (default for local files) or location (default for URLs)"
     flag "--uri <url>" help="Explicit published URI for location mode"
     flag "--delegate <delegate>" help="Delegate to use for this source (skips detection)"
     flag "--description <desc>" help="Human-readable description for this source"
@@ -168,7 +168,7 @@ cmd "source" help="Manage source references on an OBI" subcommand_required=true 
     flag "-o --output <path>" help="Write output to file"
     flag "-F --format <format>" help="Output format: json|yaml|text"
     arg "<obi-path>" help="Path to the OBI file (- reads stdin and writes the modified document to stdout)"
-    arg "<source>" help="Source path or format:path (e.g., openapi.json or usage@2.0.0:./cli.kdl)"
+    arg "<source>" help="Source path or bindingSpec:path (e.g., openapi.json or openbindings.usage@1:./cli.kdl)"
   }
   cmd "pull" help="Derive operations and bindings from registered sources" {
     flag "--pure" help="Strip x-ob metadata from the output (publish-clean); requires -o"
@@ -196,7 +196,7 @@ cmd "operation" help="Manage and invoke operations on an OBI" subcommand_require
   alias "op" "operations"
   cmd "add" help="Add a new operation to an OBI" {
     flag "--description <desc>" help="Operation description"
-    flag "--alias <alias>" help="Satisfaction alias: another interface's operation key this satisfies (repeatable)"
+    flag "--alias <alias>" help="Correspondence alias: another interface's operation key this operation also answers to (repeatable)"
     flag "--tag <tag>" help="Operation tag (repeatable)"
     flag "--input-schema <schema>" help="Input schema: inline JSON, @file, or - for stdin"
     flag "--output-schema <schema>" help="Output schema: inline JSON, @file, or - for stdin"
@@ -206,24 +206,24 @@ cmd "operation" help="Manage and invoke operations on an OBI" subcommand_require
     arg "<obi-path>" help="Path to the OBI file (- reads stdin and writes the modified document to stdout)"
     arg "<key>" help="Key for the new operation"
   }
-  cmd "alias" help="Manage an operation's satisfaction aliases" subcommand_required=true {
+  cmd "alias" help="Manage an operation's correspondence aliases" subcommand_required=true {
     alias "aliases"
-    cmd "add" help="Add satisfaction alias(es) to an operation" {
+    cmd "add" help="Add correspondence alias(es) to an operation" {
       flag "-o --output <path>" help="Write output to file"
       flag "-F --format <format>" help="Output format: json|yaml|text"
       arg "<obi-path>" help="Path to the OBI file (- reads stdin and writes the modified document to stdout)"
       arg "<operation>" help="Operation key or identifier"
-      arg "<alias>..." help="Satisfaction alias(es) to add"
+      arg "<alias>..." help="Correspondence alias(es) to add"
     }
-    cmd "remove" help="Remove satisfaction alias(es) from an operation" {
+    cmd "remove" help="Remove correspondence alias(es) from an operation" {
       alias "rm"
       flag "-o --output <path>" help="Write output to file"
       flag "-F --format <format>" help="Output format: json|yaml|text"
       arg "<obi-path>" help="Path to the OBI file (- reads stdin and writes the modified document to stdout)"
       arg "<operation>" help="Operation key or identifier"
-      arg "<alias>..." help="Satisfaction alias(es) to remove"
+      arg "<alias>..." help="Correspondence alias(es) to remove"
     }
-    cmd "list" help="Show the satisfaction map (which ops satisfy which interfaces)" {
+    cmd "list" help="Show the correspondence map (which ops correspond to which interfaces)" {
       alias "ls"
       flag "-o --output <path>" help="Write output to file"
       flag "-F --format <format>" help="Output format: json|yaml|text"
@@ -259,8 +259,8 @@ cmd "operation" help="Manage and invoke operations on an OBI" subcommand_require
     arg "<operation>" help="Operation key or identifier"
     arg "[name]" help="New codegen symbol name (omit with --clear)"
   }
-  cmd "output-schema" help="Elect an operation's real output schema (the non-detaching remedy for a floor)" {
-    flag "--clear" help="Remove the output-schema election"
+  cmd "output-schema" help="Set an operation's output schema when its source can't declare one" {
+    flag "--clear" help="Remove the output-schema override"
     flag "-o --output <path>" help="Write output to file"
     flag "-F --format <format>" help="Output format: json|yaml|text"
     arg "<obi-path>" help="Path to the OBI file (- reads stdin and writes the modified document to stdout)"
@@ -295,7 +295,7 @@ cmd "operation" help="Manage and invoke operations on an OBI" subcommand_require
     }
     flag "--ok-exit <codes>" help="Exit codes classified as success, comma-separated (e.g. 0,1)"
     flag "--route <field=channel>" help="Field routing: field=argv|stdin|stdin-dash|file (repeatable)"
-    flag "-v --verbose" help="Show binding key, duration, and displaced elections on stderr"
+    flag "-v --verbose" help="Show binding key, duration, and any displaced output-schema overrides on stderr"
     arg "<obi>" help="OBI locator (file path, URL, exec: reference, or - for stdin)"
     arg "[operation]" help="Operation key to invoke"
   }
@@ -332,10 +332,10 @@ cmd "operation" help="Manage and invoke operations on an OBI" subcommand_require
 }
 
 cmd "binding" help="Low-level binding operations" subcommand_required=true {
-  cmd "invoke" help="Invoke a binding directly (the wire lane)" {
+  cmd "invoke" help="Invoke a binding directly, below the operation layer" {
     flag "--input <json>" help="Binding input value (with positional args), or a BindingInvocationInput envelope (machine lane)"
     arg "[obi-path]" help="OBI document to resolve the binding from"
-    arg "[binding-key]" help="Binding key to invoke (output is the wire value: post-decode, pre-outputTransform, unvalidated)"
+    arg "[binding-key]" help="Binding key to invoke (output is exactly what the source returned: decoded, not reshaped by the operation's output transform, and unvalidated)"
   }
   cmd "prepare" help="Preflight a resolved binding (machine-to-machine)" {
     flag "--input <json>" help="BindingInvocationInput as a JSON string"
@@ -361,7 +361,7 @@ cmd "merge" help="Selectively apply changes from one OBI into another" {
   flag "--out <path>" help="Write to alternate path instead of target"
   flag "--op <key>" help="Only merge this operation (repeatable)"
   flag "--exclude-op <key>" help="Exclude this operation from merge (repeatable)"
-  flag "--ops-only" help="Graft operations only (no bindings or source entries) — adopt-keys satisfaction"
+  flag "--ops-only" help="Graft operations only (no bindings or source entries)"
   flag "--no-bindings" help="Don't graft bindings (operations and their sources still come)"
   flag "--no-sources" help="Don't graft source entries (operations and bindings still come)"
   flag "-o --output <path>" help="Write output to file"
@@ -386,12 +386,12 @@ cmd "compat" help="Check interface conformance between two interfaces" {
   arg "<candidate>" help="Candidate interface (locator)"
 }
 
-cmd "conform" help="Scaffold or update operations so the target satisfies another interface" {
+cmd "conform" help="Scaffold or update operations so the target corresponds to another interface" {
   flag "-y --yes" help="Auto-accept all scaffolding and replacements"
   flag "--dry-run" help="Preview changes without modifying files"
   flag "-o --output <path>" help="Write output to file"
   flag "-F --format <format>" help="Output format: json|yaml|text"
-  arg "<interface>" help="Reference interface to satisfy (locator)"
+  arg "<interface>" help="Reference interface to correspond to (locator)"
   arg "<target-obi>" help="Target OBI to scaffold into"
 }
 

@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
 
@@ -1272,10 +1273,10 @@ func (r ComparisonReport) Render() string {
 	s := Styles
 	sb.WriteString(s.Header.Render("Comparison Report"))
 	sb.WriteString("\n")
-	sb.WriteString(s.Dim.Render("  left:  "))
+	sb.WriteString(s.Dim.Render("  target:    "))
 	sb.WriteString(r.Inputs.Left.URI)
 	sb.WriteString("\n")
-	sb.WriteString(s.Dim.Render("  right: "))
+	sb.WriteString(s.Dim.Render("  candidate: "))
 	sb.WriteString(r.Inputs.Right.URI)
 	sb.WriteString("\n\n")
 	if r.Error != nil {
@@ -1306,7 +1307,7 @@ func (r ComparisonReport) Render() string {
 			sb.WriteString("\n      ")
 			sb.WriteString(finding.Kind)
 			sb.WriteString(" ")
-			sb.WriteString(finding.Location.Pointer)
+			sb.WriteString(findingLocationLabel(finding))
 		}
 		sb.WriteString("\n")
 	}
@@ -1321,4 +1322,51 @@ func (r ComparisonReport) Render() string {
 		sb.WriteString(s.Warning.Render(r.Summary.Verdict))
 	}
 	return sb.String()
+}
+
+// findingLocationLabel renders a finding's pointer for humans. When the
+// pointer ends in an array index — a required-field or enum position — it
+// resolves that index to the actual value the finding carries, so the reader
+// sees which field changed by name (…/required/lang) instead of by position
+// (…/required/0). The JSON model keeps the raw indexed pointer.
+func findingLocationLabel(f Finding) string {
+	ptr := f.Location.Pointer
+	slash := strings.LastIndex(ptr, "/")
+	if slash < 0 {
+		return ptr
+	}
+	idx, err := strconv.Atoi(ptr[slash+1:])
+	if err != nil {
+		return ptr
+	}
+	// An added element (side "right") is named in After; a removed one
+	// (side "left") in Before.
+	src := f.After
+	if f.Location.Side == "left" {
+		src = f.Before
+	}
+	name, ok := arrayElementLabel(src, idx)
+	if !ok {
+		return ptr
+	}
+	return ptr[:slash+1] + name
+}
+
+// arrayElementLabel returns the idx-th element of an array carried in a
+// finding's before/after value, as a display string.
+func arrayElementLabel(v *any, idx int) (string, bool) {
+	if v == nil || idx < 0 {
+		return "", false
+	}
+	switch arr := (*v).(type) {
+	case []string:
+		if idx < len(arr) {
+			return arr[idx], true
+		}
+	case []any:
+		if idx < len(arr) {
+			return fmt.Sprintf("%v", arr[idx]), true
+		}
+	}
+	return "", false
 }

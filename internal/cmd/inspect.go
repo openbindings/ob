@@ -30,7 +30,7 @@ Machine callers pass the operation's wire input wholesale instead:
 
 Examples:
   ob inspect openapi.json
-  ob inspect usage@2.0.0:./cli.kdl
+  ob inspect openbindings.usage@1:./cli.kdl
   ob inspect https://api.example.com/openapi.json
   ob inspect --input '{"source":{"bindingSpec":"openbindings.openapi@1","location":"api.yaml"}}'`,
 		Args: cobra.MaximumNArgs(1),

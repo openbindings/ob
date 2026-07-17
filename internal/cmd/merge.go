@@ -116,7 +116,7 @@ Exit codes:
 	cmd.Flags().StringVar(&outPath, "out", "", "write to alternate path instead of target")
 	cmd.Flags().StringArrayVar(&operations, "op", nil, "only merge this operation (repeatable)")
 	cmd.Flags().StringArrayVar(&excludeOps, "exclude-op", nil, "exclude this operation from merge (repeatable)")
-	cmd.Flags().BoolVar(&opsOnly, "ops-only", false, "graft operations only (no bindings or source entries) — the adopt-keys satisfaction strategy")
+	cmd.Flags().BoolVar(&opsOnly, "ops-only", false, "graft operations only (no bindings or source entries)")
 	cmd.Flags().BoolVar(&noBindings, "no-bindings", false, "don't graft bindings (operations and their sources still come)")
 	cmd.Flags().BoolVar(&noSources, "no-sources", false, "don't graft source entries (operations and bindings still come)")
 

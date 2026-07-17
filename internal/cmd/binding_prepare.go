@@ -22,7 +22,7 @@ context the binding would require before it can be invoked, without invoking it.
 Writes ContextRequiredDetails as JSON to stdout, or null when no context is
 required.
 
-This command satisfies the prepareBinding operation from the
+This command corresponds to the prepareBinding operation from the
 binding-invoker interface, and is the binding-level twin of operation prepare.`,
 		Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {

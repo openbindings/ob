@@ -26,7 +26,7 @@ func RenderBindingSpecList(formats []BindingSpecInfo) string {
 	s := Styles
 	var sb strings.Builder
 
-	sb.WriteString(s.Header.Render("Supported formats:"))
+	sb.WriteString(s.Header.Render("Supported binding specifications:"))
 	sb.WriteString("\n")
 	for _, f := range formats {
 		sb.WriteString("  ")

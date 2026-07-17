@@ -9,6 +9,20 @@ import (
 	"github.com/spf13/cobra"
 )
 
+// markCommandGroup configures a pure command-group parent (one with
+// subcommands and no action of its own): a bare invocation prints help, and an
+// unrecognized subcommand errors with cobra's standard "unknown command"
+// message instead of silently falling through to help with exit 0. Cobra
+// short-circuits a non-runnable command straight to help before it validates
+// args, so the group must be runnable (RunE = help) for NoArgs to reject the
+// stray token.
+func markCommandGroup(c *cobra.Command) {
+	c.Args = cobra.NoArgs
+	c.RunE = func(cmd *cobra.Command, _ []string) error {
+		return cmd.Help()
+	}
+}
+
 // getOutputFlags returns the global --format and -o/--output (path) from the root command.
 // -o/--output = output path (file to write). --format/-F = output format (json|yaml|text|quiet).
 func getOutputFlags(c *cobra.Command) (format string, outputPath string) {

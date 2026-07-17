@@ -11,6 +11,7 @@ func newBindingCmd() *cobra.Command {
 These commands operate on pre-resolved bindings rather than OBI-level operations.
 They are the building blocks used by delegates and orchestrators.`,
 	}
+	markCommandGroup(c)
 
 	c.AddCommand(
 		newBindingInvokeCmd(),

@@ -528,10 +528,10 @@ type OperationAliasListOutput []OperationAliasListEntry
 func (o OperationAliasListOutput) Render() string {
 	s := Styles
 	if len(o) == 0 {
-		return s.Dim.Render("No satisfaction aliases")
+		return s.Dim.Render("No correspondence aliases")
 	}
 	var sb strings.Builder
-	sb.WriteString(s.Header.Render("Satisfies"))
+	sb.WriteString(s.Header.Render("Corresponds to"))
 	for _, e := range o {
 		sb.WriteString("\n\n  ")
 		sb.WriteString(s.Key.Render(e.Key))

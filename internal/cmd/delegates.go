@@ -15,6 +15,7 @@ resolved document; resolution matches the operations ob needs against those
 snapshots; preference orders the candidates. ob itself is the builtin
 self-delegate.`,
 	}
+	markCommandGroup(c)
 
 	c.AddCommand(
 		newDelegateRegisterCmd(),
