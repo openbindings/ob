@@ -1,6 +1,6 @@
 module github.com/openbindings/ob
 
-go 1.25.0
+go 1.25.6
 
 require (
 	github.com/charmbracelet/bubbles v0.21.1-0.20250623103423-23b8fd6302d7 // indirect
@@ -23,7 +23,6 @@ require (
 
 require (
 	github.com/Masterminds/semver/v3 v3.4.0
-	github.com/blues/jsonata-go v1.5.4
 	github.com/charmbracelet/huh v0.8.0
 	github.com/google/shlex v0.0.0-20191202100458-e7afc7fbc510
 	github.com/modelcontextprotocol/go-sdk v1.4.1
@@ -72,6 +71,7 @@ require (
 	github.com/oasdiff/yaml3 v0.0.0-20250309153720-d2182401db90 // indirect
 	github.com/perimeterx/marshmallow v1.1.5 // indirect
 	github.com/petermattis/goid v0.0.0-20260113132338-7c7de50cc741 // indirect
+	github.com/recolabs/gnata v0.2.2
 	github.com/rivo/uniseg v0.4.7 // indirect
 	github.com/santhosh-tekuri/jsonschema/v5 v5.3.1 // indirect
 	github.com/segmentio/asm v1.1.3 // indirect
