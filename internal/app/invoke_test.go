@@ -288,7 +288,7 @@ func TestDriveBindingTearsDownOnCancel(t *testing.T) {
 		return inv
 	}
 
-	ch := driveBinding(ctx, invoke, nil, nil, nil)
+	ch := driveBinding(ctx, invoke, nil, nil, nil, nil)
 
 	// Confirm the stream is flowing, then ABANDON it (stop draining) so the
 	// 16-slot buffer fills and driveBinding parks on its send.
