@@ -8,6 +8,7 @@ import (
 	"io"
 	"net"
 	"net/http"
+	"net/url"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -223,6 +224,116 @@ type InvocationOutput struct {
 // the app-level binding paths, mirroring the SDK operation layer's cap.
 const maxBindingContextRounds = 3
 
+// deriveSourceTarget derives a source's AUTHORITATIVE target — the network host
+// ob can determine from the source itself, independently of whatever target an
+// invoker asserts. ob holds the source in both the builtin and delegate paths,
+// so where the source names a concrete network endpoint ob can check a
+// delegate's asserted CONTEXT_REQUIRED target against it without trusting the
+// delegate's word (the binding-invoker contract's confused-deputy defense).
+//
+// It returns the host-normalized location (openbindings.NormalizeEndpoint — the
+// same origin identity the context store keys on) when the location is a
+// concrete network endpoint: an http(s)/ws(s) URL, or a bare host:port address
+// (a gRPC-style location). It returns "" when no network host is readable
+// without family knowledge — inline content (only a family processor can read
+// the artifact's declared servers), an exec ref, or a relative/opaque location.
+// An empty result means the assertion is UNVERIFIABLE: ob must then treat the
+// invoker as untrusted for credential provisioning rather than trust its word.
+func deriveSourceTarget(source InvokeSource) string {
+	loc := strings.TrimSpace(source.Location)
+	if loc == "" {
+		return "" // inline content or no location
+	}
+	if execref.IsExec(loc) {
+		return "" // exec ref: no network host
+	}
+	if isHostPort(loc) {
+		return openbindings.NormalizeEndpoint(loc) // the location IS the endpoint
+	}
+	if u, err := url.Parse(loc); err == nil && u.Host != "" {
+		switch strings.ToLower(u.Scheme) {
+		case "http", "https", "ws", "wss":
+			return openbindings.NormalizeEndpoint(loc)
+		}
+	}
+	return "" // file path, relative ref, or opaque scheme: no derivable host
+}
+
+// sourceLabel names a source for a diagnostic message: its location, or
+// "inline content" when the artifact rides in the document.
+func sourceLabel(source InvokeSource) string {
+	if loc := strings.TrimSpace(source.Location); loc != "" {
+		return loc
+	}
+	return "inline content"
+}
+
+// delegateProvisionGuard hardens CONTEXT_REQUIRED credential provisioning when
+// driveBinding drives an UNTRUSTED invoker — a delegate, which is a separate
+// (possibly third-party) process. ob's own in-process builtin invoker passes no
+// guard: it runs inside ob's trust boundary and derives the challenge's target
+// authentically from the same source ob holds, so its assertion needs no
+// independent check.
+//
+// Two runtime-enforced limits from the binding-invoker contract live here, and
+// together they bound what a delegate can obtain:
+//
+//   - Target validation (confused-deputy defense). The `target` in a
+//     CONTEXT_REQUIRED challenge is ASSERTED by the invoker. A misreporting
+//     delegate could name one host's target to make ob look up and forward
+//     ANOTHER host's stored credentials. Before any credential lookup, the
+//     guard validates the asserted target against the source's authoritative
+//     target and refuses a mismatch — no lookup, no merge.
+//
+//   - Least privilege. Every context ob provisions to the delegate is scoped to
+//     the one challenge it answered (openbindings.ScopeContext), so a delegate
+//     never receives more credential material than its own challenge named.
+type delegateProvisionGuard struct {
+	// authoritativeTarget is deriveSourceTarget(source): the source's target
+	// host as ob derives it independently of the invoker. Empty when ob cannot
+	// derive one without family knowledge, in which case a delegate's target is
+	// unverifiable and no stored credentials are provisioned for it.
+	authoritativeTarget string
+	// sourceLabel describes the source in the refusal message.
+	sourceLabel string
+}
+
+// newDelegateProvisionGuard builds the guard for a delegate invocation from the
+// source ob is invoking through.
+func newDelegateProvisionGuard(source InvokeSource) *delegateProvisionGuard {
+	return &delegateProvisionGuard{
+		authoritativeTarget: deriveSourceTarget(source),
+		sourceLabel:         sourceLabel(source),
+	}
+}
+
+// vetTarget decides whether ob may provision credentials for a delegate's
+// asserted CONTEXT_REQUIRED target. It returns:
+//
+//   - provision=true, refusal=nil  — the asserted target matches the source's
+//     authoritative target; ob may resolve, scope, and forward credentials.
+//   - provision=false, refusal!=nil — the asserted target MISMATCHES the
+//     source's authoritative target (the confused-deputy case): a loud terminal
+//     refusal to surface, with no credential lookup and no merge.
+//   - provision=false, refusal=nil  — ob could not derive an authoritative
+//     target to verify against; it withholds stored-credential provisioning for
+//     the unverifiable target and lets the delegate's own challenge surface, so
+//     a caller can still supply per-call context explicitly.
+func (g *delegateProvisionGuard) vetTarget(asserted string) (provision bool, refusal *openbindings.InvocationError) {
+	if g.authoritativeTarget == "" {
+		return false, nil
+	}
+	if openbindings.NormalizeEndpoint(asserted) != g.authoritativeTarget {
+		return false, &openbindings.InvocationError{
+			Code: openbindings.ErrCodePermissionDenied,
+			Message: fmt.Sprintf(
+				"refusing to provision credentials to delegate: it asserted context target %q, but the source ob is invoking (%s) authoritatively addresses %q — a misreporting invoker must not name one host's target to obtain another host's stored credentials (binding-invoker confused-deputy defense)",
+				asserted, g.sourceLabel, g.authoritativeTarget),
+		}
+	}
+	return true, nil
+}
+
 // driveBinding invokes a binding (via the supplied invoke function), writes
 // the single input (when non-nil), closes the input side, and streams the
 // handle's outputs (and any terminal error) onto a channel of app-layer
@@ -238,12 +349,20 @@ const maxBindingContextRounds = 3
 // Write errors are not reported here — the output read loop owns terminal
 // reporting (matching the SDK's own pattern). The channel closes when the
 // invocation ends.
+//
+// guard is nil for ob's own in-process builtin invoker (trusted: it derives the
+// challenge target authentically from the same source ob holds). It is non-nil
+// on the delegate path, where the invoker is untrusted: the guard validates the
+// delegate-asserted CONTEXT_REQUIRED target against the source's authoritative
+// target before any credential lookup (confused-deputy defense) and scopes every
+// provisioned context to the challenge (least privilege).
 func driveBinding(
 	ctx context.Context,
 	invoke func(context.Context, map[string]any) openbindings.Invocation[any, any],
 	contextData map[string]any,
 	input any,
 	resolver openbindings.ContextResolver,
+	guard *delegateProvisionGuard,
 ) <-chan InvocationOutput {
 	ch := make(chan InvocationOutput, 16)
 	go func() {
@@ -279,17 +398,43 @@ func driveBinding(
 					// only with a resolver, and only a bounded number of times.
 					if details := openbindings.ContextRequiredFrom(ie); details != nil &&
 						!emitted && resolver != nil && round < maxBindingContextRounds {
-						resolved, rerr := resolver(ctx, details)
-						if rerr == nil && len(resolved) > 0 {
-							merged := make(map[string]any, len(contextData)+len(resolved))
-							for k, val := range contextData {
-								merged[k] = val
+						// Confused-deputy defense (delegate path only): before any
+						// credential lookup, validate the invoker-asserted target
+						// against the source's authoritative target. A mismatch is
+						// a loud terminal refusal — no lookup, no merge.
+						provision := true
+						if guard != nil {
+							var refusal *openbindings.InvocationError
+							provision, refusal = guard.vetTarget(details.Target)
+							if refusal != nil {
+								select {
+								case ch <- InvocationOutput{Error: refusal, Status: statusFromError(refusal)}:
+								case <-ctx.Done():
+								}
+								return
 							}
-							for k, val := range resolved {
-								merged[k] = val
+							// provision==false with no refusal: target unverifiable;
+							// skip the lookup and let the challenge surface below.
+						}
+						if provision {
+							resolved, rerr := resolver(ctx, details)
+							if rerr == nil && len(resolved) > 0 {
+								merged := make(map[string]any, len(contextData)+len(resolved))
+								for k, val := range contextData {
+									merged[k] = val
+								}
+								for k, val := range resolved {
+									merged[k] = val
+								}
+								// Least privilege on the untrusted (delegate) path:
+								// hand the delegate only the context its challenge
+								// scoped, never the caller's full per-call profile.
+								if guard != nil {
+									merged = openbindings.ScopeContext(merged, details)
+								}
+								contextData = merged
+								break // next round re-invokes with merged context
 							}
-							contextData = merged
-							break // next round re-invokes with merged context
 						}
 					}
 					// Select on ctx so an abandoned consumer (e.g. a WS client
@@ -791,7 +936,8 @@ func SubscribeOBIOperationDirect(ctx context.Context, binding *openbindings.Bind
 			Context: ctxData,
 		})
 	}
-	return driveBinding(ctx, invoke, nil, nil, invoker.ContextResolver), nil
+	// Builtin in-process invoker: trusted (no guard).
+	return driveBinding(ctx, invoke, nil, nil, invoker.ContextResolver, nil), nil
 }
 
 var (
@@ -924,7 +1070,8 @@ func SubscribeOperationWithContext(ctx context.Context, input InvocationInput) (
 			Hooks:       input.Hooks,
 		})
 	}
-	return driveBinding(ctx, invoke, input.Context, input.Input, invoker.ContextResolver), nil
+	// Builtin in-process invoker: trusted (no guard).
+	return driveBinding(ctx, invoke, input.Context, input.Input, invoker.ContextResolver, nil), nil
 }
 
 // invokeViaBuiltin invokes an operation using the built-in OperationInvoker.
@@ -951,7 +1098,8 @@ func invokeViaBuiltin(ctx context.Context, input InvocationInput) InvocationResu
 		})
 	}
 
-	return reduceUnaryInvocation(driveBinding(ctx, invoke, bindCtx, input.Input, invoker.ContextResolver))
+	// Builtin in-process invoker: trusted (no guard).
+	return reduceUnaryInvocation(driveBinding(ctx, invoke, bindCtx, input.Input, invoker.ContextResolver, nil))
 }
 
 // reduceUnaryInvocation collapses an invocation event stream to the unary
@@ -1011,7 +1159,11 @@ func invokeViaExternalDelegate(ctx context.Context, resolved delegates.Resolved,
 			Context: ctxData,
 		})
 	}
-	return reduceUnaryInvocation(driveBinding(ctx, invoke, input.Context, input.Input, DefaultInvoker().ContextResolver))
+	// Delegate path: the invoker is untrusted. Guard credential provisioning
+	// against the source's authoritative target (confused-deputy defense) and
+	// scope every provisioned context to the challenge (least privilege).
+	guard := newDelegateProvisionGuard(input.Source)
+	return reduceUnaryInvocation(driveBinding(ctx, invoke, input.Context, input.Input, DefaultInvoker().ContextResolver, guard))
 }
 
 // effectiveInputSchema is the no-input-convention discriminator's honest
