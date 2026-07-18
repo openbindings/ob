@@ -6,7 +6,7 @@ An OpenBindings Interface (OBI) is a JSON document that defines operations and b
 
 ```json
 {
-  "openbindings": "0.1.0",
+  "openbindings": "0.2.0",
   "name": "My API",
   "operations": {
     "getUser": {
@@ -16,7 +16,7 @@ An OpenBindings Interface (OBI) is a JSON document that defines operations and b
     }
   },
   "sources": {
-    "rest": { "format": "openapi@3.1", "location": "./openapi.yaml" }
+    "rest": { "bindingSpec": "openbindings.openapi@1", "location": "https://api.example.com/openapi.yaml" }
   },
   "bindings": {
     "getUser.rest": {
@@ -30,22 +30,26 @@ An OpenBindings Interface (OBI) is a JSON document that defines operations and b
 
 ## Key Concepts
 
-- **Operation**: named unit of capability with input/output JSON Schemas
-- **Source**: reference to a binding artifact (OpenAPI doc, proto file, MCP server)
-- **Binding**: mapping from an operation to a specific entry point in a source
-- **Role**: published contract interface; an operation fulfills a role operation by carrying its name as the key or an alias
+- **Operation**: the portable contract — a named unit of capability with input/output JSON Schemas, independent of any protocol
+- **Source**: carries or points at a source artifact (OpenAPI doc, proto file, MCP server) under a named binding specification (`bindingSpec`)
+- **Binding**: links one operation to one source at a specific entry point (`ref`), optionally with a transform
+- **Alias**: an additional name for an operation, equal in standing to its key; by adopting a published interface's operation name as its key or an alias, an operation **corresponds to** that operation. The claim is an author assertion — it does not establish compatibility, ownership, or trust (OBI-T-12 resolves keys and aliases identically)
 
-## Format Tokens
+## Binding Specifications
 
-| Format | Token | Ref Format |
-|--------|-------|------------|
-| OpenAPI | `openapi@3.1` | JSON Pointer: `#/paths/~1users/get` |
-| AsyncAPI | `asyncapi@3.0` | JSON Pointer: `#/operations/sendMessage` |
-| gRPC | `grpc` | `package.Service/Method` |
-| Connect | `connect` | Same as gRPC |
-| MCP | `mcp@2025-11-25` | `tools/name`, `resources/uri` |
-| GraphQL | `graphql` | `Query/field`, `Mutation/field` |
-| Operation Graph | `openbindings.operation-graph@0.2.0` | Native composition |
+A source names the binding specification that governs its artifact via its `bindingSpec` field. Project-published specifications are identified as `openbindings.<name>@<rev>`, where `<rev>` is an integer revision of the specification (artifact and dialect versions self-identify in the artifact, never in the identifier).
+
+| Format | `bindingSpec` identifier | `ref` shape |
+|--------|--------------------------|-------------|
+| OpenAPI | `openbindings.openapi@1` | JSON Pointer to the operation object: `#/paths/~1users~1{id}/get` |
+| AsyncAPI | `openbindings.asyncapi@1` | JSON Pointer: `#/operations/sendMessage` |
+| gRPC | `openbindings.grpc@1` | `<fully-qualified-service>/<method>` |
+| Connect | `openbindings.connect@1` | `<fully-qualified-service>/<method>` |
+| MCP | `openbindings.mcp@1` | `<entity>/<remainder>`, entity ∈ `tools`/`resources`/`prompts` (e.g. `tools/create_task`) |
+| usage (CLI) | `openbindings.usage@1` | space-separated command path (absent `ref` = root) |
+| Operation Graph | `openbindings.operation-graph@1` | JSON Pointer to a graph definition |
+
+GraphQL and Workers RPC binding specifications exist in draft and have not yet minted a published identifier.
 
 ## Transforms
 
@@ -68,32 +72,21 @@ Named transforms in `#/transforms` are plain JSONata strings keyed by name:
 }
 ```
 
-## Security
+## Authentication & Context
 
-The `security` section declares named security entries with methods in preference order:
+An OBI document carries **no** security, credentials, or auth field: the operation contract and its bindings stay abstract. Authentication is a property of the source artifact and the binding specification that governs it (an OpenAPI document's own security schemes, for example), not something the OBI restates.
 
-```json
-{
-  "security": {
-    "api-auth": [
-      { "type": "oauth2", "authorizeUrl": "...", "tokenUrl": "..." },
-      { "type": "bearer" }
-    ]
-  }
-}
-```
+Credentials and other runtime context are supplied by the runtime at invocation, never baked into the document. When a binding cannot be invoked because required context is missing, the invoker returns a `CONTEXT_REQUIRED` challenge *before* any side effect, listing alternatives (disjunctive) each of whose requirements (conjunctive) the runtime resolves from its context store, then retries. Well-known authentication requirement types:
 
-Bindings reference security entries: `"security": "api-auth"`
+- `auth.bearer`: token in the Authorization header
+- `auth.basic`: username + password
+- `auth.apiKey`: key in a header, query parameter, or cookie
+- `auth.oauth2`: OAuth 2.0 (access/refresh tokens)
 
-## Well-Known Security Types
-
-- `bearer`: token in Authorization header
-- `oauth2`: Authorization Code + PKCE (authorizeUrl, tokenUrl, scopes, clientId)
-- `basic`: username + password
-- `apiKey`: key in header, query, or cookie (name, in)
+Runtimes MAY define further requirement families (e.g. `approval.user`, `config.value`); an unrecognized requirement type simply makes its enclosing alternative unselectable.
 
 ## Compatibility
 
 - Outputs: covariant (provided must be at least as specific as required)
 - Inputs: contravariant (provided must accept at least what required accepts)
-- Operation matching: the key+alias namespace (direct key, then aliases — OBI-T-12)
+- Operation matching: one flat namespace of each operation's key plus its aliases, resolved with key and alias matches equally authoritative (OBI-T-12)
