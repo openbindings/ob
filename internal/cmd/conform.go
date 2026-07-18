@@ -36,9 +36,9 @@ Use --yes to auto-accept all changes (for CI/scripting).
 Use --dry-run to preview changes without modifying the file.
 
 Examples:
-  ob conform context-store.json my-service.obi.json
+  ob conform document-store.json my-service.obi.json
   ob conform https://openbindings.org/interfaces/host.json ./interface.json --yes
-  ob conform context-store.json my-service.obi.json --dry-run`,
+  ob conform document-store.json my-service.obi.json --dry-run`,
 		Args: cobra.ExactArgs(2),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			confirm := func(op string, action string) bool {

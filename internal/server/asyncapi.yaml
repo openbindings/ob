@@ -196,7 +196,31 @@ components:
           description: >-
             Optional structured details specific to the error code. For code
             CONTEXT_REQUIRED, `details` is a ContextRequiredDetails object.
-      required: [code, message]
+        category:
+          type: string
+          description: >-
+            The normative classification axis consumers branch on. One of a
+            fixed, closed set; a consumer that meets an unknown value treats it
+            as `permanent`. `context` is the resolve-and-retry hinge
+            (CONTEXT_REQUIRED); `auth` means supplied credentials were rejected;
+            `cancelled` means the caller ended the invocation; `transient` is a
+            lower-layer condition that may clear on its own; `service` means the
+            target was reached and returned an error of its own; `validation`
+            means a value or the schema graph failed the validation claim;
+            `protocol` means the frame or invocation contract was violated;
+            `permanent` is terminal.
+          enum: [context, auth, cancelled, transient, service, validation, protocol, permanent]
+        effects:
+          type: string
+          description: >-
+            Side-effect possibility gating safe retry, present where retry is in
+            question (categories `transient` and `service`). `none`: the call's
+            side effects provably did not take hold — safe to retry. `possible`:
+            the call may have taken effect — not safe to auto-retry a
+            non-idempotent operation. `definite`: the call took effect. Absent
+            means treat as `possible`.
+          enum: [none, possible, definite]
+      required: [code, message, category]
 
     BindingInvokerInputFrame:
       description: >-

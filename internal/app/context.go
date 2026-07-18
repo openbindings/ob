@@ -31,7 +31,7 @@ var transportFields = map[string]bool{
 }
 
 // SaveUnifiedContext stores a unified context payload under a URL, fully
-// replacing any prior context for the key (per the context-store interface's
+// replacing any prior context for the key (per the document-store interface's
 // setContext contract). The payload's transport fields go to the on-disk
 // config file; everything else goes to the OS keychain.
 func SaveUnifiedContext(rawURL string, ctx map[string]any) error {
