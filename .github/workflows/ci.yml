@@ -25,6 +25,12 @@ jobs:
           repository: openbindings/openbindings-go
           ref: experiment/obi-first
           path: openbindings-go
+      # The conformance corpora (transforms, binding-specs) are normative and
+      # live in the spec repo; without this checkout the gates skip silently.
+      - uses: actions/checkout@v4
+        with:
+          repository: openbindings/spec
+          path: spec
       - uses: actions/setup-go@v5
         with:
           go-version-file: ob/go.mod
@@ -40,3 +46,5 @@ jobs:
       - run: go build ./...
       - run: go vet ./...
       - run: go test -race -short ./...
+        env:
+          OB_SPEC_CORPUS: ${{ github.workspace }}/spec/conformance
