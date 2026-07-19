@@ -33,12 +33,32 @@ func RenderBindingSpecList(formats []BindingSpecInfo) string {
 		sb.WriteString(s.Bullet.Render("•"))
 		sb.WriteString(" ")
 		sb.WriteString(s.Key.Render(f.BindingSpec))
+		if isDraftBindingSpec(f.BindingSpec) {
+			sb.WriteString(s.Dim.Render(" (draft)"))
+		}
 		if f.Description != "" {
 			sb.WriteString(s.Dim.Render(" - " + f.Description))
 		}
 		sb.WriteString("\n")
 	}
 	return strings.TrimSuffix(sb.String(), "\n")
+}
+
+// isDraftBindingSpec reports whether a binding-spec token is one of ob's
+// pre-promotion drafts, whose identifier is not yet minted (e.g. "graphql",
+// "workers-rpc@^1.0.0"). A minted OB binding spec (openbindings.<name>@<n>) and
+// a namespaced third-party identifier both carry a dot in the name; the bare
+// core version marker (openbindings@<version>) is a name of just "openbindings".
+// A bare, dotless token that isn't the core marker is a draft.
+func isDraftBindingSpec(tok string) bool {
+	name := tok
+	if at := strings.IndexByte(tok, '@'); at >= 0 {
+		name = tok[:at]
+	}
+	if name == "openbindings" || strings.Contains(name, ".") {
+		return false
+	}
+	return true
 }
 
 // ListFormats returns all formats that ob can handle, both built-in (native

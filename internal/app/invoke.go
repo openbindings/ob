@@ -66,6 +66,24 @@ type InvocationResult struct {
 	BindingKey string `json:"bindingKey,omitempty"`
 }
 
+// operationKeyForName resolves a caller-supplied operation name to its
+// canonical key: the name itself when it is a key, else the key of the
+// operation that carries it as an alias (key + aliases are one namespace,
+// OBI-D-04, so at most one matches), else "".
+func operationKeyForName(name string, iface *openbindings.Interface) string {
+	if _, ok := iface.Operations[name]; ok {
+		return name
+	}
+	for key, op := range iface.Operations {
+		for _, a := range op.Aliases {
+			if a == name {
+				return key
+			}
+		}
+	}
+	return ""
+}
+
 // DefaultBindingForOp finds the most-preferred, non-deprecated binding for a given operation.
 // Returns the binding key and entry, or ("", nil) if no binding matches.
 func DefaultBindingForOp(opKey string, iface *openbindings.Interface) (string, *openbindings.BindingEntry) {
@@ -141,7 +159,14 @@ func resolveBindingAndSource(iface *openbindings.Interface, opKey, bindingKey st
 		}
 	} else {
 		if _, ok := iface.Operations[opKey]; !ok {
-			return nil, fmt.Errorf("operation %q not found", opKey)
+			// An operation answers to its key AND any of its aliases equally
+			// (core OBI-D-04 / OBI-T-12). The mutation commands honor this;
+			// invoke resolves an alias to its canonical key so it does too.
+			if canonical := operationKeyForName(opKey, iface); canonical != "" {
+				opKey = canonical
+			} else {
+				return nil, fmt.Errorf("operation %q not found", opKey)
+			}
 		}
 		resolvedKey, binding = DefaultBindingForOp(opKey, iface)
 		if binding == nil {
