@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 
 	"github.com/openbindings/ob/internal/app"
@@ -60,6 +61,31 @@ func refuseUnhonoredOutputFlags(cmd *cobra.Command, lane string, names ...string
 		Message:  fmt.Sprintf("%s does not honor %s", lane, strings.Join(offending, ", ")),
 		ToStderr: true,
 	}
+}
+
+// parseBoolFlag resolves a tri-state boolean flag (unset / true / false). Such
+// flags are declared as strings so "unset" stays distinguishable from "false" —
+// an unset flag must leave the field untouched rather than write false — and
+// the empty value therefore yields a nil pointer.
+//
+// The parse is strconv.ParseBool, so anything it rejects ("yes", "on", "1.0")
+// is a usage error rather than a silent false. Same doctrine as
+// refuseUnhonoredOutputFlags: a value the user passed is never silently
+// discarded, least of all into a semantic OBI field like idempotent, where a
+// wrong value misreports retry safety.
+func parseBoolFlag(name, val string) (*bool, error) {
+	if val == "" {
+		return nil, nil
+	}
+	parsed, err := strconv.ParseBool(val)
+	if err != nil {
+		return nil, app.ExitResult{
+			Code:     2,
+			Message:  fmt.Sprintf("invalid value %q for --%s: want true or false", val, name),
+			ToStderr: true,
+		}
+	}
+	return &parsed, nil
 }
 
 // outputEditResult prints an editing command's summary. On the filter lane —

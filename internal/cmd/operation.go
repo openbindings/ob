@@ -599,10 +599,11 @@ Examples:
 				}
 				addInput.Output = schema
 			}
-			if idempotent != "" {
-				val := idempotent == "true"
-				addInput.Idempotent = &val
+			idem, err := parseBoolFlag("idempotent", idempotent)
+			if err != nil {
+				return err
 			}
+			addInput.Idempotent = idem
 
 			result, err := app.OperationAdd(addInput)
 			if err != nil {
@@ -794,14 +795,16 @@ Examples:
 			if cmd.Flags().Changed("description") {
 				setInput.Description = &description
 			}
-			if idempotent != "" {
-				v := idempotent == "true"
-				setInput.Idempotent = &v
+			idem, err := parseBoolFlag("idempotent", idempotent)
+			if err != nil {
+				return err
 			}
-			if deprecated != "" {
-				v := deprecated == "true"
-				setInput.Deprecated = &v
+			setInput.Idempotent = idem
+			dep, err := parseBoolFlag("deprecated", deprecated)
+			if err != nil {
+				return err
 			}
+			setInput.Deprecated = dep
 			if inputJSON != "" {
 				schema, err := readSchemaArg(inputJSON, "--input-schema")
 				if err != nil {
