@@ -344,8 +344,26 @@ func TestWireConformance_ExecLane(t *testing.T) {
 		return out
 	}
 
+	// The context cohort round-trips a real secret through the OS credential
+	// store, which a headless runner does not have; the rest of the exec lane
+	// is unaffected. Read paths for absent keys (listContexts,
+	// getContext_missing) short circuit before the backend and stay in.
+	//
+	// Gated on an explicit environment signal rather than a probe. Probing from
+	// the test process answers the wrong question: these cases exec the real
+	// ob binary, whose credential-store access is its own, so a probe here can
+	// report "unavailable" on a developer machine where the cases pass and
+	// silently drop coverage where it matters most.
+	skipCredentialStore := os.Getenv("OB_TEST_NO_CREDENTIAL_STORE") != ""
+	needsCredentialStore := map[string]bool{
+		"setContext": true, "getContext": true, "removeContext": true,
+	}
+
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
+			if skipCredentialStore && needsCredentialStore[tc.name] {
+				t.Skip("OB_TEST_NO_CREDENTIAL_STORE: no OS credential store on this host")
+			}
 			out := invokeConformant(t, tc.op, tc.input)
 			if tc.check != nil {
 				tc.check(t, out)

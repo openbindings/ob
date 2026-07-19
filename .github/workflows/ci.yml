@@ -57,3 +57,6 @@ jobs:
       - run: go test -race -run 'TestWireConformance_ExecLane|TestDemoSmoke_PrintedCommands' ./internal/cmd/
         env:
           OB_SPEC_CORPUS: ${{ github.workspace }}/spec/conformance
+          # The context cohort writes through the OS credential store, which a
+          # headless runner has none of. Everything else in the lane runs.
+          OB_TEST_NO_CREDENTIAL_STORE: "1"
