@@ -2,7 +2,7 @@ name: CI
 
 on:
   push:
-    branches: [main]
+    branches: [main, "experiment/**"]
   pull_request:
 
 jobs:
@@ -46,5 +46,14 @@ jobs:
       - run: go build ./...
       - run: go vet ./...
       - run: go test -race -short ./...
+        env:
+          OB_SPEC_CORPUS: ${{ github.workspace }}/spec/conformance
+      # The exec-lane suites are -short-gated because they build and exec the
+      # real binary, so the line above skips them. Wire conformance is ob's
+      # strongest oracle (every operation's output judged against its schema);
+      # leaving it to dev machines meant CI could not see it fail. Named
+      # explicitly rather than dropping -short, because the remaining gated
+      # tests want live network and a keychain.
+      - run: go test -race -run 'TestWireConformance_ExecLane|TestDemoSmoke_PrintedCommands' ./internal/cmd/
         env:
           OB_SPEC_CORPUS: ${{ github.workspace }}/spec/conformance
