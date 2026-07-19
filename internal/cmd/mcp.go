@@ -13,8 +13,6 @@ import (
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/spf13/cobra"
 
-	openbindings "github.com/openbindings/openbindings-go"
-
 	"github.com/openbindings/ob/internal/app"
 	"github.com/openbindings/ob/internal/mcpbridge"
 )
@@ -59,6 +57,9 @@ Examples:
   ob mcp https://api.stripe.com/openapi.yaml`,
 		Args: cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
+			if err := refuseUnhonoredOutputFlags(cmd, "mcp", "output", "format"); err != nil {
+				return err
+			}
 			logger := slog.New(slog.NewTextHandler(os.Stderr, nil)).With("component", "ob-mcp")
 			invoker := app.DefaultInvoker()
 
@@ -86,24 +87,21 @@ Examples:
 			ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt)
 			defer cancel()
 
-			normalized := app.NormalizeURL(args[0])
-			if normalized == "" {
-				return app.ExitResult{Code: 2, Message: fmt.Sprintf("invalid URL: %s", args[0]), ToStderr: true}
-			}
-
-			fetched, err := openbindings.FetchInterface(ctx, normalized,
-				openbindings.WithSynthesizers(app.DefaultSynthesizer()))
+			// A locator is a local file path, an http(s) URL, or an exec: ref;
+			// each resolves to an OBI, synthesizing one from a raw source
+			// (local or remote) when needed. This is why `ob mcp ./api.obi.json`
+			// and `ob mcp https://…/openapi.yaml` both work.
+			iface, err := app.ResolveInterface(args[0])
 			if err != nil {
-				return app.ExitResult{Code: 1, Message: fmt.Sprintf("failed to resolve interface %s: %v", normalized, err), ToStderr: true}
+				return app.ExitResult{Code: 1, Message: fmt.Sprintf("failed to resolve interface %s: %v", args[0], err), ToStderr: true}
 			}
-			iface := fetched.Interface
 			if iface == nil {
-				return app.ExitResult{Code: 1, Message: fmt.Sprintf("no interface resolved from %s", normalized), ToStderr: true}
+				return app.ExitResult{Code: 1, Message: fmt.Sprintf("no interface resolved from %s", args[0]), ToStderr: true}
 			}
 
 			count := mcpbridge.RegisterInterface(mcpServer, iface, invoker, baseContext,
 				mcpbridge.RegisterOptions{ToolDeadline: toolTimeout})
-			logger.Info("resolved interface", "url", normalized, "primitives", count)
+			logger.Info("resolved interface", "locator", args[0], "primitives", count)
 
 			switch transport {
 			case "stdio", "":

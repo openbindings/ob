@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/openbindings/ob/internal/app"
 	"github.com/spf13/cobra"
@@ -29,6 +30,36 @@ func getOutputFlags(c *cobra.Command) (format string, outputPath string) {
 	format, _ = c.Root().PersistentFlags().GetString("format")
 	outputPath, _ = c.Root().PersistentFlags().GetString("output")
 	return format, outputPath
+}
+
+// refuseUnhonoredOutputFlags refuses the global output flags a command's lane
+// cannot honor. -o/-F are root-persistent and thus inherited by every command,
+// but some lanes (long-running servers, the streaming invoke filter) do not feed
+// their result through OutputResult and so cannot honor them. Rather than accept
+// and silently drop such a flag, a lane calls this first: a flag the user passed
+// is never silently ignored. names lists the persistent flag names to refuse
+// ("output", "format"); lane names the command for the message.
+func refuseUnhonoredOutputFlags(cmd *cobra.Command, lane string, names ...string) error {
+	persistent := cmd.Root().PersistentFlags()
+	var offending []string
+	for _, name := range names {
+		if !persistent.Changed(name) {
+			continue
+		}
+		label := "--" + name
+		if f := persistent.Lookup(name); f != nil && f.Shorthand != "" {
+			label = "-" + f.Shorthand + "/--" + name
+		}
+		offending = append(offending, label)
+	}
+	if len(offending) == 0 {
+		return nil
+	}
+	return app.ExitResult{
+		Code:     2,
+		Message:  fmt.Sprintf("%s does not honor %s", lane, strings.Join(offending, ", ")),
+		ToStderr: true,
+	}
 }
 
 // outputEditResult prints an editing command's summary. On the filter lane —

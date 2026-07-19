@@ -1756,7 +1756,7 @@
     },
     "OperationAliasEntry": {
       "additionalProperties": false,
-      "description": "An operation and the interface operations it satisfies via aliases.",
+      "description": "An operation and the interface operations it corresponds to via aliases.",
       "properties": {
         "aliases": {
           "items": {

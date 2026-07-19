@@ -62,6 +62,29 @@ func TestParseSource_BarePath(t *testing.T) {
 	}
 }
 
+func TestParseSource_URLSchemeNotFormat(t *testing.T) {
+	// A scheme://… URL resolves to the whole Location, never split on its
+	// scheme as if the scheme were a format token (regression: the parser
+	// used to yield BindingSpec="http", Location="//host").
+	for _, u := range []string{
+		"http://api.example.com/openapi.json",
+		"https://api.example.com/openapi.yaml",
+		"ws://host:8080/stream",
+		"wss://host/stream",
+	} {
+		src, err := ParseSource(u)
+		if err != nil {
+			t.Fatalf("ParseSource(%q): unexpected error: %v", u, err)
+		}
+		if src.BindingSpec != "" {
+			t.Errorf("ParseSource(%q): BindingSpec = %q, want empty", u, src.BindingSpec)
+		}
+		if src.Location != u {
+			t.Errorf("ParseSource(%q): Location = %q, want %q", u, src.Location, u)
+		}
+	}
+}
+
 func TestParseSource_BarePathRelative(t *testing.T) {
 	src, err := ParseSource("./api.yaml")
 	if err != nil {

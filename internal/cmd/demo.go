@@ -37,6 +37,9 @@ that composes placeOrder with the orderUpdates stream.
 One interface. Six protocols. Same operations.`,
 		Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
+			if err := refuseUnhonoredOutputFlags(cmd, "demo", "output", "format"); err != nil {
+				return err
+			}
 			ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 			defer stop()
 

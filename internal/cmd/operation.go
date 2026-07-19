@@ -177,7 +177,21 @@ Examples:
 				return app.ExitResult{Code: 2, Message: cerr.Error(), ToStderr: true}
 			}
 
+			// The invoke lane is a streaming Unix filter: output rides stdout as
+			// one JSON value per event. -o (write-to-file) has no place on a
+			// stream — redirect with the shell instead. -F selects the output
+			// shape: json = the aggregate machine envelope, unset = streaming
+			// JSON lines; any other value is not something this lane produces.
+			if err := refuseUnhonoredOutputFlags(cmd, "operation invoke", "output"); err != nil {
+				return err
+			}
 			format, _ := getOutputFlags(cmd)
+			switch format {
+			case "", "json":
+			default:
+				return app.ExitResult{Code: 2, Message: fmt.Sprintf(
+					"operation invoke supports -F json (aggregate envelope) or no -F (streaming JSON lines); %q is not a supported format", format), ToStderr: true}
+			}
 			jsonEnvelope := format == "json"
 
 			ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt)
