@@ -96,6 +96,19 @@
         }
       }
     },
+    "openbindings.ob.listBindings": {
+      "description": "List the bindings the interface declares, optionally scoped to a single operation.",
+      "idempotent": true,
+      "input": {
+        "$ref": "#/schemas/ListBindingsInput"
+      },
+      "output": {
+        "type": "array",
+        "items": {
+          "$ref": "#/schemas/BindingListEntry"
+        }
+      }
+    },
     "openbindings.ob.addOperation": {
       "description": "Add an operation with the given key to an interface and return the modified interface.",
       "input": {
@@ -2383,6 +2396,66 @@
       },
       "required": [
         "key",
+        "source"
+      ],
+      "additionalProperties": false
+    },
+    "ListBindingsInput": {
+      "type": "object",
+      "properties": {
+        "interface": {
+          "$ref": "#/schemas/OpenBindingsInterface"
+        },
+        "operation": {
+          "type": "string",
+          "description": "Scope the listing to a single operation's bindings."
+        }
+      },
+      "required": [
+        "interface"
+      ],
+      "additionalProperties": false
+    },
+    "BindingListEntry": {
+      "type": "object",
+      "description": "A binding from the interface's bindings map, with its key.",
+      "properties": {
+        "key": {
+          "type": "string",
+          "description": "The binding's key in the interface's bindings map."
+        },
+        "operation": {
+          "type": "string",
+          "description": "The operation this binding realizes."
+        },
+        "source": {
+          "type": "string",
+          "description": "The source key this binding invokes."
+        },
+        "ref": {
+          "type": "string",
+          "description": "The binding-specification reference into the source."
+        },
+        "preference": {
+          "type": "number",
+          "description": "The author-declared selection preference, when set."
+        },
+        "deprecated": {
+          "type": "boolean",
+          "description": "Whether the binding is deprecated."
+        },
+        "inputTransform": {
+          "type": "boolean",
+          "description": "Whether the binding declares an input transform."
+        },
+        "outputTransform": {
+          "type": "boolean",
+          "description": "Whether the binding declares an output transform."
+        }
+      },
+      "required": [
+        "key",
+        "operation",
         "source"
       ],
       "additionalProperties": false

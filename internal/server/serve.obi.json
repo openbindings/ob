@@ -691,6 +691,50 @@
         }
       ]
     },
+    "BindingListEntry": {
+      "additionalProperties": false,
+      "description": "A binding from the interface's bindings map, with its key.",
+      "properties": {
+        "deprecated": {
+          "description": "Whether the binding is deprecated.",
+          "type": "boolean"
+        },
+        "inputTransform": {
+          "description": "Whether the binding declares an input transform.",
+          "type": "boolean"
+        },
+        "key": {
+          "description": "The binding's key in the interface's bindings map.",
+          "type": "string"
+        },
+        "operation": {
+          "description": "The operation this binding realizes.",
+          "type": "string"
+        },
+        "outputTransform": {
+          "description": "Whether the binding declares an output transform.",
+          "type": "boolean"
+        },
+        "preference": {
+          "description": "The author-declared selection preference, when set.",
+          "type": "number"
+        },
+        "ref": {
+          "description": "The binding-specification reference into the source.",
+          "type": "string"
+        },
+        "source": {
+          "description": "The source key this binding invokes.",
+          "type": "string"
+        }
+      },
+      "required": [
+        "key",
+        "operation",
+        "source"
+      ],
+      "type": "object"
+    },
     "BindingSpecInfo": {
       "additionalProperties": false,
       "description": "Information about a supported binding format.",
@@ -1541,6 +1585,22 @@
         "code",
         "message",
         "category"
+      ],
+      "type": "object"
+    },
+    "ListBindingsInput": {
+      "additionalProperties": false,
+      "properties": {
+        "interface": {
+          "$ref": "#/schemas/OpenBindingsInterface"
+        },
+        "operation": {
+          "description": "Scope the listing to a single operation's bindings.",
+          "type": "string"
+        }
+      },
+      "required": [
+        "interface"
       ],
       "type": "object"
     },
