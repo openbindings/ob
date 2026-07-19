@@ -99,10 +99,10 @@ func (r ValidationReport) Render() string {
 	}
 
 	if r.Valid && len(r.Problems) == 0 {
-		sb.WriteString(s.Success.Render("  ✓ Valid"))
+		sb.WriteString(s.Success.Render("  ✓ No rule violations found"))
 	} else if r.Valid {
 		// Valid but with warnings.
-		sb.WriteString(s.Success.Render("  ✓ Valid"))
+		sb.WriteString(s.Success.Render("  ✓ No rule violations found"))
 		sb.WriteString(fmt.Sprintf(" — %d %s",
 			len(r.Problems), pluralize(len(r.Problems), "warning", "warnings")))
 		for _, p := range r.Problems {

@@ -78,9 +78,11 @@ func ParseSource(s string) (SynthesizeInterfaceSource, error) {
 	// Format tokens contain '@' (e.g. openapi@3.1) or are short names
 	// without path characters. If the prefix contains '@', it's definitely
 	// a format token. Otherwise, if it contains '/', '.', or '\', it's a
-	// file path (e.g. ./api.yaml, /tmp/spec.json).
+	// file path (e.g. ./api.yaml, /tmp/spec.json). A `scheme://` URL is never
+	// a format:path — the `//` after the colon marks it as the whole location
+	// (so http://host, https://…, ws://…, wss://… are not split on their scheme).
 	colonIdx := strings.Index(mainPart, ":")
-	if colonIdx > 0 {
+	if colonIdx > 0 && !strings.HasPrefix(mainPart[colonIdx+1:], "//") {
 		prefix := mainPart[:colonIdx]
 		if strings.Contains(prefix, "@") || !strings.ContainsAny(prefix, "/.\\ ") {
 			src.BindingSpec = prefix

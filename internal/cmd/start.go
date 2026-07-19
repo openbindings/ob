@@ -64,6 +64,9 @@ Environment variables: OB_START_TOKEN (pre-shared token), OB_START_PORT
 To expose this server's operations to an MCP agent, bridge it with
 'ob mcp <this-url>'.`,
 		RunE: func(cmd *cobra.Command, args []string) error {
+			if err := refuseUnhonoredOutputFlags(cmd, "start", "output", "format"); err != nil {
+				return err
+			}
 			logger := slog.New(slog.NewTextHandler(os.Stderr, nil)).With("component", "ob-start")
 			slog.SetDefault(logger)
 

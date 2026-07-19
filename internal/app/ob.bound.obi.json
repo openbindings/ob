@@ -532,7 +532,7 @@
       }
     },
     "openbindings.ob.listOperationAliases": {
-      "description": "List the satisfaction map — each operation and the interface operations it satisfies via aliases.",
+      "description": "List the correspondence map — each operation and the interface operations it corresponds to via aliases.",
       "idempotent": true,
       "input": {
         "$ref": "#/schemas/ListOperationAliasesInput"
@@ -2270,7 +2270,7 @@
     },
     "OperationAliasEntry": {
       "additionalProperties": false,
-      "description": "An operation and the interface operations it satisfies via aliases.",
+      "description": "An operation and the interface operations it corresponds to via aliases.",
       "properties": {
         "aliases": {
           "items": {

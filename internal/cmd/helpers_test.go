@@ -9,6 +9,31 @@ import (
 	"github.com/openbindings/ob/internal/app"
 )
 
+// The streaming invoke lane cannot honor the global output flags: -o
+// (write-to-file) has no place on a stdout stream, and -F selects only the
+// aggregate-vs-streaming shape (json or unset). Both used to be silently
+// ignored; they now refuse loudly (ExitResult code 2) rather than drop a flag
+// the user passed.
+func TestOperationInvoke_RefusesUnhonoredOutputFlags(t *testing.T) {
+	dir := t.TempDir()
+	obiPath := filepath.Join(dir, "iface.obi.json")
+	if err := runOB(t, "new", obiPath); err != nil {
+		t.Fatalf("new: %v", err)
+	}
+
+	// -o on the stream: refused before any dispatch.
+	err := runOB(t, "operation", "invoke", obiPath, "someOp", "-o", filepath.Join(dir, "out.json"))
+	if er, ok := err.(app.ExitResult); !ok || er.Code != 2 {
+		t.Fatalf("expected -o refusal (ExitResult code 2), got %v", err)
+	}
+
+	// -F to a shape the lane does not produce: refused.
+	err = runOB(t, "operation", "invoke", obiPath, "someOp", "-F", "yaml")
+	if er, ok := err.(app.ExitResult); !ok || er.Code != 2 {
+		t.Fatalf("expected -F yaml refusal (ExitResult code 2), got %v", err)
+	}
+}
+
 // -o on an editing command redirects the SUMMARY, not the document; pointing
 // it at the document being edited used to overwrite the OBI with the summary
 // envelope (observed in the DX field test: a 166 KB document reduced to a
