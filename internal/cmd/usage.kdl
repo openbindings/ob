@@ -340,6 +340,13 @@ cmd "binding" help="Low-level binding operations" subcommand_required=true {
   cmd "prepare" help="Preflight a resolved binding (machine-to-machine)" {
     flag "--input <json>" help="BindingInvocationInput as a JSON string"
   }
+  cmd "list" help="List the bindings an OBI declares (optionally for one operation)" {
+    alias "ls"
+    flag "-o --output <path>" help="Write output to file"
+    flag "-F --format <format>" help="Output format: json|yaml|text"
+    arg "<obi-path>" help="Path to the OBI file (- for stdin)"
+    arg "[operation]" help="Filter to bindings of one operation"
+  }
 }
 
 cmd "diff" help="Structural comparison of two OBIs" {

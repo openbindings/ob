@@ -32,6 +32,7 @@ success = exit 0, fields ride argv).
 | `openbindings.ob.invokeBinding` | `ob binding invoke` | json | 0 (assumption) | — |
 | `openbindings.ob.invokeOperation` | `ob operation invoke` | json | 0 (assumption) | — |
 | `openbindings.ob.listBindingSpecs` | `ob binding-specs` | json | 0 (assumption) | — |
+| `openbindings.ob.listBindings` | `ob binding list` | json | 0 (assumption) | obi-path=stdin-dash |
 | `openbindings.ob.listContexts` | `ob context list` | json | 0 (assumption) | — |
 | `openbindings.ob.listDelegates` | `ob delegate list` | json | 0 (assumption) | — |
 | `openbindings.ob.listOperationAliases` | `ob operation alias list` | json | 0 (assumption) | obi=stdin-dash |
