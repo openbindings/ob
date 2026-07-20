@@ -2,12 +2,19 @@
 
 All notable changes to `ob` will be documented in this file.
 
-The format is based on [Keep a Changelog](https://keepachangelog.com/),
-and this project adheres to [Semantic Versioning](https://semver.org/).
+Section conventions (Added / Changed / Fixed / Removed) follow
+[Keep a Changelog](https://keepachangelog.com/); versions follow
+[Semantic Versioning](https://semver.org/). The next release accumulates
+under a `(working draft)` heading, which gains its date when the release
+is tagged.
 
-## [0.2.0] - Unreleased
+## 0.2.0 (working draft)
 
 **Spec:** implements OpenBindings 0.2.0 (working draft).
+
+A 0.1.1 patch release was prepared in April 2026 but never tagged or
+released; its changes (TLS setup bulletproofing, the newer-version notice)
+ship as part of 0.2.0.
 
 ### Changed
 
@@ -126,6 +133,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
   CSP-shaped error Chrome produced when HTTP pages fetched `http://localhost`.
 - `ob describe` output now includes the spec version range this CLI supports,
   sourced from the Go SDK's `MinSupportedVersion` / `MaxTestedVersion`.
+- `ob` now notifies on stderr when a newer release is available. The check
+  probes the GitHub releases API asynchronously (2s timeout, cached for 24
+  hours), skips itself when stderr is not a terminal or the build is
+  unversioned (`dev`), and fails silently on any error — it never blocks or
+  errors the command you ran. Opt out with `OB_NO_UPDATE_CHECK=1`.
 - `ob compat` now drives a structural OBI comparison feature
   (`internal/app/comparison.go` plus a conformance test corpus) that powers
   cross-document compatibility analysis used by registries and authoring
@@ -188,10 +200,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 ### Notes for upgraders
 
 - Users who ran v0.1.0's install flow have an orphaned `OpenBindings Local CA`
-  entry in their login keychain. `ob serve` on v0.1.1 purges it automatically
-  and reinstalls system-wide. No manual cleanup required.
+  entry in their login keychain. The first `ob start` on 0.2.0 purges it
+  automatically and reinstalls the CA system-wide. No manual cleanup required.
 
-## [0.1.0] - 2026-04-15
+## 0.1.0 — 2026-04-15
 
 ### Added
 

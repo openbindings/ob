@@ -20,12 +20,8 @@ go install ./cmd/ob  # installs to $GOPATH/bin (usually ~/go/bin)
 
 ## Releasing
 
-Tag from `main`: `git tag vX.Y.Z && git push origin vX.Y.Z`.
-`.github/workflows/release.yml` runs goreleaser, publishes a GitHub release, and
-updates the `openbindings/homebrew-tap` cask automatically.
-
-See [CHANGELOG.md](./CHANGELOG.md) for release history. Pre-1.0, minor versions
-may include breaking changes; document under **Changed** or **Removed**.
+See [RELEASING.md](./RELEASING.md): versioning policy, changelog conventions,
+upstream tag prerequisites, and the tag-driven goreleaser flow.
 
 ## Architecture
 
