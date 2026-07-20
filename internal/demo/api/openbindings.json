@@ -2,7 +2,7 @@
   "openbindings": "0.2.0",
   "name": "OpenBlendings",
   "version": "1.0.0",
-  "description": "A coffee shop demonstrating OpenBindings with five binding specifications. One interface, five protocols, zero duplication.",
+  "description": "A coffee shop demonstrating OpenBindings across REST, Connect, gRPC, MCP, GraphQL, and SSE. One interface, six protocols, zero duplication.",
   "schemas": {
     "MenuResponse": {
       "type": "object",
