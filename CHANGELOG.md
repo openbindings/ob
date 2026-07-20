@@ -106,7 +106,85 @@ ship as part of 0.2.0.
   - Demo command output (`ob demo`) updated to print `ob op invoke ...` examples.
   - README "Execute an operation" section → "Invoke an operation"; prose "binding executor" → "binding invoker" throughout.
 
-
+- **Delegates are registered interfaces, not config entries.** A delegate is
+  any OBI registered by location (`ob delegate register <location>`); its
+  capabilities are detected from its own operations by correspondence
+  (operation key + published alias, per the `openbindings.delegate-manager`
+  contract) and snapshotted at registration. Selection is preference-ordered
+  per operation, with ob itself standing as the self-delegate:
+  `ob delegate resolve <operation>` shows the ranking, `ob delegate prefer`
+  sets delegate-level or per-offering preference, and
+  `ob delegate requirements <capability>` prints the interface a delegate
+  must correspond to for a capability. Synthesis, inspection, and binding
+  invocation all route through the same selection — operation-invoking the
+  delegate's own OBI rather than shelling into a hard-coded plugin seam.
+  Wrapper-era registrations and pre-rename registry records are refused
+  loudly with a re-register instruction, never silently skipped.
+- **The context store is a keyed, hierarchical surface.** Contexts are
+  user-scoped and keyed by target URL with hierarchical resolution (exact
+  key first, then up the path); credential fields ride the OS credential
+  store, everything else the config file. The three context operations
+  (`getContext` / `setContext` / `removeContext`) declare correspondence to
+  the published `openbindings.document-store` interface (`get`/`set`/
+  `delete`) — retargeted from that interface's earlier `key-value-store`
+  name — and `context set` is full-replacement per that contract.
+- **Exact binding-specification identifiers replace format tokens.** What a
+  source names is a binding specification (`openbindings.openapi@1`,
+  `openbindings.usage@1`, …) — an exact, opaque identifier, not a "format"
+  with semver-range matching (the range machinery is deleted; matching is
+  string equality per spec §6). The wire field renames from `format`/`token`
+  to `bindingSpec` across ob's contract schemas, and the CLI adopts the
+  native vocabulary: `ob formats` → `ob binding-specs`,
+  `ob delegate resolve-format` → `ob delegate resolve-binding-spec`,
+  `delegate prefer --source-format` → `--binding-spec`, served
+  `GET /formats` → `GET /binding-specs`, operation keys `listFormats` →
+  `listBindingSpecs` and `resolveDelegateForFormat` →
+  `resolveDelegateForBindingSpec`. Output rendering keeps `--format` (the
+  one genuinely format-shaped concept). `ob binding-specs` marks ob's
+  pre-promotion drafts `(draft)` — the bare tokens (`graphql`,
+  `workers-rpc@^1.0.0`) whose identifiers aren't minted yet.
+- **The transform evaluator now runs the gnata JSONata engine**
+  (`recolabs/gnata`, pure Go, replacing `blues/jsonata-go`). gnata is
+  materially closer to the normative jsonata-js implementation: it preserves
+  object member order, closes the reachable `{"v": $}` divergence, and
+  evaluates ob's production transforms identically to the reference. A
+  differential-conformance gate runs the spec repo's transform corpus
+  through the engine — the agreement set must reproduce jsonata-js output
+  and the known-divergence catalog must still hold — so silent engine drift
+  fails the suite.
+- **Exec addresses require explicit operator authorization** (the usage
+  specification's USAGE-P-02 policy). An exec source address is dereferenced
+  only when the operator authorized it: recorded in the environment config's
+  `authorizedExec` list, or standing via delegate registration (the
+  registered delegate's own exec location). Operator-typed intake
+  (`source add` / `synthesize` / `inspect` positional sources) records the
+  address durably with a notice; machine lanes (`--input`, the served
+  surface, delegate invocations) never auto-authorize; everything else
+  refuses, per the specification's default.
+- **`ob op invoke` grew the consumer data face, and every output is
+  contract-validated.** The per-invocation knobs are explicit, per-axis
+  flags — `--decode json|text|none`, `--ok-exit` (the diff(1) class: exit
+  codes that are results, not failures),
+  `--route field=argv|stdin|stdin-dash|file`, and `--input` with the house
+  grammar (inline JSON | `@file` | `-`) — compiled to per-invocation hooks;
+  a typo in a lane or channel refuses loudly. Dispatch is unified under
+  delegate selection,
+  computed pre-dispatch: when a preferred external delegate owns the hop,
+  displaced *flags* refuse (naming the delegate) while displaced *standing
+  elections* proceed with a loud attributed warning (stderr, plus
+  `x-ob-displaced-elections` in the machine envelope). The app-driven
+  binding path now enforces OBI-T-08: every output is validated against the
+  operation's declared schema before it reaches the caller. `-F json` emits
+  the machine-lane envelopes — one terminal `{outputs, metadata}` object on
+  success, the `InvocationError` envelope on failure. A new
+  `ob operation output-schema` command makes the output-schema election
+  first-class: it writes the elected schema into the operation and stamps an
+  `x-ob` election marker so `source pull` re-applies it onto fresh
+  derivations (a grown source schema wins and displaces it loudly);
+  `ob purify` strips the synthesis floor stamps at every depth. Below the
+  operation layer, `ob binding invoke` is the wire lane surfaced as a
+  command: document-addressed, `inputTransform` applied, output post-decode
+  and pre-`outputTransform`, deliberately unvalidated.
 
 - `ob start` now listens on HTTP and HTTPS simultaneously by default. HTTP on
   `--port` (default 20290), HTTPS on port+1 (default 20291). Clients pick
@@ -147,23 +225,58 @@ ship as part of 0.2.0.
   realization of the contract's `synthesizeInterface` operation. Sources use
   the same `[format:]path[?options]` syntax as `ob inspect` / `ob source add`.
   Every contract operation now has a CLI binding.
+- **A full interface-authoring command family.** `ob new` creates an empty
+  document and `ob meta set` edits interface-level metadata; `ob inspect
+  <source>` lists a binding source's bindable targets; `ob source
+  add/pull/list/remove` register binding sources and derive operations and
+  bindings from them, with `ob status` reporting drift read-only;
+  `ob operation add/set/rename/remove/detach/bind/unbind` edit operations by
+  hand, `ob operation alias` manages correspondence aliases, and
+  `ob operation codegen-name` sets the symbol name codegen emits (persisted
+  as `x-ob.codegenName`, surviving pull, stripped by purify).
+  `ob conform <contract> <target>` scaffolds or updates operations so a
+  target corresponds to a contract interface; `ob merge` applies changes
+  selectively (`--ops-only` / `--no-bindings` / `--no-sources`); `ob purify`
+  exports a spec-only interface with all `x-ob` vendor metadata stripped.
+  `ob op prepare` and `ob binding prepare` answer the preflight question —
+  what context an invocation would require — without invoking. `ob new` and
+  `ob synthesize` take `--spec-version` (default: latest tested), and
+  `source add` takes `--description`.
 - `usage.kdl` now documents command aliases (`ob op ls`, `ob ctx`, `ob env`,
   …) and previously undocumented flags (`init --global`, `mcp --token` /
   `--token-file`, `source add --delegate` / `--yes`, `start --no-tls`). A new
   conformance test (`TestUsageKDLMatchesCommandTree`) cross-references the
   cobra tree, `usage.kdl`, and the root contract so the three CLI surfaces
   can no longer drift apart silently.
-- **The bound CLI OBI is now operation-invocable for the delegate
-  capabilities** (machine lane). Structured wire inputs cannot ride the usage
-  transport's field-name→flag mapping, so commands realizing structured ops
-  declare `wireInput="input"` in `usage.kdl` and `ob --openbindings` now
-  attaches a generated `inputTransform` that JSON-serializes the operation's
-  wire input into `--input`. `ob synthesize` and `ob inspect` gained `--input`
-  (SynthesizeInterfaceInput / InspectSourceInput as a JSON string, exclusive
-  with the human lane) and default to wire-shaped JSON output on that lane;
-  `ob binding invoke` / `ob binding prepare` were already machine-shaped.
-  Registering `exec:ob` as a delegate now works end-to-end for synthesize,
-  inspect, and invoke.
+- **The bound CLI OBI: ob's own CLI is a fully invocable OpenBindings
+  interface.** `ob --openbindings` emits a generated bound OBI
+  (`internal/app/ob.bound.obi.json`, regenerated via `go generate` from the
+  hand-maintained root contract `ob.obi.json` and guarded by a freshness
+  test) whose usage source is a generated `openbindings.usage` binding-unit
+  document: the pristine `usage.kdl` embedded verbatim (with artifact pin
+  and hash), and one unit per contract operation carrying ob's lane
+  elections (stdout JSON everywhere; `exit {ok: [0, 1]}` on
+  `diff`/`compat`/`validate`, whose exit 1 is a result, not a failure).
+  Adaptation between the wire contract and the CLI lives in the generated
+  binding — field renames, flag stringification, stdin routing — never as
+  wire sockets on the human surface, so `usage.kdl` stays a pure description
+  of the CLI. Every contract operation is conformant over the exec lane:
+  read/analysis and document-editing commands run as Unix filters (`-` reads
+  the interface document from stdin, and editing commands write the modified
+  document to stdout — which IS the contract output — with the human summary
+  on stderr), `context set` takes `--value` (`-` reads stdin) so credential
+  values never ride argv, wire synthesis warnings go to stderr, and
+  `ob codegen` gained a `-F json|yaml` machine lane. Only the
+  machine-natured commands keep an `--input` flag (`inspect`, `synthesize`,
+  `binding invoke`, `binding prepare`): their wire inputs are nested,
+  content-bearing objects with no natural argv shape. The `invokeBinding` /
+  `invokeOperation` exec bindings are the contract's documented unary
+  realization of its frame streams (frame-true invocation rides `ob start`'s
+  WebSocket lane). A wire-conformance harness builds the real binary,
+  operation-invokes every contract operation the way a delegate registrar
+  would, and validates each output against its contract schema — so
+  registering `exec:ob` as a delegate works end to end for the whole
+  surface.
 
 - **Operation-family outputs are now wire-shaped.** `ob op list -F json` and
   `ob op alias list -F json` emit the contract's bare arrays (previously
@@ -175,9 +288,46 @@ ship as part of 0.2.0.
 - Operation-family text now says **source-owned** (matching the contract and
   `op set`/`op detach`) where it previously said "managed", and no longer
   references the retired `ob sync` command.
+- **`ob binding list`** — the read view for an OBI's bindings (all of them,
+  or filtered to one operation), closing the gap where `operation bind` /
+  `unbind` could write bindings you could not view without opening the raw
+  JSON. Human render plus a `-F json` machine lane, realized OBI-first as a
+  contract operation (`openbindings.ob.listBindings`).
+- **File-backed credentials for headless environments.** Setting
+  `OB_CREDENTIALS_FILE=<path>` routes credential storage to a JSON file
+  backend so authenticated flows work in CI, containers, and sandboxes with
+  no OS keychain. The file is created `0600` (an existing file with
+  group/other access is refused with a chmod remediation), and the first
+  credential write per process prints a one-line stderr notice that
+  credentials are stored unencrypted at your request. With the variable
+  unset the keychain is used exactly as before, and a keychain failure never
+  silently falls through to a file — the raw error (the bare
+  `exit status 154` class) is instead wrapped into a message naming the
+  cause and the `OB_CREDENTIALS_FILE` escape hatch.
+- `ob mcp --tool-timeout` (default 60s). MCP tool calls are request-scoped,
+  so a subscription-style operation that never completes now gets an honest
+  `ERR_TIMEOUT` refusal naming the mismatch instead of hanging the agent.
+- `ob --version` prints the CLI version and its supported spec range.
 
 ### Fixed
 
+- **Security: a misreporting delegate could exfiltrate another host's stored
+  credentials (confused deputy).** On the delegate path, a
+  `CONTEXT_REQUIRED` challenge's `target` is asserted by the untrusted
+  delegate, and ob fed it straight to the store-backed resolver — so a
+  delegate invoking against one host could name a *different* host's target
+  and make ob look up that host's stored credentials and forward them to the
+  delegate. ob now derives the source's authoritative target itself and
+  validates the asserted target against it before any credential lookup, as
+  the binding-invoker contract mandates: a mismatch is refused loudly
+  (`ERR_PERMISSION_DENIED`, no lookup, no merge), and an unverifiable target
+  (inline content, exec refs) withholds provisioning and lets the delegate's
+  own challenge surface. The guard applies only to the external-delegate
+  path — ob's in-process invoker runs inside ob's trust boundary and is
+  unchanged. Additionally, context forwarded to a delegate on the
+  post-challenge retry is now scoped to the challenge (least privilege), so
+  a delegate never receives credential material outside its own challenge's
+  scope.
 - `ob op invoke -v` now prints the resolved binding key on stderr — what its
   help always claimed — instead of echoing back the operation key you typed
   (or nothing in `--binding` mode).
@@ -196,6 +346,105 @@ ship as part of 0.2.0.
   code no longer compiled against the SDKs. Generated Go now calls
   `c.Invoke(...)` (with helper renamed `execUnary` to `invokeUnary`), and
   generated TS calls `this.client.invoke(...)`.
+- `ob op invoke` resolved an operation by key only, refusing the aliases its
+  help promised and every mutation command already accepted. It now resolves
+  by key or alias — key and aliases are one namespace with equal standing
+  (OBI-T-12).
+- `--idempotent` / `--deprecated` (on `operation add` / `operation set`)
+  compared their value against the literal string `true`, so every other
+  spelling (`yes`, `1`, `TRUE`, `on`) silently stored **false** — at exit 0,
+  under an "Updated operation" success message — misreporting whether an
+  operation is safe to retry. Values now parse with `strconv.ParseBool`
+  semantics, and anything unparseable is a usage error (exit 2) that writes
+  nothing: a value the user passed is never silently discarded.
+- Operation input is validated against the operation's input schema *before*
+  dispatch (OBI-T-07 on the app-driven path): schema-violating input no
+  longer executes the side effect and then blames the response.
+  Output-validation failures now carry the offending payload (truncated),
+  the decode stamp, and the response `Content-Type`; `CONTEXT_REQUIRED`
+  errors render the full challenge with a copy-pasteable `ob context set`
+  hint; and `ob op prepare` acquires the source document the way invoke
+  would, so statically declared auth no longer answers "No context
+  requirements" from a cold cache.
+- Keychain credentials were saved under the raw URL but read under the
+  normalized key, so `ob context set` reported success and invoke re-raised
+  the identical challenge forever. Keys now normalize at the store boundary,
+  matching the config-file store.
+- Comparison soundness, in three passes. The compat walk now descends into
+  array items and schema-typed `additionalProperties`, and its identity fast
+  paths no longer shortcut while a `$ref` remains in the compared subtree
+  (two documents can carry the byte-identical pointer whose targets diverge
+  per document's own registry) — a breaking change inside a `$ref`'d
+  array-item schema was previously invisible. Schema slots only
+  distinguished identical-vs-different, so a breaking output change could
+  still report compatible: the SDK's subsumption engine now runs as the
+  safety net behind the structural walk, and a cross-implementation test
+  pins that `ob compat` and the SDK agree in both directions. And scalar
+  type changes other than integer↔number were never classified, so a
+  string→integer property swap read as compatible; type changes now
+  classify, breaking in both directions.
+- `ob conform`'s drift gate and delegate capability detection ran an older
+  comparison engine that could disagree with `ob compat`; all three now
+  consume the same engine's verdicts and cannot diverge. Unverifiable slots
+  count as drift — claiming satisfaction on an unverifiable slot would be a
+  silent lie.
+- Delegate registry writes (`register`/`unregister`/`prefer`) ride a
+  fingerprinted compare-and-swap seam with bounded retries, closing a
+  cross-process lost-update race; binding-spec-scoped preferences now
+  surface in `ob delegate list` instead of being write-only; and read-only
+  `resolveDelegate` is served (`GET /delegates/resolve/{operation}`).
+- `source add` with an explicit binding spec routed through source detection
+  anyway, letting the gRPC probe dial an arbitrary location as a reflection
+  endpoint and hang; explicit-spec adds now route by identifier and never
+  probe, and detection probes are bounded at 5 seconds each.
+- `source pull -o` wrote the human summary over the just-pulled document;
+  the summary now goes to the terminal, never the document's path.
+- The hand-authored self-OBI declared a stale `InvocationError` (missing the
+  `category`/`effects` members the runtime already emits, and closed to
+  additions), so `ob compat` reported ob INCOMPATIBLE with two of the seven
+  published interfaces it claims correspondence with. The declaration now
+  matches the invoker contracts exactly; all seven claims verify COMPATIBLE.
+- Output flags are honored or refused, never dropped: lanes that cannot
+  honor `-o`/`-F` (the streaming invoke filter, `mcp`, `demo`, `start`)
+  refuse them loudly instead of silently ignoring them, and `op invoke`
+  validates `-F` and refuses `-o` (no place on a stdout stream).
+- The `[format:]path` source parser split `http://…` URLs on their scheme,
+  eating them; `ob mcp` was URL-only and now takes any interface locator
+  (local file, URL, or a raw spec it synthesizes from — the documented
+  raw-OpenAPI example actually works); and an unreadable `--token-file`
+  errors instead of silently continuing with no auth.
+- `ob init --global` refused to run whenever the global config directory
+  existed — but the context store creates that directory as a side effect,
+  so any `ob context set` bricked global init. The existence check now keys
+  on the environment marker (`config.json`), and a bare directory is
+  completed rather than refused.
+- Machine lanes emit contract shapes: `ob init -F json` returns the
+  contract's `EnvironmentStatus` (was an ad-hoc result), `listContexts`
+  never returns `null`, and the served `/resolve` emits
+  `ResolveInterfaceOutput` in place of an ad-hoc five-field shape.
+- Demo truthfulness: the banner advertised `ob fetch`, a command that does
+  not exist (now `ob resolve`); `operation list` / `alias list` only read
+  files and now resolve locators the way invoke does; the demo's
+  `placeOrder` wrote its HTTP status before `Content-Type`, so Go sniffed
+  `text/plain` and every invocation failed output validation; and the demo
+  MCP server returns `structuredContent` with its compatibility text shadow
+  per MCP 2025-11-25.
+- Cosmetics that lied: command-group parents now error on a stray
+  subcommand instead of silently printing help; `ob delegate list` no longer
+  renders "ob ob"; `ob validate` prints "No rule violations found" rather
+  than an unqualified "Valid" (verification is capability-relative, spec
+  §10.5); and `ob compat`'s text render names the actual broken field
+  (`…/required/lang`, not `/required/1`).
+
+### Removed
+
+- **`ob sync`** — replaced by the source-pull model: `ob source pull`
+  derives operations and bindings from registered sources on demand (with a
+  removal-aware detect engine), and `ob status` reports drift read-only.
+  The sync/conflict machinery is gone; there is no second write path.
+- **`ob create`** — `ob new` creates an empty document; `ob synthesize` is
+  the one-shot derivation. What ob does with sources is synthesis, and the
+  command vocabulary now says so.
 
 ### Notes for upgraders
 

@@ -107,7 +107,7 @@ func Info() SoftwareIdentity {
 	return SoftwareIdentity{
 		Name:        "OpenBindings CLI",
 		Version:     OBVersion,
-		Description: "Reference implementation for creating, browsing, and executing OpenBindings interfaces.",
+		Description: "Reference implementation for authoring, validating, invoking, and serving OpenBindings interfaces.",
 		Homepage:    "https://openbindings.com",
 		Repository:  "https://github.com/openbindings/ob",
 		Maintainer:  "OpenBindings Project",
