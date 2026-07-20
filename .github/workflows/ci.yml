@@ -12,7 +12,7 @@ jobs:
       run:
         working-directory: ob
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           path: ob
       # ob builds against SDK module versions that are not tagged yet; a
@@ -20,18 +20,18 @@ jobs:
       # resolves them, exactly the way the local-dev go.work does. Release
       # builds (release.yml) see no go.work and resolve tagged versions.
       # Flip ref to main once the SDK's experiment line promotes.
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           repository: openbindings/openbindings-go
           ref: experiment/obi-first
           path: openbindings-go
       # The conformance corpora (transforms, binding-specs) are normative and
       # live in the spec repo; without this checkout the gates skip silently.
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           repository: openbindings/spec
           path: spec
-      - uses: actions/setup-go@v5
+      - uses: actions/setup-go@v7
         with:
           go-version-file: ob/go.mod
           cache: false
