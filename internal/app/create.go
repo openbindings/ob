@@ -144,7 +144,8 @@ func ParseSource(s string) (SynthesizeInterfaceSource, error) {
 // content` use. What stdin delivers is CONTENT, not a location: callers
 // leave the source's location empty, so the output document records the
 // artifact exactly as a wire-supplied content source does (inline content,
-// no location, no pull path — never a fabricated "-" path).
+// no pull path — never a fabricated "-" path). An `?outputLocation=` still
+// writes the spec-level location, the same as on every other lane.
 func StdinSourceContent(bindingSpec string, data []byte) (string, json.RawMessage, error) {
 	if len(bytes.TrimSpace(data)) == 0 {
 		return "", nil, fmt.Errorf("stdin is empty (a source location of - reads the artifact from stdin)")
@@ -379,6 +380,14 @@ func mergeGeneratedSource(iface *openbindings.Interface, generated *openbindings
 		// Content provided directly on the wire (SynthesizeInterfaceSource
 		// content, the schema's alternative to location): carry it inline.
 		bsrc.Content = src.Content
+		// outputLocation= means spec-level location in EVERY synthesis lane:
+		// content + outputLocation carries both, exactly like the
+		// `?embed&outputLocation=` lane below — the artifact plus the
+		// format-defined location (§6.4). The value is recorded verbatim,
+		// matching the file lane's posture: synthesis never polices it, the
+		// invoke-time gate (resolveSourceLocation) refuses a relative
+		// spec-level location under OBI-D-05 for all lanes alike.
+		bsrc.Location = meta.URI
 	case resolveMode == ResolveModeContent:
 		// Read and embed content (format decides object vs string, the same
 		// parse `source add --resolve content` and pull refreshes use).
