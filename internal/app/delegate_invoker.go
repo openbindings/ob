@@ -12,13 +12,13 @@ import (
 	"strings"
 	"time"
 
-	"gopkg.in/yaml.v3"
 	"nhooyr.io/websocket"
 
 	openbindings "github.com/openbindings/openbindings-go"
 
 	"github.com/openbindings/ob/internal/delegates"
 	"github.com/openbindings/ob/internal/frames"
+	"github.com/openbindings/openbindings-go/formats/asyncapi"
 	"github.com/openbindings/openbindings-go/formats/usage"
 )
 
@@ -198,72 +198,45 @@ func (d *delegateFrameInvoker) dial(ctx context.Context) (*websocket.Conn, *open
 // serve side's request-body cap.
 const maxFrameBytes = 2 << 20 // 2 MiB
 
-// asyncDoc is the minimal AsyncAPI 3 slice needed to locate the frame
-// channel: servers (host/protocol/pathname), channel addresses, and the
-// operation -> channel mapping.
-type asyncDoc struct {
-	Servers map[string]struct {
-		Host     string `yaml:"host"`
-		Protocol string `yaml:"protocol"`
-		Pathname string `yaml:"pathname"`
-	} `yaml:"servers"`
-	Channels map[string]struct {
-		Address string `yaml:"address"`
-	} `yaml:"channels"`
-	Operations map[string]struct {
-		Channel struct {
-			Ref string `yaml:"$ref"`
-		} `yaml:"channel"`
-	} `yaml:"operations"`
-}
-
 // resolveFrameEndpoint fetches the delegate's AsyncAPI document and derives
-// the ws(s) URL of the operation the ref names.
+// the ws(s) URL of the operation the ref names. Everything AsyncAPI —
+// document parsing, the ref grammar (ASYNC-D-03), and the pinned
+// server-selection and address rules (openbindings.asyncapi@1 §9.2,
+// ASYNC-P-04) — lives behind the SDK's format seam
+// (asyncapi.ParseDocument / Document.ResolveEndpoint), never re-derived
+// here. What stays on this side is ob's own: fetching the document (the
+// frame lane's timeout and size policy) and spelling the upgrade scheme.
 func resolveFrameEndpoint(ctx context.Context, docURL, ref string) (string, error) {
-	doc, err := fetchAsyncDoc(ctx, docURL)
+	data, err := fetchFrameDoc(ctx, docURL)
 	if err != nil {
 		return "", err
 	}
-
-	opID := strings.TrimPrefix(strings.TrimSpace(ref), "#/operations/")
-	op, ok := doc.Operations[opID]
-	if !ok {
-		return "", fmt.Errorf("operation %q not found in %s", opID, docURL)
+	doc, err := asyncapi.ParseDocument(data)
+	if err != nil {
+		return "", fmt.Errorf("parsing AsyncAPI document %s: %w", docURL, err)
 	}
-	channelName := op.Channel.Ref
-	if idx := strings.LastIndex(channelName, "/"); idx >= 0 {
-		channelName = channelName[idx+1:]
-	}
-	channel, ok := doc.Channels[channelName]
-	if !ok || channel.Address == "" {
-		return "", fmt.Errorf("channel %q has no address in %s", channelName, docURL)
+	endpoint, err := doc.ResolveEndpoint(ref, nil)
+	if err != nil {
+		return "", fmt.Errorf("resolving %s in %s: %w", ref, docURL, err)
 	}
 
-	// First supported server in stable name order, mirroring the SDK's
-	// asyncapi invoker server selection.
-	names := make([]string, 0, len(doc.Servers))
-	for name := range doc.Servers {
-		names = append(names, name)
+	// The frame lane is a WebSocket lane: an http(s)-protocol server takes
+	// the upgrade on the same URL, spelled ws(s). Scheme spelling is frame-
+	// transport mechanics, not AsyncAPI knowledge — the endpoint itself came
+	// from the seam, which only ever yields the four bound protocols.
+	switch endpoint.Protocol {
+	case "http":
+		return "ws://" + strings.TrimPrefix(endpoint.URL, "http://"), nil
+	case "https":
+		return "wss://" + strings.TrimPrefix(endpoint.URL, "https://"), nil
+	default: // ws, wss
+		return endpoint.URL, nil
 	}
-	sort.Strings(names)
-	for _, name := range names {
-		server := doc.Servers[name]
-		var scheme string
-		switch strings.ToLower(server.Protocol) {
-		case "ws", "http":
-			scheme = "ws"
-		case "wss", "https":
-			scheme = "wss"
-		default:
-			continue
-		}
-		base := scheme + "://" + server.Host + server.Pathname
-		return strings.TrimRight(base, "/") + "/" + strings.TrimLeft(channel.Address, "/"), nil
-	}
-	return "", fmt.Errorf("no ws-capable server in %s", docURL)
 }
 
-func fetchAsyncDoc(ctx context.Context, docURL string) (*asyncDoc, error) {
+// fetchFrameDoc fetches a delegate's AsyncAPI document bytes under the frame
+// lane's fetch policy (frameDocFetchTimeout, maxFrameBytes).
+func fetchFrameDoc(ctx context.Context, docURL string) ([]byte, error) {
 	if _, err := url.Parse(docURL); err != nil {
 		return nil, fmt.Errorf("invalid AsyncAPI document URL %q: %w", docURL, err)
 	}
@@ -286,12 +259,7 @@ func fetchAsyncDoc(ctx context.Context, docURL string) (*asyncDoc, error) {
 	if err != nil {
 		return nil, fmt.Errorf("reading AsyncAPI document %s: %w", docURL, err)
 	}
-
-	var doc asyncDoc
-	if err := yaml.Unmarshal(body, &doc); err != nil {
-		return nil, fmt.Errorf("parsing AsyncAPI document %s: %w", docURL, err)
-	}
-	return &doc, nil
+	return body, nil
 }
 
 // ---------------------------------------------------------------------------

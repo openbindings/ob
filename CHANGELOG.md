@@ -18,6 +18,15 @@ ship as part of 0.2.0.
 
 ### Changed
 
+- **Delegate frame-endpoint resolution moved behind the SDK's asyncapi
+  seam.** Resolving a delegate's advertised `invokeBinding` endpoint from
+  its AsyncAPI document now uses the format package's exported resolution
+  (`asyncapi.ParseDocument` / `Document.ResolveEndpoint`) instead of a
+  hand-rolled parser copy inside ob — one owner for the
+  `openbindings.asyncapi@1` §9.2 server-selection and address rules. ob
+  keeps only what is its own: the document fetch policy and the ws(s)
+  upgrade-scheme spelling.
+
 - **Renamed the `ob serve` command to `ob start`.** The local server (HTTP +
   WebSocket) now starts with `ob start`, aligning the command with the
   `startServer` operation it realizes and reflecting that it boots ob's full
@@ -317,6 +326,16 @@ ship as part of 0.2.0.
 - `ob --version` prints the CLI version and its supported spec range.
 
 ### Fixed
+
+- **Delegate frame-endpoint resolution had drifted from the asyncapi
+  binding spec.** The retired hand-rolled copy (see Changed: the SDK's
+  asyncapi seam now owns the resolution) ignored a channel's declared
+  `servers` subset, never substituted server `{variables}` or channel
+  address `{parameters}` (literal braces could reach the dial), accepted a
+  bare operation key where ASYNC-D-03 pins the `#/operations/<key>` pointer
+  (and never decoded its RFC 6901 escapes), and skipped the ASYNC-P-01
+  accepted-line check. All now behave per `openbindings.asyncapi@1` §9.2
+  via the SDK export; refusals are loud, never guesses.
 
 - **Security: a misreporting delegate could exfiltrate another host's stored
   credentials (confused deputy).** On the delegate path, a
