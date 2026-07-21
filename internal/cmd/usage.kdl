@@ -142,7 +142,7 @@ cmd "inspect" help="Inspect a binding source and list its bindable targets" {
   flag "--input <json>" help="InspectSourceInput as a JSON string (machine lane; exclusive with <source>)"
   flag "-o --output <path>" help="Write output to file"
   flag "-F --format <format>" help="Output format: json|yaml|text"
-  arg "[source]" help="Binding source as [format:]path[?options] (e.g., openapi.json)"
+  arg "[source]" help="Binding source as [format:]path[?options] (e.g., openapi.json; path - reads the artifact from stdin)"
 }
 
 cmd "synthesize" help="Synthesize an interface from binding sources" {
@@ -153,7 +153,7 @@ cmd "synthesize" help="Synthesize an interface from binding sources" {
   flag "--input <json>" help="SynthesizeInterfaceInput as a JSON string (machine lane; exclusive with sources and metadata flags)"
   flag "-o --output <path>" help="Write output to file"
   flag "-F --format <format>" help="Output format: json|yaml|text"
-  arg "[source]..." help="Binding sources as [format:]path[?options] (none: empty interface)"
+  arg "[source]..." help="Binding sources as [format:]path[?options] (none: empty interface; path - reads the artifact from stdin)"
 }
 
 cmd "source" help="Manage source references on an OBI" subcommand_required=true {

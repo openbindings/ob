@@ -1,6 +1,7 @@
 package app
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -133,6 +134,33 @@ func ParseSource(s string) (SynthesizeInterfaceSource, error) {
 	}
 
 	return src, nil
+}
+
+// StdinSourceContent converts artifact bytes read from the stdin lane (a
+// source location of `-`, the same filter convention the editing family's
+// <obi-path> honors) into the content-mode carrier: the format is detected
+// from the bytes when not explicit, and the bytes embed per that format's
+// content convention — the same parse `?embed` and `source add --resolve
+// content` use. What stdin delivers is CONTENT, not a location: callers
+// leave the source's location empty, so the output document records the
+// artifact exactly as a wire-supplied content source does (inline content,
+// no location, no pull path — never a fabricated "-" path).
+func StdinSourceContent(bindingSpec string, data []byte) (string, json.RawMessage, error) {
+	if len(bytes.TrimSpace(data)) == 0 {
+		return "", nil, fmt.Errorf("stdin is empty (a source location of - reads the artifact from stdin)")
+	}
+	if bindingSpec == "" {
+		detected, err := DetectSourceFormatFromBytes(data)
+		if err != nil {
+			return "", nil, err
+		}
+		bindingSpec = detected
+	}
+	content, err := ParseContentForEmbed(data, bindingSpec)
+	if err != nil {
+		return "", nil, err
+	}
+	return bindingSpec, content, nil
 }
 
 // DeriveSourceKey generates a default key for a binding source from its

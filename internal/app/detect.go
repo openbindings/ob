@@ -39,33 +39,9 @@ func DetectSourceCandidates(location string) ([]DelegateClaim, error) {
 
 	var claims []DelegateClaim
 	for _, fi := range DefaultSynthesizer().BindingSpecs() {
-		probeCtx, cancel := context.WithTimeout(context.Background(), probeTimeout)
-		iface, err := SynthesizeInterfaceFromSource(probeCtx, &openbindings.SynthesizeInput{
-			Sources: []openbindings.SynthesizeSource{{BindingSpec: fi.BindingSpec, Location: location}},
-		})
-		cancel()
-		if err != nil {
-			continue
+		if claim, ok := probeFormatClaim(openbindings.SynthesizeSource{BindingSpec: fi.BindingSpec, Location: location}); ok {
+			claims = append(claims, claim)
 		}
-
-		var formatToken string
-		for _, src := range iface.Sources {
-			if src.BindingSpec != "" {
-				formatToken = src.BindingSpec
-				break
-			}
-		}
-		if formatToken == "" {
-			continue
-		}
-
-		claims = append(claims, DelegateClaim{
-			DelegateName:   "ob",
-			DelegateID:     "ob",
-			BindingSpec:    formatToken,
-			OperationCount: len(iface.Operations),
-			BindingCount:   len(iface.Bindings),
-		})
 	}
 
 	if len(claims) == 0 {
@@ -73,6 +49,63 @@ func DetectSourceCandidates(location string) ([]DelegateClaim, error) {
 	}
 
 	return claims, nil
+}
+
+// detectCandidatesFromBytes probes raw artifact bytes with every known format
+// token — the detection lane for a stdin-supplied artifact, which has no
+// location to re-read. Each probe carries the bytes as embedded content
+// (converted per the candidate format's own content convention), so probing
+// never dials and never touches the filesystem; formats whose content carrier
+// rejects the bytes are non-claims.
+func detectCandidatesFromBytes(data []byte) ([]DelegateClaim, error) {
+	var claims []DelegateClaim
+	for _, fi := range DefaultSynthesizer().BindingSpecs() {
+		content, err := ParseContentForEmbed(data, fi.BindingSpec)
+		if err != nil {
+			continue
+		}
+		if claim, ok := probeFormatClaim(openbindings.SynthesizeSource{BindingSpec: fi.BindingSpec, Content: content}); ok {
+			claims = append(claims, claim)
+		}
+	}
+
+	if len(claims) == 0 {
+		return nil, fmt.Errorf("could not detect the format of the stdin artifact; specify it explicitly (e.g. openbindings.openapi@1:-)")
+	}
+
+	return claims, nil
+}
+
+// probeFormatClaim runs one bounded synthesis probe and returns the claim
+// when the candidate format's synthesizer accepts the source.
+func probeFormatClaim(source openbindings.SynthesizeSource) (DelegateClaim, bool) {
+	probeCtx, cancel := context.WithTimeout(context.Background(), probeTimeout)
+	defer cancel()
+	iface, err := SynthesizeInterfaceFromSource(probeCtx, &openbindings.SynthesizeInput{
+		Sources: []openbindings.SynthesizeSource{source},
+	})
+	if err != nil {
+		return DelegateClaim{}, false
+	}
+
+	var formatToken string
+	for _, src := range iface.Sources {
+		if src.BindingSpec != "" {
+			formatToken = src.BindingSpec
+			break
+		}
+	}
+	if formatToken == "" {
+		return DelegateClaim{}, false
+	}
+
+	return DelegateClaim{
+		DelegateName:   "ob",
+		DelegateID:     "ob",
+		BindingSpec:    formatToken,
+		OperationCount: len(iface.Operations),
+		BindingCount:   len(iface.Bindings),
+	}, true
 }
 
 // DetectSourceFormat is a convenience wrapper that returns the consensus
@@ -83,7 +116,23 @@ func DetectSourceFormat(location string) (string, error) {
 	if err != nil {
 		return "", err
 	}
+	return consensusFormat(claims, fmt.Sprintf("%q", location))
+}
 
+// DetectSourceFormatFromBytes is DetectSourceFormat for a stdin-supplied
+// artifact: the consensus format token probed from the raw bytes.
+func DetectSourceFormatFromBytes(data []byte) (string, error) {
+	claims, err := detectCandidatesFromBytes(data)
+	if err != nil {
+		return "", err
+	}
+	return consensusFormat(claims, "the stdin artifact")
+}
+
+// consensusFormat reduces detection claims to a single format token, or an
+// error naming the disagreeing candidates. The subject is already formatted
+// for the error message (a quoted location, or "the stdin artifact").
+func consensusFormat(claims []DelegateClaim, subject string) (string, error) {
 	distinct := map[string][]string{}
 	for _, c := range claims {
 		distinct[c.BindingSpec] = append(distinct[c.BindingSpec], c.DelegateName)
@@ -99,5 +148,5 @@ func DetectSourceFormat(location string) (string, error) {
 	for token, names := range distinct {
 		parts = append(parts, fmt.Sprintf("%s (via %s)", token, strings.Join(names, ", ")))
 	}
-	return "", fmt.Errorf("delegates disagree on format for %q: %s; specify the format explicitly", location, strings.Join(parts, " vs "))
+	return "", fmt.Errorf("delegates disagree on format for %s: %s; specify the format explicitly", subject, strings.Join(parts, " vs "))
 }

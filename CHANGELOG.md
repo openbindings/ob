@@ -225,6 +225,13 @@ ship as part of 0.2.0.
   realization of the contract's `synthesizeInterface` operation. Sources use
   the same `[format:]path[?options]` syntax as `ob inspect` / `ob source add`.
   Every contract operation now has a CLI binding.
+- `ob synthesize` and `ob inspect` accept `-` as a source path to read the
+  artifact from stdin (`curl -s …/openapi.json | ob synthesize
+  openbindings.openapi@1:-`) — the same filter convention the editing
+  family's `<obi-path>` already honors. A bare `-` runs format detection
+  over the piped bytes. A stdin artifact is content, not a location: it
+  embeds in the document exactly like a wire-supplied content source, with
+  no location and no pull path recorded.
 - **A full interface-authoring command family.** `ob new` creates an empty
   document and `ob meta set` edits interface-level metadata; `ob inspect
   <source>` lists a binding source's bindable targets; `ob source
