@@ -3,6 +3,7 @@ package cmd
 import (
 	"encoding/json"
 	"fmt"
+	"io"
 	"strings"
 
 	"github.com/openbindings/ob/internal/app"
@@ -30,6 +31,11 @@ Sources use the same syntax as 'ob inspect' and 'ob source add':
 [format:]path[?option&option...], with options name=, outputLocation=,
 description=, and embed.
 
+Pass '-' as the path to read the artifact from stdin (e.g.
+openbindings.openapi@1:-). A stdin artifact is content with no location:
+it embeds in the document exactly like a wire-supplied content source,
+with no pull path recorded. At most one source may read from stdin.
+
 A LOCAL FILE artifact is embedded by default: its content rides the spec
 'content' field so the document is conformant (OBI-D-05) and works from
 anywhere, and the local path is recorded in x-ob metadata as the pull
@@ -50,6 +56,7 @@ Examples:
   ob synthesize openapi.json -o api.obi.json
   ob synthesize openbindings.usage@1:./cli.kdl?name=cli --name "Acme CLI"
   ob synthesize api.yaml?embed --name "Acme API" --version 1.0.0
+  curl -s https://api.example.com/openapi.json | ob synthesize openbindings.openapi@1:- -o api.obi.json
   ob synthesize --input '{"sources":[{"bindingSpec":"openbindings.openapi@1","location":"api.yaml"}]}'`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			var input app.SynthesizeInterfaceInput
@@ -68,10 +75,36 @@ Examples:
 					Version:             version,
 					Description:         description,
 				}
+				stdinUsed := false
 				for _, s := range args {
 					src, err := app.ParseSource(s)
 					if err != nil {
 						return app.ExitResult{Code: 2, Message: fmt.Sprintf("source %q: %v", s, err), ToStderr: true}
+					}
+					// The stdin lane: a location of `-` reads the artifact
+					// from stdin (the filter convention the editing family's
+					// <obi-path> already honors). What arrives is content,
+					// not a location — the source entry carries it inline
+					// exactly like a wire-supplied content source, with no
+					// pull path recorded.
+					if src.Location == app.StdinLocator {
+						if stdinUsed {
+							return app.ExitResult{Code: 2, Message: fmt.Sprintf("source %q: stdin (-) can supply at most one source", s), ToStderr: true}
+						}
+						stdinUsed = true
+						data, rerr := io.ReadAll(cmd.InOrStdin())
+						if rerr != nil {
+							return app.ExitResult{Code: 2, Message: fmt.Sprintf("source %q: read stdin: %v", s, rerr), ToStderr: true}
+						}
+						spec, content, cerr := app.StdinSourceContent(src.BindingSpec, data)
+						if cerr != nil {
+							return app.ExitResult{Code: 2, Message: fmt.Sprintf("source %q: %v", s, cerr), ToStderr: true}
+						}
+						src.BindingSpec = spec
+						src.Content = content
+						src.Location = ""
+						input.Sources = append(input.Sources, src)
+						continue
 					}
 					// USAGE-P-02: an operator-typed exec address is the
 					// explicit authorization; record it durably.

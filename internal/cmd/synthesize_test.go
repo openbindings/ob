@@ -1,8 +1,10 @@
 package cmd
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"strings"
@@ -154,6 +156,190 @@ func TestInspectRequiresSourceOrInput(t *testing.T) {
 	er, ok := err.(app.ExitResult)
 	if !ok || er.Code != 2 {
 		t.Fatalf("expected usage error (code 2), got %v", err)
+	}
+}
+
+// runOBWithStdin executes the root command with args and the given stdin,
+// tolerating the ExitResult-as-error convention like runOB.
+func runOBWithStdin(t *testing.T, stdin io.Reader, args ...string) error {
+	t.Helper()
+	root := NewRoot()
+	root.SetIn(stdin)
+	root.SetArgs(args)
+	err := root.Execute()
+	if er, ok := err.(app.ExitResult); ok && er.Code == 0 {
+		return nil
+	}
+	return err
+}
+
+// TestSynthesizeStdinSource: a source location of `-` reads the artifact from
+// stdin. The result must match the file-path equivalent byte-for-byte outside
+// the source entry, and the source entry must follow the wire-content
+// convention: inline content, no location, no fabricated "-" pull path.
+func TestSynthesizeStdinSource(t *testing.T) {
+	dir := t.TempDir()
+	specPath := filepath.Join(dir, "api.json")
+	if err := os.WriteFile(specPath, []byte(tinyOpenAPI), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	stdinOut := filepath.Join(dir, "stdin.obi.json")
+	fileOut := filepath.Join(dir, "file.obi.json")
+
+	// ?name=api pins the source key on both lanes so operations and bindings
+	// come out identical.
+	if err := runOBWithStdin(t, strings.NewReader(tinyOpenAPI),
+		"synthesize", "openbindings.openapi@1:-?name=api", "-o", stdinOut); err != nil {
+		t.Fatalf("synthesize from stdin: %v", err)
+	}
+	if err := runOB(t, "synthesize", "openbindings.openapi@1:"+specPath+"?name=api", "-o", fileOut); err != nil {
+		t.Fatalf("synthesize from file: %v", err)
+	}
+
+	var stdinDoc, fileDoc map[string]any
+	stdinData, err := os.ReadFile(stdinOut)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := json.Unmarshal(stdinData, &stdinDoc); err != nil {
+		t.Fatal(err)
+	}
+	fileData, err := os.ReadFile(fileOut)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := json.Unmarshal(fileData, &fileDoc); err != nil {
+		t.Fatal(err)
+	}
+
+	// The source entry: content mode, exactly like a wire-supplied content
+	// source — inline content, no location, and no "-" recorded anywhere
+	// (stdin is content, not a location; there is no pull path).
+	sources, _ := stdinDoc["sources"].(map[string]any)
+	entry, ok := sources["api"].(map[string]any)
+	if !ok {
+		t.Fatalf("expected source key %q, got %v", "api", keysOf(sources))
+	}
+	if entry["content"] == nil {
+		t.Error("stdin source: expected embedded content")
+	}
+	if loc, present := entry["location"]; present {
+		t.Errorf("stdin source: expected no location, got %q", loc)
+	}
+	if xob, _ := entry["x-ob"].(map[string]any); xob != nil {
+		if ref, _ := xob["ref"].(string); ref != "" {
+			t.Errorf("stdin source: expected no pull path in x-ob.ref, got %q", ref)
+		}
+	}
+
+	// Everything outside the source entry matches the file-path lane.
+	delete(stdinDoc, "sources")
+	delete(fileDoc, "sources")
+	stdinRest, _ := json.Marshal(stdinDoc)
+	fileRest, _ := json.Marshal(fileDoc)
+	if string(stdinRest) != string(fileRest) {
+		t.Errorf("stdin and file synthesis diverge outside the source entry:\nstdin: %s\nfile:  %s", stdinRest, fileRest)
+	}
+}
+
+// TestSynthesizeStdinSource_DetectsFormat: a bare `-` runs format detection
+// over the stdin bytes, the same consensus probe a bare file path gets.
+func TestSynthesizeStdinSource_DetectsFormat(t *testing.T) {
+	outPath := filepath.Join(t.TempDir(), "out.obi.json")
+	if err := runOBWithStdin(t, strings.NewReader(tinyOpenAPI), "synthesize", "-", "-o", outPath); err != nil {
+		t.Fatalf("synthesize bare - : %v", err)
+	}
+
+	var doc struct {
+		Operations map[string]json.RawMessage `json:"operations"`
+		Sources    map[string]struct {
+			BindingSpec string `json:"bindingSpec"`
+		} `json:"sources"`
+	}
+	data, err := os.ReadFile(outPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := json.Unmarshal(data, &doc); err != nil {
+		t.Fatal(err)
+	}
+	if _, ok := doc.Operations["listThings"]; !ok {
+		t.Errorf("expected operation listThings, got %v", keysOf(doc.Operations))
+	}
+	if src, ok := doc.Sources["openapi"]; !ok || src.BindingSpec != "openbindings.openapi@1" {
+		t.Errorf("expected a detected openbindings.openapi@1 source under key %q, got %v", "openapi", doc.Sources)
+	}
+}
+
+// TestSynthesizeStdinSource_UndetectableRefused: bytes no format claims are
+// refused as a usage error naming the fix (an explicit format).
+func TestSynthesizeStdinSource_UndetectableRefused(t *testing.T) {
+	err := runOBWithStdin(t, bytes.NewReader([]byte{0x00, 0x01, 0xff}), "synthesize", "-")
+	er, ok := err.(app.ExitResult)
+	if !ok || er.Code != 2 {
+		t.Fatalf("expected usage error (code 2), got %v", err)
+	}
+	if !strings.Contains(er.Message, "could not detect the format") {
+		t.Errorf("expected a detection failure naming the fix, got %q", er.Message)
+	}
+}
+
+// TestSynthesizeStdinSource_SingleUse: stdin is consumed once; a second `-`
+// source in the same invocation is a usage error, not a silent empty parse.
+func TestSynthesizeStdinSource_SingleUse(t *testing.T) {
+	err := runOBWithStdin(t, strings.NewReader(tinyOpenAPI),
+		"synthesize", "openbindings.openapi@1:-", "openbindings.usage@1:-")
+	er, ok := err.(app.ExitResult)
+	if !ok || er.Code != 2 {
+		t.Fatalf("expected usage error (code 2), got %v", err)
+	}
+	if !strings.Contains(er.Message, "at most one source") {
+		t.Errorf("expected the single-stdin-source refusal, got %q", er.Message)
+	}
+}
+
+// TestSynthesizeStdinSource_ContentOnlyFamilyRefused: a family whose
+// synthesis lane cannot work from bytes alone refuses the stdin artifact
+// loudly. MCP is that family: content is a pin that still requires the
+// server location (MCP-D-02), so `-` alone cannot satisfy it.
+func TestSynthesizeStdinSource_ContentOnlyFamilyRefused(t *testing.T) {
+	err := runOBWithStdin(t, strings.NewReader(`{"tools":[{"name":"probe"}]}`),
+		"synthesize", "openbindings.mcp@1:-")
+	er, ok := err.(app.ExitResult)
+	if !ok || er.Code != 1 {
+		t.Fatalf("expected synthesis failure (code 1), got %v", err)
+	}
+	if !strings.Contains(er.Message, "MCP-D-02") {
+		t.Errorf("expected the MCP-D-02 refusal to surface, got %q", er.Message)
+	}
+}
+
+// TestInspectStdinSource: inspect shares the source grammar, so `-` reads the
+// artifact from stdin there too.
+func TestInspectStdinSource(t *testing.T) {
+	outPath := filepath.Join(t.TempDir(), "inspection.json")
+	if err := runOBWithStdin(t, strings.NewReader(tinyOpenAPI),
+		"inspect", "openbindings.openapi@1:-", "-F", "json", "-o", outPath); err != nil {
+		t.Fatalf("inspect from stdin: %v", err)
+	}
+
+	data, err := os.ReadFile(outPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var inspection struct {
+		Targets []struct {
+			Ref string `json:"ref"`
+		} `json:"targets"`
+	}
+	if err := json.Unmarshal(data, &inspection); err != nil {
+		t.Fatalf("inspection output is not JSON: %v\n%s", err, data)
+	}
+	if len(inspection.Targets) != 1 {
+		t.Fatalf("expected 1 bindable target, got %d", len(inspection.Targets))
+	}
+	if !strings.Contains(string(data), "listThings") {
+		t.Errorf("expected inspection to list listThings, got: %s", data)
 	}
 }
 
