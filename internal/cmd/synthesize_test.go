@@ -242,6 +242,89 @@ func TestSynthesizeStdinSource(t *testing.T) {
 	}
 }
 
+// TestSynthesizeStdinSource_OutputLocation: `?outputLocation=` means
+// spec-level `location` on the stdin lane too — the published pointer pairs
+// with the embedded artifact (spec §6.4) exactly as on the file lane's
+// `?embed&outputLocation=`, and mirrors into x-ob.uri. There is still no
+// pull path: stdin remains content, not a location.
+func TestSynthesizeStdinSource_OutputLocation(t *testing.T) {
+	published := "https://example.com/openapi.json"
+	outPath := filepath.Join(t.TempDir(), "out.obi.json")
+	if err := runOBWithStdin(t, strings.NewReader(tinyOpenAPI),
+		"synthesize", "openbindings.openapi@1:-?name=api&outputLocation="+published, "-o", outPath); err != nil {
+		t.Fatalf("synthesize from stdin: %v", err)
+	}
+
+	data, err := os.ReadFile(outPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var doc map[string]any
+	if err := json.Unmarshal(data, &doc); err != nil {
+		t.Fatal(err)
+	}
+	sources, _ := doc["sources"].(map[string]any)
+	entry, ok := sources["api"].(map[string]any)
+	if !ok {
+		t.Fatalf("expected source key %q, got %v", "api", keysOf(sources))
+	}
+	if loc, _ := entry["location"].(string); loc != published {
+		t.Errorf("spec-level location = %q, want %q", loc, published)
+	}
+	if entry["content"] == nil {
+		t.Error("expected embedded content alongside the published location")
+	}
+	xob, _ := entry["x-ob"].(map[string]any)
+	if xob == nil {
+		t.Fatal("expected x-ob metadata")
+	}
+	if uri, _ := xob["uri"].(string); uri != published {
+		t.Errorf("x-ob.uri = %q, want %q (mirrors location, as on every lane)", uri, published)
+	}
+	if ref, _ := xob["ref"].(string); ref != "" {
+		t.Errorf("expected no pull path in x-ob.ref, got %q", ref)
+	}
+}
+
+// TestSynthesizeInputContentOutputLocation: the machine lane (--input with a
+// wire content source) honors outputLocation identically — spec-level
+// location, mirrored x-ob.uri.
+func TestSynthesizeInputContentOutputLocation(t *testing.T) {
+	published := "https://example.com/openapi.json"
+	outPath := filepath.Join(t.TempDir(), "out.obi.json")
+	input := `{"sources":[{"bindingSpec":"openbindings.openapi@1","name":"api","content":` + tinyOpenAPI + `,"outputLocation":"` + published + `"}]}`
+	if err := runOB(t, "synthesize", "--input", input, "-o", outPath); err != nil {
+		t.Fatalf("synthesize --input: %v", err)
+	}
+
+	data, err := os.ReadFile(outPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var doc map[string]any
+	if err := json.Unmarshal(data, &doc); err != nil {
+		t.Fatal(err)
+	}
+	sources, _ := doc["sources"].(map[string]any)
+	entry, ok := sources["api"].(map[string]any)
+	if !ok {
+		t.Fatalf("expected source key %q, got %v", "api", keysOf(sources))
+	}
+	if loc, _ := entry["location"].(string); loc != published {
+		t.Errorf("spec-level location = %q, want %q", loc, published)
+	}
+	if entry["content"] == nil {
+		t.Error("expected the wire-supplied content to remain embedded")
+	}
+	xob, _ := entry["x-ob"].(map[string]any)
+	if xob == nil {
+		t.Fatal("expected x-ob metadata")
+	}
+	if uri, _ := xob["uri"].(string); uri != published {
+		t.Errorf("x-ob.uri = %q, want %q", uri, published)
+	}
+}
+
 // TestSynthesizeStdinSource_DetectsFormat: a bare `-` runs format detection
 // over the stdin bytes, the same consensus probe a bare file path gets.
 func TestSynthesizeStdinSource_DetectsFormat(t *testing.T) {

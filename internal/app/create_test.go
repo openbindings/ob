@@ -311,6 +311,92 @@ func TestSynthesizeInterface_Overrides(t *testing.T) {
 	}
 }
 
+// tinyOpenAPIApp is a minimal OpenAPI document for content-lane synthesis
+// tests (the app-level twin of the cmd package's tinyOpenAPI fixture).
+const tinyOpenAPIApp = `{"openapi":"3.1.0","info":{"title":"Tiny","version":"1.0.0"},"paths":{"/things":{"get":{"operationId":"listThings","responses":{"200":{"description":"ok"}}}}}}`
+
+// TestSynthesizeInterface_ContentSourceOutputLocation: `?outputLocation=`
+// means spec-level `location` in EVERY synthesis lane. A wire-supplied
+// content source (the shape `--input` decodes to, and what the stdin `-`
+// lane produces) given an outputLocation writes it to the source entry's
+// spec-level location field, pairing the published pointer with the inline
+// artifact exactly like the file lane's `?embed&outputLocation=`, and
+// mirrors it in x-ob.uri like every other lane. Previously the value rode
+// x-ob.uri only on content sources (an accidental split).
+func TestSynthesizeInterface_ContentSourceOutputLocation(t *testing.T) {
+	published := "https://example.com/openapi.json"
+	content, err := ParseContentForEmbed([]byte(tinyOpenAPIApp), "openbindings.openapi@1")
+	if err != nil {
+		t.Fatalf("parse content: %v", err)
+	}
+
+	iface, err := SynthesizeInterface(SynthesizeInterfaceInput{
+		Sources: []SynthesizeInterfaceSource{
+			{
+				BindingSpec:    "openbindings.openapi@1",
+				Name:           "api",
+				Content:        content,
+				OutputLocation: published,
+			},
+		},
+		Name: "Tiny",
+	})
+	if err != nil {
+		t.Fatalf("synthesize: %v", err)
+	}
+
+	src, ok := iface.Sources["api"]
+	if !ok {
+		t.Fatalf("expected source key %q, got %v", "api", iface.Sources)
+	}
+	if src.Location != published {
+		t.Errorf("spec-level location = %q, want %q", src.Location, published)
+	}
+	if src.Content == nil {
+		t.Error("expected the wire-supplied content to remain embedded")
+	}
+	meta, err := GetSourceMeta(src)
+	if err != nil || meta == nil {
+		t.Fatalf("GetSourceMeta: %v", err)
+	}
+	if meta.URI != published {
+		t.Errorf("x-ob.uri = %q, want %q (mirrors location, as in the file lane)", meta.URI, published)
+	}
+	if meta.Ref != "" {
+		t.Errorf("x-ob.ref = %q, want empty (content has no pull path)", meta.Ref)
+	}
+}
+
+// TestSynthesizeInterface_ContentSourceOutputLocationRelative: the
+// relative-value posture is the file lane's, unchanged and shared —
+// synthesis records the value VERBATIM (no refusal, no normalization);
+// OBI-D-05 absolute-only enforcement lives at the invoke-time gate
+// (resolveSourceLocation, see invoke_test.go), which covers content-lane
+// entries through the same spec-level location field.
+func TestSynthesizeInterface_ContentSourceOutputLocationRelative(t *testing.T) {
+	content, err := ParseContentForEmbed([]byte(tinyOpenAPIApp), "openbindings.openapi@1")
+	if err != nil {
+		t.Fatalf("parse content: %v", err)
+	}
+
+	iface, err := SynthesizeInterface(SynthesizeInterfaceInput{
+		Sources: []SynthesizeInterfaceSource{
+			{
+				BindingSpec:    "openbindings.openapi@1",
+				Name:           "api",
+				Content:        content,
+				OutputLocation: "./openapi.json",
+			},
+		},
+	})
+	if err != nil {
+		t.Fatalf("synthesize: %v (the file lane records a relative outputLocation verbatim; content lanes must not diverge)", err)
+	}
+	if got := iface.Sources["api"].Location; got != "./openapi.json" {
+		t.Errorf("spec-level location = %q, want %q (verbatim, matching the file lane)", got, "./openapi.json")
+	}
+}
+
 func TestSynthesizeInterface_BadSource(t *testing.T) {
 	_, err := SynthesizeInterface(SynthesizeInterfaceInput{
 		Sources: []SynthesizeInterfaceSource{

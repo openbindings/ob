@@ -16,6 +16,50 @@ import (
 )
 
 // ---------------------------------------------------------------------------
+// resolveSourceLocation
+// ---------------------------------------------------------------------------
+
+// TestResolveSourceLocation_RelativeRefusedEveryLane: the invoke-time
+// OBI-D-05 gate is ONE code path over the spec-level location field, so a
+// relative location is refused with the identical error whether the entry
+// came from the file lane (location only) or a content lane that recorded
+// `?outputLocation=` alongside its embedded artifact. Synthesis records the
+// value verbatim (see create_test.go); this gate is where absolute-only is
+// enforced.
+func TestResolveSourceLocation_RelativeRefusedEveryLane(t *testing.T) {
+	fileLane := openbindings.Source{
+		BindingSpec: "openbindings.openapi@1",
+		Location:    "./openapi.json",
+	}
+	contentLane := openbindings.Source{
+		BindingSpec: "openbindings.openapi@1",
+		Location:    "./openapi.json",
+		Content:     json.RawMessage(`{"openapi":"3.1.0"}`),
+	}
+
+	_, fileErr := resolveSourceLocation(fileLane)
+	if fileErr == nil {
+		t.Fatal("file-lane relative location: expected the OBI-D-05 refusal")
+	}
+	_, contentErr := resolveSourceLocation(contentLane)
+	if contentErr == nil {
+		t.Fatal("content-lane relative location: expected the OBI-D-05 refusal")
+	}
+	if !strings.Contains(fileErr.Error(), "OBI-D-05") {
+		t.Errorf("refusal must cite OBI-D-05, got %q", fileErr)
+	}
+	if fileErr.Error() != contentErr.Error() {
+		t.Errorf("lanes must refuse with the same error text:\nfile:    %q\ncontent: %q", fileErr, contentErr)
+	}
+
+	// An absolute URI passes the gate on both shapes.
+	fileLane.Location = "https://example.com/openapi.json"
+	if _, err := resolveSourceLocation(fileLane); err != nil {
+		t.Errorf("absolute URI must pass: %v", err)
+	}
+}
+
+// ---------------------------------------------------------------------------
 // DefaultBindingForOp
 // ---------------------------------------------------------------------------
 

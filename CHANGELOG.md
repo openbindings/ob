@@ -366,6 +366,15 @@ ship as part of 0.2.0.
   schema's alternative to `location`) on every machine path, including
   `POST /interfaces/synthesize`: the app-layer input struct had no content
   field. Content sources now synthesize and embed correctly.
+- `outputLocation` means spec-level `location` in every synthesis lane. On
+  content-lane sources (wire `content` sources and the stdin `-` lane) the
+  value accidentally landed in `x-ob.uri` only, while the file lanes wrote
+  the spec `location` field. All lanes now write `location` — the published
+  pointer pairing with the embedded artifact (spec §6.4), exactly as
+  `?embed&outputLocation=` always recorded it — and mirror it in `x-ob.uri`.
+  The value is recorded verbatim, as on the file lane; OBI-D-05
+  absolute-only enforcement stays at the invoke-time gate, which now covers
+  every lane through the one shared field.
 - `ob codegen` previously generated client code that called `c.Execute(...)`
   in Go and `this.client.execute(...)` in TypeScript. After the spec 0.2.0
   rename those SDK methods became `Invoke` / `invoke`, and the generated

@@ -32,9 +32,10 @@ Sources use the same syntax as 'ob inspect' and 'ob source add':
 description=, and embed.
 
 Pass '-' as the path to read the artifact from stdin (e.g.
-openbindings.openapi@1:-). A stdin artifact is content with no location:
+openbindings.openapi@1:-). A stdin artifact is content, not a location:
 it embeds in the document exactly like a wire-supplied content source,
-with no pull path recorded. At most one source may read from stdin.
+with no pull path recorded (outputLocation= still sets the spec-level
+location, as on every lane). At most one source may read from stdin.
 
 A LOCAL FILE artifact is embedded by default: its content rides the spec
 'content' field so the document is conformant (OBI-D-05) and works from
