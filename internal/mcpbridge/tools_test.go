@@ -162,6 +162,24 @@ func TestFindMCPBinding_ResourceRef(t *testing.T) {
 	}
 }
 
+func TestFindMCPBinding_ResourceTemplateRef(t *testing.T) {
+	iface := &openbindings.Interface{
+		Sources: map[string]openbindings.Source{
+			"mcp": {BindingSpec: "mcp"},
+		},
+		Bindings: map[string]openbindings.BindingEntry{
+			"log.mcp": {Operation: "log", Source: "mcp", Ref: "resourceTemplates/file:///logs/{date}"},
+		},
+	}
+	ref, kind := findMCPBinding(iface, "log")
+	if kind != "resourceTemplates" {
+		t.Fatalf("expected 'resourceTemplates' (R5: its own entity, not misclassified as tools), got %q", kind)
+	}
+	if ref != "resourceTemplates/file:///logs/{date}" {
+		t.Fatalf("unexpected ref %q", ref)
+	}
+}
+
 func TestToolNames_SanitizesFullKey(t *testing.T) {
 	iface := &openbindings.Interface{
 		Operations: map[string]openbindings.Operation{

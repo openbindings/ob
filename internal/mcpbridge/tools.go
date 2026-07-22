@@ -88,7 +88,7 @@ func drainOperation(ctx context.Context, call openbindings.Invocation[any, any],
 
 // RegisterInterface maps a single OBI's operations to MCP primitives on the
 // given server. Operations with MCP bindings are registered as the correct
-// primitive type based on binding ref prefix (tools/, resources/, prompts/);
+// primitive type based on binding ref prefix (tools/, resources/, resourceTemplates/, prompts/);
 // operations without MCP bindings are registered as tools. Tool/resource names
 // are the operation key, sanitized to the protocol's charset (see toolNames) —
 // the bridge does not namespace by interface: federating multiple services is
@@ -121,7 +121,7 @@ func RegisterInterface(
 		name := names[opKey]
 
 		switch kind {
-		case "resources":
+		case "resources", "resourceTemplates":
 			registerResource(srv, name, op, iface, opKey, ref, invoker, baseContext, opts)
 		case "prompts":
 			registerPrompt(srv, name, op, iface, opKey, ref, invoker, baseContext, opts)
@@ -203,8 +203,9 @@ func findMCPBinding(iface *openbindings.Interface, opKey string) (ref string, ki
 		if !strings.HasPrefix(src.BindingSpec, "mcp") {
 			continue
 		}
-		// Found an MCP binding. Parse the ref prefix.
-		for _, prefix := range []string{"resources/", "prompts/", "tools/"} {
+		// Found an MCP binding. Parse the ref prefix. resourceTemplates/ is
+		// checked before resources/ for clarity (the two cannot prefix-collide).
+		for _, prefix := range []string{"resourceTemplates/", "resources/", "prompts/", "tools/"} {
 			if strings.HasPrefix(be.Ref, prefix) {
 				return be.Ref, strings.TrimSuffix(prefix, "/")
 			}
@@ -274,7 +275,14 @@ func registerResource(
 	baseContext map[string]any,
 	opts RegisterOptions,
 ) {
-	uri := strings.TrimPrefix(ref, "resources/")
+	// Trim whichever resource-family prefix the ref carries: a static resource
+	// (resources/<uri>) or a resource template (resourceTemplates/<uriTemplate>).
+	uri := ref
+	if strings.HasPrefix(uri, "resourceTemplates/") {
+		uri = strings.TrimPrefix(uri, "resourceTemplates/")
+	} else {
+		uri = strings.TrimPrefix(uri, "resources/")
+	}
 
 	srv.AddResource(&mcp.Resource{
 		URI:         uri,
