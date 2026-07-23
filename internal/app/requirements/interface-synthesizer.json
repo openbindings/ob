@@ -2,7 +2,7 @@
     "openbindings": "0.2.0",
     "name": "Interface Synthesizer",
     "version": "0.2.0",
-    "description": "Interface for synthesizing OpenBindings interfaces from binding artifacts. Given a binding specification (e.g., an OpenAPI spec), an interface synthesizer extracts operations, schemas, sources, and bindings into an OBI document.",
+    "description": "Interface for synthesizing OpenBindings interfaces from binding artifacts. Given a source artifact governed by a binding specification (e.g., an OpenAPI document), an interface synthesizer extracts operations, schemas, sources, and bindings into an OBI document.",
     "schemas": {
         "BindingSpecInfo": {
             "type": "object",
@@ -103,6 +103,227 @@
             "type": "object",
             "description": "A valid OpenBindings interface document.",
             "additionalProperties": true
+        },
+        "SynthesisCoverageEntry": {
+            "type": "object",
+            "description": "Disposition of one source interaction unit or separately tracked projection observed during synthesis. An interaction unit is an addressable target or independently selectable alternative whose omission would remove an upstream-permitted invocation path; a projection records schema or semantic fidelity of a represented path.",
+            "properties": {
+                "sourceIndex": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "description": "Zero-based index of the input source containing the interaction unit."
+                },
+                "sourceKey": {
+                    "type": "string",
+                    "minLength": 1,
+                    "description": "Key of the corresponding source in the emitted interface. Required when status is represented or lossy."
+                },
+                "sourceRef": {
+                    "type": "string",
+                    "minLength": 1,
+                    "description": "Stable source-local identifier for the interaction unit. It need not be a conformant binding ref when the unit is excluded or invalid."
+                },
+                "scope": {
+                    "type": "string",
+                    "enum": [
+                        "target",
+                        "alternative",
+                        "projection"
+                    ],
+                    "description": "Whether the unit is an addressable target, an independently selectable alternative of a target, or a schema/semantic projection whose fidelity is assessed separately."
+                },
+                "status": {
+                    "type": "string",
+                    "enum": [
+                        "represented",
+                        "excluded",
+                        "invalid",
+                        "lossy",
+                        "implementation-unsupported"
+                    ]
+                },
+                "operationKey": {
+                    "type": "string",
+                    "description": "Emitted operation key. Required when status is represented or lossy."
+                },
+                "bindingKey": {
+                    "type": "string",
+                    "description": "Emitted binding key. Required when status is represented or lossy."
+                },
+                "bindingRef": {
+                    "type": "string",
+                    "description": "Emitted binding ref. Required when status is represented or lossy; the empty string denotes a binding-specification-defined omitted ref."
+                },
+                "reasonCode": {
+                    "type": "string",
+                    "pattern": "^[a-z][a-z0-9]*(?:[._-][a-z0-9]+)+$",
+                    "description": "Stable family-namespaced reason code. Required unless status is represented."
+                },
+                "rule": {
+                    "type": "string",
+                    "description": "Binding-specification rule or section governing the disposition, when applicable."
+                },
+                "message": {
+                    "type": "string",
+                    "description": "Human-readable explanation."
+                },
+                "requirements": {
+                    "type": "array",
+                    "description": "Named runtime prerequisites for a represented unit, such as credentials or a required codec.",
+                    "items": {
+                        "type": "string",
+                        "minLength": 1
+                    },
+                    "uniqueItems": true
+                },
+                "details": {
+                    "type": "object",
+                    "description": "Family-specific structured evidence.",
+                    "additionalProperties": true
+                }
+            },
+            "required": [
+                "sourceIndex",
+                "sourceRef",
+                "scope",
+                "status"
+            ],
+            "allOf": [
+                {
+                    "if": {
+                        "properties": {
+                            "status": {
+                                "const": "represented"
+                            }
+                        },
+                        "required": [
+                            "status"
+                        ]
+                    },
+                    "then": {
+                        "required": [
+                            "sourceKey",
+                            "operationKey",
+                            "bindingKey",
+                            "bindingRef"
+                        ]
+                    },
+                    "else": {
+                        "required": [
+                            "reasonCode",
+                            "message"
+                        ]
+                    }
+                },
+                {
+                    "if": {
+                        "properties": {
+                            "status": {
+                                "const": "lossy"
+                            }
+                        },
+                        "required": [
+                            "status"
+                        ]
+                    },
+                    "then": {
+                        "required": [
+                            "sourceKey",
+                            "operationKey",
+                            "bindingKey",
+                            "bindingRef"
+                        ]
+                    }
+                }
+            ]
+        },
+        "SynthesisCoverage": {
+            "type": "object",
+            "description": "Durable accounting of the source interaction units observed by one synthesis call.",
+            "properties": {
+                "entries": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/schemas/SynthesisCoverageEntry"
+                    }
+                },
+                "exhaustive": {
+                    "type": "boolean",
+                    "description": "True only when every interaction unit in every accepted input source, under the governing binding revision's documented inventory, has exactly one disposition. False when the implementation cannot establish that claim."
+                },
+                "fullyRepresented": {
+                    "type": "boolean",
+                    "description": "True when exhaustive is true and every upstream-valid interaction unit is represented without a lossy or unsupported disposition. MUST agree with entries."
+                },
+                "limitation": {
+                    "$ref": "#/schemas/CoverageLimitation"
+                }
+            },
+            "required": [
+                "entries",
+                "exhaustive",
+                "fullyRepresented"
+            ],
+            "allOf": [
+                {
+                    "if": {
+                        "properties": {
+                            "exhaustive": {
+                                "const": false
+                            }
+                        },
+                        "required": [
+                            "exhaustive"
+                        ]
+                    },
+                    "then": {
+                        "required": [
+                            "limitation"
+                        ]
+                    }
+                }
+            ]
+        },
+        "CoverageLimitation": {
+            "type": "object",
+            "description": "Machine-readable evidence explaining why the synthesis inventory is not exhaustive.",
+            "properties": {
+                "code": {
+                    "type": "string",
+                    "pattern": "^[a-z][a-z0-9]*(?:[._-][a-z0-9]+)+$",
+                    "description": "Stable namespaced reason code."
+                },
+                "message": {
+                    "type": "string",
+                    "minLength": 1,
+                    "description": "Human-readable explanation of what may be missing and why."
+                },
+                "details": {
+                    "type": "object",
+                    "description": "Optional implementation- or family-specific structured evidence.",
+                    "additionalProperties": true
+                }
+            },
+            "required": [
+                "code",
+                "message"
+            ]
+        },
+        "SynthesizeInterfaceResult": {
+            "type": "object",
+            "description": "A creation-time-sound OBI and durable coverage evidence derived from the same synthesis observation.",
+            "properties": {
+                "interface": {
+                    "$ref": "#/schemas/OpenBindingsInterface"
+                },
+                "coverage": {
+                    "$ref": "#/schemas/SynthesisCoverage"
+                }
+            },
+            "required": [
+                "interface",
+                "coverage"
+            ]
         }
     },
     "operations": {
@@ -117,13 +338,23 @@
             }
         },
         "openbindings.interface-synthesizer.synthesizeInterface": {
-            "description": "Synthesize an OpenBindings interface, optionally from binding source artifacts.",
+            "description": "Synthesize a creation-time-sound OpenBindings interface, optionally from binding source artifacts. Every emitted binding resolves to a supported target and admits a faithful invocation path. For every accepted source input, represent every callable target admitted by its governing binding revision; an implementation may refuse an unsupported artifact as a whole but MUST refuse instead of silently returning a partial interface when one admitted target cannot be represented faithfully.",
             "idempotent": true,
             "input": {
                 "$ref": "#/schemas/SynthesizeInterfaceInput"
             },
             "output": {
                 "$ref": "#/schemas/OpenBindingsInterface"
+            }
+        },
+        "openbindings.interface-synthesizer.synthesizeInterfaceWithCoverage": {
+            "description": "Synthesize a creation-time-sound OpenBindings interface and return durable dispositions plus an explicit exhaustiveness claim for the source interaction units considered by the same call. The result distinguishes binding-specification exclusions, invalid source units, lossy projections, and implementation gaps. Coverage is evidence that consumers may verify independently, not proof.",
+            "idempotent": true,
+            "input": {
+                "$ref": "#/schemas/SynthesizeInterfaceInput"
+            },
+            "output": {
+                "$ref": "#/schemas/SynthesizeInterfaceResult"
             }
         }
     }

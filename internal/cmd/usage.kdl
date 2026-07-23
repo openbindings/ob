@@ -49,10 +49,10 @@ cmd "context" help="Manage binding context (credentials, headers, environment)" 
     flag "--bearer-token <token>" help="Bearer token (- for stdin)"
     flag "--api-key <key>" help="API key (- for stdin)"
     flag "--basic" help="Set basic auth (prompts for username and password)"
-    flag "--header <header>" help="Add header as \"Key: Value\" (repeatable)"
-    flag "--cookie <cookie>" help="Add cookie as \"Key=Value\" (repeatable)"
-    flag "--env <env>" help="Add env var as \"VAR=value\" (repeatable)"
-    flag "--meta <meta>" help="Add metadata as \"key=value\" (repeatable)"
+    flag "--header <header>" help="Add header as \"Key: Value\" (repeatable)" var=#true
+    flag "--cookie <cookie>" help="Add cookie as \"Key=Value\" (repeatable)" var=#true
+    flag "--env <env>" help="Add env var as \"VAR=value\" (repeatable)" var=#true
+    flag "--meta <meta>" help="Add metadata as \"key=value\" (repeatable)" var=#true
     flag "--from-curl <curl>" help="Import context from a curl command string"
     flag "--value <json>" help="Full Context value as JSON (machine lane; full replacement, keyed by <url>, exclusive with field flags; - reads stdin)"
     arg "[url]" help="Target URL"
@@ -196,8 +196,8 @@ cmd "operation" help="Manage and invoke operations on an OBI" subcommand_require
   alias "op" "operations"
   cmd "add" help="Add a new operation to an OBI" {
     flag "--description <desc>" help="Operation description"
-    flag "--alias <alias>" help="Correspondence alias: another interface's operation key this operation also answers to (repeatable)"
-    flag "--tag <tag>" help="Operation tag (repeatable)"
+    flag "--alias <alias>" help="Correspondence alias: another interface's operation key this operation also answers to (repeatable)" var=#true
+    flag "--tag <tag>" help="Operation tag (repeatable)" var=#true
     flag "--input-schema <schema>" help="Input schema: inline JSON, @file, or - for stdin"
     flag "--output-schema <schema>" help="Output schema: inline JSON, @file, or - for stdin"
     flag "--idempotent <bool>" help="Whether the operation is idempotent (true/false)"
@@ -237,8 +237,8 @@ cmd "operation" help="Manage and invoke operations on an OBI" subcommand_require
     flag "--deprecated <bool>" help="Set whether the operation is deprecated (true/false)"
     flag "--input-schema <schema>" help="Set input schema: inline JSON, @file, or - for stdin"
     flag "--output-schema <schema>" help="Set output schema: inline JSON, @file, or - for stdin"
-    flag "--add-tag <tag>" help="Add a tag (repeatable)"
-    flag "--remove-tag <tag>" help="Remove a tag (repeatable)"
+    flag "--add-tag <tag>" help="Add a tag (repeatable)" var=#true
+    flag "--remove-tag <tag>" help="Remove a tag (repeatable)" var=#true
     flag "--own" help="Take ownership of a source-owned operation (detach) before editing"
     flag "-o --output <path>" help="Write output to file"
     flag "-F --format <format>" help="Output format: json|yaml|text"
@@ -271,7 +271,7 @@ cmd "operation" help="Manage and invoke operations on an OBI" subcommand_require
     flag "--transform-stub" help="Scaffold identity transform stub(s) on shape mismatch"
     flag "--input-transform <jsonata>" help="Inline JSONata transforming operation input to binding input"
     flag "--output-transform <jsonata>" help="Inline JSONata transforming binding output to operation output"
-    flag "--preference <num>" help="Binding selection preference (higher = more preferred)"
+    flag "--preference <num>" help="Author preference signal (higher = more preferred; does not select automatically)"
     flag "--force" help="Overwrite an existing binding for this operation+source (re-point)"
     flag "-o --output <path>" help="Write output to file"
     flag "-F --format <format>" help="Output format: json|yaml|text"
@@ -289,18 +289,20 @@ cmd "operation" help="Manage and invoke operations on an OBI" subcommand_require
   }
   cmd "invoke" help="Invoke an operation via a binding" {
     flag "--binding <key>" help="Binding key to invoke (operation is derived from the entry)"
+    flag "--select-binding <key>" help="Ordered binding choice for this and nested operations (repeatable)" var=#true
     flag "--input <value>" help="Operation input: inline JSON, @file, or - for stdin"
     flag "--decode <lane>" help="Output decode lane: json, text, or none" {
       arg "<lane>"
     }
     flag "--ok-exit <codes>" help="Exit codes classified as success, comma-separated (e.g. 0,1)"
-    flag "--route <field=channel>" help="Field routing: field=argv|stdin|stdin-dash|file (repeatable)"
+    flag "--route <field=channel>" help="Field routing: field=argv|stdin|stdin-dash|file (repeatable)" var=#true
     flag "-v --verbose" help="Show binding key, duration, and any displaced output-schema overrides on stderr"
     arg "<obi>" help="OBI locator (file path, URL, exec: reference, or - for stdin)"
     arg "[operation]" help="Operation key to invoke"
   }
   cmd "prepare" help="Preflight an operation's required context without invoking it" {
     flag "--binding <key>" help="Binding key to preflight (operation is derived from the entry)"
+    flag "--select-binding <key>" help="Ordered binding choice (repeatable)" var=#true
     flag "-o --output <path>" help="Write output to file"
     flag "-F --format <format>" help="Output format: json|yaml|text"
     arg "<obi>" help="OBI locator (file path, URL, exec: reference, or - for stdin)"
@@ -366,8 +368,8 @@ cmd "merge" help="Selectively apply changes from one OBI into another" {
   flag "--dry-run" help="Preview changes without writing"
   flag "-y --yes" help="Auto-accept all prompts"
   flag "--out <path>" help="Write to alternate path instead of target"
-  flag "--op <key>" help="Only merge this operation (repeatable)"
-  flag "--exclude-op <key>" help="Exclude this operation from merge (repeatable)"
+  flag "--op <key>" help="Only merge this operation (repeatable)" var=#true
+  flag "--exclude-op <key>" help="Exclude this operation from merge (repeatable)" var=#true
   flag "--ops-only" help="Graft operations only (no bindings or source entries)"
   flag "--no-bindings" help="Don't graft bindings (operations and their sources still come)"
   flag "--no-sources" help="Don't graft source entries (operations and bindings still come)"
@@ -429,7 +431,7 @@ cmd "mcp" help="Serve an interface URL as an MCP server" {
 
 cmd "start" help="Start a local server exposing ob operations (HTTP, WebSocket)" {
   flag "-p --port <port>" help="Port to listen on (default: 20290 = 0x4F42, ASCII OB)"
-  flag "--allow-origin <origin>" help="Allowed CORS origin (repeatable)"
+  flag "--allow-origin <origin>" help="Allowed CORS origin (repeatable)" var=#true
   flag "--token <token>" help="Pre-shared session token (also: OB_START_TOKEN env var)"
   flag "--token-file <path>" help="Write session token to file instead of stderr"
   flag "--no-tls" help="Skip HTTPS listener and CA trust setup (HTTP only, no sudo prompt)"

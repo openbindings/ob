@@ -81,11 +81,11 @@
         },
         "BindableTarget": {
             "type": "object",
-            "description": "A target within a binding source that can be framed as an OpenBindings operation.",
+            "description": "A target admitted by the source's governing binding specification that can be framed as an OpenBindings operation. Any included framing is a sound projection of this same target.",
             "properties": {
                 "ref": {
                     "type": "string",
-                    "description": "Reference string to use in a binding entry."
+                    "description": "Reference string a conforming binding entry can use under the governing binding specification."
                 },
                 "operationKey": {
                     "type": "string",
@@ -113,7 +113,7 @@
         },
         "SourceInspection": {
             "type": "object",
-            "description": "Inspection result for a binding source artifact.",
+            "description": "Inspection result for a binding source artifact. Its inventory boundary is the targets admitted by the governing binding specification, not every interaction in the upstream artifact.",
             "properties": {
                 "targets": {
                     "type": "array",
@@ -123,12 +123,59 @@
                 },
                 "exhaustive": {
                     "type": "boolean",
-                    "description": "True when targets is the complete list of bindable targets for the source."
+                    "description": "True when targets is the complete list of targets admitted by the governing binding specification. False means more admitted targets may exist and requires limitation evidence."
+                },
+                "limitation": {
+                    "$ref": "#/schemas/InspectionLimitation"
                 }
             },
             "required": [
                 "targets",
                 "exhaustive"
+            ],
+            "allOf": [
+                {
+                    "if": {
+                        "properties": {
+                            "exhaustive": {
+                                "const": false
+                            }
+                        },
+                        "required": [
+                            "exhaustive"
+                        ]
+                    },
+                    "then": {
+                        "required": [
+                            "limitation"
+                        ]
+                    }
+                }
+            ]
+        },
+        "InspectionLimitation": {
+            "type": "object",
+            "description": "Machine-readable evidence explaining why a source inspection is not exhaustive.",
+            "properties": {
+                "code": {
+                    "type": "string",
+                    "pattern": "^[a-z][a-z0-9]*(?:[._-][a-z0-9]+)+$",
+                    "description": "Stable namespaced reason code."
+                },
+                "message": {
+                    "type": "string",
+                    "minLength": 1,
+                    "description": "Human-readable explanation of what may be missing and why."
+                },
+                "details": {
+                    "type": "object",
+                    "description": "Optional implementation- or family-specific structured evidence.",
+                    "additionalProperties": true
+                }
+            },
+            "required": [
+                "code",
+                "message"
             ]
         }
     },
@@ -144,7 +191,7 @@
             }
         },
         "openbindings.source-inspector.inspectSource": {
-            "description": "Inspect a binding source artifact and return bindable targets that can be framed as operations.",
+            "description": "Inspect a binding source artifact and return targets admitted by its governing binding specification, optionally with sound operation framing. The result states whether enumeration is exhaustive and explains any partial result.",
             "idempotent": true,
             "input": {
                 "$ref": "#/schemas/InspectSourceInput"

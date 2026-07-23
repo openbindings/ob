@@ -109,6 +109,7 @@ func newOperationInvokeCmd() *cobra.Command {
 	var decode string
 	var okExits string
 	var routes []string
+	var selection []string
 
 	cmd := &cobra.Command{
 		Use:   "invoke <obi> [operation]",
@@ -119,11 +120,15 @@ Every operation is a stream. One JSON value per event is printed to
 stdout. Unary operations produce one line and exit. Streaming
 operations produce lines until the stream closes or Ctrl-C.
 
-The operation key is a positional argument. The most-preferred
-binding for that operation is used automatically.
+The operation key is a positional argument. A sole invocable binding
+is used automatically; if several are available, choose one explicitly.
 
 Alternatively, use --binding to select a specific binding directly;
 the operation is derived from the binding entry.
+
+Use repeatable --select-binding flags to supply an ordered caller choice
+when invoking by operation. The list also reaches nested operation-graph
+calls, so one invocation can choose a binding for each referenced operation.
 
 Context (credentials, headers, etc.) is automatically resolved from
 the target URL. Use 'ob context set <url>' to configure context.
@@ -150,6 +155,8 @@ Examples:
   ob op invoke interface.json echo
   ob op invoke interface.json validate --input @doc.json --ok-exit 0,1
   ob op invoke interface.json format --route source=stdin-dash --input -
+  ob op invoke interface.json placeAndTrack \
+    --select-binding placeOrder.rest --select-binding orderUpdates.grpc
   ob op invoke interface.json --binding listPets.openapi --input '{"limit":10}'`,
 		Args: cobra.RangeArgs(1, 2),
 		RunE: func(cmd *cobra.Command, args []string) error {
@@ -176,6 +183,7 @@ Examples:
 			if cerr != nil {
 				return app.ExitResult{Code: 2, Message: cerr.Error(), ToStderr: true}
 			}
+			config.Selection = append([]string(nil), selection...)
 
 			// The invoke lane is a streaming Unix filter: output rides stdout as
 			// one JSON value per event. -o (write-to-file) has no place on a
@@ -247,6 +255,7 @@ Examples:
 	}
 
 	cmd.Flags().StringVar(&bindingKey, "binding", "", "binding key to invoke (operation is derived from the entry)")
+	cmd.Flags().StringArrayVar(&selection, "select-binding", nil, "ordered binding choice for this and nested operations (repeatable)")
 	cmd.Flags().StringVar(&inputArg, "input", "", "operation input: inline JSON, @file, or - (stdin)")
 	cmd.Flags().BoolVarP(&verbose, "verbose", "v", false, "show binding key, duration, and displaced output-schema overrides on stderr")
 	cmd.Flags().StringVar(&decode, "decode", "", "output decode lane: json|text|none")
@@ -463,6 +472,7 @@ func buildInvokeConfig(decode, okExits string, routes []string) (*app.InvokeConf
 
 func newOperationPrepareCmd() *cobra.Command {
 	var bindingKey string
+	var selection []string
 
 	cmd := &cobra.Command{
 		Use:   "prepare <obi> [operation]",
@@ -472,8 +482,10 @@ it or causing any side effect.
 
 Resolves the operation (or, with --binding, a specific binding) to a
 concrete binding and reports its context requirements, or reports none
-when they cannot be determined without invoking. This is advisory: the
-reactive CONTEXT_REQUIRED error from 'ob op invoke' is authoritative.
+when they cannot be determined without invoking. Repeat --select-binding
+to supply the same ordered caller choice accepted by invocation. This is
+advisory: the reactive CONTEXT_REQUIRED error from 'ob op invoke' is
+authoritative.
 
 Examples:
   ob op prepare interface.json createOrder
@@ -494,7 +506,15 @@ Examples:
 				return app.ExitResult{Code: 2, Message: "operation key and --binding are mutually exclusive", ToStderr: true}
 			}
 
-			details, err := app.PrepareOperation(context.Background(), obiFile, operationKey, bindingKey, nil)
+			var callerContext map[string]any
+			if len(selection) > 0 {
+				callerContext = map[string]any{
+					"configuration": map[string]any{
+						"selection": append([]string(nil), selection...),
+					},
+				}
+			}
+			details, err := app.PrepareOperation(context.Background(), obiFile, operationKey, bindingKey, callerContext)
 			if err != nil {
 				return app.ExitResult{Code: 1, Message: fmt.Sprintf("prepare %s in %s: %v", operationKey, obiFile, err), ToStderr: true}
 			}
@@ -509,6 +529,7 @@ Examples:
 	}
 
 	cmd.Flags().StringVar(&bindingKey, "binding", "", "binding key to preflight (operation is derived from the entry)")
+	cmd.Flags().StringArrayVar(&selection, "select-binding", nil, "ordered binding choice (repeatable)")
 
 	return cmd
 }
@@ -933,7 +954,7 @@ Examples:
 	cmd.Flags().BoolVar(&transformStub, "transform-stub", false, "scaffold identity transform stub(s) on shape mismatch")
 	cmd.Flags().StringVar(&inputTransform, "input-transform", "", "inline JSONata transforming operation input to binding input")
 	cmd.Flags().StringVar(&outputTransform, "output-transform", "", "inline JSONata transforming binding output to operation output")
-	cmd.Flags().Float64Var(&preference, "preference", 0, "binding selection preference (higher = more preferred)")
+	cmd.Flags().Float64Var(&preference, "preference", 0, "author preference signal (higher = more preferred; does not select automatically)")
 	cmd.Flags().BoolVar(&force, "force", false, "overwrite an existing binding for this operation+source (re-point)")
 	return cmd
 }

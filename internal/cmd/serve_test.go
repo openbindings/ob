@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"bytes"
 	"context"
 	"crypto/sha256"
 	"encoding/base64"
@@ -18,6 +19,7 @@ import (
 	"testing"
 	"time"
 
+	"gopkg.in/yaml.v3"
 	"nhooyr.io/websocket"
 	"nhooyr.io/websocket/wsjson"
 
@@ -625,6 +627,29 @@ func TestServeOpenAPISpec_CarriesAbsoluteOAuthEndpoints(t *testing.T) {
 	}
 }
 
+func TestServeAsyncAPISpec_CarriesBothWebSocketAuthLanes(t *testing.T) {
+	ts := testEnv(t)
+	defer ts.Close()
+	resp, err := http.Get(ts.URL + "/asyncapi.yaml")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+	raw, err := io.ReadAll(resp.Body)
+	if err != nil {
+		t.Fatal(err)
+	}
+	spec := string(raw)
+	for _, want := range []string{"protocol: ws", "bearer:", "tokenQuery:", "name: token", "invokeBinding:", "invokeOperation:"} {
+		if !strings.Contains(spec, want) {
+			t.Errorf("served asyncapi.yaml missing %q", want)
+		}
+	}
+	if strings.Contains(spec, "${OB_SERVER_") {
+		t.Fatal("served asyncapi.yaml contains an unsubstituted server placeholder")
+	}
+}
+
 // OBI 0.2.0 carries no `security` field; auth is a runtime CONTEXT_REQUIRED
 // concern discovered via the openapi source (see the test above). This locks
 // both invariants: the served OBI stays security-field-free, and its openapi
@@ -648,13 +673,15 @@ func TestServeWellKnown_NoSecurityField_OpenAPISourceAbsolutized(t *testing.T) {
 	if !ok {
 		t.Fatal("served OBI missing 'sources' map")
 	}
-	openapi, ok := sources["openapi"].(map[string]any)
-	if !ok {
-		t.Fatal("served OBI missing 'openapi' source")
-	}
-	loc, _ := openapi["location"].(string)
-	if want := ts.URL + "/openapi.yaml"; loc != want {
-		t.Errorf("openapi source location = %q, want absolutized %q", loc, want)
+	for _, name := range []string{"openapi", "asyncapi"} {
+		source, ok := sources[name].(map[string]any)
+		if !ok {
+			t.Fatalf("served OBI missing %q source", name)
+		}
+		loc, _ := source["location"].(string)
+		if want := ts.URL + "/" + name + ".yaml"; loc != want {
+			t.Errorf("%s source location = %q, want absolutized %q", name, loc, want)
+		}
 	}
 }
 
@@ -716,8 +743,12 @@ func TestServeContextList(t *testing.T) {
 // `token` query parameter (the browser path; the Authorization-header path is
 // covered by TestServeBindingInvoke_FrameRoundTripViaClient).
 func dialFrameWS(t *testing.T, ctx context.Context, ts *httptest.Server, token string) *websocket.Conn {
+	return dialFrameWSAt(t, ctx, ts, "/bindings/invoke", token)
+}
+
+func dialFrameWSAt(t *testing.T, ctx context.Context, ts *httptest.Server, path, token string) *websocket.Conn {
 	t.Helper()
-	wsURL := strings.Replace(ts.URL, "http://", "ws://", 1) + "/bindings/invoke"
+	wsURL := strings.Replace(ts.URL, "http://", "ws://", 1) + path
 	if token != "" {
 		wsURL += "?token=" + token
 	}
@@ -727,6 +758,78 @@ func dialFrameWS(t *testing.T, ctx context.Context, ts *httptest.Server, token s
 	}
 	t.Cleanup(func() { _ = conn.CloseNow() })
 	return conn
+}
+
+func TestServeOperationInvoke_WS_UnaryRoundTrip(t *testing.T) {
+	mock := &mockEchoInvoker{formats: []openbindings.BindingSpecInfo{{BindingSpec: "mock-echo@1.0"}}}
+	cleanup := app.OverrideInvokerForTest(openbindings.NewOperationInvoker(mock))
+	defer cleanup()
+
+	ts := testEnv(t)
+	defer ts.Close()
+	ctx := t.Context()
+	conn := dialFrameWSAt(t, ctx, ts, "/operations/invoke", "test-token")
+
+	iface := echoOperationInterface()
+	sendFrame(t, ctx, conn, map[string]any{
+		"kind":  "open",
+		"input": map[string]any{"interface": iface, "operation": "echo"},
+	})
+	sendFrame(t, ctx, conn, map[string]any{"kind": "input", "value": "ping"})
+	sendFrame(t, ctx, conn, map[string]any{"kind": "close"})
+
+	outputs, terminal := collectUntilTerminal(t, ctx, conn)
+	if terminal.Kind != "complete" {
+		t.Fatalf("expected terminal complete, got %q (error=%v)", terminal.Kind, terminal.Error)
+	}
+	if len(outputs) != 1 {
+		t.Fatalf("expected 1 output, got %#v", outputs)
+	}
+	if echo, ok := outputs[0].(map[string]any); !ok || echo["echo"] != "ping" {
+		t.Errorf("output = %#v, want {echo: ping}", outputs[0])
+	}
+}
+
+func TestServeOperationInvoke_WS_BindingAddressed(t *testing.T) {
+	mock := &mockEchoInvoker{formats: []openbindings.BindingSpecInfo{{BindingSpec: "mock-echo@1.0"}}}
+	cleanup := app.OverrideInvokerForTest(openbindings.NewOperationInvoker(mock))
+	defer cleanup()
+
+	ts := testEnv(t)
+	defer ts.Close()
+	ctx := t.Context()
+	conn := dialFrameWSAt(t, ctx, ts, "/operations/invoke", "test-token")
+	sendFrame(t, ctx, conn, map[string]any{
+		"kind":  "open",
+		"input": map[string]any{"interface": echoOperationInterface(), "binding": "echo.mock"},
+	})
+	sendFrame(t, ctx, conn, map[string]any{"kind": "input", "value": "bound"})
+	sendFrame(t, ctx, conn, map[string]any{"kind": "close"})
+	outputs, terminal := collectUntilTerminal(t, ctx, conn)
+	if terminal.Kind != "complete" || len(outputs) != 1 {
+		t.Fatalf("binding-addressed invocation = outputs %#v, terminal %#v", outputs, terminal)
+	}
+	if outputs[0].(map[string]any)["echo"] != "bound" {
+		t.Fatalf("binding-addressed output = %#v", outputs[0])
+	}
+}
+
+func echoOperationInterface() *openbindings.Interface {
+	return &openbindings.Interface{
+		OpenBindings: openbindings.MaxTestedVersion,
+		Operations: map[string]openbindings.Operation{
+			"echo": {
+				Input:  map[string]any{"type": "string"},
+				Output: map[string]any{"type": "object"},
+			},
+		},
+		Sources: map[string]openbindings.Source{
+			"mock": {BindingSpec: "mock-echo@1.0", Location: "mock://test"},
+		},
+		Bindings: map[string]openbindings.BindingEntry{
+			"echo.mock": {Operation: "echo", Source: "mock", Ref: "#/echo"},
+		},
+	}
 }
 
 func sendFrame(t *testing.T, ctx context.Context, conn *websocket.Conn, frame map[string]any) {
@@ -1143,6 +1246,25 @@ func TestServeBindingInvoke_WS_NoAuth(t *testing.T) {
 	}
 }
 
+func TestServeBindingInvoke_WS_RejectsDisallowedBrowserOrigin(t *testing.T) {
+	ts := testEnv(t)
+	defer ts.Close()
+
+	wsURL := strings.Replace(ts.URL, "http://", "ws://", 1) + "/bindings/invoke?token=test-token"
+	header := http.Header{}
+	header.Set("Origin", "http://evil.example")
+	conn, resp, err := websocket.Dial(t.Context(), wsURL, &websocket.DialOptions{HTTPHeader: header})
+	if conn != nil {
+		conn.CloseNow()
+	}
+	if err == nil {
+		t.Fatal("expected disallowed WebSocket origin to fail")
+	}
+	if resp == nil || resp.StatusCode != http.StatusForbidden {
+		t.Fatalf("upgrade response = %#v, want 403", resp)
+	}
+}
+
 func TestServeBindingInvoke_FrameRoundTripViaClient(t *testing.T) {
 	// The delegate-side frame client against the serve-side frame server:
 	// the full protocol round trip ob uses when delegating to a remote host.
@@ -1223,6 +1345,97 @@ func TestServeBindingPrepare_UnknownPropertyRejected(t *testing.T) {
 	}
 }
 
+func TestServeBindingPrepare_AcceptsExtensibleSource(t *testing.T) {
+	mock := &mockEchoInvoker{formats: []openbindings.BindingSpecInfo{{BindingSpec: "mock-echo@1.0"}}}
+	cleanup := app.OverrideInvokerForTest(openbindings.NewOperationInvoker(mock))
+	defer cleanup()
+
+	ts := testEnv(t)
+	defer ts.Close()
+	resp, err := authedPost(ts.URL+"/bindings/prepare", "test-token",
+		`{"source":{"bindingSpec":"mock-echo@1.0","location":"mock://test","x-driver":{"mode":"fast"}},"ref":"#/test"}`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(resp.Body)
+		t.Fatalf("status = %d, want 200: %s", resp.StatusCode, body)
+	}
+}
+
+func TestServeBindingPrepare_RequiresSourceCarrier(t *testing.T) {
+	ts := testEnv(t)
+	defer ts.Close()
+	resp, err := authedPost(ts.URL+"/bindings/prepare", "test-token",
+		`{"source":{"bindingSpec":"openbindings.openapi@1"},"ref":"#/test"}`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusBadRequest {
+		t.Fatalf("status = %d, want 400", resp.StatusCode)
+	}
+}
+
+func TestServeRejectsNonJSONRequestMediaType(t *testing.T) {
+	ts := testEnv(t)
+	defer ts.Close()
+	req, err := http.NewRequest(http.MethodPost, ts.URL+"/interfaces", strings.NewReader(`{}`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	req.Header.Set("Authorization", "Bearer test-token")
+	req.Header.Set("Content-Type", "text/plain")
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	body := mustJSON(t, resp)
+	if resp.StatusCode != http.StatusUnsupportedMediaType || body["code"] != "unsupported_media_type" {
+		t.Fatalf("status/body = %d %#v, want 415 unsupported_media_type", resp.StatusCode, body)
+	}
+}
+
+func TestDecodeRequestRejectsOversizedBody(t *testing.T) {
+	payload := `"` + strings.Repeat("x", maxRequestBodyBytes) + `"`
+	req := httptest.NewRequest(http.MethodPost, "/interfaces", strings.NewReader(payload))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	var value any
+	if decodeRequest(w, req, &value) {
+		t.Fatal("oversized request was accepted")
+	}
+	if w.Code != http.StatusRequestEntityTooLarge {
+		t.Fatalf("status = %d, want 413", w.Code)
+	}
+	var body map[string]any
+	if err := json.NewDecoder(w.Body).Decode(&body); err != nil {
+		t.Fatal(err)
+	}
+	if body["code"] != "request_too_large" {
+		t.Fatalf("error body = %#v", body)
+	}
+}
+
+func TestRelativeTrackedSourceRefs(t *testing.T) {
+	relative := openbindings.Source{BindingSpec: "openbindings.openapi@1"}
+	if err := app.SetSourceMeta(&relative, app.SourceMeta{Ref: "specs/openapi.yaml"}); err != nil {
+		t.Fatal(err)
+	}
+	absolute := openbindings.Source{BindingSpec: "openbindings.openapi@1"}
+	if err := app.SetSourceMeta(&absolute, app.SourceMeta{Ref: "https://example.com/openapi.yaml"}); err != nil {
+		t.Fatal(err)
+	}
+	iface := &openbindings.Interface{Sources: map[string]openbindings.Source{"relative": relative, "absolute": absolute}}
+	if got := relativeTrackedSourceRefs(iface, nil); len(got) != 1 || got[0] != "relative" {
+		t.Fatalf("relative refs = %v, want [relative]", got)
+	}
+	if got := relativeTrackedSourceRefs(iface, []string{"absolute"}); len(got) != 0 {
+		t.Fatalf("selected absolute source was rejected: %v", got)
+	}
+}
+
 func TestServeBindingPrepare_NullForFormatWithoutPreparer(t *testing.T) {
 	// A format whose invoker has no BindingPreparer reports null — the
 	// conformant "cannot determine statically" answer.
@@ -1248,6 +1461,38 @@ func TestServeBindingPrepare_NullForFormatWithoutPreparer(t *testing.T) {
 	}
 	if got := strings.TrimSpace(string(body)); got != "null" {
 		t.Errorf("body = %q, want null", got)
+	}
+}
+
+func TestServeOperationPrepare_InlineInterface(t *testing.T) {
+	mock := &mockEchoInvoker{formats: []openbindings.BindingSpecInfo{{BindingSpec: "mock-echo@1.0"}}}
+	cleanup := app.OverrideInvokerForTest(openbindings.NewOperationInvoker(mock))
+	defer cleanup()
+
+	ts := testEnv(t)
+	defer ts.Close()
+	body, err := json.Marshal(map[string]any{"input": map[string]any{
+		"interface": echoOperationInterface(),
+		"operation": "echo",
+	}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	resp, err := authedPost(ts.URL+"/operations/prepare", "test-token", string(body))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		payload, _ := io.ReadAll(resp.Body)
+		t.Fatalf("status = %d, want 200: %s", resp.StatusCode, payload)
+	}
+	payload, err := io.ReadAll(resp.Body)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.TrimSpace(string(payload)) != "null" {
+		t.Fatalf("prepareOperation body = %s, want null", payload)
 	}
 }
 
@@ -1522,15 +1767,23 @@ func TestSpecsParseCleanly(t *testing.T) {
 	})
 
 	t.Run("openapi.yaml", func(t *testing.T) {
-		spec := server.OpenAPISpec()
+		spec := rewriteSpecPlaceholders(server.OpenAPISpec(), "http://localhost:20290")
 		if len(spec) == 0 {
 			t.Fatal("openapi.yaml is empty")
 		}
-		if !strings.Contains(string(spec), "openapi:") {
-			t.Error("openapi.yaml: missing openapi version field")
+		var doc struct {
+			OpenAPI    string         `yaml:"openapi"`
+			Paths      map[string]any `yaml:"paths"`
+			Components map[string]any `yaml:"components"`
 		}
-		if !strings.Contains(string(spec), "paths:") {
-			t.Error("openapi.yaml: missing paths section")
+		if err := yaml.Unmarshal(spec, &doc); err != nil {
+			t.Fatalf("openapi.yaml does not parse: %v", err)
+		}
+		if doc.OpenAPI != "3.1.0" || len(doc.Paths) == 0 || len(doc.Components) == 0 {
+			t.Fatalf("openapi.yaml missing required structure: version=%q paths=%d components=%d", doc.OpenAPI, len(doc.Paths), len(doc.Components))
+		}
+		if bytes.Contains(spec, []byte("${OB_SERVER_")) {
+			t.Fatal("rewritten OpenAPI document still contains server placeholders")
 		}
 	})
 }
@@ -1551,31 +1804,28 @@ func TestSpecHandlerConformance(t *testing.T) {
 		{"GET", "/healthz"},
 		{"GET", "/.well-known/openbindings"},
 		{"GET", "/openapi.yaml"},
-		{"GET", "/describe"},
-		{"GET", "/binding-specs"},
-		{"GET", "/delegates"},
-		{"GET", "/environment"},
-		{"GET", "/contexts"},
-		{"GET", "/contexts/https://example.com"},
-		{"PUT", "/contexts/https://example.com"},
-		{"DELETE", "/contexts/https://example.com"},
+		{"GET", "/asyncapi.yaml"},
 		{"GET", "/bindings/invoke"},
-		{"POST", "/bindings/prepare"},
-		{"POST", "/interfaces/synthesize"},
-		{"POST", "/resolve"},
-		{"POST", "/validate"},
-		{"POST", "/diff"},
-		{"POST", "/compatibility"},
+		{"GET", "/operations/invoke"},
 		{"GET", "/oauth/authorize"},
 		{"POST", "/oauth/authorize"},
 		{"POST", "/oauth/token"},
+	}
+	for _, route := range app.ServeHTTPRoutes() {
+		path := route.Path
+		path = strings.ReplaceAll(path, "{url}", "https://example.com")
+		path = strings.ReplaceAll(path, "{operation}", "test.operation")
+		path = strings.ReplaceAll(path, "{capability}", "invoke")
+		documented = append(documented, endpoint{strings.ToUpper(route.Method), path})
 	}
 
 	for _, ep := range documented {
 		t.Run(ep.method+" "+ep.path, func(t *testing.T) {
 			var bodyReader io.Reader
 			if ep.method == "POST" || ep.method == "PUT" || ep.method == "PATCH" {
-				bodyReader = strings.NewReader("{}")
+				// Deliberately malformed so the route is exercised without allowing
+				// stateful endpoints (environment/delegates/contexts) to mutate disk.
+				bodyReader = strings.NewReader("not-json")
 			}
 			req, err := http.NewRequest(ep.method, ts.URL+ep.path, bodyReader)
 			if err != nil {

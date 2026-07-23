@@ -77,8 +77,8 @@ type OperationSetInput struct {
 	Description *string
 	Idempotent  *bool
 	Deprecated  *bool
-	Input       map[string]any
-	Output      map[string]any
+	Input       openbindings.JSONSchema
+	Output      openbindings.JSONSchema
 	AddTags     []string
 	RemoveTags  []string
 	Own         bool // detach a source-owned operation before editing

@@ -51,6 +51,30 @@ func TestBoundArtifactsAreFresh(t *testing.T) {
 		t.Error("docs/bound-cli-recipe.md is stale against its inputs — run `go generate ./internal/app`")
 	}
 
+	// Canonical OpenAPI source (contract + route inventory).
+	generatedOpenAPI, err := app.GenerateServeOpenAPI("../../ob.obi.json", "${OB_SERVER_URL}")
+	if err != nil {
+		t.Fatalf("generate OpenAPI: %v", err)
+	}
+	wantOpenAPI, err := os.ReadFile("../server/openapi.yaml")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.Equal(generatedOpenAPI, wantOpenAPI) {
+		t.Error("internal/server/openapi.yaml is stale against the contract or route inventory — run `go generate ./internal/app`")
+	}
+	generatedAsyncAPI, err := app.GenerateServeAsyncAPI("../../ob.obi.json", "${OB_SERVER_HOST}", "${OB_SERVER_PROTOCOL}")
+	if err != nil {
+		t.Fatalf("generate AsyncAPI: %v", err)
+	}
+	wantAsyncAPI, err := os.ReadFile("../server/asyncapi.yaml")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.Equal(generatedAsyncAPI, wantAsyncAPI) {
+		t.Error("internal/server/asyncapi.yaml is stale against the contract — run `go generate ./internal/app`")
+	}
+
 	// Bound serve OBI.
 	serveBase := fmt.Sprintf("http://127.0.0.1:%d", DefaultServePort)
 	serve, err := app.GenerateBoundServe("../../ob.obi.json", "../server/openapi.yaml", "../server/serve.obi.json", serveBase)

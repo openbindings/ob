@@ -101,7 +101,11 @@ ob source pull interface.json
 ob operation invoke interface.json getMenu
 ```
 
-`ob` finds the binding for `getMenu`, resolves the source (the OpenAPI spec), makes the HTTP call, and returns the result. You never write protocol-specific code.
+`ob` uses the sole invocable binding for `getMenu`, resolves its source,
+performs the protocol interaction, and returns the result. When several
+bindings remain, choose one directly with `--binding` or provide repeatable,
+ordered `--select-binding` choices. The latter also reaches operations nested
+inside an operation graph. You never write protocol-specific code.
 
 ### 6. Generate typed client code
 
@@ -144,7 +148,7 @@ OBIs are format-agnostic. The same operation can be bound to an OpenAPI endpoint
 
 ### Context
 
-Credentials, headers, cookies, environment variables: everything an invocation needs beyond the operation input is **context**, stored per target URL (`ob context set/get/list/remove`). Credential fields land in the OS keychain; non-secret fields live in config files. At invocation time the store resolves hierarchically — the exact target first, then up the URL path to the most specific stored prefix — and per-call context layers on top.
+Credentials, headers, cookies, environment variables: everything an invocation needs beyond the operation input is **context**, optionally stored per target URL (`ob context set/get/list/remove`). Well-known credential fields land in the OS keychain. Structured fields live in owner-readable JSON files; they are not assumed public—headers, cookies, environment values, metadata, and configuration may also contain secrets. At invocation time `ob` resolves stored entries hierarchically—the exact target first, then up the URL path to the most specific stored prefix—and per-call context layers on top.
 
 Context is an open object, but invokers share the well-known fields defined by the [binding-invoker interface](https://openbindings.com/interfaces/binding-invoker): `bearerToken`, `apiKey` (and scheme-scoped `apiKeys`), `basic`, `accessToken`, `headers`, `cookies`, `environment`, `metadata`. How a credential rides the wire is each binding specification's business, read from the source artifact — never from the OBI, which carries no security metadata.
 
@@ -234,7 +238,7 @@ ob conform host.json my-service.obi.json --dry-run
 
 ## Delegates
 
-Delegates extend `ob` with binding format support — `ob`'s application of the OpenBindings [delegate pattern](https://openbindings.com/spec/delegate-pattern), and its realization of the published [delegate-manager](https://openbindings.com/interfaces/delegate-manager) interface. A delegate is any referenceable OpenBindings interface; `ob` routes work to delegates that carry the operations it needs (`invokeBinding`, `synthesizeInterface`, `inspectSource`) and support the format at hand. Credentials and context flow through the same `ContextStore` pipeline as in-process execution.
+Delegates extend `ob` with binding-specification support — `ob`'s application of the OpenBindings [delegate pattern](https://openbindings.com/spec/delegate-pattern), and its realization of the published [delegate-manager](https://openbindings.com/interfaces/delegate-manager) interface. A delegate is any referenceable OpenBindings interface; `ob` routes work to delegates that carry the operations it needs (`invokeBinding`, `synthesizeInterface`, `inspectSource`) and support the binding specification at hand. Credentials and context are scoped and supplied by value through the same application pipeline as in-process execution; a delegate never receives direct access to `ob`'s context storage.
 
 `ob` itself is the builtin **self-delegate** (location `"ob"`, providing OpenAPI, AsyncAPI, gRPC, Connect, MCP, GraphQL, and usage-spec in-process). A fresh environment has an empty registry: every external delegate is an explicit registration.
 
@@ -268,7 +272,7 @@ How much of an operation's cardinality crosses a delegate boundary depends on th
 The simplest path: scaffold the binding-invoker interface into a new OBI and implement the operations.
 
 ```bash
-ob delegate requirements invoke > binding-invoker.json   # the exact contract to correspond to
+ob delegate requirements invoke > binding-invoker.json   # the exact operation subset ob consumes
 ob conform binding-invoker.json my-delegate.obi.json --yes
 ```
 
@@ -276,7 +280,7 @@ A minimal `exec:` delegate is a CLI that:
 
 1. Responds to `--openbindings` by printing its OBI to stdout.
 2. Binds `listBindingSpecs` via an `openbindings.usage@1` source so `ob` can enumerate the binding specifications it supports at registration.
-3. Implements `invokeBinding` (and optionally `synthesizeInterface`) as its OBI declares.
+3. Implements `invokeBinding` (and, independently, `synthesizeInterface` or `inspectSource` when desired) as its OBI declares.
 
 ## Source Resolution
 
@@ -357,7 +361,7 @@ ob source pull interface.json -o dist/interface.json --pure # publish clean
 
 | Command | Description |
 |---------|-------------|
-| `ob operation invoke <obi> [operation]` | Invoke an operation via its binding |
+| `ob operation invoke <obi> [operation]` | Invoke by operation (sole candidate or ordered `--select-binding`) or directly by `--binding` |
 | `ob operation list <obi>` | List operations |
 | `ob operation add <obi> <name>` | Add a hand-authored operation |
 | `ob operation set <obi> <operation>` | Edit an operation's fields |
@@ -383,7 +387,7 @@ ob source pull interface.json -o dist/interface.json --pure # publish clean
 
 | Command | Description |
 |---------|-------------|
-| `ob start` | Run `ob` as a local HTTP/HTTPS/WebSocket service exposing every operation over a stable API |
+| `ob start` | Run `ob` as a local HTTP/HTTPS/WebSocket service exposing every remotely meaningful operation over a stable API |
 | `ob mcp <url>` | Serve an interface URL as an MCP server for AI agents |
 
 ### Introspection
@@ -397,7 +401,7 @@ ob source pull interface.json -o dist/interface.json --pure # publish clean
 
 ## Serve and integrate
 
-`ob` is more than a CLI — it can run as a local service that exposes every CLI operation over HTTP and WebSocket (`ob start`) or over the Model Context Protocol (`ob mcp`). Other applications, browser UIs, and AI agents can use those endpoints instead of shelling out to the CLI.
+`ob` is more than a CLI — it can run as a local service that exposes its remotely meaningful operations over HTTP and WebSocket (`ob start`) or over the Model Context Protocol (`ob mcp`). Other applications, browser UIs, and AI agents can use those endpoints instead of shelling out to the CLI. The three foreground process commands (`start`, `mcp`, and `demo`) remain local; the other 50 contract operations are published.
 
 ### `ob start` — local HTTP/HTTPS service
 
@@ -415,7 +419,7 @@ On startup `ob start` prints the address it bound and a random bearer token. The
 - Auto-generated at startup otherwise (printed once, lost on restart). `--token-file` writes that session token to a file instead of stderr, so scripts can read it; it does not supply a token.
 - An OAuth2 access token obtained via `/oauth/authorize` + `/oauth/token` (PKCE flow)
 
-**CORS.** `ob start` accepts requests from any origin allowed by `--allow-origin` (repeatable). Private Network Access preflights (`Access-Control-Request-Private-Network: true`) are honored when the origin is allowlisted, so browser apps served from `https://app.example.com` can reach `https://localhost:20291`.
+**CORS.** By default `ob start` accepts localhost origins and HTTPS origins; `--allow-origin` (repeatable) adds explicit origins such as a non-local HTTP development host. The same policy is enforced on WebSocket upgrades. Private Network Access preflights (`Access-Control-Request-Private-Network: true`) are honored for allowed origins, so browser apps served from `https://app.example.com` can reach `https://localhost:20291`.
 
 #### HTTP endpoints
 
@@ -432,22 +436,33 @@ The complete API is described by [`internal/server/openapi.yaml`](https://github
 | `/contexts` | GET | List per-host context entries |
 | `/contexts/{url}` | GET / PUT / DELETE | Inspect, set, or clear one host's context |
 | `/bindings/invoke` | GET (WebSocket) | Invoke a binding via the binding-invoker frame protocol |
+| `/operations/invoke` | GET (WebSocket) | Invoke an operation or selected binding via the operation-invoker frame protocol |
 | `/bindings/prepare` | POST | Preflight a binding's context requirements (`prepareBinding`) |
+| `/operations/prepare` | POST | Preflight an inline interface operation's context requirements |
+| `/interfaces` | POST | Create an empty interface document |
 | `/interfaces/synthesize` | POST | Synthesize an OBI from a binding source |
 | `/interfaces/status` | POST | Report an OBI's drift against its sources |
+| `/interfaces/metadata`, `/interfaces/purify` | POST | Transform interface metadata or strip implementation extensions |
+| `/interfaces/sources/*` | POST | Add, remove, list, or pull document sources |
+| `/interfaces/operations/*` | POST | Add, set, detach, rename, remove, list, bind, unbind, or configure document operations |
 | `/sources/inspect` | POST | Enumerate bindable targets in a source |
-| `/resolve` | POST | Fetch an OBI from a URL (synthesizes if served raw) |
-| `/codegen` | POST | Generate typed client code from an OBI |
-| `/conform` | POST | Scaffold operations to correspond to a contract interface |
-| `/validate` | POST | Validate an OBI |
-| `/diff` | POST | Structural diff between two OBIs |
-| `/merge` | POST | Merge one OBI into another |
-| `/compatibility` | POST | Compatibility check |
+| `/interfaces/resolve` | POST | Fetch an OBI from a URL (synthesizes if served raw) |
+| `/interfaces/codegen` | POST | Generate typed client code from an OBI |
+| `/interfaces/conform` | POST | Scaffold operations to correspond to a contract interface |
+| `/interfaces/validate` | POST | Validate an OBI |
+| `/interfaces/compare` | POST | Structural diff between two OBIs |
+| `/interfaces/merge` | POST | Merge one OBI into another |
+| `/interfaces/compatibility` | POST | Compatibility check |
+| `/delegates/*`, `/environment/initialize` | GET / POST | Inspect and manage this server's delegate environment |
 | `/oauth/authorize` + `/oauth/token` | GET / POST | OAuth2 Authorization Code + PKCE |
 | `/spec/{name}` | GET | Embedded spec resources |
 | `/openapi.yaml`, `/asyncapi.yaml` | GET | Self-description specs (no auth) |
 
-Each POST endpoint accepts and returns JSON. Example:
+The API is document-oriented: authoring requests carry an interface document and return the transformed document, never a server-side file path. Requests use JSON; direct OBI responses use `application/vnd.openbindings+json`. Request bodies and individual WebSocket frames are limited to 10 MiB. The old preview aliases (`/resolve`, `/validate`, `/diff`, `/compatibility`, `/codegen`, `/conform`, and `/merge`) remain callable but are not part of the canonical OpenAPI surface.
+
+Because an inline document has no originating directory, `/interfaces/sources/pull` rejects tracked relative source references instead of resolving them against an arbitrary server working directory. Embed the source or give it an absolute reference before pulling it through the API.
+
+Example:
 
 ```bash
 TOKEN=$(cat ~/.ob/start.token)
@@ -455,14 +470,14 @@ curl -X POST https://localhost:20291/bindings/prepare \
   -H "Authorization: Bearer $TOKEN" \
   -H "Content-Type: application/json" \
   -d '{
-    "source": { "format": "openbindings.openapi@1", "location": "https://api.example.com/openapi.json" },
+    "source": { "bindingSpec": "openbindings.openapi@1", "location": "https://api.example.com/openapi.json" },
     "ref":    "#/paths/~1users/get"
   }'
 ```
 
-#### Binding invocation (WebSocket frame protocol)
+#### Invocation (WebSocket frame protocols)
 
-`GET /bindings/invoke` upgrades to a WebSocket speaking the `binding-invoker` frame protocol — one connection per invocation, one shape for unary, server-streaming, client-streaming, and bidirectional bindings. The complete protocol is described by [`internal/server/asyncapi.yaml`](https://github.com/openbindings/ob/blob/main/internal/server/asyncapi.yaml).
+`GET /bindings/invoke` and `GET /operations/invoke` upgrade to WebSockets speaking the binding- and operation-invoker frame protocols. Each connection carries one invocation, with one shape for unary, server-streaming, client-streaming, and bidirectional operations. The operation-level `open` payload carries an inline interface plus exactly one of `operation` or `binding`; the rest of the lifecycle is identical. The complete protocols are described by [`internal/server/asyncapi.yaml`](https://github.com/openbindings/ob/blob/main/internal/server/asyncapi.yaml).
 
 1. Client opens a WebSocket to `wss://host/bindings/invoke`, presenting the session token on the upgrade request: `Authorization: Bearer <token>`, or the `token` query parameter for browsers (which can't set headers on upgrades).
 2. Client streams input frames: exactly one `{"kind": "open", "input": {source, ref, context?}}` first, then zero or more `{"kind": "input", "value": …}`, then one `{"kind": "close"}`.

@@ -165,7 +165,11 @@ func GenerateBoundCLI(contractPath, usagePath string) (*openbindings.Interface, 
 		// (the bare name would map to the root --format flag).
 		"resolveDelegateForBindingSpec": `{"binding-spec": $$.bindingSpec, "format": "json"}`,
 		// setDelegatePreference: wire `bindingSpec` → --binding-spec, same shadow.
-		"setDelegatePreference": `$merge([$sift($$, function($v, $k) { $k != "bindingSpec" }), $exists($$.bindingSpec) ? {"binding-spec": $$.bindingSpec} : {}, {"format": "json"}])`,
+		"setDelegatePreference": `$merge([$sift($$, function($v, $k) { $k != "bindingSpec" and $k != "preference" }), $exists($$.bindingSpec) ? {"binding-spec": $$.bindingSpec} : {}, $exists($$.preference) ? {"preference": $string($$.preference)} : {}, {"format": "json"}])`,
+		// registerDelegate: the operation models preference as a number; the
+		// CLI artifact declares one value-bearing token and leaves its encoding
+		// open, so the binding explicitly elects the decimal token.
+		"registerDelegate": `$merge([$sift($$, function($v, $k) { $k != "preference" }), $exists($$.preference) ? {"preference": $string($$.preference)} : {}, {"format": "json"}])`,
 		// getContext/removeContext: the wire key is the CLI's <url> argument.
 		"getContext":    `{"url": $$.key, "format": "json"}`,
 		"removeContext": `{"url": $$.key, "format": "json"}`,
@@ -178,30 +182,30 @@ func GenerateBoundCLI(contractPath, usagePath string) (*openbindings.Interface, 
 		// (-F json). Every field the transform emits must name a flag or arg of
 		// the command, or be routed off argv by delivery — buildCLIArgs refuses
 		// strays. See ob-pj/wire-conformance.md, batch 3.
-		"validateInterface":     `{"locator": $$.interface, "strict": $$.strict, "format": "json"}`,
-		"reportInterfaceStatus": `{"obi-path": $$.interface, "format": "json"}`,
-		"purifyInterface":       `{"obi-path": $$, "format": "json"}`,
-		"listSources":           `{"obi-path": $$.interface, "format": "json"}`,
-		"listBindings":          `{"obi-path": $$.interface, "operation": $$.operation, "format": "json"}`,
-		"listOperations":        `{"obi": $$.interface, "tag": $$.tag, "format": "json"}`,
-		"listOperationAliases":  `{"obi": $$.interface, "operation": $$.operation, "format": "json"}`,
-		"prepareOperation":      `{"obi": $$.interface, "operation": $$.operation, "binding": $$.binding, "format": "json"}`,
-		"compareInterfaces":     `{"baseline": $$.baseline, "comparison": $$.comparison, "from-sources": $$.fromSources, "only": $$.only, "format": "json"}`,
-		"reportCompatibility":   `{"target": $$.target, "candidate": $$.candidate, "format": "json"}`,
+		"validateInterface":     `{"locator": $string($$.interface), "strict": $$.strict, "format": "json"}`,
+		"reportInterfaceStatus": `{"obi-path": $string($$.interface), "format": "json"}`,
+		"purifyInterface":       `{"obi-path": $string($$), "format": "json"}`,
+		"listSources":           `{"obi-path": $string($$.interface), "format": "json"}`,
+		"listBindings":          `{"obi-path": $string($$.interface), "operation": $$.operation, "format": "json"}`,
+		"listOperations":        `{"obi": $string($$.interface), "tag": $$.tag, "format": "json"}`,
+		"listOperationAliases":  `{"obi": $string($$.interface), "operation": $$.operation, "format": "json"}`,
+		"prepareOperation":      `{"obi": $string($$.interface), "operation": $$.operation, "binding": $$.binding, "format": "json"}`,
+		"compareInterfaces":     `{"baseline": $string($$.baseline), "comparison": $string($$.comparison), "from-sources": $$.fromSources, "only": $$.only, "format": "json"}`,
+		"reportCompatibility":   `{"target": $string($$.target), "candidate": $string($$.candidate), "format": "json"}`,
 
 		// codegen: `language` → the CLI's --lang; -F json emits the CodegenOutput
 		// envelope (the CLI defaults to raw source, its natural human lane).
-		"codegen": `{"source": $$.interface, "lang": $$.language, "package": $$.package, "format": "json"}`,
+		"codegen": `{"source": $string($$.interface), "lang": $$.language, "package": $$.package, "format": "json"}`,
 		// conform/merge modify their target, so BOTH documents ride file
 		// delivery (a written-back target cannot be stdin) and the transport
 		// injects auto-accept (-y): the child's stdin never carries a document,
 		// so nothing can be misread as a prompt answer, and the modified
 		// interface returns inside the ConformResult/MergeResult report.
-		"conform":         `{"interface": $$.interface, "target-obi": $$.target, "dry-run": $$.dryRun, "yes": true, "format": "json"}`,
-		"mergeInterfaces": `{"target": $$.target, "source": $$.source, "from-sources": $$.fromSources, "only": $$.only, "op": $$.operations, "exclude-op": $$.excludeOperations, "ops-only": $$.opsOnly, "no-bindings": $$.noBindings, "no-sources": $$.noSources, "yes": true, "format": "json"}`,
+		"conform":         `{"interface": $string($$.interface), "target-obi": $string($$.target), "dry-run": $$.dryRun, "yes": true, "format": "json"}`,
+		"mergeInterfaces": `{"target": $string($$.target), "source": $string($$.source), "from-sources": $$.fromSources, "only": $$.only, "op": $$.operations, "exclude-op": $$.excludeOperations, "ops-only": $$.opsOnly, "no-bindings": $$.noBindings, "no-sources": $$.noSources, "yes": true, "format": "json"}`,
 		// setContext: the wire key is the CLI's <url> argument; the Context
 		// value rides stdin (delivery below) so credentials never touch argv.
-		"setContext": `{"url": $$.key, "value": $$.value}`,
+		"setContext": `{"url": $$.key, "value": $string($$.value)}`,
 
 		// Editing family (cohort C, batch 4): document-in/document-out
 		// operations realized as Unix filters. The interface document rides
@@ -214,33 +218,33 @@ func GenerateBoundCLI(contractPath, usagePath string) (*openbindings.Interface, 
 		// flags (force, own, clear, transformStub) pass through (true emits
 		// the bare flag, false/absent emits nothing).
 		"newInterface":             `{"path": "-", "name": $$.name, "version": $$.version, "description": $$.description, "spec-version": $$.openbindings}`,
-		"setMetadata":              `{"obi-path": $$.interface, "name": $$.name, "version": $$.version, "description": $$.description}`,
-		"addOperation":             `$merge([{"obi-path": $$.interface, "key": $$.key, "description": $$.description, "alias": $$.aliases, "tag": $$.tags, "input-schema": $$.input, "output-schema": $$.output}, $exists($$.idempotent) ? {"idempotent": $string($$.idempotent)} : {}])`,
-		"setOperation":             `$merge([{"obi-path": $$.interface, "operation": $$.operation, "description": $$.description, "input-schema": $$.input, "output-schema": $$.output, "add-tag": $$.addTags, "remove-tag": $$.removeTags, "own": $$.own}, $exists($$.idempotent) ? {"idempotent": $string($$.idempotent)} : {}, $exists($$.deprecated) ? {"deprecated": $string($$.deprecated)} : {}])`,
-		"detachOperation":          `{"obi-path": $$.interface, "operation": $$.operation}`,
-		"renameOperation":          `{"obi-path": $$.interface, "old-key": $$.oldKey, "new-key": $$.newKey}`,
-		"removeOperation":          `{"obi-path": $$.interface, "key": $$.keys, "force": $$.force}`,
-		"bindOperation":            `{"obi-path": $$.interface, "operation": $$.operation, "source": $$.source, "ref": $$.ref, "preference": $$.preference, "input-transform": $$.inputTransform, "output-transform": $$.outputTransform, "transform-stub": $$.transformStub, "force": $$.force}`,
-		"unbindOperation":          `{"obi-path": $$.interface, "operation": $$.operation, "source": $$.source}`,
-		"addOperationAlias":        `{"obi-path": $$.interface, "operation": $$.operation, "alias": $$.aliases}`,
-		"removeOperationAlias":     `{"obi-path": $$.interface, "operation": $$.operation, "alias": $$.aliases}`,
-		"setOperationCodegenName":  `{"obi-path": $$.interface, "operation": $$.operation, "name": $$.codegenName, "clear": $$.clear}`,
-		"setOperationOutputSchema": `{"obi-path": $$.interface, "operation": $$.operation, "schema": $$.outputSchema, "clear": $$.clear}`,
+		"setMetadata":              `{"obi-path": $string($$.interface), "name": $$.name, "version": $$.version, "description": $$.description}`,
+		"addOperation":             `$merge([{"obi-path": $string($$.interface), "key": $$.key, "description": $$.description, "alias": $$.aliases, "tag": $$.tags, "input-schema": $string($$.input), "output-schema": $string($$.output)}, $exists($$.idempotent) ? {"idempotent": $string($$.idempotent)} : {}])`,
+		"setOperation":             `$merge([{"obi-path": $string($$.interface), "operation": $$.operation, "description": $$.description, "input-schema": $string($$.input), "output-schema": $string($$.output), "add-tag": $$.addTags, "remove-tag": $$.removeTags, "own": $$.own}, $exists($$.idempotent) ? {"idempotent": $string($$.idempotent)} : {}, $exists($$.deprecated) ? {"deprecated": $string($$.deprecated)} : {}])`,
+		"detachOperation":          `{"obi-path": $string($$.interface), "operation": $$.operation}`,
+		"renameOperation":          `{"obi-path": $string($$.interface), "old-key": $$.oldKey, "new-key": $$.newKey}`,
+		"removeOperation":          `{"obi-path": $string($$.interface), "key": $$.keys, "force": $$.force}`,
+		"bindOperation":            `{"obi-path": $string($$.interface), "operation": $$.operation, "source": $$.source, "ref": $$.ref, "preference": $string($$.preference), "input-transform": $$.inputTransform, "output-transform": $$.outputTransform, "transform-stub": $$.transformStub, "force": $$.force}`,
+		"unbindOperation":          `{"obi-path": $string($$.interface), "operation": $$.operation, "source": $$.source}`,
+		"addOperationAlias":        `{"obi-path": $string($$.interface), "operation": $$.operation, "alias": $$.aliases}`,
+		"removeOperationAlias":     `{"obi-path": $string($$.interface), "operation": $$.operation, "alias": $$.aliases}`,
+		"setOperationCodegenName":  `{"obi-path": $string($$.interface), "operation": $$.operation, "name": $$.codegenName, "clear": $$.clear}`,
+		"setOperationOutputSchema": `{"obi-path": $string($$.interface), "operation": $$.operation, "schema": $string($$.outputSchema), "clear": $$.clear}`,
 		// addSource: the wire's SynthesizeInterfaceSource maps onto the CLI's
 		// composite <source> token (format:location) and flags; embed=true is
 		// the CLI's --resolve content; -y skips the delegate/name prompts
 		// (moot on the non-TTY wire, but explicit). A content-provided source
 		// (inline `content`, no location) has no CLI carriage yet and fails
 		// loudly at the empty-location token — see the tracker's batch-5 note.
-		"addSource": `$merge([{"obi-path": $$.interface, "source": $$.source.bindingSpec & ":" & $$.source.location, "key": $$.source.name, "uri": $$.source.outputLocation, "description": $$.source.description, "yes": true}, $$.source.embed ? {"resolve": "content"} : {}])`,
+		"addSource": `$merge([{"obi-path": $string($$.interface), "source": $$.source.bindingSpec & ":" & $$.source.location, "key": $$.source.name, "uri": $$.source.outputLocation, "description": $$.source.description, "yes": true}, $$.source.embed ? {"resolve": "content"} : {}])`,
 		// removeSource: the wire key is the CLI's <key> argument.
-		"removeSource": `{"obi-path": $$.interface, "key": $$.key}`,
+		"removeSource": `{"obi-path": $string($$.interface), "key": $$.key}`,
 		// pullSource: the ONE editing op whose contract output is a report
 		// (SourcePullOutput, carrying the resulting document) rather than the
 		// bare document, so its stdout is the -F json summary and the
 		// document rides a temp FILE (writing back to stdin is impossible;
 		// stdout must stay the report's).
-		"pullSource": `{"obi-path": $$.interface, "source-key": $$.sourceKeys, "format": "json"}`,
+		"pullSource": `{"obi-path": $string($$.interface), "source-key": $$.sourceKeys, "format": "json"}`,
 	}
 	_ = routesByShort // elections live in the hook table (BoundCLIHookTable), not the document
 
@@ -437,6 +441,16 @@ func GenerateBoundServe(contractPath, openapiPath, existingServePath, servedBase
 	}
 
 	// HTTP (openapi) bindings — ref derived from openapi.yaml.
+	pathInputTransforms := map[string]string{
+		"getContext":    `{ "url": key }`,
+		"setContext":    `$merge([{ "url": key }, value])`,
+		"removeContext": `{ "url": key }`,
+		// The HTTP artifact wraps the conditional OperationInvocationInput so
+		// the OpenAPI revision-1 flattened model has one declaration-defined
+		// surface. This transform preserves the public operation's direct
+		// input shape across that transport adaptation.
+		"prepareOperation": `{ "input": $$ }`,
+	}
 	for _, b := range httpDerived.Bindings {
 		opKey := "openbindings.ob." + b.Operation
 		if !include(opKey) {
@@ -444,15 +458,20 @@ func GenerateBoundServe(contractPath, openapiPath, existingServePath, servedBase
 		}
 		be := openbindings.BindingEntry{Operation: opKey, Source: "openapi", Ref: b.Ref}
 		carry(opKey, b.Operation, "openapi", &be)
+		if expression := pathInputTransforms[b.Operation]; expression != "" {
+			be.InputTransform = &openbindings.TransformOrRef{Inline: expression}
+		}
 		bound.Bindings[opKey+".openapi"] = be
 	}
 
-	// WS (asyncapi) invoke binding.
-	const invKey = "openbindings.ob.invokeBinding"
-	if include(invKey) {
-		be := openbindings.BindingEntry{Operation: invKey, Source: "asyncapi", Ref: "#/operations/invokeBinding"}
-		carry(invKey, "invokeBinding", "asyncapi", &be)
-		bound.Bindings[invKey+".asyncapi"] = be
+	// WS (asyncapi) cardinality-agnostic invocation bindings.
+	for _, short := range []string{"invokeBinding", "invokeOperation"} {
+		invKey := "openbindings.ob." + short
+		if include(invKey) {
+			be := openbindings.BindingEntry{Operation: invKey, Source: "asyncapi", Ref: "#/operations/" + short}
+			carry(invKey, short, "asyncapi", &be)
+			bound.Bindings[invKey+".asyncapi"] = be
+		}
 	}
 
 	return bound, nil

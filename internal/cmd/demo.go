@@ -113,9 +113,7 @@ func printBanner(port, grpcPort int) {
 
 	// Invoke
 	fmt.Fprintf(w, "  %s\n\n", h.Render("Invoke"))
-	fmt.Fprintf(w, "  $ ob op invoke %s getMenu\n", base)
-	fmt.Fprintln(w)
-	fmt.Fprintf(w, "  %s\n\n", s(dim).Render("Same operation, pick a binding:"))
+	fmt.Fprintf(w, "  %s\n\n", s(dim).Render("Operations with several bindings require an explicit choice:"))
 	tag := func(name string) string {
 		return lipgloss.NewStyle().Foreground(lipgloss.Color("0")).Background(green).Bold(true).Padding(0, 1).Render(name)
 	}
@@ -126,9 +124,14 @@ func printBanner(port, grpcPort int) {
 	fmt.Fprintf(w, "  $ ob op invoke %s --binding getMenu.graphqlServer  %s\n", base, tag("GraphQL"))
 	fmt.Fprintln(w)
 	fmt.Fprintf(w, "  %s\n\n", s(dim).Render("Place an order and watch it progress:"))
-	fmt.Fprintf(w, "  $ ob op invoke %s placeOrder \\\n", base)
+	fmt.Fprintf(w, "  $ ob op invoke %s --binding placeOrder.restApi \\\n", base)
 	fmt.Fprintf(w, "      --input '{\"drink\":\"Schema Latte\",\"size\":\"v2\",\"customer\":\"Alice\"}'\n")
-	fmt.Fprintf(w, "  $ ob op invoke %s orderUpdates\n", base)
+	fmt.Fprintf(w, "  $ ob op invoke %s --binding orderUpdates.grpcServer\n", base)
+	fmt.Fprintln(w)
+	fmt.Fprintf(w, "  %s\n\n", s(dim).Render("Or run the composed operation graph with caller-owned inner binding choices:"))
+	fmt.Fprintf(w, "  $ ob op invoke %s placeAndTrack \\\n", base)
+	fmt.Fprintln(w, "      --select-binding placeOrder.restApi --select-binding orderUpdates.grpcServer \\")
+	fmt.Fprintf(w, "      --input '{\"drink\":\"Schema Latte\",\"size\":\"v2\",\"customer\":\"Alice\"}'\n")
 	fmt.Fprintln(w)
 
 	fmt.Fprintf(w, "  %s\n\n", s(dim).Italic(true).Render("press ctrl+c to stop"))

@@ -3,6 +3,7 @@ package app
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -64,7 +65,7 @@ func TestResolveSourceLocation_RelativeRefusedEveryLane(t *testing.T) {
 // ---------------------------------------------------------------------------
 
 func TestDefaultBindingForOp_NilInterface(t *testing.T) {
-	_, got := DefaultBindingForOp("test", nil)
+	_, got, _ := DefaultBindingForOp("test", nil)
 	if got != nil {
 		t.Fatalf("expected nil, got %+v", got)
 	}
@@ -72,7 +73,7 @@ func TestDefaultBindingForOp_NilInterface(t *testing.T) {
 
 func TestDefaultBindingForOp_NoBindings(t *testing.T) {
 	iface := &openbindings.Interface{}
-	_, got := DefaultBindingForOp("test", iface)
+	_, got, _ := DefaultBindingForOp("test", iface)
 	if got != nil {
 		t.Fatalf("expected nil, got %+v", got)
 	}
@@ -84,7 +85,10 @@ func TestDefaultBindingForOp_SingleMatch(t *testing.T) {
 			"listPets.usage1": {Operation: "listPets", Source: "usage1", Ref: "list pets"},
 		},
 	}
-	key, got := DefaultBindingForOp("listPets", iface)
+	key, got, err := DefaultBindingForOp("listPets", iface)
+	if err != nil {
+		t.Fatalf("unexpected selection error: %v", err)
+	}
 	if got == nil {
 		t.Fatal("expected binding, got nil")
 	}
@@ -102,13 +106,13 @@ func TestDefaultBindingForOp_NoMatch(t *testing.T) {
 			"createPet.usage1": {Operation: "createPet", Source: "usage1"},
 		},
 	}
-	_, got := DefaultBindingForOp("listPets", iface)
+	_, got, _ := DefaultBindingForOp("listPets", iface)
 	if got != nil {
 		t.Fatalf("expected nil, got %+v", got)
 	}
 }
 
-func TestDefaultBindingForOp_PreferenceSelection(t *testing.T) {
+func TestDefaultBindingForOp_PreferenceDoesNotResolveAmbiguity(t *testing.T) {
 	lo := 1.0
 	hi := 10.0
 	iface := &openbindings.Interface{
@@ -117,29 +121,77 @@ func TestDefaultBindingForOp_PreferenceSelection(t *testing.T) {
 			"listPets.primary": {Operation: "listPets", Source: "primary", Ref: "primary-ref", Preference: &hi},
 		},
 	}
-	_, got := DefaultBindingForOp("listPets", iface)
-	if got == nil {
-		t.Fatal("expected binding, got nil")
+	_, got, err := DefaultBindingForOp("listPets", iface)
+	if got != nil {
+		t.Fatalf("ambiguous candidates must not auto-resolve, got %+v", got)
 	}
-	if got.Source != "primary" {
-		t.Errorf("expected source 'primary' (higher preference wins), got %q", got.Source)
+	if !errors.Is(err, openbindings.ErrBindingSelectionRequired) {
+		t.Fatalf("expected ErrBindingSelectionRequired, got %v", err)
 	}
 }
 
-func TestDefaultBindingForOp_NilPreferenceLosesToExplicit(t *testing.T) {
+func TestDefaultBindingForOp_NilAndExplicitPreferenceRemainAmbiguous(t *testing.T) {
 	explicit := 5.0
 	iface := &openbindings.Interface{
 		Bindings: map[string]openbindings.BindingEntry{
 			"listPets.explicit": {Operation: "listPets", Source: "explicit", Ref: "e", Preference: &explicit},
-			"listPets.default":  {Operation: "listPets", Source: "default", Ref: "d"}, // nil → 0 (baseline)
+			"listPets.default":  {Operation: "listPets", Source: "default", Ref: "d"},
 		},
 	}
-	_, got := DefaultBindingForOp("listPets", iface)
-	if got == nil {
-		t.Fatal("expected binding, got nil")
+	_, got, err := DefaultBindingForOp("listPets", iface)
+	if got != nil {
+		t.Fatalf("ambiguous candidates must not auto-resolve, got %+v", got)
 	}
-	if got.Source != "explicit" {
-		t.Errorf("expected source 'explicit' (nil preference loses to explicit positive), got %q", got.Source)
+	if !errors.Is(err, openbindings.ErrBindingSelectionRequired) {
+		t.Fatalf("expected ErrBindingSelectionRequired, got %v", err)
+	}
+}
+
+func TestResolveBindingAndSource_OrderedCallerSelection(t *testing.T) {
+	iface := &openbindings.Interface{
+		OpenBindings: "0.2.0",
+		Operations: map[string]openbindings.Operation{
+			"listPets": {},
+			"other":    {},
+		},
+		Sources: map[string]openbindings.Source{
+			"a": {BindingSpec: "openbindings.openapi@1", Location: "https://example.test/a.json"},
+			"b": {BindingSpec: "openbindings.openapi@1", Location: "https://example.test/b.json"},
+		},
+		Bindings: map[string]openbindings.BindingEntry{
+			"listPets.a": {Operation: "listPets", Source: "a", Ref: "#/paths/~1pets/get"},
+			"listPets.b": {Operation: "listPets", Source: "b", Ref: "#/paths/~1pets/get"},
+			"other.a":    {Operation: "other", Source: "a", Ref: "#/paths/~1other/get"},
+		},
+	}
+	context := map[string]any{
+		"configuration": map[string]any{
+			"selection": []any{"missing", "other.a", "listPets.b", "listPets.a"},
+		},
+	}
+
+	resolved, err := resolveBindingAndSourceWithContext(iface, "listPets", "", nil, context)
+	if err != nil {
+		t.Fatalf("ordered caller selection: %v", err)
+	}
+	if resolved.bindingKey != "listPets.b" {
+		t.Fatalf("binding = %q, want first invocable listed key listPets.b", resolved.bindingKey)
+	}
+}
+
+func TestResolveBindingAndSource_MalformedSelectionDoesNotInventChoice(t *testing.T) {
+	iface := &openbindings.Interface{
+		Operations: map[string]openbindings.Operation{"listPets": {}},
+		Bindings: map[string]openbindings.BindingEntry{
+			"listPets.a": {Operation: "listPets", Source: "a"},
+			"listPets.b": {Operation: "listPets", Source: "b"},
+		},
+	}
+	context := map[string]any{
+		"configuration": map[string]any{"selection": []any{"listPets.a", 2}},
+	}
+	if _, err := resolveBindingAndSourceWithContext(iface, "listPets", "", nil, context); !errors.Is(err, openbindings.ErrBindingSelectionRequired) {
+		t.Fatalf("malformed selection must leave ambiguity unresolved, got %v", err)
 	}
 }
 

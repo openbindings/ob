@@ -293,7 +293,7 @@
       ]
     },
     "openbindings.ob.listContexts": {
-      "description": "List non-secret metadata summaries for all stored contexts; never returns secret values. Completes the context surface with listing and inspection: the generic document-store substrate these contexts are stored under (satisfied by getContext/setContext/removeContext) standardizes only opaque get/set/delete, so this management view is ob's own.",
+      "description": "List metadata-only summaries for stored contexts; never returns stored context values. Completes the context surface with listing and inspection: the generic document-store substrate these contexts are stored under (satisfied by getContext/setContext/removeContext) standardizes only opaque get/set/delete, so this management view is ob's own.",
       "idempotent": true,
       "output": {
         "type": "array",
@@ -374,7 +374,7 @@
       }
     },
     "openbindings.ob.getDelegateRequirements": {
-      "description": "Return the published interface a delegate must satisfy to provide a capability (invoke → binding-invoker, synthesize → interface-synthesizer, inspect → source-inspector), so a prospective delegate can be checked against the exact contract (e.g. via reportCompatibility). The interfaces are immutable documents bundled with this ob release.",
+      "description": "Return the exact operation subset a delegate must satisfy to provide an ob capability (invoke → listBindingSpecs + invokeBinding, synthesize → listBindingSpecs + synthesizeInterface, inspect → listBindingSpecs + inspectSource). Definitions are derived from immutable published interfaces bundled with this ob release. Correspondence is per operation, so unrelated operations from the same published interface are not imposed on a delegate.",
       "idempotent": true,
       "input": {
         "$ref": "#/schemas/GetDelegateRequirementsInput"
@@ -651,21 +651,20 @@
     },
     "BindingSpecInfo": {
       "type": "object",
-      "description": "Information about a supported binding format.",
+      "description": "Information about a supported binding specification.",
       "properties": {
         "bindingSpec": {
           "type": "string",
-          "description": "Binding specification identifier, exact and opaque (e.g. openbindings.openapi@1)."
+          "description": "Binding specification identifier, exact and opaque (e.g., openbindings.openapi@1, openbindings.mcp@1)."
         },
         "description": {
           "type": "string",
-          "description": "Human-readable description of this format."
+          "description": "Human-readable description of this binding specification."
         }
       },
       "required": [
         "bindingSpec"
-      ],
-      "additionalProperties": false
+      ]
     },
     "ResolveInterfaceInput": {
       "type": "object",
@@ -702,21 +701,22 @@
     },
     "Source": {
       "type": "object",
-      "description": "A binding source artifact, referenced by location or carried inline.",
+      "description": "A binding source (binding-specification identifier plus location or content), as an OpenBindings document carries it. Open to extension fields so a document's source entry forwards verbatim.",
       "properties": {
         "bindingSpec": {
           "type": "string",
-          "description": "Binding specification identifier, exact and opaque (e.g. openbindings.openapi@1)."
+          "description": "Binding specification identifier governing this source."
         },
         "location": {
           "type": "string",
-          "description": "Location of the source (path or URL)."
+          "description": "Absolute address of the source, per its binding specification (core OBI-D-05)."
         },
         "content": {
-          "description": "Source content provided directly."
+          "description": "Embedded source-artifact representation, per its binding specification."
         },
         "description": {
-          "type": "string"
+          "type": "string",
+          "description": "Human-readable description for this source."
         }
       },
       "required": [
@@ -738,15 +738,15 @@
     },
     "SynthesizeInterfaceSource": {
       "type": "object",
-      "description": "A binding source to extract operations from.",
+      "description": "A binding source to synthesize an interface from.",
       "properties": {
         "bindingSpec": {
           "type": "string",
-          "description": "Binding specification identifier, exact and opaque (e.g. openbindings.openapi@1)."
+          "description": "Binding specification identifier governing this source."
         },
         "name": {
           "type": "string",
-          "description": "Key for this source in the output interface's sources."
+          "description": "Key name for this binding source in the output."
         },
         "location": {
           "type": "string",
@@ -757,11 +757,11 @@
         },
         "outputLocation": {
           "type": "string",
-          "description": "Location to reference in the output interface's source."
+          "description": "Location to reference in the output."
         },
         "embed": {
           "type": "boolean",
-          "description": "If true, embed content inline in the output interface."
+          "description": "If true, embed content inline in the output."
         },
         "description": {
           "type": "string",
@@ -790,14 +790,14 @@
       "properties": {
         "openbindingsVersion": {
           "type": "string",
-          "description": "Target OpenBindings spec version (e.g. 0.2.0)."
+          "description": "Target OpenBindings spec version."
         },
         "sources": {
           "type": "array",
           "items": {
             "$ref": "#/schemas/SynthesizeInterfaceSource"
           },
-          "description": "Binding sources to extract from."
+          "description": "Binding sources to synthesize from."
         },
         "name": {
           "type": "string",
@@ -828,6 +828,7 @@
     },
     "SourceInspection": {
       "type": "object",
+      "description": "Inspection result for a binding source artifact. Its inventory boundary is the targets admitted by the governing binding specification, not every interaction in the upstream artifact.",
       "properties": {
         "targets": {
           "type": "array",
@@ -837,21 +838,43 @@
         },
         "exhaustive": {
           "type": "boolean",
-          "description": "True if every bindable target in the source is listed."
+          "description": "True when targets is the complete list of targets admitted by the governing binding specification. False means more admitted targets may exist and requires limitation evidence."
+        },
+        "limitation": {
+          "$ref": "#/schemas/InspectionLimitation"
         }
       },
       "required": [
         "targets",
         "exhaustive"
       ],
-      "additionalProperties": true
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "exhaustive": {
+                "const": false
+              }
+            },
+            "required": [
+              "exhaustive"
+            ]
+          },
+          "then": {
+            "required": [
+              "limitation"
+            ]
+          }
+        }
+      ]
     },
     "BindableTarget": {
       "type": "object",
+      "description": "A target admitted by the source's governing binding specification that can be framed as an OpenBindings operation. Any included framing is a sound projection of this same target.",
       "properties": {
         "ref": {
           "type": "string",
-          "description": "Reference within the source identifying this target."
+          "description": "Reference string a conforming binding entry can use under the governing binding specification."
         },
         "operationKey": {
           "type": "string",
@@ -863,8 +886,7 @@
       },
       "required": [
         "ref"
-      ],
-      "additionalProperties": true
+      ]
     },
     "Operation": {
       "type": "object",
@@ -1487,12 +1509,12 @@
     },
     "BindingContext": {
       "type": "object",
-      "description": "Opaque runtime context for invocation, typically sourced from a context store. Well-known credential fields: bearerToken, apiKey, basic (username/password), accessToken/refreshToken/expiresAt for OAuth. Well-known transport fields: headers/cookies/environment (string-valued objects) and metadata. Implementations and callers MAY add fields; drivers SHOULD ignore fields they don't recognize.",
+      "description": "Opaque context supplied by value for one binding invocation. The contract neither requires nor exposes a context store; callers may assemble this object from per-call values, durable state, a credential broker, or any other source before invocation. Well-known credential fields: 'bearerToken' (string), 'apiKey' (string), 'apiKeys' (object mapping a requirement's 'name' to its key), 'basic' (object with 'username' and 'password'), and 'accessToken' / 'refreshToken' / 'expiresAt' for OAuth. Well-known transport fields: 'headers' / 'cookies' / 'environment' (objects with string values) and 'metadata' (object with arbitrary values). Well-known configuration field: 'configuration' (object), keyed by configuration-point name and interpreted by the specification that defines each point. Implementations and callers MAY add fields for session state, consent, or other runtime data; consumers SHOULD ignore fields they do not recognize unless the governing binding specification says otherwise. Credential fields are secret, and any other field may also be secret according to its requirement family, binding specification, or application policy.",
       "additionalProperties": true
     },
     "BindingInvocationInput": {
       "type": "object",
-      "description": "Initial payload carried by the open frame: identifies the binding to invoke and provides context.",
+      "description": "Initial payload carried by the `open` input frame: identifies the binding to invoke and provides context.",
       "properties": {
         "source": {
           "$ref": "#/schemas/Source"
@@ -1512,14 +1534,14 @@
       "additionalProperties": false
     },
     "BindingInvokerInputFrame": {
-      "description": "One frame from the caller into invokeBinding. The caller streams: exactly one `open` first (carrying the BindingInvocationInput), then zero or more `input` frames, then exactly one `close`.",
+      "description": "One frame from the caller into invokeBinding. The caller streams a sequence: exactly one `open` frame first (carrying the BindingInvocationInput), then zero or more `input` frames carrying values to deliver to the underlying binding, then exactly one `close` frame signaling no more input.",
       "discriminator": {
         "propertyName": "kind"
       },
       "oneOf": [
         {
-          "type": "object",
           "title": "open",
+          "type": "object",
           "description": "Open the invocation. MUST be the first frame on the input stream.",
           "properties": {
             "kind": {
@@ -1536,9 +1558,9 @@
           "additionalProperties": false
         },
         {
-          "type": "object",
           "title": "input",
-          "description": "Write one input value to the underlying binding. The value's schema is the underlying operation's, not this contract's.",
+          "type": "object",
+          "description": "Write one input value to the underlying binding. The value's schema is determined by the underlying binding's operation, not by this contract.",
           "properties": {
             "kind": {
               "const": "input"
@@ -1554,9 +1576,9 @@
           "additionalProperties": false
         },
         {
-          "type": "object",
           "title": "close",
-          "description": "Caller signals no more input frames will be sent. Idempotent.",
+          "type": "object",
+          "description": "Caller signals that no more input frames will be sent. Idempotent.",
           "properties": {
             "kind": {
               "const": "close"
@@ -1570,15 +1592,15 @@
       ]
     },
     "BindingInvokerOutputFrame": {
-      "description": "One frame from the service back to the caller. Zero or more non-terminal frames (`output`, `input_closed`) followed by exactly one terminal frame (`complete` or `error`).",
+      "description": "One frame from the service back to the caller. The service streams a sequence: zero or more non-terminal frames (`output`, `input_closed`) followed by exactly one terminal frame (`complete` or `error`).",
       "discriminator": {
         "propertyName": "kind"
       },
       "oneOf": [
         {
-          "type": "object",
           "title": "output",
-          "description": "One output value from the underlying binding. Opaque at this layer.",
+          "type": "object",
+          "description": "One output value from the underlying binding. The value's schema is determined by the underlying binding's operation, not by this contract.",
           "properties": {
             "kind": {
               "const": "output"
@@ -1594,9 +1616,9 @@
           "additionalProperties": false
         },
         {
-          "type": "object",
           "title": "input_closed",
-          "description": "The binding has closed the input side from its end. Subsequent caller input frames are ignored. Outputs may still flow.",
+          "type": "object",
+          "description": "Binding has closed the input side from its end (e.g., a unary binding closes input after the first read). Subsequent caller `input` frames are ignored (never written; see rule 3). The invocation continues; outputs may still flow.",
           "properties": {
             "kind": {
               "const": "input_closed"
@@ -1608,9 +1630,9 @@
           "additionalProperties": false
         },
         {
-          "type": "object",
           "title": "complete",
-          "description": "Terminal: the binding completed normally. MUST be the last frame.",
+          "type": "object",
+          "description": "Terminal: the underlying binding completed normally. MUST be the last frame.",
           "properties": {
             "kind": {
               "const": "complete"
@@ -1622,9 +1644,9 @@
           "additionalProperties": false
         },
         {
-          "type": "object",
           "title": "error",
-          "description": "Terminal: the binding failed. MUST be the last frame. Carries a structured InvocationError.",
+          "type": "object",
+          "description": "Terminal: the underlying binding failed. MUST be the last frame. Carries a structured InvocationError.",
           "properties": {
             "kind": {
               "const": "error"
@@ -1809,7 +1831,7 @@
     },
     "InvocationError": {
       "type": "object",
-      "description": "Structured error carried by an `error` output frame. Indicates terminal failure of the invocation. Codes named by a normative rule of either invoker contract — binding-invoker or its operation-invoker peer — (CONTEXT_REQUIRED, ERR_PROTOCOL, ERR_TRANSPORT_CLOSED, ERR_CANCELLED, ERR_VALIDATION_FAILED, ERR_BINDING_NOT_FOUND) are normative where named; other codes are recommended conventions (see the binding-invoker README's registry), and consumers SHOULD handle unknown codes gracefully.",
+      "description": "Structured error carried by an `error` output frame. Indicates terminal failure of the invocation. Codes named by a normative rule of either invoker contract — binding-invoker or its operation-invoker peer — (CONTEXT_REQUIRED, ERR_PROTOCOL, ERR_TRANSPORT_CLOSED, ERR_CANCELLED, ERR_VALIDATION_FAILED, ERR_BINDING_NOT_FOUND, ERR_BINDING_SELECTION_REQUIRED) are normative where named; other codes are recommended conventions (see the binding-invoker README's registry), and consumers SHOULD handle unknown codes gracefully.",
       "properties": {
         "code": {
           "type": "string",
@@ -1854,21 +1876,23 @@
     },
     "ContextRequiredDetails": {
       "type": "object",
-      "description": "The details payload of a CONTEXT_REQUIRED error, and the return shape of prepareBinding. Enumerates the context the invoker needs. `alternatives` are disjunctive (satisfy ANY one); the requirements within an alternative are conjunctive (satisfy ALL). This OR-of-AND shape captures semantics such as 'OAuth2 OR (apiKey AND clientCert)'.",
+      "description": "The `details` payload of an InvocationError whose `code` is CONTEXT_REQUIRED, and the return shape of this contract's preflight operation. Enumerates the context the invoker needs before it can proceed. `alternatives` are disjunctive: satisfying ANY one suffices. The `requirements` within a single alternative are conjunctive: ALL must be satisfied. This OR-of-AND shape captures real authentication semantics such as 'OAuth2 OR (apiKey AND clientCert)', which a flat list cannot. A challenge is a scope, not a hint: a caller that resolves it MUST provision only the context needed for one selected alternative and MUST NOT disclose unrelated credentials. The interface supplies context by value and exposes no context-store access.",
       "properties": {
         "target": {
           "type": "string",
-          "description": "The target the binding addresses; the runtime derives a storage key from it."
+          "description": "Opaque identifier for the concrete destination or context scope the invoker is about to use. A runtime MAY use it to scope resolution or reuse and MAY compare it with independently derived source information before releasing secrets. Interpretation, verification, normalization, hierarchy, key derivation, and persistence policy are outside this contract."
         },
         "alternatives": {
           "type": "array",
           "minItems": 1,
+          "description": "Disjunctive set of ways to satisfy the requirement. A resolving caller selects one alternative whose every requirement it can resolve and provisions only the context needed for that alternative, never unrelated credentials.",
           "items": {
             "type": "object",
             "properties": {
               "requirements": {
                 "type": "array",
                 "minItems": 1,
+                "description": "Conjunctive set: every requirement in this alternative must be resolved for the alternative to be satisfied.",
                 "items": {
                   "$ref": "#/schemas/ContextRequirement"
                 }
@@ -1876,32 +1900,49 @@
             },
             "required": [
               "requirements"
-            ],
-            "additionalProperties": false
+            ]
           }
         }
       },
       "required": [
         "target",
         "alternatives"
-      ],
-      "additionalProperties": false
+      ]
     },
     "ContextRequirement": {
       "type": "object",
-      "description": "One prerequisite that must be satisfied before invocation, resolved into context. `type` names the requirement family (e.g. auth.bearer, auth.oauth2, auth.basic, auth.apiKey, approval.user, config.value); remaining fields are type-specific. A runtime dispatches each requirement to a resolver registered for its type.",
+      "description": "One prerequisite that must be satisfied before a binding can be invoked. `type` names the requirement family; the remaining fields are type-specific. The well-known `auth.*` family resolves into BindingContext credential fields: `auth.bearer` produces 'bearerToken', `auth.apiKey` produces 'apiKey' (or a scheme-keyed entry in 'apiKeys' when the requirement carries a `name`), `auth.basic` produces 'basic', and `auth.oauth2` produces 'accessToken' (carrying flow fields such as 'grantType', 'authorizeUrl', 'tokenUrl', and 'scopes'). The `config.value` family carries a configuration value a binding needs but the artifact does not supply: it carries 'point' and 'key' (and optional 'choices') and resolves into the 'configuration' context field under 'point'. Other families (e.g. 'approval.user', 'account.link') resolve into their own context fields. Resolution architecture and value secrecy beyond the always-secret credential fields are determined by the requirement family, governing binding specification, and caller.",
       "properties": {
         "type": {
           "type": "string",
-          "description": "Requirement type identifier."
+          "description": "Requirement type identifier, e.g. 'auth.bearer', 'auth.oauth2', 'auth.basic', 'auth.apiKey', 'approval.user', 'config.value'. An unrecognized type is unsatisfiable by a runtime that has no way to satisfy it. An invoker may surface an artifact-defined scheme as an extension requirement only when it knows how the resulting context will be applied faithfully; an invoker that cannot represent or apply a prerequisite refuses before dispatch rather than emitting a satisfiable-looking challenge or attempting the interaction without it."
+        },
+        "name": {
+          "type": "string",
+          "description": "The scheme name as the source artifact declares it (e.g. an OpenAPI securitySchemes key). Distinguishes two requirements of the same type within one alternative — two ANDed API keys are otherwise indistinguishable — and keys scheme-scoped credential lookup (see BindingContext's 'apiKeys')."
+        },
+        "point": {
+          "type": "string",
+          "description": "config.value only: the binding-specification configuration point the value belongs to ('server', 'address', a family's decode point, …). The resolved value is carried in the 'configuration' context field under this point; the value's shape there is the invoker's own (configuration carriage is implementation surface, not contract)."
+        },
+        "key": {
+          "type": "string",
+          "description": "config.value only: the specific value needed within 'point' — a server-variable name, or 'address' for a whole channel address."
+        },
+        "choices": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "config.value only: values declared by the source artifact, suitable for rendering as a picker. Whether an off-list value is valid is defined by the governing binding specification: a closed artifact enum is enforced; an advisory list remains advisory."
         },
         "description": {
           "type": "string",
-          "description": "Human-readable description shown during resolution."
+          "description": "Human-readable description shown to a user or operator during resolution (e.g. an approval prompt message)."
         },
         "durable": {
           "type": "boolean",
-          "description": "Whether resolved context MAY be cached under the challenge key and reused (true; e.g. credentials), or MUST be satisfied freshly each time (false; e.g. a one-shot approval). Defaults to true."
+          "description": "Whether resolved context for this requirement MAY be persisted and reused for later invocations (true), or MUST be satisfied freshly and MUST NOT be persisted or reused (false). Defaults to true. This permission does not require persistence or prescribe a store, key, or reuse policy."
         }
       },
       "required": [
@@ -2535,7 +2576,7 @@
         "synthesize",
         "inspect"
       ],
-      "description": "One of ob's three format-handling needs, mapping to the published interface a delegate satisfies for it: invoke (binding-invoker), synthesize (interface-synthesizer), inspect (source-inspector). A capability is ob's shorthand for the operation it delegates; a delegate offers whichever subset it satisfies."
+      "description": "One of ob's three binding-specification handling needs, derived from a minimal operation subset of a published interface: invoke (binding-invoker), synthesize (interface-synthesizer), inspect (source-inspector). A delegate offers whichever subsets it satisfies; operations outside a subset remain independent capabilities."
     },
     "DelegateBindingSpecInfo": {
       "type": "object",
@@ -3081,7 +3122,7 @@
         },
         "preference": {
           "type": "number",
-          "description": "Binding selection preference (higher = more preferred)."
+          "description": "Author preference signal (higher = more preferred); this field does not itself select a binding."
         },
         "inputTransform": {
           "type": "string",
@@ -3169,6 +3210,31 @@
         "interface"
       ],
       "additionalProperties": false
+    },
+    "InspectionLimitation": {
+      "type": "object",
+      "description": "Machine-readable evidence explaining why a source inspection is not exhaustive.",
+      "properties": {
+        "code": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9]*(?:[._-][a-z0-9]+)+$",
+          "description": "Stable namespaced reason code."
+        },
+        "message": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Human-readable explanation of what may be missing and why."
+        },
+        "details": {
+          "type": "object",
+          "description": "Optional implementation- or family-specific structured evidence.",
+          "additionalProperties": true
+        }
+      },
+      "required": [
+        "code",
+        "message"
+      ]
     }
   }
 }

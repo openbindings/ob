@@ -29,6 +29,8 @@ func registerBindingRoutes(srv *server.Server, logger *slog.Logger) {
 	mux := srv.Mux()
 	mux.HandleFunc("GET /bindings/invoke", handleBindingInvoke(srv, logger))
 	mux.HandleFunc("POST /bindings/prepare", handleBindingPrepare(logger))
+	mux.HandleFunc("GET /operations/invoke", handleOperationInvoke(srv, logger))
+	mux.HandleFunc("POST /operations/prepare", handleOperationPrepare(logger))
 	mux.HandleFunc("POST /interfaces/synthesize", handleInterfaceSynthesize)
 	mux.HandleFunc("POST /sources/inspect", handleSourceInspect)
 }
@@ -40,35 +42,11 @@ func registerBindingRoutes(srv *server.Server, logger *slog.Logger) {
 // One connection carries exactly one invocation.
 func handleBindingInvoke(srv *server.Server, logger *slog.Logger) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		if !server.IsWebSocketUpgrade(r) {
-			http.Error(w, "websocket upgrade required (binding-invoker frame protocol)", http.StatusUpgradeRequired)
-			return
-		}
-
-		// Authenticate the upgrade request itself: Authorization header for
-		// clients that can set one, `token` query parameter for browsers
-		// (which can't set headers on WebSocket upgrades). The frame protocol
-		// carries no transport credentials — the open frame's context is the
-		// DOWNSTREAM binding's context, never this server's session token.
-		if !srv.IsValidToken(wsAuthToken(r)) {
-			logger.Warn("websocket auth failure", "remote_addr", r.RemoteAddr)
-			http.Error(w, "unauthorized", http.StatusUnauthorized)
-			return
-		}
-
-		// Origin checking is skipped to match the CORS policy (any HTTPS
-		// origin + any localhost origin). The session token on the upgrade
-		// request is the security boundary, not the origin header.
-		conn, err := websocket.Accept(w, r, &websocket.AcceptOptions{
-			InsecureSkipVerify: true,
-		})
-		if err != nil {
-			logger.Error("websocket accept failed", "error", err)
+		conn := acceptInvocationWebSocket(w, r, srv, logger, "binding-invoker")
+		if conn == nil {
 			return
 		}
 		defer conn.Close(websocket.StatusInternalError, "unexpected close")
-
-		conn.SetReadLimit(maxRequestBodyBytes)
 
 		// The lifetime ctx must be cancelled when the client disconnects.
 		// websocket.Accept hijacks the connection, so r.Context() is no
@@ -78,15 +56,63 @@ func handleBindingInvoke(srv *server.Server, logger *slog.Logger) http.HandlerFu
 		ctx, cancel := context.WithCancel(r.Context())
 		defer cancel()
 
-		serveFrameStream(ctx, cancel, conn, logger)
+		serveBindingFrameStream(ctx, cancel, conn, logger)
 	}
+}
+
+// handleOperationInvoke serves invokeOperation over the same frame transport
+// as invokeBinding. The open payload carries the interface plus an operation
+// or binding key; subsequent input/output frames are cardinality-agnostic.
+func handleOperationInvoke(srv *server.Server, logger *slog.Logger) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		conn := acceptInvocationWebSocket(w, r, srv, logger, "operation-invoker")
+		if conn == nil {
+			return
+		}
+		defer conn.Close(websocket.StatusInternalError, "unexpected close")
+
+		ctx, cancel := context.WithCancel(r.Context())
+		defer cancel()
+		serveOperationFrameStream(ctx, cancel, conn, logger)
+	}
+}
+
+// acceptInvocationWebSocket applies the transport policy shared by both frame
+// endpoints before the HTTP connection is upgraded. The frame context is for
+// the downstream binding and never carries this server's transport token.
+func acceptInvocationWebSocket(w http.ResponseWriter, r *http.Request, srv *server.Server, logger *slog.Logger, protocol string) *websocket.Conn {
+	if !server.IsWebSocketUpgrade(r) {
+		writeErrorJSON(w, http.StatusUpgradeRequired, "upgrade_required", "WebSocket upgrade required ("+protocol+" frame protocol)")
+		return nil
+	}
+	if !srv.IsValidToken(wsAuthToken(r)) {
+		logger.Warn("websocket auth failure", "remote_addr", r.RemoteAddr)
+		writeErrorJSON(w, http.StatusUnauthorized, "unauthorized", "a valid bearer token is required")
+		return nil
+	}
+	if origin := r.Header.Get("Origin"); origin != "" && !srv.AllowsOrigin(origin) {
+		logger.Warn("websocket origin rejected", "origin", origin, "remote_addr", r.RemoteAddr)
+		writeErrorJSON(w, http.StatusForbidden, "origin_forbidden", "WebSocket origin is not allowed")
+		return nil
+	}
+
+	// Origin validation happened above. InsecureSkipVerify disables the
+	// library's narrower same-origin default so the shared CORS policy wins.
+	conn, err := websocket.Accept(w, r, &websocket.AcceptOptions{InsecureSkipVerify: true})
+	if err != nil {
+		logger.Error("websocket accept failed", "error", err)
+		return nil
+	}
+	conn.SetReadLimit(maxRequestBodyBytes)
+	return conn
 }
 
 // wsAuthToken extracts the session token from a WebSocket upgrade request:
 // the Authorization header when present, else the `token` query parameter.
 func wsAuthToken(r *http.Request) string {
-	if auth := r.Header.Get("Authorization"); strings.HasPrefix(auth, "Bearer ") {
-		return strings.TrimPrefix(auth, "Bearer ")
+	parts := strings.Fields(r.Header.Get("Authorization"))
+	if len(parts) == 2 && strings.EqualFold(parts[0], "Bearer") {
+		return parts[1]
 	}
 	return r.URL.Query().Get("token")
 }
@@ -111,14 +137,15 @@ func (fw *frameWriter) write(ctx context.Context, frame frames.OutputFrame) erro
 	return wsjson.Write(ctx, fw.conn, frame)
 }
 
-// serveFrameStream drives one frame-protocol invocation over an accepted
-// connection. Frame-protocol rules enforced here: the first frame must be
+// serveBindingFrameStream opens one binding-layer frame invocation, then hands
+// the common input/output lifecycle to driveFrameStream.
+// Frame-protocol rules enforced here: the first frame must be
 // `open` (rule 1), a second `open` is a violation (rule 2), input after input
 // closure from either side is ignored with a diagnostic (rule 3), exactly one
 // terminal frame ends the stream (rule 4), and strict decoding rejects
 // unknown frame properties (rule 7). CONTEXT_REQUIRED and every other
 // terminal from the invocation handle pass through as the error frame.
-func serveFrameStream(ctx context.Context, cancel context.CancelFunc, conn *websocket.Conn, logger *slog.Logger) {
+func serveBindingFrameStream(ctx context.Context, cancel context.CancelFunc, conn *websocket.Conn, logger *slog.Logger) {
 	writer := &frameWriter{conn: conn}
 
 	// Rule 1: the first frame must be `open`; anything else (including a
@@ -156,6 +183,54 @@ func serveFrameStream(ctx context.Context, cancel context.CancelFunc, conn *webs
 		Ref:     open.Input.Ref,
 		Context: open.Input.Context,
 	})
+	driveFrameStream(ctx, cancel, conn, logger, writer, inv)
+}
+
+// serveOperationFrameStream opens one operation-layer frame invocation.
+func serveOperationFrameStream(ctx context.Context, cancel context.CancelFunc, conn *websocket.Conn, logger *slog.Logger) {
+	writer := &frameWriter{conn: conn}
+	first, err := readInputFrame(ctx, conn)
+	if err != nil {
+		return
+	}
+	var open frames.OperationInputFrame
+	if uerr := json.Unmarshal(first, &open); uerr != nil {
+		_ = writer.write(ctx, frames.Error(&openbindings.InvocationError{
+			Code: openbindings.ErrCodeProtocol, Message: uerr.Error(),
+		}))
+		conn.Close(websocket.StatusNormalClosure, "")
+		return
+	}
+	if open.Kind != frames.KindOpen {
+		_ = writer.write(ctx, frames.Error(&openbindings.InvocationError{
+			Code: openbindings.ErrCodeProtocol, Message: "first frame must be open, got " + open.Kind,
+		}))
+		conn.Close(websocket.StatusNormalClosure, "")
+		return
+	}
+
+	logger.Info("operations/invoke (frames)", "operation", open.Input.Operation, "binding", open.Input.Binding)
+	inv := app.InvokeOperationHandle(ctx, app.OperationHandleInput{
+		Interface: open.Input.Interface,
+		Operation: open.Input.Operation,
+		Binding:   open.Input.Binding,
+		Context:   open.Input.Context,
+	})
+	driveFrameStream(ctx, cancel, conn, logger, writer, inv)
+}
+
+// driveFrameStream serializes an invocation handle over the shared frame
+// lifecycle. Frame-protocol rules enforced here: a second open is a
+// violation, input after closure is ignored, and exactly one terminal frame
+// ends the stream.
+func driveFrameStream(
+	ctx context.Context,
+	cancel context.CancelFunc,
+	conn *websocket.Conn,
+	logger *slog.Logger,
+	writer *frameWriter,
+	inv openbindings.Invocation[any, any],
+) {
 
 	// A protocol violation after open (second open, undecodable frame)
 	// terminates the invocation; the violation's error replaces the handle's
@@ -236,6 +311,13 @@ func readInputFrames(
 			cancel()
 			return
 		}
+		var header struct {
+			Kind string `json:"kind"`
+		}
+		if uerr := json.Unmarshal(raw, &header); uerr == nil && header.Kind == frames.KindOpen {
+			violation("second open frame")
+			return
+		}
 		var frame frames.InputFrame
 		if uerr := json.Unmarshal(raw, &frame); uerr != nil {
 			violation(uerr.Error()) // rules 1/7: malformed or unknown-property frame
@@ -243,7 +325,7 @@ func readInputFrames(
 		}
 		switch frame.Kind {
 		case frames.KindOpen:
-			violation("second open frame") // rule 2
+			violation("second open frame")
 			return
 		case frames.KindInput:
 			if callerClosed.Load() || inputSideClosed(inv) {
@@ -296,15 +378,18 @@ func readInputFrame(ctx context.Context, conn *websocket.Conn) ([]byte, error) {
 // null when requirements cannot be determined statically.
 func handleBindingPrepare(logger *slog.Logger) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
+		if !validateJSONMediaType(w, r) {
+			return
+		}
 		r.Body = http.MaxBytesReader(w, r.Body, maxRequestBodyBytes)
 		raw, err := io.ReadAll(r.Body)
 		if err != nil {
-			writeJSON(w, http.StatusBadRequest, ErrorResponse{Error: "invalid request body"})
+			writeRequestDecodeError(w, err)
 			return
 		}
 		input, derr := frames.DecodeInvocationInput(raw)
 		if derr != nil {
-			writeJSON(w, http.StatusBadRequest, ErrorResponse{Error: derr.Error()})
+			writeErrorJSON(w, http.StatusBadRequest, "invalid_request", derr.Error())
 			return
 		}
 
@@ -320,7 +405,42 @@ func handleBindingPrepare(logger *slog.Logger) http.HandlerFunc {
 			Context: input.Context,
 		})
 		if perr != nil {
-			writeJSON(w, http.StatusBadRequest, ErrorResponse{Error: perr.Error()})
+			writeErrorJSON(w, http.StatusBadRequest, "preflight_failed", perr.Error())
+			return
+		}
+		writeJSON(w, http.StatusOK, details)
+	}
+}
+
+// handleOperationPrepare is the document-valued, by-reference counterpart to
+// handleBindingPrepare.
+func handleOperationPrepare(logger *slog.Logger) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		// Transport adaptation: the OpenAPI artifact wraps the conditional
+		// OperationInvocationInput under `input`, and the bound OBI's input
+		// transform performs the inverse for operation callers.
+		var envelope struct {
+			Input json.RawMessage `json:"input"`
+		}
+		if !decodeRequest(w, r, &envelope) {
+			return
+		}
+		if len(envelope.Input) == 0 {
+			writeErrorJSON(w, http.StatusBadRequest, "invalid_request", "input is required")
+			return
+		}
+		input, derr := frames.DecodeOperationInvocationInput(envelope.Input)
+		if derr != nil {
+			writeErrorJSON(w, http.StatusBadRequest, "invalid_request", derr.Error())
+			return
+		}
+
+		logger.Info("operations/prepare", "operation", input.Operation, "binding", input.Binding)
+		details, perr := app.PrepareInterfaceOperation(
+			r.Context(), input.Interface, input.Operation, input.Binding, input.Context,
+		)
+		if perr != nil {
+			writeErrorJSON(w, http.StatusBadRequest, "preflight_failed", perr.Error())
 			return
 		}
 		writeJSON(w, http.StatusOK, details)
@@ -328,7 +448,6 @@ func handleBindingPrepare(logger *slog.Logger) http.HandlerFunc {
 }
 
 func handleInterfaceSynthesize(w http.ResponseWriter, r *http.Request) {
-	r.Body = http.MaxBytesReader(w, r.Body, maxRequestBodyBytes)
 	var body struct {
 		OpenBindingsVersion string                          `json:"openbindingsVersion,omitempty"`
 		Sources             []app.SynthesizeInterfaceSource `json:"sources,omitempty"`
@@ -336,8 +455,7 @@ func handleInterfaceSynthesize(w http.ResponseWriter, r *http.Request) {
 		Version             string                          `json:"version,omitempty"`
 		Description         string                          `json:"description,omitempty"`
 	}
-	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
-		writeJSON(w, http.StatusBadRequest, ErrorResponse{Error: "invalid request body"})
+	if !decodeRequest(w, r, &body) {
 		return
 	}
 
@@ -349,29 +467,27 @@ func handleInterfaceSynthesize(w http.ResponseWriter, r *http.Request) {
 		Description:         body.Description,
 	})
 	if err != nil {
-		writeJSON(w, http.StatusBadRequest, ErrorResponse{Error: err.Error()})
+		writeErrorJSON(w, http.StatusBadRequest, "synthesis_failed", err.Error())
 		return
 	}
-	writeJSON(w, http.StatusOK, iface)
+	writeOBI(w, http.StatusOK, iface)
 }
 
 func handleSourceInspect(w http.ResponseWriter, r *http.Request) {
-	r.Body = http.MaxBytesReader(w, r.Body, maxRequestBodyBytes)
 	var body struct {
 		Source openbindings.Source `json:"source"`
 	}
-	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
-		writeJSON(w, http.StatusBadRequest, ErrorResponse{Error: "invalid request body"})
+	if !decodeRequest(w, r, &body) {
 		return
 	}
 	if body.Source.BindingSpec == "" {
-		writeJSON(w, http.StatusBadRequest, ErrorResponse{Error: "source.format is required"})
+		writeErrorJSON(w, http.StatusBadRequest, "invalid_request", "source.bindingSpec is required")
 		return
 	}
 
 	result, err := app.InspectSource(r.Context(), &body.Source)
 	if err != nil {
-		writeJSON(w, http.StatusBadRequest, ErrorResponse{Error: err.Error()})
+		writeErrorJSON(w, http.StatusBadRequest, "inspection_failed", err.Error())
 		return
 	}
 	writeJSON(w, http.StatusOK, result)
@@ -380,6 +496,16 @@ func handleSourceInspect(w http.ResponseWriter, r *http.Request) {
 // registerAuthoringRoutes adds interface authoring endpoints (validate, diff, compat).
 func registerAuthoringRoutes(srv *server.Server) {
 	mux := srv.Mux()
+	// Canonical document API.
+	mux.HandleFunc("POST /interfaces/validate", handleValidate)
+	mux.HandleFunc("POST /interfaces/compare", handleDiff)
+	mux.HandleFunc("POST /interfaces/compatibility", handleCompat)
+	mux.HandleFunc("POST /interfaces/conform", handleConform)
+	mux.HandleFunc("POST /interfaces/codegen", handleCodegen)
+	mux.HandleFunc("POST /interfaces/merge", handleMerge)
+
+	// Compatibility aliases from the original preview surface. They remain
+	// callable but are not published in the canonical OpenAPI document.
 	mux.HandleFunc("POST /validate", handleValidate)
 	mux.HandleFunc("POST /diff", handleDiff)
 	mux.HandleFunc("POST /compatibility", handleCompat)
@@ -390,17 +516,11 @@ func registerAuthoringRoutes(srv *server.Server) {
 }
 
 func handleValidate(w http.ResponseWriter, r *http.Request) {
-	r.Body = http.MaxBytesReader(w, r.Body, maxRequestBodyBytes)
 	var body struct {
 		Interface *openbindings.Interface `json:"interface"`
 		Strict    bool                    `json:"strict,omitempty"`
 	}
-	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
-		writeJSON(w, http.StatusBadRequest, ErrorResponse{Error: "invalid request body"})
-		return
-	}
-	if body.Interface == nil {
-		writeJSON(w, http.StatusBadRequest, ErrorResponse{Error: "missing required field: interface"})
+	if !decodeRequest(w, r, &body) || !requireInterface(w, body.Interface) {
 		return
 	}
 
@@ -412,19 +532,17 @@ func handleValidate(w http.ResponseWriter, r *http.Request) {
 }
 
 func handleDiff(w http.ResponseWriter, r *http.Request) {
-	r.Body = http.MaxBytesReader(w, r.Body, maxRequestBodyBytes)
 	var body struct {
 		Baseline    *openbindings.Interface `json:"baseline"`
 		Comparison  *openbindings.Interface `json:"comparison,omitempty"`
 		FromSources bool                    `json:"fromSources,omitempty"`
 		Only        string                  `json:"only,omitempty"`
 	}
-	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
-		writeJSON(w, http.StatusBadRequest, ErrorResponse{Error: "invalid request body"})
+	if !decodeRequest(w, r, &body) {
 		return
 	}
 	if body.Baseline == nil {
-		writeJSON(w, http.StatusBadRequest, ErrorResponse{Error: "missing required field: baseline"})
+		writeErrorJSON(w, http.StatusBadRequest, "invalid_request", "baseline is required")
 		return
 	}
 
@@ -435,24 +553,22 @@ func handleDiff(w http.ResponseWriter, r *http.Request) {
 		OnlySource:          body.Only,
 	})
 	if err != nil {
-		writeJSON(w, http.StatusBadRequest, ErrorResponse{Error: err.Error()})
+		writeErrorJSON(w, http.StatusBadRequest, "comparison_failed", err.Error())
 		return
 	}
 	writeJSON(w, http.StatusOK, report)
 }
 
 func handleCompat(w http.ResponseWriter, r *http.Request) {
-	r.Body = http.MaxBytesReader(w, r.Body, maxRequestBodyBytes)
 	var body struct {
 		Target    *openbindings.Interface `json:"target"`
 		Candidate *openbindings.Interface `json:"candidate"`
 	}
-	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
-		writeJSON(w, http.StatusBadRequest, ErrorResponse{Error: "invalid request body"})
+	if !decodeRequest(w, r, &body) {
 		return
 	}
 	if body.Target == nil || body.Candidate == nil {
-		writeJSON(w, http.StatusBadRequest, ErrorResponse{Error: "missing required fields: target, candidate"})
+		writeErrorJSON(w, http.StatusBadRequest, "invalid_request", "target and candidate are required")
 		return
 	}
 
@@ -466,18 +582,16 @@ func handleCompat(w http.ResponseWriter, r *http.Request) {
 }
 
 func handleConform(w http.ResponseWriter, r *http.Request) {
-	r.Body = http.MaxBytesReader(w, r.Body, maxRequestBodyBytes)
 	var body struct {
 		Interface *openbindings.Interface `json:"interface"`
 		Target    *openbindings.Interface `json:"target"`
 		DryRun    bool                    `json:"dryRun,omitempty"`
 	}
-	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
-		writeJSON(w, http.StatusBadRequest, ErrorResponse{Error: "invalid request body"})
+	if !decodeRequest(w, r, &body) {
 		return
 	}
 	if body.Interface == nil || body.Target == nil {
-		writeJSON(w, http.StatusBadRequest, ErrorResponse{Error: "missing required fields: interface, target"})
+		writeErrorJSON(w, http.StatusBadRequest, "invalid_request", "interface and target are required")
 		return
 	}
 	// Non-interactive on the wire: accept all scaffolding/replacements. With no
@@ -493,18 +607,12 @@ func handleConform(w http.ResponseWriter, r *http.Request) {
 }
 
 func handleCodegen(w http.ResponseWriter, r *http.Request) {
-	r.Body = http.MaxBytesReader(w, r.Body, maxRequestBodyBytes)
 	var body struct {
 		Interface *openbindings.Interface `json:"interface"`
 		Language  string                  `json:"language"`
 		Package   string                  `json:"package,omitempty"`
 	}
-	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
-		writeJSON(w, http.StatusBadRequest, ErrorResponse{Error: "invalid request body"})
-		return
-	}
-	if body.Interface == nil {
-		writeJSON(w, http.StatusBadRequest, ErrorResponse{Error: "missing required field: interface"})
+	if !decodeRequest(w, r, &body) || !requireInterface(w, body.Interface) {
 		return
 	}
 	lang := body.Language
@@ -515,12 +623,12 @@ func handleCodegen(w http.ResponseWriter, r *http.Request) {
 		lang = "go"
 	}
 	if lang != "typescript" && lang != "go" {
-		writeJSON(w, http.StatusBadRequest, ErrorResponse{Error: "unsupported language (want typescript or go)"})
+		writeErrorJSON(w, http.StatusBadRequest, "unsupported_language", "language must be typescript or go")
 		return
 	}
 	result, err := codegen.Generate(body.Interface)
 	if err != nil {
-		writeJSON(w, http.StatusBadRequest, ErrorResponse{Error: err.Error()})
+		writeErrorJSON(w, http.StatusBadRequest, "codegen_failed", err.Error())
 		return
 	}
 	var code string
@@ -534,7 +642,6 @@ func handleCodegen(w http.ResponseWriter, r *http.Request) {
 }
 
 func handleMerge(w http.ResponseWriter, r *http.Request) {
-	r.Body = http.MaxBytesReader(w, r.Body, maxRequestBodyBytes)
 	var body struct {
 		Target            *openbindings.Interface `json:"target"`
 		Source            *openbindings.Interface `json:"source,omitempty"`
@@ -546,12 +653,11 @@ func handleMerge(w http.ResponseWriter, r *http.Request) {
 		NoBindings        bool                    `json:"noBindings,omitempty"`
 		NoSources         bool                    `json:"noSources,omitempty"`
 	}
-	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
-		writeJSON(w, http.StatusBadRequest, ErrorResponse{Error: "invalid request body"})
+	if !decodeRequest(w, r, &body) {
 		return
 	}
 	if body.Target == nil {
-		writeJSON(w, http.StatusBadRequest, ErrorResponse{Error: "missing required field: target"})
+		writeErrorJSON(w, http.StatusBadRequest, "invalid_request", "target is required")
 		return
 	}
 	// Non-interactive: apply all actionable entries and return the merged
@@ -569,28 +675,22 @@ func handleMerge(w http.ResponseWriter, r *http.Request) {
 		All:             true,
 	})
 	if err != nil {
-		writeJSON(w, http.StatusBadRequest, ErrorResponse{Error: err.Error()})
+		writeErrorJSON(w, http.StatusBadRequest, "merge_failed", err.Error())
 		return
 	}
 	writeJSON(w, http.StatusOK, out)
 }
 
 func handleInterfaceStatus(w http.ResponseWriter, r *http.Request) {
-	r.Body = http.MaxBytesReader(w, r.Body, maxRequestBodyBytes)
 	var body struct {
 		Interface *openbindings.Interface `json:"interface"`
 	}
-	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
-		writeJSON(w, http.StatusBadRequest, ErrorResponse{Error: "invalid request body"})
-		return
-	}
-	if body.Interface == nil {
-		writeJSON(w, http.StatusBadRequest, ErrorResponse{Error: "missing required field: interface"})
+	if !decodeRequest(w, r, &body) || !requireInterface(w, body.Interface) {
 		return
 	}
 	out, err := app.OBIStatus(app.OBIStatusInput{Interface: body.Interface})
 	if err != nil {
-		writeJSON(w, http.StatusBadRequest, ErrorResponse{Error: err.Error()})
+		writeErrorJSON(w, http.StatusBadRequest, "status_failed", err.Error())
 		return
 	}
 	writeJSON(w, http.StatusOK, out)

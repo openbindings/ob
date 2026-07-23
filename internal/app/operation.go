@@ -312,8 +312,8 @@ type OperationAddInput struct {
 	Aliases     []string
 	Description string
 	Tags        []string
-	Input       map[string]any
-	Output      map[string]any
+	Input       openbindings.JSONSchema
+	Output      openbindings.JSONSchema
 	Idempotent  *bool
 }
 

@@ -14,8 +14,9 @@ import (
 	openbindings "github.com/openbindings/openbindings-go"
 )
 
-// ContextConfig holds the non-secret fields of a URL-keyed context.
-// Persisted as JSON in <user-config-dir>/openbindings/contexts/<sanitized-url>.json.
+// ContextConfig holds structured non-credential fields of a URL-keyed
+// context. Headers, cookies, environment values, and metadata may still be
+// sensitive, so the file is written with credential-store permissions.
 type ContextConfig struct {
 	URL         string            `json:"url"`
 	Headers     map[string]string `json:"headers,omitempty"`
@@ -96,7 +97,7 @@ func contextConfigPath(url string) (string, error) {
 	return filepath.Join(dir, contextFilename(url)), nil
 }
 
-// LoadContextConfig reads the non-secret config for a URL-keyed context.
+// LoadContextConfig reads the structured config for a URL-keyed context.
 // Returns an empty config (not an error) if no context exists for the URL.
 func LoadContextConfig(rawURL string) (ContextConfig, error) {
 	url := normalizeContextKey(rawURL)
@@ -119,7 +120,8 @@ func LoadContextConfig(rawURL string) (ContextConfig, error) {
 	return cfg, nil
 }
 
-// SaveContextConfig writes the non-secret config for a URL-keyed context.
+// SaveContextConfig writes structured context with owner-only permissions;
+// non-credential does not imply non-sensitive.
 func SaveContextConfig(rawURL string, cfg ContextConfig) error {
 	url := normalizeContextKey(rawURL)
 	dir, err := contextsDir()
@@ -135,7 +137,15 @@ func SaveContextConfig(rawURL string, cfg ContextConfig) error {
 		return fmt.Errorf("marshaling context config: %w", err)
 	}
 	path := filepath.Join(dir, contextFilename(url))
-	return AtomicWriteFile(path, data, FilePerm)
+	// AtomicWriteFile normally preserves an existing mode. Context files from
+	// older releases may be 0644, so harden them before replacement instead of
+	// preserving an unsafe legacy mode.
+	if info, statErr := os.Stat(path); statErr == nil && info.Mode().Perm()&0o077 != 0 {
+		if chmodErr := os.Chmod(path, CredsFilePerm); chmodErr != nil {
+			return fmt.Errorf("securing context config for %q: %w", url, chmodErr)
+		}
+	}
+	return AtomicWriteFile(path, data, CredsFilePerm)
 }
 
 // LoadContextCredentials reads a URL's credentials from the active credential
@@ -259,8 +269,8 @@ func resolveContextURL(targetURL string) string {
 	return ""
 }
 
-// mergeConfigAndCredentials combines stored credentials and the non-secret
-// config into a single unified Context payload. Returns nil if both are empty.
+// mergeConfigAndCredentials combines the two storage lanes into one Context
+// payload. The split is structural, not a secrecy classification.
 func mergeConfigAndCredentials(cfg *ContextConfig, cred map[string]any) map[string]any {
 	hasConfig := cfg != nil && (len(cfg.Headers) > 0 || len(cfg.Cookies) > 0 || len(cfg.Environment) > 0 || len(cfg.Metadata) > 0)
 	if len(cred) == 0 && !hasConfig {

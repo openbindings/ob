@@ -8,11 +8,12 @@ import (
 	openbindings "github.com/openbindings/openbindings-go"
 )
 
-// requirementsFS holds vendored copies of the published interfaces a delegate
-// must satisfy to provide a capability. They are pinned to this ob release and
-// power two things: compat-based capability detection at registration, and the
-// `ob delegate requirements` / serve exposure that lets a prospective delegate
-// author check their software against the exact contract.
+// requirementsFS holds vendored copies of the published interfaces from which
+// ob derives its delegate capability requirements. They are pinned to this ob
+// release. A capability requirement selects only the operations ob actually
+// consumes; correspondence is per-operation, so an invoke-only delegate is not
+// forced to implement prepareBinding and a strict synthesizer is not forced to
+// implement the independent coverage operation.
 //
 //go:embed requirements/*.json
 var requirementsFS embed.FS
@@ -37,28 +38,79 @@ var requirementFiles = map[DelegateCapability]string{
 	CapInspect:    "requirements/source-inspector.json",
 }
 
-// RequirementInterfaceJSON returns the raw embedded JSON for a capability's
-// requirement interface, for emitting or serving it verbatim.
-func RequirementInterfaceJSON(cap DelegateCapability) ([]byte, error) {
+// capabilityRequirementOperations is the minimum published operation set ob
+// uses for each capability. listBindingSpecs is included because ob uses it to
+// establish which source families the delegate can handle.
+var capabilityRequirementOperations = map[DelegateCapability][]string{
+	CapInvoke: {
+		"openbindings.binding-invoker.listBindingSpecs",
+		"openbindings.binding-invoker.invokeBinding",
+	},
+	CapSynthesize: {
+		"openbindings.interface-synthesizer.listBindingSpecs",
+		"openbindings.interface-synthesizer.synthesizeInterface",
+	},
+	CapInspect: {
+		"openbindings.source-inspector.listBindingSpecs",
+		"openbindings.source-inspector.inspectSource",
+	},
+}
+
+func publishedRequirementInterface(cap DelegateCapability) (*openbindings.Interface, error) {
 	name, ok := requirementFiles[cap]
 	if !ok {
 		return nil, fmt.Errorf("unknown delegate capability %q", cap)
 	}
-	return requirementsFS.ReadFile(name)
-}
-
-// RequirementInterface returns the parsed interface a delegate must satisfy to
-// provide the given capability.
-func RequirementInterface(cap DelegateCapability) (*openbindings.Interface, error) {
-	data, err := RequirementInterfaceJSON(cap)
+	data, err := requirementsFS.ReadFile(name)
 	if err != nil {
 		return nil, err
 	}
 	var iface openbindings.Interface
 	if err := json.Unmarshal(data, &iface); err != nil {
-		return nil, fmt.Errorf("parse requirement interface for %q: %w", cap, err)
+		return nil, fmt.Errorf("parse published interface for %q: %w", cap, err)
 	}
 	return &iface, nil
+}
+
+// RequirementInterface returns the minimal interface a delegate must satisfy
+// for the given ob capability. Its operations and schemas are copied from the
+// canonical published interface; only unrelated operations are omitted.
+func RequirementInterface(cap DelegateCapability) (*openbindings.Interface, error) {
+	iface, err := publishedRequirementInterface(cap)
+	if err != nil {
+		return nil, err
+	}
+	required, ok := capabilityRequirementOperations[cap]
+	if !ok {
+		return nil, fmt.Errorf("unknown delegate capability %q", cap)
+	}
+	operations := make(map[string]openbindings.Operation, len(required))
+	for _, key := range required {
+		op, exists := iface.Operations[key]
+		if !exists {
+			return nil, fmt.Errorf("published interface for %q is missing required operation %q", cap, key)
+		}
+		operations[key] = op
+	}
+	iface.Operations = operations
+	iface.Name += " — ob " + string(cap) + " requirement"
+	iface.Description = "The operation subset of the published interface that ob consumes for its " + string(cap) + " delegate capability. Correspondence is evaluated per operation; operations outside this subset are independent capabilities."
+	return iface, nil
+}
+
+// RequirementInterfaceJSON returns the derived capability requirement for
+// printing or serving. It is deterministic and contains the canonical
+// operation/schema definitions from the vendored published interface.
+func RequirementInterfaceJSON(cap DelegateCapability) ([]byte, error) {
+	iface, err := RequirementInterface(cap)
+	if err != nil {
+		return nil, err
+	}
+	data, err := json.MarshalIndent(iface, "", "  ")
+	if err != nil {
+		return nil, fmt.Errorf("encode requirement interface for %q: %w", cap, err)
+	}
+	return append(data, '\n'), nil
 }
 
 // delegateCapabilities returns the capabilities a delegate OBI provides, decided

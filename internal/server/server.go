@@ -6,17 +6,20 @@ import (
 	"crypto/ecdsa"
 	"crypto/elliptic"
 	"crypto/rand"
+	"crypto/sha1" //nolint:gosec // Windows certificate-store identifier, not a security decision.
 	"crypto/subtle"
 	"crypto/tls"
 	"crypto/x509"
 	"crypto/x509/pkix"
 	"encoding/hex"
+	"encoding/json"
 	"encoding/pem"
 	"fmt"
 	"log/slog"
 	"math/big"
 	"net"
 	"net/http"
+	"net/url"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -30,13 +33,16 @@ type contextKey string
 
 const requestIDKey contextKey = "request_id"
 
-// wsInvokePath is the single route whose handler performs its own
+// wsInvokePaths are the routes whose handlers perform their own
 // upgrade-request authentication (Authorization header or `token` query
 // parameter — browsers can't set headers on WebSocket upgrades) and therefore
 // must receive upgrade requests that carry no Authorization header. The
 // auth-middleware exemption is scoped to exactly this path. It must match the
 // route registered on the mux (see internal/cmd/serve_routes.go).
-const wsInvokePath = "/bindings/invoke"
+var wsInvokePaths = map[string]struct{}{
+	"/bindings/invoke":   {},
+	"/operations/invoke": {},
+}
 
 // RequestIDFromContext extracts the request ID set by the request ID middleware.
 func RequestIDFromContext(ctx context.Context) string {
@@ -71,6 +77,9 @@ type Server struct {
 // New creates a new Server. If cfg.Token is set, it is used as the session
 // token; otherwise a cryptographically random token is generated.
 func New(cfg Config) (*Server, error) {
+	if cfg.Logger == nil {
+		cfg.Logger = slog.Default()
+	}
 	token := cfg.Token
 	if token == "" {
 		var err error
@@ -244,8 +253,18 @@ func (s *Server) buildMiddlewareChain(h http.Handler) http.Handler {
 	h = s.corsMiddleware(h)
 	h = s.hostValidation(h)
 	h = s.requestIDMiddleware(h)
+	h = securityHeaders(h)
 	h = s.loggingMiddleware(h)
 	return h
+}
+
+func securityHeaders(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Cache-Control", "no-store")
+		w.Header().Set("X-Content-Type-Options", "nosniff")
+		w.Header().Set("Referrer-Policy", "no-referrer")
+		next.ServeHTTP(w, r)
+	})
 }
 
 func (s *Server) requestIDMiddleware(next http.Handler) http.Handler {
@@ -266,16 +285,23 @@ func generateRequestID() string {
 // hostValidation rejects requests with non-localhost Host headers (DNS rebinding defense).
 func (s *Server) hostValidation(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		host := r.Host
-		if idx := strings.LastIndex(host, ":"); idx >= 0 {
-			host = host[:idx]
-		}
+		host := hostWithoutPort(r.Host)
 		if IsLoopbackHost(host) {
 			next.ServeHTTP(w, r)
 		} else {
-			http.Error(w, "forbidden: non-localhost host header", http.StatusForbidden)
+			writeServerError(w, http.StatusForbidden, "invalid_host", "non-localhost Host header is forbidden")
 		}
 	})
+}
+
+func hostWithoutPort(hostport string) string {
+	if host, _, err := net.SplitHostPort(hostport); err == nil {
+		return host
+	}
+	if strings.HasPrefix(hostport, "[") && strings.HasSuffix(hostport, "]") {
+		return strings.TrimSuffix(strings.TrimPrefix(hostport, "["), "]")
+	}
+	return hostport
 }
 
 // corsMiddleware handles CORS preflight and sets headers for allowed origins.
@@ -287,19 +313,16 @@ func (s *Server) hostValidation(next http.Handler) http.Handler {
 // the user needing to configure --allow-origin. The session token prevents
 // unauthorized access regardless of origin.
 func (s *Server) corsMiddleware(next http.Handler) http.Handler {
-	explicit := make(map[string]bool, len(s.config.AllowedOrigins))
-	for _, o := range s.config.AllowedOrigins {
-		explicit[o] = true
-	}
-
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		origin := r.Header.Get("Origin")
-		if origin != "" && (explicit[origin] || isLocalhostOrigin(origin) || strings.HasPrefix(origin, "https://")) {
+		if origin != "" {
+			w.Header().Add("Vary", "Origin")
+		}
+		if origin != "" && s.AllowsOrigin(origin) {
 			w.Header().Set("Access-Control-Allow-Origin", origin)
 			w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
 			w.Header().Set("Access-Control-Allow-Headers", "Authorization, Content-Type")
 			w.Header().Set("Access-Control-Max-Age", "3600")
-			w.Header().Set("Vary", "Origin")
 
 			// Private Network Access (PNA). Chrome sends this preflight header
 			// when a public-ish origin (HTTP pages that Chrome doesn't treat
@@ -321,11 +344,22 @@ func (s *Server) corsMiddleware(next http.Handler) http.Handler {
 	})
 }
 
+// AllowsOrigin applies the shared browser-origin policy used by both CORS and
+// WebSocket upgrades. Non-browser clients normally send no Origin header.
+func (s *Server) AllowsOrigin(origin string) bool {
+	for _, allowed := range s.config.AllowedOrigins {
+		if origin == allowed {
+			return true
+		}
+	}
+	return isLocalhostOrigin(origin) || isHTTPSOrigin(origin)
+}
+
 // IsLoopbackHost returns true if the hostname (without port or scheme) is a
 // loopback address: localhost, 127.0.0.1, [::1], or ::1. Used for host
 // validation, CORS, OAuth redirect URI checks, and WebSocket origin checks.
 func IsLoopbackHost(host string) bool {
-	return host == "localhost" || host == "127.0.0.1" || host == "[::1]" || host == "::1"
+	return strings.EqualFold(host, "localhost") || host == "127.0.0.1" || host == "[::1]" || host == "::1"
 }
 
 // IsWebSocketUpgrade reports whether r is a genuine WebSocket upgrade request:
@@ -350,18 +384,16 @@ func IsWebSocketUpgrade(r *http.Request) bool {
 // isLocalhostOrigin returns true for origins like http(s)://localhost:PORT or
 // http(s)://127.0.0.1:PORT. Used for the default CORS policy.
 func isLocalhostOrigin(origin string) bool {
-	host := origin
-	if strings.HasPrefix(host, "https://") {
-		host = strings.TrimPrefix(host, "https://")
-	} else if strings.HasPrefix(host, "http://") {
-		host = strings.TrimPrefix(host, "http://")
-	} else {
+	u, err := url.Parse(origin)
+	if err != nil || (u.Scheme != "http" && u.Scheme != "https") || u.Host == "" || u.User != nil {
 		return false
 	}
-	if idx := strings.LastIndex(host, ":"); idx >= 0 {
-		host = host[:idx]
-	}
-	return IsLoopbackHost(host)
+	return IsLoopbackHost(u.Hostname())
+}
+
+func isHTTPSOrigin(origin string) bool {
+	u, err := url.Parse(origin)
+	return err == nil && u.Scheme == "https" && u.Host != "" && u.User == nil
 }
 
 // authMiddleware requires a valid Bearer token on all requests except
@@ -385,32 +417,46 @@ func (s *Server) authMiddleware(next http.Handler) http.Handler {
 		// The WebSocket invocation endpoint authenticates the upgrade request
 		// itself, accepting the token from either the Authorization header or
 		// the `token` query parameter (browsers can't set headers on upgrade
-		// requests). Let genuine upgrade requests to that one route through to
+		// requests). Let genuine upgrade requests to those routes through to
 		// the handler, which authenticates before accepting the upgrade. This
 		// exemption is scoped to the exact route AND requires a real WebSocket
 		// upgrade (Connection: upgrade + Upgrade: websocket), so a spoofed
 		// Upgrade header on any other route — or on a non-upgrade request to
 		// this route — still hits token auth.
-		if path == wsInvokePath && IsWebSocketUpgrade(r) {
+		if _, ok := wsInvokePaths[path]; ok && IsWebSocketUpgrade(r) {
 			next.ServeHTTP(w, r)
 			return
 		}
 
-		auth := r.Header.Get("Authorization")
-		token := strings.TrimPrefix(auth, "Bearer ")
-		if !strings.HasPrefix(auth, "Bearer ") || !s.IsValidToken(token) {
+		token, ok := bearerToken(r.Header.Get("Authorization"))
+		if !ok || !s.IsValidToken(token) {
 			s.logger.Warn("auth failure",
 				"method", r.Method,
 				"path", path,
 				"remote_addr", r.RemoteAddr,
 				"request_id", RequestIDFromContext(r.Context()),
 			)
-			http.Error(w, "unauthorized", http.StatusUnauthorized)
+			writeServerError(w, http.StatusUnauthorized, "unauthorized", "a valid bearer token is required")
 			return
 		}
 
 		next.ServeHTTP(w, r)
 	})
+}
+
+func bearerToken(authorization string) (string, bool) {
+	parts := strings.Fields(authorization)
+	returnToken := ""
+	if len(parts) == 2 && strings.EqualFold(parts[0], "Bearer") {
+		returnToken = parts[1]
+	}
+	return returnToken, returnToken != ""
+}
+
+func writeServerError(w http.ResponseWriter, status int, code, message string) {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(status)
+	_ = json.NewEncoder(w).Encode(map[string]string{"error": message, "code": code})
 }
 
 // loggingMiddleware logs every request with method, path, status, duration, and request ID.
@@ -513,7 +559,10 @@ func ensureLocalhostTLS(logger *slog.Logger) (*tls.Config, error) {
 		return nil, err
 	}
 
-	return &tls.Config{Certificates: []tls.Certificate{leafCert}}, nil
+	return &tls.Config{
+		MinVersion:   tls.VersionTLS12,
+		Certificates: []tls.Certificate{leafCert},
+	}, nil
 }
 
 // loadOrCreateCA returns the CA cert+key. Reports `created=true` if a
@@ -524,11 +573,15 @@ func loadOrCreateCA(certPath, keyPath string, logger *slog.Logger) (*x509.Certif
 			block, _ := pem.Decode(certPEM)
 			if block != nil {
 				caCert, err := x509.ParseCertificate(block.Bytes)
-				if err == nil && time.Now().Before(caCert.NotAfter) {
+				now := time.Now()
+				if err == nil && caCert.IsCA && now.After(caCert.NotBefore) && now.Before(caCert.NotAfter) && caCert.CheckSignatureFrom(caCert) == nil {
 					keyBlock, _ := pem.Decode(keyPEM)
 					if keyBlock != nil {
 						caKey, err := x509.ParseECPrivateKey(keyBlock.Bytes)
-						if err == nil {
+						if err == nil && caKey.PublicKey.Equal(caCert.PublicKey) {
+							if err := os.Chmod(keyPath, 0600); err != nil {
+								return nil, nil, false, fmt.Errorf("securing CA key permissions: %w", err)
+							}
 							return caCert, caKey, false, nil
 						}
 					}
@@ -549,7 +602,7 @@ func loadOrCreateCA(certPath, keyPath string, logger *slog.Logger) (*x509.Certif
 	}
 	caTmpl := &x509.Certificate{
 		SerialNumber:          serial,
-		NotBefore:             time.Now(),
+		NotBefore:             time.Now().Add(-5 * time.Minute),
 		NotAfter:              time.Now().Add(10 * 365 * 24 * time.Hour),
 		KeyUsage:              x509.KeyUsageCertSign | x509.KeyUsageCRLSign,
 		BasicConstraintsValid: true,
@@ -587,8 +640,20 @@ func loadOrCreateCA(certPath, keyPath string, logger *slog.Logger) (*x509.Certif
 
 func loadOrMintLeaf(certPath, keyPath string, caCert *x509.Certificate, caKey *ecdsa.PrivateKey) (tls.Certificate, error) {
 	if existing, err := tls.LoadX509KeyPair(certPath, keyPath); err == nil {
-		if leaf, parseErr := x509.ParseCertificate(existing.Certificate[0]); parseErr == nil {
-			if time.Now().Before(leaf.NotAfter.Add(-24 * time.Hour)) {
+		leaf, parseErr := x509.ParseCertificate(existing.Certificate[0])
+		if parseErr == nil {
+			roots := x509.NewCertPool()
+			roots.AddCert(caCert)
+			_, verifyErr := leaf.Verify(x509.VerifyOptions{
+				DNSName:   "localhost",
+				Roots:     roots,
+				KeyUsages: []x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth},
+			})
+			if verifyErr == nil && time.Now().Before(leaf.NotAfter.Add(-24*time.Hour)) {
+				if err := os.Chmod(keyPath, 0600); err != nil {
+					return tls.Certificate{}, fmt.Errorf("securing leaf key permissions: %w", err)
+				}
+				existing.Leaf = leaf
 				return existing, nil
 			}
 		}
@@ -604,7 +669,7 @@ func loadOrMintLeaf(certPath, keyPath string, caCert *x509.Certificate, caKey *e
 	}
 	leafTmpl := &x509.Certificate{
 		SerialNumber:          serial,
-		NotBefore:             time.Now(),
+		NotBefore:             time.Now().Add(-5 * time.Minute),
 		NotAfter:              time.Now().Add(90 * 24 * time.Hour),
 		KeyUsage:              x509.KeyUsageDigitalSignature,
 		ExtKeyUsage:           []x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth},
@@ -637,7 +702,19 @@ func loadOrMintLeaf(certPath, keyPath string, caCert *x509.Certificate, caKey *e
 // false, we re-run install (covers previous broken installs that landed
 // in the user login keychain without proper trust settings).
 func caIsSystemTrusted(caCert *x509.Certificate, logger *slog.Logger) bool {
-	switch runtime.GOOS {
+	return caIsSystemTrustedFor(runtime.GOOS, caCert, logger,
+		"/usr/local/share/ca-certificates/ob-local-ca.crt",
+		func(name string, args ...string) error { return exec.Command(name, args...).Run() })
+}
+
+// caIsSystemTrustedFor contains the platform decision with its filesystem path
+// and command execution injected, making every platform branch testable on
+// every development host.
+func caIsSystemTrustedFor(goos string, caCert *x509.Certificate, logger *slog.Logger, linuxCertPath string, run func(string, ...string) error) bool {
+	if caCert == nil {
+		return false
+	}
+	switch goos {
 	case "darwin":
 		// `security verify-cert` with the basic policy checks chain validity
 		// against the trust store. A self-signed CA that's been added to the
@@ -650,25 +727,32 @@ func caIsSystemTrusted(caCert *x509.Certificate, logger *slog.Logger) bool {
 			return false
 		}
 		defer os.Remove(tmp)
-		cmd := exec.Command("security", "verify-cert", "-c", tmp, "-p", "basic")
-		if err := cmd.Run(); err != nil {
+		if err := run("security", "verify-cert", "-c", tmp, "-p", "basic"); err != nil {
 			logger.Debug("system CA trust check failed, will reinstall", "error", err)
 			return false
 		}
 		return true
 	case "linux":
-		// Presence in the system cert store is sufficient: update-ca-certificates
-		// builds the pool from there on each run, and Chrome/Firefox on Linux
-		// consult it (plus their own NSS stores, which we don't touch).
-		_, err := os.Stat("/usr/local/share/ca-certificates/ob-local-ca.crt")
-		return err == nil
+		// Verify the installed file is this CA, not merely a stale file under
+		// the expected name.
+		data, err := os.ReadFile(linuxCertPath)
+		if err != nil {
+			return false
+		}
+		block, _ := pem.Decode(data)
+		if block == nil {
+			return false
+		}
+		installed, err := x509.ParseCertificate(block.Bytes)
+		return err == nil && installed.Equal(caCert)
 	case "windows":
-		// certutil -verifystore Root <thumbprint> would be ideal; settle for
-		// presence since Windows trust semantics are well-defined once a cert
-		// is in the Root store.
-		return true
+		// certutil accepts a SHA-1 certificate thumbprint as CertId. SHA-1 is
+		// used only to locate the exact certificate in the Root store; trust is
+		// decided by store membership, not collision resistance here.
+		thumbprint := fmt.Sprintf("%X", sha1.Sum(caCert.Raw))
+		return run("certutil", "-verifystore", "Root", thumbprint) == nil
 	default:
-		return true
+		return false
 	}
 }
 

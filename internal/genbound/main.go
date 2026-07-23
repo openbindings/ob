@@ -46,6 +46,31 @@ func main() {
 	}
 	fmt.Println("genbound: regenerated docs/bound-cli-recipe.md")
 
+	// Canonical HTTP API: generated from the same operation contract and the
+	// explicit route inventory used by the server. This runs before the serve
+	// OBI because that OBI derives its OpenAPI bindings from this artifact.
+	openAPI, err := app.GenerateServeOpenAPI(contractPath, "${OB_SERVER_URL}")
+	if err != nil {
+		fmt.Fprintln(os.Stderr, "genbound: openapi:", err)
+		os.Exit(1)
+	}
+	if err := os.WriteFile("../server/openapi.yaml", openAPI, 0o644); err != nil {
+		fmt.Fprintln(os.Stderr, "genbound: write openapi:", err)
+		os.Exit(1)
+	}
+	fmt.Println("genbound: regenerated internal/server/openapi.yaml")
+
+	asyncAPI, err := app.GenerateServeAsyncAPI(contractPath, "${OB_SERVER_HOST}", "${OB_SERVER_PROTOCOL}")
+	if err != nil {
+		fmt.Fprintln(os.Stderr, "genbound: asyncapi:", err)
+		os.Exit(1)
+	}
+	if err := os.WriteFile("../server/asyncapi.yaml", asyncAPI, 0o644); err != nil {
+		fmt.Fprintln(os.Stderr, "genbound: write asyncapi:", err)
+		os.Exit(1)
+	}
+	fmt.Println("genbound: regenerated internal/server/asyncapi.yaml")
+
 	// Bound serve OBI: contract + openapi.yaml (REST) + WS invoke. MCP is not a
 	// served transport here; it is produced by pointing the bridge at a running
 	// server (`ob mcp <url>`), so the served OBI carries no mcp source/bindings.

@@ -39,6 +39,7 @@ type InvokeSource struct {
 	BindingSpec string          `json:"bindingSpec"`
 	Location    string          `json:"location,omitempty"`
 	Content     json.RawMessage `json:"content,omitempty"`
+	Description string          `json:"description,omitempty"`
 }
 
 // BindingInvocationInput is the payload of the open frame (and the input of
@@ -47,6 +48,16 @@ type BindingInvocationInput struct {
 	Source  InvokeSource   `json:"source"`
 	Ref     string         `json:"ref"`
 	Context map[string]any `json:"context,omitempty"`
+}
+
+// OperationInvocationInput is the payload of invokeOperation's open frame.
+// Exactly one of Operation or Binding is set. Binding-addressed calls derive
+// the operation from the named binding before entering the operation layer.
+type OperationInvocationInput struct {
+	Interface *openbindings.Interface `json:"interface"`
+	Operation string                  `json:"operation,omitempty"`
+	Binding   string                  `json:"binding,omitempty"`
+	Context   map[string]any          `json:"context,omitempty"`
 }
 
 // WireError is the InvocationError wire shape carried by a terminal error
@@ -96,6 +107,85 @@ type InputFrame struct {
 	Kind  string
 	Input *BindingInvocationInput // open
 	Value any                     // input
+}
+
+// OperationInputFrame is one OperationInvokerInputFrame. Its input and close
+// variants deliberately share InputFrame's wire shape; only the open payload
+// differs.
+type OperationInputFrame struct {
+	Kind  string
+	Input *OperationInvocationInput
+	Value any
+}
+
+// OperationOpen constructs an invokeOperation open frame.
+func OperationOpen(input *OperationInvocationInput) OperationInputFrame {
+	return OperationInputFrame{Kind: KindOpen, Input: input}
+}
+
+// OperationValue constructs an invokeOperation input frame.
+func OperationValue(value any) OperationInputFrame {
+	return OperationInputFrame{Kind: KindInput, Value: value}
+}
+
+// OperationClose constructs an invokeOperation close frame.
+func OperationClose() OperationInputFrame { return OperationInputFrame{Kind: KindClose} }
+
+func (f OperationInputFrame) MarshalJSON() ([]byte, error) {
+	switch f.Kind {
+	case KindOpen:
+		return json.Marshal(struct {
+			Kind  string                    `json:"kind"`
+			Input *OperationInvocationInput `json:"input"`
+		}{f.Kind, f.Input})
+	case KindInput:
+		return json.Marshal(struct {
+			Kind  string `json:"kind"`
+			Value any    `json:"value"`
+		}{f.Kind, f.Value})
+	case KindClose:
+		return json.Marshal(struct {
+			Kind string `json:"kind"`
+		}{f.Kind})
+	default:
+		return nil, fmt.Errorf("frames: unknown operation input frame kind %q", f.Kind)
+	}
+}
+
+// UnmarshalJSON strictly decodes an operation-invoker input frame.
+func (f *OperationInputFrame) UnmarshalJSON(b []byte) error {
+	fields, kind, err := decodeFrameObject(b)
+	if err != nil {
+		return err
+	}
+	switch kind {
+	case KindOpen:
+		if err := requireExactKeys(fields, kind, "kind", "input"); err != nil {
+			return err
+		}
+		input, err := DecodeOperationInvocationInput(fields["input"])
+		if err != nil {
+			return err
+		}
+		*f = OperationInputFrame{Kind: kind, Input: input}
+	case KindInput:
+		if err := requireExactKeys(fields, kind, "kind", "value"); err != nil {
+			return err
+		}
+		var value any
+		if err := json.Unmarshal(fields["value"], &value); err != nil {
+			return protocolErrorf("input frame: invalid value: %v", err)
+		}
+		*f = OperationInputFrame{Kind: kind, Value: value}
+	case KindClose:
+		if err := requireExactKeys(fields, kind, "kind"); err != nil {
+			return err
+		}
+		*f = OperationInputFrame{Kind: kind}
+	default:
+		return protocolErrorf("unknown input frame kind %q", kind)
+	}
+	return nil
 }
 
 // Open constructs an open frame.
@@ -171,7 +261,8 @@ func (f *InputFrame) UnmarshalJSON(b []byte) error {
 
 // DecodeInvocationInput strictly decodes a BindingInvocationInput (the open
 // frame's payload and prepareBinding's input), enforcing the contract's
-// additionalProperties: false and required properties on it and its source.
+// additionalProperties: false on the invocation object and required
+// properties on it and its extensible Source value.
 func DecodeInvocationInput(raw json.RawMessage) (*BindingInvocationInput, error) {
 	var fields map[string]json.RawMessage
 	if raw == nil || json.Unmarshal(raw, &fields) != nil || fields == nil {
@@ -195,11 +286,9 @@ func DecodeInvocationInput(raw json.RawMessage) (*BindingInvocationInput, error)
 	if json.Unmarshal(fields["source"], &srcFields) != nil || srcFields == nil {
 		return nil, protocolErrorf("open frame: input.source must be an object")
 	}
-	for k := range srcFields {
-		switch k {
-		case "bindingSpec", "location", "content":
-		default:
-			return nil, protocolErrorf("open frame: unknown source property %q", k)
+	if _, hasLocation := srcFields["location"]; !hasLocation {
+		if _, hasContent := srcFields["content"]; !hasContent {
+			return nil, protocolErrorf("open frame: input.source requires location or content")
 		}
 	}
 
@@ -208,7 +297,38 @@ func DecodeInvocationInput(raw json.RawMessage) (*BindingInvocationInput, error)
 		return nil, protocolErrorf("open frame: invalid input: %v", err)
 	}
 	if input.Source.BindingSpec == "" {
-		return nil, protocolErrorf("open frame: source.format is required")
+		return nil, protocolErrorf("open frame: source.bindingSpec is required")
+	}
+	return &input, nil
+}
+
+// DecodeOperationInvocationInput strictly decodes invokeOperation's open
+// payload, including the operation-or-binding exclusive choice.
+func DecodeOperationInvocationInput(raw json.RawMessage) (*OperationInvocationInput, error) {
+	var fields map[string]json.RawMessage
+	if raw == nil || json.Unmarshal(raw, &fields) != nil || fields == nil {
+		return nil, protocolErrorf("open frame: input must be an object")
+	}
+	for k := range fields {
+		switch k {
+		case "interface", "operation", "binding", "context":
+		default:
+			return nil, protocolErrorf("open frame: unknown input property %q", k)
+		}
+	}
+	if _, ok := fields["interface"]; !ok {
+		return nil, protocolErrorf("open frame: input.interface is required")
+	}
+
+	var input OperationInvocationInput
+	if err := json.Unmarshal(raw, &input); err != nil {
+		return nil, protocolErrorf("open frame: invalid input: %v", err)
+	}
+	if input.Interface == nil {
+		return nil, protocolErrorf("open frame: input.interface must be an object")
+	}
+	if (input.Operation == "") == (input.Binding == "") {
+		return nil, protocolErrorf("open frame: exactly one of input.operation or input.binding is required")
 	}
 	return &input, nil
 }

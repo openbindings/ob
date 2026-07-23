@@ -58,14 +58,19 @@ cmd "help" help="Show help" {
 		t.Fatal("expected interface")
 	}
 
-	wantOps := map[string]bool{"hello": true, "version": true, "info": true, "help": true}
+	// Full interaction coverage includes each descriptor's callable root
+	// command as well as its subcommands.
+	wantOps := map[string]bool{
+		"greet": true, "hello": true, "version": true,
+		"tools": true, "info": true, "help": true,
+	}
 	for op := range wantOps {
 		if _, ok := iface.Operations[op]; !ok {
 			t.Errorf("missing operation %q", op)
 		}
 	}
-	if len(iface.Operations) != 4 {
-		t.Errorf("expected 4 operations, got %d", len(iface.Operations))
+	if len(iface.Operations) != len(wantOps) {
+		t.Errorf("expected %d operations, got %d", len(wantOps), len(iface.Operations))
 	}
 
 	if len(iface.Sources) != 2 {
@@ -81,8 +86,8 @@ cmd "help" help="Show help" {
 		}
 	}
 
-	if len(iface.Bindings) != 4 {
-		t.Errorf("expected 4 bindings, got %d", len(iface.Bindings))
+	if len(iface.Bindings) != len(wantOps) {
+		t.Errorf("expected %d bindings, got %d", len(wantOps), len(iface.Bindings))
 	}
 
 	obiPath := filepath.Join(dir, "interface.json")

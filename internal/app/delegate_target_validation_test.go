@@ -213,8 +213,8 @@ func TestDriveBinding_DelegateLeastPrivilege(t *testing.T) {
 		"apiKey":      "UNRELATED-STORED-KEY",
 	})
 
-	// Caller's per-call context: a non-secret header (config) plus an unrelated
-	// per-call credential the bearer challenge does not scope.
+	// Caller's per-call context: a header plus an unrelated per-call
+	// credential the bearer challenge does not scope.
 	perCall := map[string]any{
 		"headers": map[string]any{"X-Trace": "abc"},
 		"apiKey":  "CALLER-UNRELATED-KEY",
@@ -235,8 +235,8 @@ func TestDriveBinding_DelegateLeastPrivilege(t *testing.T) {
 		if _, present := retry["apiKey"]; present {
 			t.Fatalf("least-privilege violation: delegate received apiKey %v — outside the challenge scope", retry["apiKey"])
 		}
-		if h, ok := retry["headers"].(map[string]any); !ok || h["X-Trace"] != "abc" {
-			t.Fatalf("non-secret header config should pass through, got %v", retry["headers"])
+		if _, present := retry["headers"]; present {
+			t.Fatalf("unrequested header context should be withheld, got %v", retry["headers"])
 		}
 	})
 

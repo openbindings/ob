@@ -11,19 +11,24 @@ import (
 	"net/url"
 	"os"
 	"os/signal"
+	"strconv"
 	"strings"
 	"syscall"
 	"time"
 
 	"golang.org/x/term"
 
+	openbindings "github.com/openbindings/openbindings-go"
 	"github.com/spf13/cobra"
 
 	"github.com/openbindings/ob/internal/app"
 	"github.com/openbindings/ob/internal/server"
 )
 
-const maxRequestBodyBytes = 2 << 20 // 2 MiB
+// Align the HTTP and WebSocket carrier bound with the SDK's delivery-unit
+// policy so the same operation is not accepted in-process and refused by ob
+// start solely because it crossed a transport boundary.
+const maxRequestBodyBytes = openbindings.DefaultMaxDeliveryUnitBytes
 
 // DefaultServePort is the default TCP port for `ob start`.
 // It equals 0x4F42 (decimal 20290): the big-endian pair of ASCII 'O' (0x4F) and 'B' (0x42),
@@ -42,9 +47,10 @@ func newStartCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "start",
 		Short: "Start a local server exposing ob operations (HTTP, WebSocket)",
-		Long: `Start a local HTTP/REST server that exposes ob's full capability surface.
-Authorized clients can invoke operations, browse interfaces,
-and manage contexts through the same operations available via the CLI.
+		Long: `Start a local HTTP/WebSocket server that exposes ob's remotely meaningful capability surface.
+Authorized clients can invoke operations, transform interface documents,
+and manage contexts and delegates without shelling out to the CLI. Foreground
+process commands (start, mcp, and demo) remain local-only.
 
 A session token is generated on startup and printed to the terminal.
 Clients must present it as "Authorization: Bearer <token>" on every request.
@@ -159,8 +165,7 @@ To expose this server's operations to an MCP agent, bridge it with
 }
 
 func parsePort(s string) (int, error) {
-	var p int
-	_, err := fmt.Sscanf(s, "%d", &p)
+	p, err := strconv.Atoi(s)
 	if err != nil || p < 1 || p > 65535 {
 		return 0, fmt.Errorf("invalid port: %s", s)
 	}
@@ -188,6 +193,7 @@ func registerRoutes(srv *server.Server, logger *slog.Logger, port int, oauthSt *
 	mux.HandleFunc("DELETE /contexts/{url...}", handleContextDelete)
 
 	mux.HandleFunc("POST /resolve", handleResolve)
+	mux.HandleFunc("POST /interfaces/resolve", handleResolve)
 
 	mux.HandleFunc("GET /spec/{name...}", handleSpecResource)
 	mux.HandleFunc("GET /delegate-requirements/{capability}", handleDelegateRequirements)
@@ -195,6 +201,7 @@ func registerRoutes(srv *server.Server, logger *slog.Logger, port int, oauthSt *
 	registerOAuthRoutes(srv, oauthSt, logger)
 	registerBindingRoutes(srv, logger)
 	registerAuthoringRoutes(srv)
+	registerInterfaceEditingRoutes(mux)
 	// MCP is not a built-in endpoint: ob's served interface is exposed as an MCP
 	// server by pointing the generic bridge at this running server —
 	// `ob mcp <this-url>`. That dogfoods the same OBI→MCP path ob offers for any
@@ -239,7 +246,7 @@ func handleOBI(port int) http.HandlerFunc {
 		raw := server.ServeOBI()
 		var iface map[string]any
 		if err := json.Unmarshal(raw, &iface); err != nil {
-			writeJSON(w, http.StatusInternalServerError, ErrorResponse{Error: err.Error()})
+			writeErrorJSON(w, http.StatusInternalServerError, "internal_error", err.Error())
 			return
 		}
 
@@ -327,14 +334,11 @@ func handleDelegates(w http.ResponseWriter, r *http.Request) {
 // resolve`: which registered delegates carry an operation identifier,
 // ordered by effective preference. Resolves candidates only — it does not
 // invoke anything — so an operation nothing carries is a literal 200 with an
-// empty candidate list, not an error. The three MUTATING delegate operations
-// (register/unregister/setPreference) stay CLI-only by design; only the
-// read-only surface (listDelegates, resolveDelegate,
-// getDelegateRequirements) is served over HTTP.
+// empty candidate list, not an error.
 func handleResolveDelegate(w http.ResponseWriter, r *http.Request) {
 	result, err := app.ResolveDelegate(r.PathValue("operation"))
 	if err != nil {
-		writeJSON(w, http.StatusBadRequest, ErrorResponse{Error: err.Error()})
+		writeErrorJSON(w, http.StatusBadRequest, "delegate_resolution_failed", err.Error())
 		return
 	}
 	writeJSON(w, http.StatusOK, result)
@@ -345,13 +349,13 @@ func handleResolveDelegate(w http.ResponseWriter, r *http.Request) {
 func handleSpecResource(w http.ResponseWriter, r *http.Request) {
 	name := r.PathValue("name")
 	if name == "" {
-		writeJSON(w, http.StatusBadRequest, ErrorResponse{Error: "name path parameter required"})
+		writeErrorJSON(w, http.StatusBadRequest, "invalid_request", "name path parameter is required")
 		return
 	}
 
 	content, err := server.SpecResource(name)
 	if err != nil {
-		writeJSON(w, http.StatusNotFound, ErrorResponse{Error: "spec resource not found"})
+		writeErrorJSON(w, http.StatusNotFound, "not_found", "spec resource not found")
 		return
 	}
 
@@ -371,10 +375,10 @@ func handleSpecResource(w http.ResponseWriter, r *http.Request) {
 func handleDelegateRequirements(w http.ResponseWriter, r *http.Request) {
 	data, err := app.RequirementInterfaceJSON(app.DelegateCapability(r.PathValue("capability")))
 	if err != nil {
-		writeJSON(w, http.StatusNotFound, ErrorResponse{Error: "unknown delegate capability (want invoke, synthesize, or inspect)"})
+		writeErrorJSON(w, http.StatusNotFound, "unknown_capability", "unknown delegate capability (want invoke, synthesize, or inspect)")
 		return
 	}
-	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set("Content-Type", "application/vnd.openbindings+json; charset=utf-8")
 	w.WriteHeader(http.StatusOK)
 	w.Write(data)
 }
@@ -384,7 +388,7 @@ func handleDelegateRequirements(w http.ResponseWriter, r *http.Request) {
 func handleEnvironment(w http.ResponseWriter, r *http.Request) {
 	status, err := app.GetEnvironmentStatus()
 	if err != nil {
-		writeJSON(w, http.StatusInternalServerError, ErrorResponse{Error: err.Error()})
+		writeErrorJSON(w, http.StatusInternalServerError, "environment_failed", err.Error())
 		return
 	}
 	writeJSON(w, http.StatusOK, status)
@@ -395,7 +399,7 @@ func handleEnvironment(w http.ResponseWriter, r *http.Request) {
 func handleContextList(w http.ResponseWriter, r *http.Request) {
 	summaries, err := app.ListContexts()
 	if err != nil {
-		writeJSON(w, http.StatusInternalServerError, ErrorResponse{Error: err.Error()})
+		writeErrorJSON(w, http.StatusInternalServerError, "context_store_failed", err.Error())
 		return
 	}
 	writeJSON(w, http.StatusOK, summaries)
@@ -404,13 +408,13 @@ func handleContextList(w http.ResponseWriter, r *http.Request) {
 func handleContextGet(w http.ResponseWriter, r *http.Request) {
 	targetURL := r.PathValue("url")
 	if targetURL == "" {
-		writeJSON(w, http.StatusBadRequest, ErrorResponse{Error: "url path parameter required"})
+		writeErrorJSON(w, http.StatusBadRequest, "invalid_request", "url path parameter is required")
 		return
 	}
 
 	payload, err := app.LoadContext(targetURL)
 	if err != nil {
-		writeJSON(w, http.StatusInternalServerError, ErrorResponse{Error: err.Error()})
+		writeErrorJSON(w, http.StatusInternalServerError, "context_store_failed", err.Error())
 		return
 	}
 	writeJSON(w, http.StatusOK, payload)
@@ -419,74 +423,66 @@ func handleContextGet(w http.ResponseWriter, r *http.Request) {
 func handleContextSet(w http.ResponseWriter, r *http.Request) {
 	targetURL := r.PathValue("url")
 	if targetURL == "" {
-		writeJSON(w, http.StatusBadRequest, ErrorResponse{Error: "url path parameter required"})
+		writeErrorJSON(w, http.StatusBadRequest, "invalid_request", "url path parameter is required")
 		return
 	}
 
 	var body map[string]any
-	if r.Body != nil {
-		r.Body = http.MaxBytesReader(w, r.Body, maxRequestBodyBytes)
-		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
-			writeJSON(w, http.StatusBadRequest, ErrorResponse{Error: "invalid request body"})
-			return
-		}
-	}
-
-	if err := app.SaveUnifiedContext(targetURL, body); err != nil {
-		writeJSON(w, http.StatusInternalServerError, ErrorResponse{Error: err.Error()})
+	if !decodeRequest(w, r, &body) {
 		return
 	}
 
-	// setContext declares no output; the body is null.
-	writeJSON(w, http.StatusOK, nil)
+	if err := app.SaveUnifiedContext(targetURL, body); err != nil {
+		writeErrorJSON(w, http.StatusInternalServerError, "context_store_failed", err.Error())
+		return
+	}
+
+	w.WriteHeader(http.StatusNoContent)
 }
 
 func handleContextDelete(w http.ResponseWriter, r *http.Request) {
 	targetURL := r.PathValue("url")
 	if targetURL == "" {
-		writeJSON(w, http.StatusBadRequest, ErrorResponse{Error: "url path parameter required"})
+		writeErrorJSON(w, http.StatusBadRequest, "invalid_request", "url path parameter is required")
 		return
 	}
 
 	if err := app.DeleteContext(targetURL); err != nil {
-		writeJSON(w, http.StatusInternalServerError, ErrorResponse{Error: err.Error()})
+		writeErrorJSON(w, http.StatusInternalServerError, "context_store_failed", err.Error())
 		return
 	}
-	// removeContext declares no output; the body is null.
-	writeJSON(w, http.StatusOK, nil)
+	w.WriteHeader(http.StatusNoContent)
 }
 
 // --- Resolve (with SSRF protection) ---
 
 func handleResolve(w http.ResponseWriter, r *http.Request) {
-	r.Body = http.MaxBytesReader(w, r.Body, maxRequestBodyBytes)
 	var body struct {
 		URL string `json:"address"`
 	}
-	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
-		writeJSON(w, http.StatusBadRequest, ErrorResponse{Error: "invalid request body"})
+	if !decodeRequest(w, r, &body) {
 		return
 	}
 
 	if body.URL == "" {
-		writeJSON(w, http.StatusBadRequest, ErrorResponse{Error: "address is required"})
+		writeErrorJSON(w, http.StatusBadRequest, "invalid_request", "address is required")
 		return
 	}
 
 	if err := validateOutboundURL(body.URL); err != nil {
-		writeJSON(w, http.StatusForbidden, ErrorResponse{Error: err.Error()})
+		writeErrorJSON(w, http.StatusForbidden, "resolution_forbidden", err.Error())
 		return
 	}
 
 	result := app.ProbeOBI(body.URL, 15*time.Second)
 	if result.Status != "ok" {
-		writeErrorJSON(w, http.StatusBadGateway, "failed to resolve interface", result.Detail)
+		writeErrorJSON(w, http.StatusBadGateway, "resolution_failed", result.Detail)
 		return
 	}
 
 	var iface any
 	if err := json.Unmarshal([]byte(result.OBI), &iface); err != nil {
-		writeJSON(w, http.StatusBadGateway, ErrorResponse{Error: "remote interface returned invalid JSON"})
+		writeErrorJSON(w, http.StatusBadGateway, "invalid_upstream", "remote interface returned invalid JSON")
 		return
 	}
 	// The ResolveInterfaceOutput shape: the resolved document, the format it
@@ -610,6 +606,6 @@ func writeOBI(w http.ResponseWriter, status int, v any) {
 	}
 }
 
-func writeErrorJSON(w http.ResponseWriter, status int, msg string, detail string) {
-	writeJSON(w, status, ErrorResponse{Error: msg, Detail: detail})
+func writeErrorJSON(w http.ResponseWriter, status int, code string, message string) {
+	writeJSON(w, status, ErrorResponse{Error: message, Code: code})
 }

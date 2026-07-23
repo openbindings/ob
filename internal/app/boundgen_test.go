@@ -62,9 +62,12 @@ func TestGenerateBoundServe_BindsServedSurface(t *testing.T) {
 	if b, ok := serve.Bindings["openbindings.ob.describe.openapi"]; !ok || b.Source != "openapi" || b.Ref == "" {
 		t.Errorf("expected an openapi binding for describe, got %+v (present=%v)", b, ok)
 	}
-	// invokeBinding is bound over WS (asyncapi).
-	if b, ok := serve.Bindings["openbindings.ob.invokeBinding.asyncapi"]; !ok || b.Ref != "#/operations/invokeBinding" {
-		t.Errorf("expected asyncapi invoke binding, got %+v (present=%v)", b, ok)
+	// Both cardinality-agnostic invokers are bound over WS (asyncapi).
+	for _, short := range []string{"invokeBinding", "invokeOperation"} {
+		key := "openbindings.ob." + short + ".asyncapi"
+		if b, ok := serve.Bindings[key]; !ok || b.Ref != "#/operations/"+short {
+			t.Errorf("expected asyncapi %s binding, got %+v (present=%v)", short, b, ok)
+		}
 	}
 	// MCP is bridged at runtime (`ob mcp <url>`), not a served transport: the
 	// OBI carries no mcp source or bindings.
@@ -77,8 +80,10 @@ func TestGenerateBoundServe_BindsServedSurface(t *testing.T) {
 		}
 	}
 	// Hand-tuned transforms survive the short-name → contract-key rekey.
-	if b := serve.Bindings["openbindings.ob.getContext.openapi"]; b.InputTransform == nil {
-		t.Error("expected getContext.openapi inputTransform to be preserved from the existing serve OBI")
+	for _, short := range []string{"getContext", "setContext", "removeContext"} {
+		if b := serve.Bindings["openbindings.ob."+short+".openapi"]; b.InputTransform == nil {
+			t.Errorf("expected %s.openapi path/body inputTransform", short)
+		}
 	}
 	// The served OBI points at this server's own live spec endpoints via absolute
 	// URLs (not embedded content): the discovery doc is always fetched from a
@@ -95,6 +100,31 @@ func TestGenerateBoundServe_BindsServedSurface(t *testing.T) {
 		if !strings.HasPrefix(s.Location, "http://") && !strings.HasPrefix(s.Location, "https://") {
 			t.Errorf("source %q: expected an absolute http(s) URL, got %q", src, s.Location)
 		}
+	}
+
+	// The backend realizes every remotely meaningful contract operation. Only
+	// foreground process commands remain local-only.
+	contract, err := resolveInterface("../../ob.obi.json")
+	if err != nil {
+		t.Fatal(err)
+	}
+	localOnly := map[string]bool{
+		"openbindings.ob.startServer":    true,
+		"openbindings.ob.startMCPServer": true,
+		"openbindings.ob.demo":           true,
+	}
+	for key := range contract.Operations {
+		_, served := serve.Operations[key]
+		if localOnly[key] == served {
+			if served {
+				t.Errorf("local-only operation %s must not be served", key)
+			} else {
+				t.Errorf("remotely meaningful operation %s is missing from ob start", key)
+			}
+		}
+	}
+	if got, want := len(serve.Operations), len(contract.Operations)-len(localOnly); got != want {
+		t.Errorf("served operation count = %d, want %d", got, want)
 	}
 }
 
@@ -278,7 +308,7 @@ func TestGenerateBoundCLI_AttachesWireInputTransforms(t *testing.T) {
 		t.Fatalf("setDelegatePreference: transform failed: %v", terr)
 	}
 	if m, ok := out.(map[string]any); !ok || m["binding-spec"] != "openbindings.grpc@1" || m["location"] != "exec:x" ||
-		m["operation"] != "op.key" || m["format"] != "json" {
+		m["operation"] != "op.key" || m["preference"] != "5" || m["format"] != "json" {
 		t.Errorf("setDelegatePreference: unexpected adaptation output %#v", out)
 	}
 	// getContext: the wire key rides the CLI's natural <url> argument.

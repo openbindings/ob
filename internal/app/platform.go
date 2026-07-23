@@ -11,15 +11,14 @@ import (
 	"golang.org/x/term"
 )
 
-// CLIContextResolver returns the context resolver for interactive CLI usage:
-// the composition of the binding-invoker and document-store interfaces. When a
+// CLIContextResolver returns ob's optional stored and interactive realization
+// of binding-invoker context challenges. When a
 // binding raises CONTEXT_REQUIRED, the resolver derives a store key from the
 // challenge's target and first consults the CLI context store under it; if the
 // stored context can't satisfy the challenge, it prompts for the missing
 // credentials (the first satisfiable alternative), persists them under the
-// key, and returns the resolved context scoped to the challenge (ScopeContext:
-// only the satisfied alternative's credentials plus non-secret config, never
-// other stored credentials).
+// key, and returns the resolved context scoped to the challenge
+// (ScopeContext: only fields named by the satisfied alternative).
 // It declines (returns nil) when no prompt is possible (e.g. not a TTY), so the
 // challenge surfaces to the caller unchanged.
 func CLIContextResolver() openbindings.ContextResolver {
@@ -30,8 +29,12 @@ func CLIContextResolver() openbindings.ContextResolver {
 		// so keys match across the CLI and the in-process resolver.
 		key := openbindings.NormalizeEndpoint(details.Target)
 
-		// 1. Try the stored context first.
-		stored, _ := store.Get(ctx, key)
+		// 1. Try the stored context first, but never turn an empty or
+		// unkeyable challenge target into a shared storage bucket.
+		var stored map[string]any
+		if key != "" {
+			stored, _ = store.Get(ctx, key)
+		}
 		if stored != nil && openbindings.ContextSatisfies(stored, details) {
 			return openbindings.ScopeContext(stored, details), nil
 		}
@@ -50,7 +53,7 @@ func CLIContextResolver() openbindings.ContextResolver {
 				// 3. Persist only the durable portion under the challenge key.
 				// Non-durable context (e.g. a short-lived token) MUST NOT be
 				// written to disk/keychain; it is re-acquired each call.
-				if persistable := durableSubset(alt, candidate); len(persistable) > 0 {
+				if persistable := durableSubset(alt, candidate); key != "" && len(persistable) > 0 {
 					_ = store.Set(ctx, key, persistable)
 				}
 				// Least privilege: hand back only what this challenge needs.

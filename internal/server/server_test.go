@@ -1,11 +1,22 @@
 package server
 
 import (
+	"bytes"
 	"context"
+	"crypto/sha1"
+	"crypto/tls"
+	"crypto/x509"
+	"encoding/json"
+	"encoding/pem"
+	"errors"
+	"fmt"
 	"io"
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"path/filepath"
+	"reflect"
 	"testing"
 	"time"
 )
@@ -57,7 +68,7 @@ func TestAuthMiddleware_ValidToken(t *testing.T) {
 	handler := s.authMiddleware(rec.handler())
 
 	req := httptest.NewRequest("GET", "/describe", nil)
-	req.Header.Set("Authorization", "Bearer test-token-123")
+	req.Header.Set("Authorization", "bEaReR test-token-123")
 	w := httptest.NewRecorder()
 	handler.ServeHTTP(w, req)
 
@@ -66,6 +77,34 @@ func TestAuthMiddleware_ValidToken(t *testing.T) {
 	}
 	if !rec.called {
 		t.Error("inner handler was not called")
+	}
+}
+
+func TestHandler_UsesStructuredErrorsAndSecurityHeaders(t *testing.T) {
+	s := mustNewServer(t, "test-token-123")
+	req := httptest.NewRequest("GET", "/describe", nil)
+	req.Host = "localhost"
+	w := httptest.NewRecorder()
+	s.Handler().ServeHTTP(w, req)
+
+	if w.Code != http.StatusUnauthorized {
+		t.Fatalf("status = %d, want 401", w.Code)
+	}
+	var body map[string]any
+	if err := json.NewDecoder(w.Body).Decode(&body); err != nil {
+		t.Fatalf("decode error response: %v", err)
+	}
+	if body["code"] != "unauthorized" || body["error"] == "" {
+		t.Fatalf("error response = %#v", body)
+	}
+	for name, want := range map[string]string{
+		"Cache-Control":          "no-store",
+		"X-Content-Type-Options": "nosniff",
+		"Referrer-Policy":        "no-referrer",
+	} {
+		if got := w.Header().Get(name); got != want {
+			t.Errorf("%s = %q, want %q", name, got, want)
+		}
 	}
 }
 
@@ -184,7 +223,7 @@ func TestAuthMiddleware_SpoofedUpgradeHeaderOnWSRouteWithoutConnectionRejected(t
 
 func TestAuthMiddleware_GenuineUpgradeOnWSRouteExempt(t *testing.T) {
 	// A genuine WebSocket upgrade to the invocation route is exempt from
-	// header auth (the handler re-authenticates from the first message).
+	// header auth (the handler re-authenticates the upgrade request).
 	s := mustNewServer(t, "test-token-123")
 	rec := &callRecorder{}
 	handler := s.authMiddleware(rec.handler())
@@ -324,6 +363,7 @@ func TestCORSMiddleware_AutoLocalhostDefault(t *testing.T) {
 		"http://127.0.0.1:8080",
 		"https://localhost:5173",
 		"https://127.0.0.1:20290",
+		"http://[::1]:5173",
 	}
 	for _, origin := range origins {
 		t.Run(origin, func(t *testing.T) {
@@ -399,7 +439,7 @@ func TestCORSMiddleware_HTTPNonLocalhostRejected(t *testing.T) {
 // --- Host validation tests ---
 
 func TestHostValidation_Localhost(t *testing.T) {
-	hosts := []string{"localhost", "localhost:8080", "127.0.0.1", "127.0.0.1:9090", "[::1]:8080"}
+	hosts := []string{"localhost", "LOCALHOST:8080", "127.0.0.1", "127.0.0.1:9090", "[::1]", "[::1]:8080"}
 	for _, host := range hosts {
 		t.Run(host, func(t *testing.T) {
 			s := mustNewServer(t, "tok")
@@ -554,6 +594,148 @@ func TestNew_MuxNotNil(t *testing.T) {
 	srv := mustNewServer(t, "tok")
 	if srv.Mux() == nil {
 		t.Error("Mux() returned nil")
+	}
+}
+
+func TestLocalCertificateLifecycle(t *testing.T) {
+	dir := t.TempDir()
+	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
+	caCertPath := filepath.Join(dir, "ca.crt")
+	caKeyPath := filepath.Join(dir, "ca.key")
+
+	caCert, caKey, created, err := loadOrCreateCA(caCertPath, caKeyPath, logger)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !created || !caCert.IsCA {
+		t.Fatalf("created = %v, IsCA = %v; want true, true", created, caCert.IsCA)
+	}
+	if err := caCert.CheckSignatureFrom(caCert); err != nil {
+		t.Fatalf("CA is not self-signed: %v", err)
+	}
+	assertPrivateFile(t, caKeyPath)
+
+	reloadedCert, _, created, err := loadOrCreateCA(caCertPath, caKeyPath, logger)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if created || !bytes.Equal(reloadedCert.Raw, caCert.Raw) {
+		t.Fatalf("valid CA was not reused (created = %v)", created)
+	}
+
+	leafCertPath := filepath.Join(dir, "localhost.crt")
+	leafKeyPath := filepath.Join(dir, "localhost.key")
+	leafPair, err := loadOrMintLeaf(leafCertPath, leafKeyPath, caCert, caKey)
+	if err != nil {
+		t.Fatal(err)
+	}
+	leaf := parseLeaf(t, leafPair)
+	verifyLocalLeaf(t, leaf, caCert)
+	assertPrivateFile(t, leafKeyPath)
+
+	reusedPair, err := loadOrMintLeaf(leafCertPath, leafKeyPath, caCert, caKey)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.Equal(parseLeaf(t, reusedPair).Raw, leaf.Raw) {
+		t.Fatal("valid leaf certificate was not reused")
+	}
+
+	// Rotating the CA must rotate the leaf too; otherwise the server presents a
+	// certificate its newly installed CA cannot validate.
+	otherCert, otherKey, _, err := loadOrCreateCA(filepath.Join(dir, "other.crt"), filepath.Join(dir, "other.key"), logger)
+	if err != nil {
+		t.Fatal(err)
+	}
+	rotatedPair, err := loadOrMintLeaf(leafCertPath, leafKeyPath, otherCert, otherKey)
+	if err != nil {
+		t.Fatal(err)
+	}
+	rotatedLeaf := parseLeaf(t, rotatedPair)
+	if bytes.Equal(rotatedLeaf.Raw, leaf.Raw) {
+		t.Fatal("leaf certificate was reused after CA rotation")
+	}
+	verifyLocalLeaf(t, rotatedLeaf, otherCert)
+}
+
+func TestCAIsSystemTrustedFor(t *testing.T) {
+	dir := t.TempDir()
+	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
+	cert, _, _, err := loadOrCreateCA(filepath.Join(dir, "ca.crt"), filepath.Join(dir, "ca.key"), logger)
+	if err != nil {
+		t.Fatal(err)
+	}
+	installed := filepath.Join(dir, "installed.crt")
+	if err := os.WriteFile(installed, pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: cert.Raw}), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	if !caIsSystemTrustedFor("linux", cert, logger, installed, func(string, ...string) error { return nil }) {
+		t.Fatal("matching Linux trust-store certificate was not recognized")
+	}
+	other, _, _, err := loadOrCreateCA(filepath.Join(dir, "other.crt"), filepath.Join(dir, "other.key"), logger)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if caIsSystemTrustedFor("linux", other, logger, installed, func(string, ...string) error { return nil }) {
+		t.Fatal("stale Linux trust-store certificate was accepted")
+	}
+
+	var command string
+	var args []string
+	runner := func(name string, got ...string) error {
+		command, args = name, append([]string(nil), got...)
+		return nil
+	}
+	if !caIsSystemTrustedFor("windows", cert, logger, "", runner) {
+		t.Fatal("successful Windows trust lookup was rejected")
+	}
+	wantThumbprint := fmt.Sprintf("%X", sha1.Sum(cert.Raw)) //nolint:gosec // certificate-store identifier
+	if command != "certutil" || !reflect.DeepEqual(args, []string{"-verifystore", "Root", wantThumbprint}) {
+		t.Fatalf("Windows trust command = %q %q", command, args)
+	}
+	if caIsSystemTrustedFor("windows", cert, logger, "", func(string, ...string) error { return errors.New("not found") }) {
+		t.Fatal("failed Windows trust lookup was accepted")
+	}
+	if caIsSystemTrustedFor("plan9", cert, logger, "", runner) || caIsSystemTrustedFor("linux", nil, logger, installed, runner) {
+		t.Fatal("unsupported platform or nil certificate was accepted")
+	}
+}
+
+func parseLeaf(t *testing.T, pair tls.Certificate) *x509.Certificate {
+	t.Helper()
+	if pair.Leaf != nil {
+		return pair.Leaf
+	}
+	leaf, err := x509.ParseCertificate(pair.Certificate[0])
+	if err != nil {
+		t.Fatal(err)
+	}
+	return leaf
+}
+
+func verifyLocalLeaf(t *testing.T, leaf, root *x509.Certificate) {
+	t.Helper()
+	roots := x509.NewCertPool()
+	roots.AddCert(root)
+	if _, err := leaf.Verify(x509.VerifyOptions{Roots: roots, DNSName: "localhost", KeyUsages: []x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth}}); err != nil {
+		t.Fatalf("verify localhost leaf: %v", err)
+	}
+	for _, host := range []string{"127.0.0.1", "::1"} {
+		if err := leaf.VerifyHostname(host); err != nil {
+			t.Fatalf("verify leaf hostname %s: %v", host, err)
+		}
+	}
+}
+
+func assertPrivateFile(t *testing.T, path string) {
+	t.Helper()
+	info, err := os.Stat(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := info.Mode().Perm(); got != 0600 {
+		t.Fatalf("%s permissions = %04o, want 0600", path, got)
 	}
 }
 

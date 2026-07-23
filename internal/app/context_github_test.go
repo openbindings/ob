@@ -53,7 +53,12 @@ func TestContextGitHub_OperationInvokerDriven(t *testing.T) {
         "operationId": "getAuthenticatedUser",
         "summary": "Get the authenticated user",
         "security": [{ "bearer": [] }],
-        "responses": { "200": { "description": "OK" } }
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": { "application/json": { "schema": { "type": "object" } } }
+          }
+        }
       }
     }
   },
@@ -198,7 +203,12 @@ func TestContextGitHub_SecuritySchemeApplication(t *testing.T) {
         "operationId": "getAuthenticatedUser",
         "summary": "Get the authenticated user",
         "security": [{ "bearer": [] }],
-        "responses": { "200": { "description": "OK" } }
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": { "application/json": { "schema": { "type": "object" } } }
+          }
+        }
       }
     }
   },
@@ -269,7 +279,12 @@ func TestContextGitHub_NoCredentialsFails(t *testing.T) {
     "/user": {
       "get": {
         "operationId": "getAuthenticatedUser",
-        "responses": { "200": { "description": "OK" } }
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": { "application/json": { "schema": { "type": "object" } } }
+          }
+        }
       }
     }
   }

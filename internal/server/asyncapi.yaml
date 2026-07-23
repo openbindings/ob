@@ -1,309 +1,1938 @@
-asyncapi: "3.0.0"
+asyncapi: 3.0.0
 info:
-  title: ob start streaming API
-  version: 0.1.0
-  description: >
-    WebSocket API for the OpenBindings CLI (ob start): the invokeBinding
-    operation of the binding-invoker interface as a typed I/O
-    frame stream. Clients upgrade /bindings/invoke to a WebSocket; one
-    connection carries exactly one invocation. The caller streams
-    BindingInvokerInputFrame messages (exactly one `open` first, zero or more
-    `input`, one `close`); the server streams BindingInvokerOutputFrame
-    messages back (zero or more `output` / `input_closed`, then exactly one
-    terminal `complete` or `error`). One shape covers unary, server-streaming,
-    client-streaming, and bidirectional bindings.
-
+    description: Cardinality-agnostic binding and operation invocation over WebSocket frame streams.
+    title: ob start invocation API
+    version: 0.1.0
 servers:
-  local:
-    host: ${OB_SERVER_HOST}
-    protocol: ${OB_SERVER_PROTOCOL}
-    description: Default local server (port 20290 = 0x4F42, ASCII OB)
-    security:
-      - $ref: "#/components/securitySchemes/bearer"
-
+    local:
+        host: ${OB_SERVER_HOST}
+        protocol: ${OB_SERVER_PROTOCOL}
+        security:
+            - $ref: '#/components/securitySchemes/bearer'
+            - $ref: '#/components/securitySchemes/tokenQuery'
 channels:
-  bindingsInvoke:
-    address: /bindings/invoke
-    bindings:
-      ws:
-        method: GET
-    messages:
-      inputFrame:
-        $ref: "#/components/messages/BindingInvokerInputFrame"
-      outputFrame:
-        $ref: "#/components/messages/BindingInvokerOutputFrame"
-
+    bindingsInvoke:
+        address: /bindings/invoke
+        bindings:
+            ws:
+                method: GET
+        messages:
+            inputFrame:
+                $ref: '#/components/messages/invokeBindingInputFrame'
+            outputFrame:
+                $ref: '#/components/messages/invokeBindingOutputFrame'
+    operationsInvoke:
+        address: /operations/invoke
+        bindings:
+            ws:
+                method: GET
+        messages:
+            inputFrame:
+                $ref: '#/components/messages/invokeOperationInputFrame'
+            outputFrame:
+                $ref: '#/components/messages/invokeOperationOutputFrame'
 operations:
-  invokeBinding:
-    action: receive
-    channel:
-      $ref: "#/channels/bindingsInvoke"
-    summary: Invoke a binding via the binding-invoker frame protocol
-    description: >
-      Open a WebSocket to /bindings/invoke (token on the upgrade request; see
-      the bearer security scheme). Stream BindingInvokerInputFrame messages:
-      exactly one `open` frame first (anything else is a terminal
-      ERR_PROTOCOL), then zero or more `input` frames, then one `close`. The
-      server streams BindingInvokerOutputFrame messages: `output` frames as
-      the binding produces values, an `input_closed` frame if the binding
-      closes the input side from its end (later `input` frames are ignored,
-      never written; the invocation continues), and exactly one terminal
-      frame — `complete` or `error`. Input frames with unknown properties are
-      rejected with ERR_PROTOCOL. If the transport closes without a terminal
-      frame, the consumer synthesizes ERR_TRANSPORT_CLOSED. Missing runtime
-      context fails with a terminal CONTEXT_REQUIRED error whose details
-      enumerate the requirements, before any output and any side effect.
-    messages:
-      - $ref: "#/channels/bindingsInvoke/messages/inputFrame"
-    reply:
-      channel:
-        $ref: "#/channels/bindingsInvoke"
-      messages:
-        - $ref: "#/channels/bindingsInvoke/messages/outputFrame"
-
+    invokeBinding:
+        action: receive
+        channel:
+            $ref: '#/channels/bindingsInvoke'
+        description: Invoke a resolved binding via a typed bidirectional I/O frame stream (the binding-invoker frame protocol). The caller streams BindingInvokerInputFrame messages (one `open` carrying the BindingInvocationInput, zero or more `input`, one `close`); the service streams BindingInvokerOutputFrame messages back (zero or more `output`/`input_closed`, then exactly one terminal `complete` or `error`). One shape covers unary, server-streaming, client-streaming, and bidirectional bindings; cardinality is observed by how the caller drives the frames. Missing runtime context fails with a terminal CONTEXT_REQUIRED error carrying ContextRequiredDetails, before any output and any side effect.
+        messages:
+            - $ref: '#/channels/bindingsInvoke/messages/inputFrame'
+        reply:
+            channel:
+                $ref: '#/channels/bindingsInvoke'
+            messages:
+                - $ref: '#/channels/bindingsInvoke/messages/outputFrame'
+        summary: Invoke a resolved binding via a typed bidirectional I/O frame stream (the binding-invoker frame protocol).
+    invokeOperation:
+        action: receive
+        channel:
+            $ref: '#/channels/operationsInvoke'
+        description: 'Invoke an operation on an interface via a typed bidirectional I/O frame stream (the operation-invoker frame protocol). Unlike invokeBinding, the caller names an operation (or a specific binding) on a supplied interface, and the invoker resolves the name, selects a binding, validates against the operation''s schemas, applies its transforms, and drives the underlying binding invoker. The frame shape mirrors invokeBinding exactly: one `open` carrying the OperationInvocationInput, then input frames and a close; output frames plus a terminal complete or error. Cardinality is observed, not declared, so a request/response and a streaming binding can satisfy the same operation identically. Missing context fails with a terminal CONTEXT_REQUIRED error before any side effect.'
+        messages:
+            - $ref: '#/channels/operationsInvoke/messages/inputFrame'
+        reply:
+            channel:
+                $ref: '#/channels/operationsInvoke'
+            messages:
+                - $ref: '#/channels/operationsInvoke/messages/outputFrame'
+        summary: Invoke an operation on an interface via a typed bidirectional I/O frame stream (the operation-invoker frame protocol).
 components:
-  messages:
-    BindingInvokerInputFrame:
-      name: bindingInvokerInputFrame
-      summary: One frame from the caller into invokeBinding
-      payload:
-        $ref: "#/components/schemas/BindingInvokerInputFrame"
-
-    BindingInvokerOutputFrame:
-      name: bindingInvokerOutputFrame
-      summary: One frame from the server back to the caller
-      payload:
-        $ref: "#/components/schemas/BindingInvokerOutputFrame"
-
-  securitySchemes:
-    bearer:
-      type: httpBearer
-      description: >
-        Session token authentication on the WebSocket upgrade request:
-        Authorization: Bearer <token> for clients that can set headers, or
-        the `token` query parameter for browsers (which cannot set headers
-        on WebSocket upgrades). The frame stream itself carries no transport
-        credentials; the open frame's context belongs to the downstream
-        binding, never to this server.
-
-  schemas:
-    InvokeSource:
-      type: object
-      description: Binding source for invocation.
-      properties:
-        format:
-          type: string
-          description: Format token.
-        location:
-          type: string
-          description: Location of the binding source (path or URL).
-        content:
-          description: Binding source content directly.
-      required: [format]
-      anyOf:
-        - required: [location]
-        - required: [content]
-      additionalProperties: false
-
-    BindingContext:
-      type: object
-      description: >-
-        Opaque runtime context for binding invocation, typically sourced from
-        a context store. Well-known credential fields: bearerToken, apiKey,
-        basic, accessToken/refreshToken/expiresAt. Well-known transport
-        fields: headers, cookies, environment, metadata.
-      additionalProperties: true
-
-    BindingInvocationInput:
-      type: object
-      description: >-
-        Initial payload carried by the `open` input frame: identifies the
-        binding to invoke and provides context.
-      properties:
-        source:
-          $ref: "#/components/schemas/InvokeSource"
-        ref:
-          type: string
-          description: Reference within the binding source.
-        context:
-          $ref: "#/components/schemas/BindingContext"
-      required: [source, ref]
-      additionalProperties: false
-
-    ContextRequirement:
-      type: object
-      description: >-
-        One prerequisite that must be satisfied before a binding can be
-        invoked, resolved into context. `type` names the requirement family
-        (e.g. auth.bearer, auth.oauth2, auth.basic, auth.apiKey); the
-        remaining fields are type-specific.
-      properties:
-        type:
-          type: string
-        description:
-          type: string
-        durable:
-          type: boolean
-          description: >-
-            Whether resolved context MAY be cached under the challenge key
-            and reused (true, the default) or MUST be satisfied freshly per
-            invocation (false).
-      required: [type]
-      additionalProperties: true
-
-    ContextRequiredDetails:
-      type: object
-      description: >-
-        The `details` payload of a CONTEXT_REQUIRED error and the return
-        shape of prepareBinding. `alternatives` are disjunctive (any one
-        suffices); the `requirements` within one alternative are conjunctive
-        (all must be satisfied).
-      properties:
-        target:
-          type: string
-          description: >-
-            The target the binding addresses; the runtime derives a storage key
-            from it.
-        alternatives:
-          type: array
-          minItems: 1
-          items:
-            type: object
+    messages:
+        invokeBindingInputFrame:
+            name: invokeBindingInputFrame
+            payload:
+                $ref: '#/components/schemas/BindingInvokerInputFrame'
+        invokeBindingOutputFrame:
+            name: invokeBindingOutputFrame
+            payload:
+                $ref: '#/components/schemas/BindingInvokerOutputFrame'
+        invokeOperationInputFrame:
+            name: invokeOperationInputFrame
+            payload:
+                $ref: '#/components/schemas/OperationInvokerInputFrame'
+        invokeOperationOutputFrame:
+            name: invokeOperationOutputFrame
+            payload:
+                $ref: '#/components/schemas/OperationInvokerOutputFrame'
+    schemas:
+        AddOperationAliasInput:
+            additionalProperties: false
             properties:
-              requirements:
-                type: array
-                minItems: 1
-                items:
-                  $ref: "#/components/schemas/ContextRequirement"
-            required: [requirements]
-      required: [target, alternatives]
-
-    InvocationError:
-      type: object
-      description: >-
-        Structured error carried by an `error` output frame. Indicates
-        terminal failure of the invocation.
-      properties:
-        code:
-          type: string
-          description: >-
-            Machine-readable error code (e.g., ERR_CANCELLED,
-            ERR_VALIDATION_FAILED, ERR_PROTOCOL, CONTEXT_REQUIRED).
-        message:
-          type: string
-          description: Human-readable description.
-        details:
-          description: >-
-            Optional structured details specific to the error code. For code
-            CONTEXT_REQUIRED, `details` is a ContextRequiredDetails object.
-        category:
-          type: string
-          description: >-
-            The normative classification axis consumers branch on. One of a
-            fixed, closed set; a consumer that meets an unknown value treats it
-            as `permanent`. `context` is the resolve-and-retry hinge
-            (CONTEXT_REQUIRED); `auth` means supplied credentials were rejected;
-            `cancelled` means the caller ended the invocation; `transient` is a
-            lower-layer condition that may clear on its own; `service` means the
-            target was reached and returned an error of its own; `validation`
-            means a value or the schema graph failed the validation claim;
-            `protocol` means the frame or invocation contract was violated;
-            `permanent` is terminal.
-          enum: [context, auth, cancelled, transient, service, validation, protocol, permanent]
-        effects:
-          type: string
-          description: >-
-            Side-effect possibility gating safe retry, present where retry is in
-            question (categories `transient` and `service`). `none`: the call's
-            side effects provably did not take hold — safe to retry. `possible`:
-            the call may have taken effect — not safe to auto-retry a
-            non-idempotent operation. `definite`: the call took effect. Absent
-            means treat as `possible`.
-          enum: [none, possible, definite]
-      required: [code, message, category]
-
-    BindingInvokerInputFrame:
-      description: >-
-        One frame from the caller into invokeBinding: exactly one `open`
-        frame first, then zero or more `input` frames, then exactly one
-        `close` frame.
-      discriminator: kind
-      oneOf:
-        - title: open
-          type: object
-          description: Open the invocation. MUST be the first frame.
-          properties:
-            kind:
-              const: open
-            input:
-              $ref: "#/components/schemas/BindingInvocationInput"
-          required: [kind, input]
-          additionalProperties: false
-        - title: input
-          type: object
-          description: >-
-            Write one input value to the underlying binding. The value's
-            schema is determined by the underlying binding's operation.
-          properties:
-            kind:
-              const: input
-            value:
-              description: One input value, opaque at this layer.
-          required: [kind, value]
-          additionalProperties: false
-        - title: close
-          type: object
-          description: >-
-            Caller signals that no more input frames will be sent.
-            Idempotent.
-          properties:
-            kind:
-              const: close
-          required: [kind]
-          additionalProperties: false
-
-    BindingInvokerOutputFrame:
-      description: >-
-        One frame from the server back to the caller: zero or more
-        non-terminal frames (`output`, `input_closed`) followed by exactly
-        one terminal frame (`complete` or `error`).
-      discriminator: kind
-      oneOf:
-        - title: output
-          type: object
-          description: One output value from the underlying binding.
-          properties:
-            kind:
-              const: output
-            value:
-              description: One output value, opaque at this layer.
-          required: [kind, value]
-          additionalProperties: false
-        - title: input_closed
-          type: object
-          description: >-
-            Binding has closed the input side from its end. Subsequent
-            caller `input` frames are ignored; the invocation continues.
-          properties:
-            kind:
-              const: input_closed
-          required: [kind]
-          additionalProperties: false
-        - title: complete
-          type: object
-          description: "Terminal: the binding completed normally. MUST be the last frame."
-          properties:
-            kind:
-              const: complete
-          required: [kind]
-          additionalProperties: false
-        - title: error
-          type: object
-          description: "Terminal: the binding failed. MUST be the last frame."
-          properties:
-            kind:
-              const: error
-            error:
-              $ref: "#/components/schemas/InvocationError"
-          required: [kind, error]
-          additionalProperties: false
+                aliases:
+                    description: Satisfaction alias(es) to add.
+                    items:
+                        type: string
+                    minItems: 1
+                    type: array
+                interface:
+                    $ref: '#/components/schemas/OpenBindingsInterface'
+                operation:
+                    description: The operation's key or any existing identifier.
+                    type: string
+            required:
+                - interface
+                - operation
+                - aliases
+            type: object
+        AddOperationInput:
+            additionalProperties: false
+            properties:
+                aliases:
+                    description: Satisfaction aliases — other interfaces' operation keys this operation also answers to (OBI-T-12).
+                    items:
+                        type: string
+                    type: array
+                description:
+                    type: string
+                idempotent:
+                    description: Whether the new operation is idempotent.
+                    type: boolean
+                input:
+                    description: JSON Schema for the new operation's input.
+                interface:
+                    $ref: '#/components/schemas/OpenBindingsInterface'
+                key:
+                    description: Key for the new operation.
+                    type: string
+                output:
+                    description: JSON Schema for the new operation's output.
+                tags:
+                    items:
+                        type: string
+                    type: array
+            required:
+                - interface
+                - key
+            type: object
+        AddSourceInput:
+            additionalProperties: false
+            properties:
+                interface:
+                    $ref: '#/components/schemas/OpenBindingsInterface'
+                source:
+                    $ref: '#/components/schemas/SynthesizeInterfaceSource'
+            required:
+                - interface
+                - source
+            type: object
+        BindOperationInput:
+            additionalProperties: false
+            properties:
+                force:
+                    description: Overwrite an existing binding for this operation and source.
+                    type: boolean
+                inputTransform:
+                    description: Inline JSONata transforming operation input to binding input.
+                    type: string
+                interface:
+                    $ref: '#/components/schemas/OpenBindingsInterface'
+                operation:
+                    description: The operation's key or any identifier.
+                    type: string
+                outputTransform:
+                    description: Inline JSONata transforming binding output to operation output.
+                    type: string
+                preference:
+                    description: Author preference signal (higher = more preferred); this field does not itself select a binding.
+                    type: number
+                ref:
+                    description: Source ref (wire identifier) to bind.
+                    type: string
+                source:
+                    description: Registered source key.
+                    type: string
+                transformStub:
+                    description: Scaffold identity transform stub(s) on shape mismatch.
+                    type: boolean
+            required:
+                - interface
+                - operation
+                - source
+                - ref
+            type: object
+        BindableTarget:
+            description: A target admitted by the source's governing binding specification that can be framed as an OpenBindings operation. Any included framing is a sound projection of this same target.
+            properties:
+                operation:
+                    $ref: '#/components/schemas/Operation'
+                operationKey:
+                    description: Suggested operation key for this target.
+                    type: string
+                ref:
+                    description: Reference string a conforming binding entry can use under the governing binding specification.
+                    type: string
+            required:
+                - ref
+            type: object
+        BindingContext:
+            additionalProperties: true
+            description: 'Opaque context supplied by value for one binding invocation. The contract neither requires nor exposes a context store; callers may assemble this object from per-call values, durable state, a credential broker, or any other source before invocation. Well-known credential fields: ''bearerToken'' (string), ''apiKey'' (string), ''apiKeys'' (object mapping a requirement''s ''name'' to its key), ''basic'' (object with ''username'' and ''password''), and ''accessToken'' / ''refreshToken'' / ''expiresAt'' for OAuth. Well-known transport fields: ''headers'' / ''cookies'' / ''environment'' (objects with string values) and ''metadata'' (object with arbitrary values). Well-known configuration field: ''configuration'' (object), keyed by configuration-point name and interpreted by the specification that defines each point. Implementations and callers MAY add fields for session state, consent, or other runtime data; consumers SHOULD ignore fields they do not recognize unless the governing binding specification says otherwise. Credential fields are secret, and any other field may also be secret according to its requirement family, binding specification, or application policy.'
+            type: object
+        BindingInvocationInput:
+            additionalProperties: false
+            description: 'Initial payload carried by the `open` input frame: identifies the binding to invoke and provides context.'
+            properties:
+                context:
+                    $ref: '#/components/schemas/BindingContext'
+                ref:
+                    description: Reference within the binding source.
+                    type: string
+                source:
+                    $ref: '#/components/schemas/Source'
+            required:
+                - source
+                - ref
+            type: object
+        BindingInvokerInputFrame:
+            description: 'One frame from the caller into invokeBinding. The caller streams a sequence: exactly one `open` frame first (carrying the BindingInvocationInput), then zero or more `input` frames carrying values to deliver to the underlying binding, then exactly one `close` frame signaling no more input.'
+            discriminator:
+                propertyName: kind
+            oneOf:
+                - additionalProperties: false
+                  description: Open the invocation. MUST be the first frame on the input stream.
+                  properties:
+                    input:
+                        $ref: '#/components/schemas/BindingInvocationInput'
+                    kind:
+                        const: open
+                  required:
+                    - kind
+                    - input
+                  title: open
+                  type: object
+                - additionalProperties: false
+                  description: Write one input value to the underlying binding. The value's schema is determined by the underlying binding's operation, not by this contract.
+                  properties:
+                    kind:
+                        const: input
+                    value:
+                        description: One input value, opaque at this layer.
+                  required:
+                    - kind
+                    - value
+                  title: input
+                  type: object
+                - additionalProperties: false
+                  description: Caller signals that no more input frames will be sent. Idempotent.
+                  properties:
+                    kind:
+                        const: close
+                  required:
+                    - kind
+                  title: close
+                  type: object
+        BindingInvokerOutputFrame:
+            description: 'One frame from the service back to the caller. The service streams a sequence: zero or more non-terminal frames (`output`, `input_closed`) followed by exactly one terminal frame (`complete` or `error`).'
+            discriminator:
+                propertyName: kind
+            oneOf:
+                - additionalProperties: false
+                  description: One output value from the underlying binding. The value's schema is determined by the underlying binding's operation, not by this contract.
+                  properties:
+                    kind:
+                        const: output
+                    value:
+                        description: One output value, opaque at this layer.
+                  required:
+                    - kind
+                    - value
+                  title: output
+                  type: object
+                - additionalProperties: false
+                  description: Binding has closed the input side from its end (e.g., a unary binding closes input after the first read). Subsequent caller `input` frames are ignored (never written; see rule 3). The invocation continues; outputs may still flow.
+                  properties:
+                    kind:
+                        const: input_closed
+                  required:
+                    - kind
+                  title: input_closed
+                  type: object
+                - additionalProperties: false
+                  description: 'Terminal: the underlying binding completed normally. MUST be the last frame.'
+                  properties:
+                    kind:
+                        const: complete
+                  required:
+                    - kind
+                  title: complete
+                  type: object
+                - additionalProperties: false
+                  description: 'Terminal: the underlying binding failed. MUST be the last frame. Carries a structured InvocationError.'
+                  properties:
+                    error:
+                        $ref: '#/components/schemas/InvocationError'
+                    kind:
+                        const: error
+                  required:
+                    - kind
+                    - error
+                  title: error
+                  type: object
+        BindingListEntry:
+            additionalProperties: false
+            description: A binding from the interface's bindings map, with its key.
+            properties:
+                deprecated:
+                    description: Whether the binding is deprecated.
+                    type: boolean
+                inputTransform:
+                    description: Whether the binding declares an input transform.
+                    type: boolean
+                key:
+                    description: The binding's key in the interface's bindings map.
+                    type: string
+                operation:
+                    description: The operation this binding realizes.
+                    type: string
+                outputTransform:
+                    description: Whether the binding declares an output transform.
+                    type: boolean
+                preference:
+                    description: The author-declared selection preference, when set.
+                    type: number
+                ref:
+                    description: The binding-specification reference into the source.
+                    type: string
+                source:
+                    description: The source key this binding invokes.
+                    type: string
+            required:
+                - key
+                - operation
+                - source
+            type: object
+        BindingSpecInfo:
+            description: Information about a supported binding specification.
+            properties:
+                bindingSpec:
+                    description: Binding specification identifier, exact and opaque (e.g., openbindings.openapi@1, openbindings.mcp@1).
+                    type: string
+                description:
+                    description: Human-readable description of this binding specification.
+                    type: string
+            required:
+                - bindingSpec
+            type: object
+        BindingSpecPreference:
+            additionalProperties: false
+            description: A preference override scoped to one (operation, format) pair — ob's extra granularity beyond the delegate-manager contract's per-operation index. It replaces both the delegate-level and the per-operation preference when resolving that operation for that binding-source format.
+            properties:
+                bindingSpec:
+                    description: The binding-source format this override is scoped to (e.g. grpc, openapi@3.1).
+                    type: string
+                operation:
+                    description: The operation identifier this override is scoped to.
+                    type: string
+                preference:
+                    description: The scoped preference value; higher is more preferred.
+                    type: number
+            required:
+                - operation
+                - bindingSpec
+                - preference
+            type: object
+        CodegenInput:
+            additionalProperties: false
+            properties:
+                interface:
+                    $ref: '#/components/schemas/OpenBindingsInterface'
+                language:
+                    description: Target language for the generated invoker.
+                    enum:
+                        - typescript
+                        - go
+                    type: string
+                package:
+                    description: Go package name (Go only; default derived from the interface name).
+                    type: string
+            required:
+                - interface
+                - language
+            type: object
+        CodegenOutput:
+            additionalProperties: false
+            properties:
+                code:
+                    description: The generated source code.
+                    type: string
+                language:
+                    enum:
+                        - typescript
+                        - go
+                    type: string
+            required:
+                - language
+                - code
+            type: object
+        CompareInterfacesInput:
+            additionalProperties: false
+            properties:
+                baseline:
+                    $ref: '#/components/schemas/OpenBindingsInterface'
+                comparison:
+                    $ref: '#/components/schemas/OpenBindingsInterface'
+                fromSources:
+                    description: Compare the baseline against what its binding sources produce.
+                    type: boolean
+                only:
+                    description: Scope to a specific source key (requires fromSources).
+                    type: string
+            required:
+                - baseline
+            type: object
+        ComparisonInputDescriptor:
+            additionalProperties: false
+            description: 'Provenance of one compared document: where it came from and its canonical content hash.'
+            properties:
+                content_sha256:
+                    type: string
+                label:
+                    enum:
+                        - left
+                        - right
+                    type: string
+                source:
+                    description: Locator kind (e.g. file, http, exec); empty for inline documents.
+                    type: string
+                uri:
+                    type: string
+            required:
+                - source
+                - uri
+                - content_sha256
+                - label
+            type: object
+        CompatibilityReport:
+            additionalProperties: true
+            description: 'An ob-comparison-report/v1 document. The target interface rides the report''s left side, the candidate its right; operations are paired by key+alias resolution (OBI-T-12) and judged directionally. A report, not a binary verdict: the summary verdict is compatible, incompatible, or indeterminate. Reserved section arrays (schemas, metadata, sources, bindings, transforms, security) accompany operations.'
+            properties:
+                format_version:
+                    description: Report convention identifier (ob-comparison-report/v1).
+                    type: string
+                generated_at:
+                    type: string
+                inputs:
+                    additionalProperties: false
+                    description: Provenance descriptors for the two compared documents.
+                    properties:
+                        left:
+                            $ref: '#/components/schemas/ComparisonInputDescriptor'
+                        right:
+                            $ref: '#/components/schemas/ComparisonInputDescriptor'
+                    required:
+                        - left
+                        - right
+                    type: object
+                mode:
+                    description: Comparison mode (e.g. subsume).
+                    type: string
+                operations:
+                    description: 'Per-operation deltas: pairing status (paired, only_left, only_right), directional input/output schema verdicts, and findings.'
+                    items:
+                        type: object
+                    type: array
+                profile:
+                    description: Schema comparison profile and hash (e.g. OB-2020-12@local).
+                    type: string
+                summary:
+                    additionalProperties: true
+                    properties:
+                        categories:
+                            additionalProperties: false
+                            properties:
+                                breaking:
+                                    type: integer
+                                compliance:
+                                    type: integer
+                                non_breaking:
+                                    type: integer
+                                structural:
+                                    type: integer
+                            type: object
+                        counts:
+                            additionalProperties:
+                                type: integer
+                            description: Finding counts keyed by finding kind.
+                            type: object
+                        coverage:
+                            additionalProperties: false
+                            properties:
+                                only_left:
+                                    type: integer
+                                only_right:
+                                    type: integer
+                                paired:
+                                    type: integer
+                                paired_via:
+                                    additionalProperties: false
+                                    properties:
+                                        alias:
+                                            type: integer
+                                        direct:
+                                            type: integer
+                                    type: object
+                                total_operations:
+                                    type: integer
+                            type: object
+                        verdict:
+                            enum:
+                                - compatible
+                                - incompatible
+                                - indeterminate
+                            type: string
+                    required:
+                        - verdict
+                    type: object
+                suppressed:
+                    description: Findings suppressed by suppression rules, with the rule that matched.
+                    items:
+                        type: object
+                    type: array
+                tool:
+                    additionalProperties: false
+                    properties:
+                        name:
+                            type: string
+                        version:
+                            type: string
+                    required:
+                        - name
+                        - version
+                    type: object
+            required:
+                - format_version
+                - profile
+                - mode
+                - tool
+                - generated_at
+                - inputs
+                - summary
+                - operations
+            type: object
+        ConformAction:
+            additionalProperties: false
+            description: A single change conform made or would make to the target.
+            properties:
+                action:
+                    description: scaffold (add a missing operation), replace (update a drifted one), skip, or compatible (already conforms).
+                    enum:
+                        - scaffold
+                        - replace
+                        - skip
+                        - compatible
+                    type: string
+                details:
+                    description: Human-readable description of the change.
+                    type: string
+                operation:
+                    description: The operation key the change concerns.
+                    type: string
+            required:
+                - operation
+                - action
+            type: object
+        ConformInput:
+            additionalProperties: false
+            description: 'conform input: `interface` is the reference contract whose operations `target` must satisfy; `target` is the interface scaffolded to conform, returned modified as `interface` in the result.'
+            properties:
+                dryRun:
+                    description: Report the changes without applying them.
+                    type: boolean
+                interface:
+                    $ref: '#/components/schemas/OpenBindingsInterface'
+                target:
+                    $ref: '#/components/schemas/OpenBindingsInterface'
+            required:
+                - interface
+                - target
+            type: object
+        ConformResult:
+            additionalProperties: true
+            description: The conformed target document plus a report of each change made or proposed.
+            properties:
+                actions:
+                    items:
+                        $ref: '#/components/schemas/ConformAction'
+                    type: array
+                interface:
+                    $ref: '#/components/schemas/OpenBindingsInterface'
+                interfaceName:
+                    description: Display name of the reference interface being conformed to.
+                    type: string
+                modified:
+                    description: Whether the target was changed (false under dryRun or when already conformant).
+                    type: boolean
+            required:
+                - interface
+                - actions
+                - modified
+            type: object
+        Context:
+            additionalProperties: true
+            description: 'Opaque per-target context payload: credentials, session state, headers, cookies, environment, metadata, or any other invoker-managed state. Well-known fields include bearerToken, apiKey, basic, headers, cookies, environment, metadata.'
+            type: object
+        ContextKeyInput:
+            additionalProperties: false
+            properties:
+                key:
+                    description: Context store key.
+                    type: string
+            required:
+                - key
+            type: object
+        ContextRequiredDetails:
+            description: 'The `details` payload of an InvocationError whose `code` is CONTEXT_REQUIRED, and the return shape of this contract''s preflight operation. Enumerates the context the invoker needs before it can proceed. `alternatives` are disjunctive: satisfying ANY one suffices. The `requirements` within a single alternative are conjunctive: ALL must be satisfied. This OR-of-AND shape captures real authentication semantics such as ''OAuth2 OR (apiKey AND clientCert)'', which a flat list cannot. A challenge is a scope, not a hint: a caller that resolves it MUST provision only the context needed for one selected alternative and MUST NOT disclose unrelated credentials. The interface supplies context by value and exposes no context-store access.'
+            properties:
+                alternatives:
+                    description: Disjunctive set of ways to satisfy the requirement. A resolving caller selects one alternative whose every requirement it can resolve and provisions only the context needed for that alternative, never unrelated credentials.
+                    items:
+                        properties:
+                            requirements:
+                                description: 'Conjunctive set: every requirement in this alternative must be resolved for the alternative to be satisfied.'
+                                items:
+                                    $ref: '#/components/schemas/ContextRequirement'
+                                minItems: 1
+                                type: array
+                        required:
+                            - requirements
+                        type: object
+                    minItems: 1
+                    type: array
+                target:
+                    description: Opaque identifier for the concrete destination or context scope the invoker is about to use. A runtime MAY use it to scope resolution or reuse and MAY compare it with independently derived source information before releasing secrets. Interpretation, verification, normalization, hierarchy, key derivation, and persistence policy are outside this contract.
+                    type: string
+            required:
+                - target
+                - alternatives
+            type: object
+        ContextRequirement:
+            additionalProperties: true
+            description: 'One prerequisite that must be satisfied before a binding can be invoked. `type` names the requirement family; the remaining fields are type-specific. The well-known `auth.*` family resolves into BindingContext credential fields: `auth.bearer` produces ''bearerToken'', `auth.apiKey` produces ''apiKey'' (or a scheme-keyed entry in ''apiKeys'' when the requirement carries a `name`), `auth.basic` produces ''basic'', and `auth.oauth2` produces ''accessToken'' (carrying flow fields such as ''grantType'', ''authorizeUrl'', ''tokenUrl'', and ''scopes''). The `config.value` family carries a configuration value a binding needs but the artifact does not supply: it carries ''point'' and ''key'' (and optional ''choices'') and resolves into the ''configuration'' context field under ''point''. Other families (e.g. ''approval.user'', ''account.link'') resolve into their own context fields. Resolution architecture and value secrecy beyond the always-secret credential fields are determined by the requirement family, governing binding specification, and caller.'
+            properties:
+                choices:
+                    description: 'config.value only: values declared by the source artifact, suitable for rendering as a picker. Whether an off-list value is valid is defined by the governing binding specification: a closed artifact enum is enforced; an advisory list remains advisory.'
+                    items:
+                        type: string
+                    type: array
+                description:
+                    description: Human-readable description shown to a user or operator during resolution (e.g. an approval prompt message).
+                    type: string
+                durable:
+                    description: Whether resolved context for this requirement MAY be persisted and reused for later invocations (true), or MUST be satisfied freshly and MUST NOT be persisted or reused (false). Defaults to true. This permission does not require persistence or prescribe a store, key, or reuse policy.
+                    type: boolean
+                key:
+                    description: 'config.value only: the specific value needed within ''point'' — a server-variable name, or ''address'' for a whole channel address.'
+                    type: string
+                name:
+                    description: The scheme name as the source artifact declares it (e.g. an OpenAPI securitySchemes key). Distinguishes two requirements of the same type within one alternative — two ANDed API keys are otherwise indistinguishable — and keys scheme-scoped credential lookup (see BindingContext's 'apiKeys').
+                    type: string
+                point:
+                    description: 'config.value only: the binding-specification configuration point the value belongs to (''server'', ''address'', a family''s decode point, …). The resolved value is carried in the ''configuration'' context field under this point; the value''s shape there is the invoker''s own (configuration carriage is implementation surface, not contract).'
+                    type: string
+                type:
+                    description: Requirement type identifier, e.g. 'auth.bearer', 'auth.oauth2', 'auth.basic', 'auth.apiKey', 'approval.user', 'config.value'. An unrecognized type is unsatisfiable by a runtime that has no way to satisfy it. An invoker may surface an artifact-defined scheme as an extension requirement only when it knows how the resulting context will be applied faithfully; an invoker that cannot represent or apply a prerequisite refuses before dispatch rather than emitting a satisfiable-looking challenge or attempting the interaction without it.
+                    type: string
+            required:
+                - type
+            type: object
+        ContextSummary:
+            additionalProperties: false
+            description: Non-secret metadata about a stored context entry. Never includes secret values.
+            properties:
+                cookieCount:
+                    type: integer
+                envCount:
+                    type: integer
+                hasCredentials:
+                    type: boolean
+                headerCount:
+                    type: integer
+                loadError:
+                    description: Set if the entry could not be parsed.
+                    type: string
+                metadataCount:
+                    type: integer
+                url:
+                    description: Context store key (normalized API origin or other stable identifier).
+                    type: string
+            required:
+                - url
+                - hasCredentials
+            type: object
+        DelegateBindingSpecInfo:
+            additionalProperties: false
+            properties:
+                bindingSpec:
+                    description: Format token the delegate handles (e.g. grpc, openapi@3.1).
+                    type: string
+                description:
+                    description: Human-readable description of the format, when the delegate provides one.
+                    type: string
+            required:
+                - bindingSpec
+            type: object
+        DelegateCapability:
+            description: 'One of ob''s three binding-specification handling needs, derived from a minimal operation subset of a published interface: invoke (binding-invoker), synthesize (interface-synthesizer), inspect (source-inspector). A delegate offers whichever subsets it satisfies; operations outside a subset remain independent capabilities.'
+            enum:
+                - invoke
+                - synthesize
+                - inspect
+            type: string
+        DelegateLocationInput:
+            additionalProperties: false
+            properties:
+                location:
+                    description: 'Delegate location: the exec: or http(s) URL of the delegate''s OpenBindings interface.'
+                    type: string
+            required:
+                - location
+            type: object
+        DelegateSummary:
+            additionalProperties: false
+            description: 'A registered delegate: its identity, the snapshot of what it carries, ob''s derived routing data, and its selection preferences.'
+            properties:
+                bindingSpecPreferences:
+                    description: Preference overrides scoped to one (operation, format) pair — ob's extra granularity beyond the delegate-manager contract's per-operation index.
+                    items:
+                        $ref: '#/components/schemas/BindingSpecPreference'
+                    type: array
+                bindingSpecs:
+                    description: The formats the delegate reported handling when last resolved.
+                    items:
+                        $ref: '#/components/schemas/DelegateBindingSpecInfo'
+                    type: array
+                builtin:
+                    description: True for ob's own native handling — the self-delegate.
+                    type: boolean
+                capabilities:
+                    description: Which of ob's format capabilities the delegate satisfies, checked by conformance at registration.
+                    items:
+                        $ref: '#/components/schemas/DelegateCapability'
+                    type: array
+                contentHash:
+                    description: 'Digest of the delegate''s interface document as last resolved (sha256: over its RFC 8785 canonical form). Pins the snapshot; opaque — compare for equality, don''t recompute.'
+                    type: string
+                location:
+                    description: 'The reference the delegate is registered under (exec: or http(s) URL). The self-delegate''s location is "ob".'
+                    type: string
+                name:
+                    description: 'Display name: the delegate OBI''s name, or one derived from its location.'
+                    type: string
+                operationPreferences:
+                    additionalProperties:
+                        type: number
+                    description: Per-operation preference overrides, keyed by operation identifier. The override replaces the delegate-level preference when resolving that operation.
+                    type: object
+                operations:
+                    description: 'Every operation identifier the delegate answers to — the keys and aliases its interface declared when last resolved. A snapshot: re-registering the location refreshes it.'
+                    items:
+                        type: string
+                    type: array
+                preference:
+                    description: Delegate-level selection preference — the default for every operation it carries. Higher is more preferred; absent is the baseline.
+                    type: number
+            required:
+                - location
+                - operations
+            type: object
+        DemoInput:
+            additionalProperties: false
+            properties:
+                grpcPort:
+                    description: gRPC server port.
+                    type: integer
+                httpPort:
+                    description: HTTP server port.
+                    type: integer
+            type: object
+        DetachOperationInput:
+            additionalProperties: false
+            properties:
+                interface:
+                    $ref: '#/components/schemas/OpenBindingsInterface'
+                operation:
+                    description: The operation's key or any identifier.
+                    type: string
+            required:
+                - interface
+                - operation
+            type: object
+        DiffReport:
+            additionalProperties: false
+            description: The differences between two interfaces (or an interface and what its sources produce). Empty operations, metadata, and drift means they are identical.
+            properties:
+                drift:
+                    items:
+                        $ref: '#/components/schemas/DriftEntry'
+                    type: array
+                metadata:
+                    items:
+                        $ref: '#/components/schemas/MetadataDiff'
+                    type: array
+                operations:
+                    items:
+                        $ref: '#/components/schemas/OperationDiff'
+                    type: array
+                warnings:
+                    items:
+                        type: string
+                    type: array
+            type: object
+        DriftEntry:
+            additionalProperties: false
+            description: One operation key produced by multiple sources with differing schemas.
+            properties:
+                details:
+                    items:
+                        type: string
+                    type: array
+                operation:
+                    type: string
+                sources:
+                    items:
+                        $ref: '#/components/schemas/DriftSource'
+                    type: array
+            required:
+                - operation
+                - sources
+            type: object
+        DriftSource:
+            additionalProperties: false
+            properties:
+                bindingSpec:
+                    type: string
+                key:
+                    type: string
+            required:
+                - key
+            type: object
+        EnvironmentStatus:
+            additionalProperties: false
+            properties:
+                contextCount:
+                    description: Number of contexts in the user's context store (user-scoped, not per-environment).
+                    type: integer
+                delegateCount:
+                    description: Number of registered delegates in this environment.
+                    type: integer
+                environmentPath:
+                    description: Path to the .openbindings/ directory.
+                    type: string
+                environmentType:
+                    description: Local or global environment.
+                    type: string
+            required:
+                - environmentType
+                - environmentPath
+            type: object
+        GetDelegateRequirementsInput:
+            additionalProperties: false
+            properties:
+                capability:
+                    $ref: '#/components/schemas/DelegateCapability'
+            required:
+                - capability
+            type: object
+        InitializeEnvironmentInput:
+            additionalProperties: false
+            properties:
+                global:
+                    description: Initialize the global environment (the openbindings directory under the user config dir) instead of a local .openbindings/ directory.
+                    type: boolean
+            type: object
+        InspectSourceInput:
+            additionalProperties: false
+            properties:
+                source:
+                    $ref: '#/components/schemas/Source'
+            required:
+                - source
+            type: object
+        InspectionLimitation:
+            description: Machine-readable evidence explaining why a source inspection is not exhaustive.
+            properties:
+                code:
+                    description: Stable namespaced reason code.
+                    pattern: ^[a-z][a-z0-9]*(?:[._-][a-z0-9]+)+$
+                    type: string
+                details:
+                    additionalProperties: true
+                    description: Optional implementation- or family-specific structured evidence.
+                    type: object
+                message:
+                    description: Human-readable explanation of what may be missing and why.
+                    minLength: 1
+                    type: string
+            required:
+                - code
+                - message
+            type: object
+        InterfaceInput:
+            additionalProperties: false
+            description: Wraps the interface document an operation acts on.
+            properties:
+                interface:
+                    $ref: '#/components/schemas/OpenBindingsInterface'
+            required:
+                - interface
+            type: object
+        InterfaceStatus:
+            additionalProperties: false
+            description: 'An interface''s read-only status against its sources: per-source sync state plus the source-owned vs hand-authored breakdown of its operations and bindings.'
+            properties:
+                bindings:
+                    $ref: '#/components/schemas/ProvenanceKeys'
+                name:
+                    type: string
+                obiVersion:
+                    description: The interface's declared OpenBindings version.
+                    type: string
+                operations:
+                    $ref: '#/components/schemas/ProvenanceKeys'
+                sources:
+                    items:
+                        $ref: '#/components/schemas/SourceStatus'
+                    type: array
+                version:
+                    type: string
+            required:
+                - obiVersion
+                - sources
+                - operations
+                - bindings
+            type: object
+        InterfaceStatusInput:
+            additionalProperties: false
+            properties:
+                interface:
+                    $ref: '#/components/schemas/OpenBindingsInterface'
+            required:
+                - interface
+            type: object
+        InvocationError:
+            description: Structured error carried by an `error` output frame. Indicates terminal failure of the invocation. Codes named by a normative rule of either invoker contract — binding-invoker or its operation-invoker peer — (CONTEXT_REQUIRED, ERR_PROTOCOL, ERR_TRANSPORT_CLOSED, ERR_CANCELLED, ERR_VALIDATION_FAILED, ERR_BINDING_NOT_FOUND, ERR_BINDING_SELECTION_REQUIRED) are normative where named; other codes are recommended conventions (see the binding-invoker README's registry), and consumers SHOULD handle unknown codes gracefully.
+            properties:
+                category:
+                    description: The normative classification axis consumers branch on. One of a fixed, closed set; a consumer that meets an unknown value treats it as `permanent`. `context` is the resolve-and-retry hinge (CONTEXT_REQUIRED); `auth` means supplied credentials were rejected; `cancelled` means the caller ended the invocation; `transient` is a lower-layer condition that may clear on its own; `service` means the target was reached and returned an error of its own; `validation` means a value or the schema graph failed the validation claim; `protocol` means the frame or invocation contract was violated; `permanent` is terminal.
+                    enum:
+                        - context
+                        - auth
+                        - cancelled
+                        - transient
+                        - service
+                        - validation
+                        - protocol
+                        - permanent
+                    type: string
+                code:
+                    description: Machine-readable error code (e.g., ERR_CANCELLED, ERR_VALIDATION_FAILED, ERR_PROTOCOL, CONTEXT_REQUIRED).
+                    type: string
+                details:
+                    description: Optional structured details specific to the error code. For code CONTEXT_REQUIRED, `details` is a ContextRequiredDetails object.
+                effects:
+                    description: 'Side-effect possibility gating safe retry, present where retry is in question (categories `transient` and `service`). `none`: the call''s side effects provably did not take hold — safe to retry. `possible`: the call may have taken effect — not safe to auto-retry a non-idempotent operation. `definite`: the call took effect. Absent means treat as `possible`.'
+                    enum:
+                        - none
+                        - possible
+                        - definite
+                    type: string
+                message:
+                    description: Human-readable description.
+                    type: string
+            required:
+                - code
+                - message
+                - category
+            type: object
+        ListBindingsInput:
+            additionalProperties: false
+            properties:
+                interface:
+                    $ref: '#/components/schemas/OpenBindingsInterface'
+                operation:
+                    description: Scope the listing to a single operation's bindings.
+                    type: string
+            required:
+                - interface
+            type: object
+        ListOperationAliasesInput:
+            additionalProperties: false
+            properties:
+                interface:
+                    $ref: '#/components/schemas/OpenBindingsInterface'
+                operation:
+                    description: Scope the satisfaction map to a single operation.
+                    type: string
+            required:
+                - interface
+            type: object
+        ListOperationsInput:
+            additionalProperties: false
+            properties:
+                interface:
+                    $ref: '#/components/schemas/OpenBindingsInterface'
+                tag:
+                    description: Filter operations by tag.
+                    type: string
+            required:
+                - interface
+            type: object
+        MergeEntry:
+            additionalProperties: false
+            description: One operation-level change in a merge, and whether it was applied.
+            properties:
+                action:
+                    description: The merge action for this entry (e.g. add, update, conflict).
+                    type: string
+                applied:
+                    description: Whether this change was applied.
+                    type: boolean
+                details:
+                    items:
+                        type: string
+                    type: array
+                operation:
+                    description: The operation key the change concerns.
+                    type: string
+            required:
+                - operation
+                - action
+                - applied
+            type: object
+        MergeInterfacesInput:
+            additionalProperties: false
+            properties:
+                excludeOperations:
+                    description: Exclude these operations from the merge.
+                    items:
+                        type: string
+                    type: array
+                fromSources:
+                    description: Derive the source side from the target's own binding sources.
+                    type: boolean
+                noBindings:
+                    description: Don't graft bindings (operations and their referenced sources still come).
+                    type: boolean
+                noSources:
+                    description: Don't graft source entries (operations and bindings still come).
+                    type: boolean
+                only:
+                    description: Scope to a specific source key (requires fromSources).
+                    type: string
+                operations:
+                    description: Only merge these operations.
+                    items:
+                        type: string
+                    type: array
+                opsOnly:
+                    description: Graft operations only (no bindings or source entries) — the adopt-keys satisfaction strategy.
+                    type: boolean
+                source:
+                    $ref: '#/components/schemas/OpenBindingsInterface'
+                target:
+                    $ref: '#/components/schemas/OpenBindingsInterface'
+            required:
+                - target
+            type: object
+        MergeResult:
+            additionalProperties: false
+            properties:
+                applied:
+                    description: Number of changes applied.
+                    type: integer
+                dryRun:
+                    description: Whether this was a preview run (changes reported, not applied).
+                    type: boolean
+                entries:
+                    items:
+                        $ref: '#/components/schemas/MergeEntry'
+                    type: array
+                interface:
+                    $ref: '#/components/schemas/OpenBindingsInterface'
+                skipped:
+                    description: Number of changes skipped.
+                    type: integer
+                warnings:
+                    items:
+                        type: string
+                    type: array
+            required:
+                - interface
+            type: object
+        MetadataDiff:
+            additionalProperties: false
+            properties:
+                baseline:
+                    type: string
+                compared:
+                    type: string
+                field:
+                    type: string
+            required:
+                - field
+            type: object
+        NewInterfaceInput:
+            additionalProperties: false
+            properties:
+                description:
+                    type: string
+                name:
+                    type: string
+                openbindings:
+                    description: Target OpenBindings spec version; defaults to the tool's max tested version.
+                    type: string
+                version:
+                    type: string
+            type: object
+        OpenBindingsInterface:
+            additionalProperties: true
+            description: A valid OpenBindings interface document.
+            type: object
+        Operation:
+            additionalProperties: true
+            description: An operation definition as it would appear in an interface.
+            properties:
+                deprecated:
+                    type: boolean
+                description:
+                    type: string
+                input: {}
+                output: {}
+                tags:
+                    items:
+                        type: string
+                    type: array
+            type: object
+        OperationAliasEntry:
+            additionalProperties: false
+            description: An operation and the interface operations it corresponds to via aliases.
+            properties:
+                aliases:
+                    items:
+                        type: string
+                    type: array
+                key:
+                    type: string
+            required:
+                - key
+                - aliases
+            type: object
+        OperationDiff:
+            additionalProperties: false
+            properties:
+                details:
+                    description: What specifically changed.
+                    items:
+                        type: string
+                    type: array
+                operation:
+                    type: string
+                status:
+                    enum:
+                        - added
+                        - removed
+                        - changed
+                    type: string
+            required:
+                - operation
+                - status
+            type: object
+        OperationInvocationInput:
+            additionalProperties: false
+            description: 'Initial payload carried by invokeOperation''s open frame: the interface to act on and which operation (or specific binding) to invoke, plus context.'
+            oneOf:
+                - required:
+                    - operation
+                - required:
+                    - binding
+            properties:
+                binding:
+                    description: Binding key to invoke; the operation is derived from it. Mutually exclusive with operation.
+                    type: string
+                context:
+                    $ref: '#/components/schemas/BindingContext'
+                interface:
+                    $ref: '#/components/schemas/OpenBindingsInterface'
+                operation:
+                    description: Operation key to invoke. A binding is selected automatically.
+                    type: string
+            required:
+                - interface
+            type: object
+        OperationInvokerInputFrame:
+            description: 'One frame from the caller into invokeOperation. Same shape as the binding-invoker input stream, with the open frame carrying an OperationInvocationInput: exactly one `open` first, then zero or more `input` frames, then exactly one `close`.'
+            discriminator:
+                propertyName: kind
+            oneOf:
+                - additionalProperties: false
+                  description: Open the invocation. MUST be the first frame on the input stream.
+                  properties:
+                    input:
+                        $ref: '#/components/schemas/OperationInvocationInput'
+                    kind:
+                        const: open
+                  required:
+                    - kind
+                    - input
+                  title: open
+                  type: object
+                - additionalProperties: false
+                  description: Write one input value to the operation. Validated against the operation's input schema.
+                  properties:
+                    kind:
+                        const: input
+                    value:
+                        description: One input value.
+                  required:
+                    - kind
+                    - value
+                  title: input
+                  type: object
+                - additionalProperties: false
+                  description: Caller signals no more input frames will be sent. Idempotent.
+                  properties:
+                    kind:
+                        const: close
+                  required:
+                    - kind
+                  title: close
+                  type: object
+        OperationInvokerOutputFrame:
+            description: 'One frame from invokeOperation back to the caller. Same shape as the binding-invoker output stream: zero or more `output`/`input_closed` frames, then exactly one terminal `complete` or `error`. Each output is validated against the operation''s output schema.'
+            discriminator:
+                propertyName: kind
+            oneOf:
+                - additionalProperties: false
+                  description: One output value from the operation.
+                  properties:
+                    kind:
+                        const: output
+                    value:
+                        description: One output value.
+                  required:
+                    - kind
+                    - value
+                  title: output
+                  type: object
+                - additionalProperties: false
+                  description: The operation has closed the input side from its end. Subsequent caller input frames are ignored. Outputs may still flow.
+                  properties:
+                    kind:
+                        const: input_closed
+                  required:
+                    - kind
+                  title: input_closed
+                  type: object
+                - additionalProperties: false
+                  description: 'Terminal: the operation completed normally. MUST be the last frame.'
+                  properties:
+                    kind:
+                        const: complete
+                  required:
+                    - kind
+                  title: complete
+                  type: object
+                - additionalProperties: false
+                  description: 'Terminal: the operation failed. MUST be the last frame. Carries a structured InvocationError.'
+                  properties:
+                    error:
+                        $ref: '#/components/schemas/InvocationError'
+                    kind:
+                        const: error
+                  required:
+                    - kind
+                    - error
+                  title: error
+                  type: object
+        OperationListEntry:
+            additionalProperties: false
+            description: An operation from the interface's operations map, with its key and the bindings that realize it.
+            properties:
+                bindings:
+                    description: Keys of the binding entries that realize this operation.
+                    items:
+                        type: string
+                    type: array
+                key:
+                    description: The operation's key in the interface's operations map.
+                    type: string
+                operation:
+                    $ref: '#/components/schemas/Operation'
+            required:
+                - key
+                - operation
+            type: object
+        ProvenanceKeys:
+            additionalProperties: false
+            description: 'Keys split by provenance: source-owned (derived from a source by pullSource) vs hand-authored.'
+            properties:
+                handAuthored:
+                    items:
+                        type: string
+                    type: array
+                sourceOwned:
+                    items:
+                        type: string
+                    type: array
+            type: object
+        PullSourceInput:
+            additionalProperties: false
+            properties:
+                interface:
+                    $ref: '#/components/schemas/OpenBindingsInterface'
+                sourceKeys:
+                    description: Sources to pull; empty means all registered sources.
+                    items:
+                        type: string
+                    type: array
+            required:
+                - interface
+            type: object
+        RegisterDelegateInput:
+            additionalProperties: false
+            properties:
+                location:
+                    description: 'Delegate location: the exec: or http(s) URL of the delegate''s OpenBindings interface. Also the delegate''s registration identity.'
+                    type: string
+                preference:
+                    description: Initial delegate-level selection preference (higher = more preferred). May be changed later with setDelegatePreference.
+                    type: number
+            required:
+                - location
+            type: object
+        RemoveOperationAliasInput:
+            additionalProperties: false
+            properties:
+                aliases:
+                    description: Satisfaction alias(es) to remove.
+                    items:
+                        type: string
+                    minItems: 1
+                    type: array
+                interface:
+                    $ref: '#/components/schemas/OpenBindingsInterface'
+                operation:
+                    description: The operation's key or any existing identifier.
+                    type: string
+            required:
+                - interface
+                - operation
+                - aliases
+            type: object
+        RemoveOperationInput:
+            additionalProperties: false
+            properties:
+                force:
+                    description: Remove source-owned operations without warning.
+                    type: boolean
+                interface:
+                    $ref: '#/components/schemas/OpenBindingsInterface'
+                keys:
+                    description: Operation keys to remove.
+                    items:
+                        type: string
+                    minItems: 1
+                    type: array
+            required:
+                - interface
+                - keys
+            type: object
+        RenameOperationInput:
+            additionalProperties: false
+            properties:
+                interface:
+                    $ref: '#/components/schemas/OpenBindingsInterface'
+                newKey:
+                    type: string
+                oldKey:
+                    type: string
+            required:
+                - interface
+                - oldKey
+                - newKey
+            type: object
+        ReportCompatibilityInput:
+            additionalProperties: false
+            properties:
+                candidate:
+                    $ref: '#/components/schemas/OpenBindingsInterface'
+                target:
+                    $ref: '#/components/schemas/OpenBindingsInterface'
+            required:
+                - target
+                - candidate
+            type: object
+        ResolveDelegateForBindingSpecInput:
+            additionalProperties: false
+            properties:
+                bindingSpec:
+                    description: Binding specification identifier to resolve to a delegate.
+                    type: string
+            required:
+                - bindingSpec
+            type: object
+        ResolveDelegateForBindingSpecResult:
+            additionalProperties: false
+            properties:
+                bindingSpec:
+                    description: The requested format token.
+                    type: string
+                builtin:
+                    description: True when ob's own native handling is selected for the format.
+                    type: boolean
+                capabilities:
+                    description: The capabilities the delegate offers for this format.
+                    items:
+                        $ref: '#/components/schemas/DelegateCapability'
+                    type: array
+                location:
+                    description: The delegate's location.
+                    type: string
+                name:
+                    description: Display name of the delegate ob's routing would select.
+                    type: string
+            required:
+                - bindingSpec
+            type: object
+        ResolveDelegateInput:
+            additionalProperties: false
+            properties:
+                operation:
+                    description: The operation identifier a delegate is needed for.
+                    type: string
+            required:
+                - operation
+            type: object
+        ResolveDelegateResult:
+            additionalProperties: false
+            properties:
+                candidates:
+                    description: Registered delegates that carry the operation, ordered by effective preference, best first. Empty when none carry it.
+                    items:
+                        $ref: '#/components/schemas/DelegateSummary'
+                    type: array
+                operation:
+                    description: The requested operation identifier, echoed back.
+                    type: string
+            required:
+                - operation
+                - candidates
+            type: object
+        ResolveInterfaceInput:
+            additionalProperties: false
+            properties:
+                address:
+                    description: Base URL or host to resolve from (e.g. https://api.example.com or localhost:8080).
+                    type: string
+            required:
+                - address
+            type: object
+        ResolveInterfaceOutput:
+            additionalProperties: false
+            properties:
+                interface:
+                    $ref: '#/components/schemas/OpenBindingsInterface'
+                resolvedUrl:
+                    description: The URL the interface document (or the source spec it was synthesized from) was ultimately fetched from.
+                    type: string
+                synthesizedFrom:
+                    description: The binding-format token the interface was synthesized from (e.g. openapi@3.1) when the target was not already an OBI; absent for native OBIs.
+                    type: string
+            required:
+                - interface
+            type: object
+        ServerInfo:
+            additionalProperties: false
+            properties:
+                port:
+                    type: integer
+                url:
+                    description: Base URL the server is listening on.
+                    type: string
+            type: object
+        SetContextInput:
+            additionalProperties: false
+            properties:
+                key:
+                    description: Context store key.
+                    type: string
+                value:
+                    $ref: '#/components/schemas/Context'
+            required:
+                - key
+                - value
+            type: object
+        SetDelegatePreferenceInput:
+            additionalProperties: false
+            properties:
+                bindingSpec:
+                    description: Optional binding-source format scope for an operation entry (requires operation) — ob's extra granularity beyond the delegate-manager contract.
+                    type: string
+                location:
+                    description: The reference the delegate is registered under.
+                    type: string
+                operation:
+                    description: When present, the preference applies only to resolving this operation; otherwise it is the delegate-level default.
+                    type: string
+                preference:
+                    description: 'The new preference value; higher is more preferred, 0 is the baseline, negatives rank below it. Null clears: with an operation, it removes that operation''s override; without one, it resets the delegate-level preference to the baseline.'
+                    type:
+                        - number
+                        - "null"
+            required:
+                - location
+                - preference
+            type: object
+        SetMetadataInput:
+            additionalProperties: false
+            properties:
+                description:
+                    type: string
+                interface:
+                    $ref: '#/components/schemas/OpenBindingsInterface'
+                name:
+                    type: string
+                version:
+                    type: string
+            required:
+                - interface
+            type: object
+        SetOperationCodegenNameInput:
+            additionalProperties: false
+            properties:
+                clear:
+                    description: Remove the codegen-name override.
+                    type: boolean
+                codegenName:
+                    description: The symbol name 'ob codegen' should emit for this operation. Omit (or send empty) with clear=true to remove the override.
+                    type: string
+                interface:
+                    $ref: '#/components/schemas/OpenBindingsInterface'
+                operation:
+                    description: The operation's key or any identifier.
+                    type: string
+            required:
+                - interface
+                - operation
+            type: object
+        SetOperationInput:
+            additionalProperties: false
+            properties:
+                addTags:
+                    items:
+                        type: string
+                    type: array
+                deprecated:
+                    type: boolean
+                description:
+                    type: string
+                idempotent:
+                    type: boolean
+                input:
+                    description: Replacement JSON Schema for the operation's input.
+                interface:
+                    $ref: '#/components/schemas/OpenBindingsInterface'
+                operation:
+                    description: The operation's key or any identifier.
+                    type: string
+                output:
+                    description: Replacement JSON Schema for the operation's output.
+                own:
+                    description: Take ownership of a source-owned operation (detach) before editing.
+                    type: boolean
+                removeTags:
+                    items:
+                        type: string
+                    type: array
+            required:
+                - interface
+                - operation
+            type: object
+        SetOperationOutputSchemaInput:
+            additionalProperties: false
+            properties:
+                clear:
+                    description: Remove the output-schema election.
+                    type: boolean
+                interface:
+                    $ref: '#/components/schemas/OpenBindingsInterface'
+                operation:
+                    description: The operation's key or any identifier.
+                    type: string
+                outputSchema:
+                    description: The real output schema to elect. Omit with clear=true to remove the election.
+                    type: object
+            required:
+                - interface
+                - operation
+            type: object
+        SoftwareIdentity:
+            additionalProperties: true
+            description: Identity and metadata for a piece of software.
+            properties:
+                description:
+                    description: Brief description.
+                    type: string
+                homepage:
+                    description: Documentation URL.
+                    type: string
+                maintainer:
+                    description: Author or organization.
+                    type: string
+                name:
+                    description: Human-readable display name.
+                    type: string
+                repository:
+                    description: Source code URL.
+                    type: string
+                version:
+                    description: Software version.
+                    type: string
+            required:
+                - name
+            type: object
+        Source:
+            additionalProperties: true
+            anyOf:
+                - required:
+                    - location
+                - required:
+                    - content
+            description: A binding source (binding-specification identifier plus location or content), as an OpenBindings document carries it. Open to extension fields so a document's source entry forwards verbatim.
+            properties:
+                bindingSpec:
+                    description: Binding specification identifier governing this source.
+                    type: string
+                content:
+                    description: Embedded source-artifact representation, per its binding specification.
+                description:
+                    description: Human-readable description for this source.
+                    type: string
+                location:
+                    description: Absolute address of the source, per its binding specification (core OBI-D-05).
+                    type: string
+            required:
+                - bindingSpec
+            type: object
+        SourceInspection:
+            allOf:
+                - if:
+                    properties:
+                        exhaustive:
+                            const: false
+                    required:
+                        - exhaustive
+                  then:
+                    required:
+                        - limitation
+            description: Inspection result for a binding source artifact. Its inventory boundary is the targets admitted by the governing binding specification, not every interaction in the upstream artifact.
+            properties:
+                exhaustive:
+                    description: True when targets is the complete list of targets admitted by the governing binding specification. False means more admitted targets may exist and requires limitation evidence.
+                    type: boolean
+                limitation:
+                    $ref: '#/components/schemas/InspectionLimitation'
+                targets:
+                    items:
+                        $ref: '#/components/schemas/BindableTarget'
+                    type: array
+            required:
+                - targets
+                - exhaustive
+            type: object
+        SourceKeyInput:
+            additionalProperties: false
+            properties:
+                interface:
+                    $ref: '#/components/schemas/OpenBindingsInterface'
+                key:
+                    description: Source key.
+                    type: string
+            required:
+                - interface
+                - key
+            type: object
+        SourceListEntry:
+            additionalProperties: false
+            description: A source from the interface's sources map, with its key.
+            properties:
+                key:
+                    description: The source's key in the interface's sources map.
+                    type: string
+                source:
+                    $ref: '#/components/schemas/Source'
+            required:
+                - key
+                - source
+            type: object
+        SourcePullOutput:
+            additionalProperties: false
+            description: 'The result of a `source pull`: the resulting interface document plus the change log — the source-owned operations and bindings added, updated, or pruned, the sources pulled and skipped, and any warnings.'
+            properties:
+                bindingsAdded:
+                    items:
+                        type: string
+                    type: array
+                bindingsPruned:
+                    items:
+                        type: string
+                    type: array
+                bindingsUpdated:
+                    items:
+                        type: string
+                    type: array
+                interface:
+                    $ref: '#/components/schemas/OpenBindingsInterface'
+                operationsAdded:
+                    items:
+                        type: string
+                    type: array
+                operationsPruned:
+                    items:
+                        type: string
+                    type: array
+                operationsUpdated:
+                    items:
+                        type: string
+                    type: array
+                skipped:
+                    description: Source keys skipped (hand-authored or unreadable).
+                    items:
+                        type: string
+                    type: array
+                sources:
+                    description: Source keys pulled.
+                    items:
+                        type: string
+                    type: array
+                warnings:
+                    items:
+                        type: string
+                    type: array
+            required:
+                - interface
+            type: object
+        SourceStatus:
+            additionalProperties: false
+            description: 'Drift status of one source on an interface: what `ob source pull` would add/update/remove, plus custodial drift on hand-authored bindings whose target is gone.'
+            properties:
+                bindingSpec:
+                    type: string
+                bindingsAdded:
+                    items:
+                        type: string
+                    type: array
+                bindingsRemoved:
+                    items:
+                        type: string
+                    type: array
+                bindingsUpdated:
+                    items:
+                        type: string
+                    type: array
+                custodial:
+                    description: Hand-authored bindings whose source target no longer exists.
+                    items:
+                        type: string
+                    type: array
+                error:
+                    type: string
+                inSync:
+                    description: Whether the source would change nothing and has no custodial drift.
+                    type: boolean
+                key:
+                    type: string
+                lastSynced:
+                    type: string
+                obVersion:
+                    type: string
+                operationsAdded:
+                    items:
+                        type: string
+                    type: array
+                operationsRemoved:
+                    items:
+                        type: string
+                    type: array
+                operationsUpdated:
+                    items:
+                        type: string
+                    type: array
+                ref:
+                    type: string
+                resolve:
+                    type: string
+                tracked:
+                    description: Whether ob tracks this source via x-ob provenance metadata (written by addSource or synthesizeInterface). Untracked sources are hand-authored; pull skips them.
+                    type: boolean
+            required:
+                - key
+                - bindingSpec
+                - inSync
+                - tracked
+            type: object
+        StartMCPServerInput:
+            additionalProperties: false
+            properties:
+                name:
+                    description: MCP server name.
+                    type: string
+                port:
+                    description: HTTP port when transport is http (default 8080).
+                    type: integer
+                transport:
+                    description: Transport (default stdio).
+                    enum:
+                        - stdio
+                        - http
+                    type: string
+                url:
+                    description: Interface URL to expose as an MCP server (an OBI, a well-known discovery base, or a raw binding spec). Compose an aggregate OBI to bridge several services.
+                    type: string
+            required:
+                - url
+            type: object
+        StartServerInput:
+            additionalProperties: false
+            properties:
+                allowOrigins:
+                    description: Allowed CORS origins.
+                    items:
+                        type: string
+                    type: array
+                noTls:
+                    description: Skip the HTTPS listener and CA trust setup (HTTP only).
+                    type: boolean
+                port:
+                    description: Port to listen on (default 20290).
+                    type: integer
+                token:
+                    description: Pre-shared session token.
+                    type: string
+            type: object
+        SynthesizeInterfaceInput:
+            additionalProperties: false
+            properties:
+                description:
+                    description: Interface description override.
+                    type: string
+                name:
+                    description: Interface name override.
+                    type: string
+                openbindingsVersion:
+                    description: Target OpenBindings spec version.
+                    type: string
+                sources:
+                    description: Binding sources to synthesize from.
+                    items:
+                        $ref: '#/components/schemas/SynthesizeInterfaceSource'
+                    type: array
+                version:
+                    description: Interface contract version override.
+                    type: string
+            type: object
+        SynthesizeInterfaceSource:
+            additionalProperties: false
+            anyOf:
+                - required:
+                    - location
+                - required:
+                    - content
+            description: A binding source to synthesize an interface from.
+            properties:
+                bindingSpec:
+                    description: Binding specification identifier governing this source.
+                    type: string
+                content:
+                    description: Content provided directly.
+                description:
+                    description: Human-readable description for this source.
+                    type: string
+                embed:
+                    description: If true, embed content inline in the output.
+                    type: boolean
+                location:
+                    description: Location to fetch content from (path or URL).
+                    type: string
+                name:
+                    description: Key name for this binding source in the output.
+                    type: string
+                outputLocation:
+                    description: Location to reference in the output.
+                    type: string
+            required:
+                - bindingSpec
+            type: object
+        UnbindOperationInput:
+            additionalProperties: false
+            properties:
+                interface:
+                    $ref: '#/components/schemas/OpenBindingsInterface'
+                operation:
+                    description: The operation's key or any identifier.
+                    type: string
+                source:
+                    description: Source key whose binding to remove.
+                    type: string
+            required:
+                - interface
+                - operation
+                - source
+            type: object
+        ValidateInterfaceInput:
+            additionalProperties: false
+            properties:
+                interface:
+                    $ref: '#/components/schemas/OpenBindingsInterface'
+                strict:
+                    description: Additionally reject unknown (non-x-) fields. A spec version newer than the tool supports is refused in every mode.
+                    type: boolean
+            required:
+                - interface
+            type: object
+        ValidationReport:
+            additionalProperties: true
+            properties:
+                problems:
+                    items:
+                        type: string
+                    type: array
+                valid:
+                    type: boolean
+                version:
+                    description: The spec version the document declares.
+                    type: string
+            required:
+                - valid
+            type: object
+    securitySchemes:
+        bearer:
+            description: Session or OAuth access token in the Authorization header on the WebSocket upgrade request.
+            type: httpBearer
+        tokenQuery:
+            description: Session or OAuth access token for browser WebSocket clients, which cannot set upgrade headers.
+            in: query
+            name: token
+            type: apiKey

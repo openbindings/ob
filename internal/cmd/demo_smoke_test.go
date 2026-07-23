@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"bufio"
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -62,8 +63,7 @@ func TestDemoSmoke_PrintedCommands(t *testing.T) {
 	run("validate", base)
 	run("op", "list", base)
 
-	// Invoke: the default binding, then every protocol the demo advertises.
-	run("op", "invoke", base, "getMenu")
+	// Invoke every explicitly selected protocol the demo advertises.
 	for _, binding := range []string{
 		"getMenu.restApi",
 		"getMenu.connectServer",
@@ -75,7 +75,7 @@ func TestDemoSmoke_PrintedCommands(t *testing.T) {
 	}
 
 	// Place an order (the demo's printed input, verbatim).
-	out := run("op", "invoke", base, "placeOrder",
+	out := run("op", "invoke", base, "--binding", "placeOrder.restApi",
 		"--input", `{"drink":"Schema Latte","size":"v2","customer":"Alice"}`)
 	if !strings.Contains(out, "orderId") {
 		t.Errorf("placeOrder output missing orderId: %s", out)
@@ -85,8 +85,10 @@ func TestDemoSmoke_PrintedCommands(t *testing.T) {
 	// JSON event, then tear the stream down.
 	streamCtx, stopStream := context.WithTimeout(ctx, 20*time.Second)
 	defer stopStream()
-	stream := exec.CommandContext(streamCtx, ob, "op", "invoke", base, "orderUpdates")
+	stream := exec.CommandContext(streamCtx, ob, "op", "invoke", base, "--binding", "orderUpdates.grpcServer")
 	stream.Dir = workDir
+	var streamStderr bytes.Buffer
+	stream.Stderr = &streamStderr
 	stdout, err := stream.StdoutPipe()
 	if err != nil {
 		t.Fatal(err)
@@ -107,7 +109,7 @@ func TestDemoSmoke_PrintedCommands(t *testing.T) {
 	}()
 	// The subscription needs a beat to attach before the order fires events.
 	time.Sleep(500 * time.Millisecond)
-	run("op", "invoke", base, "placeOrder",
+	run("op", "invoke", base, "--binding", "placeOrder.restApi",
 		"--input", `{"drink":"Schema Latte","size":"v2","customer":"Bob"}`)
 
 	select {
@@ -120,7 +122,7 @@ func TestDemoSmoke_PrintedCommands(t *testing.T) {
 			t.Errorf("orderUpdates event missing orderId: %q", line)
 		}
 	case <-time.After(15 * time.Second):
-		t.Fatal("no orderUpdates event within 15s of placing an order")
+		t.Fatalf("no orderUpdates event within 15s of placing an order; stream stderr: %s", streamStderr.String())
 	}
 	stopStream()
 	_ = stream.Wait() // killed by ctx; the assertion above is the verdict

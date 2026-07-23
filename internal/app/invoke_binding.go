@@ -22,9 +22,10 @@ type InvokeBindingResult struct {
 	Error  error
 }
 
-// InvokeBinding resolves the default binding for an operation, applies
-// input/output transforms, and invokes the operation. This is the domain
-// logic that both the TUI and CLI can share.
+// InvokeBinding resolves the sole invocable binding for an operation, applies
+// input/output transforms, and invokes the operation. Ambiguous operations
+// require the caller to use the explicit-binding invocation surface. This is
+// the domain logic that both the TUI and CLI can share.
 //
 // Context resolution is handled by the operation invoker via the ContextStore
 // and PlatformCallbacks wired into the DefaultInvoker.

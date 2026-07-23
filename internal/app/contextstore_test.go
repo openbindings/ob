@@ -32,7 +32,7 @@ func setupContextTestDir(t *testing.T) string {
 }
 
 func TestSaveAndLoadContextConfig(t *testing.T) {
-	setupContextTestDir(t)
+	dir := setupContextTestDir(t)
 
 	cfg := ContextConfig{
 		Headers:     map[string]string{"Authorization": "Bearer tok"},
@@ -65,6 +65,33 @@ func TestSaveAndLoadContextConfig(t *testing.T) {
 	}
 	if loaded.Metadata["region"] != "us-east-1" {
 		t.Errorf("metadata mismatch: got %v", loaded.Metadata["region"])
+	}
+	info, err := os.Stat(filepath.Join(dir, contextFilename(url)))
+	if err != nil {
+		t.Fatalf("stat context config: %v", err)
+	}
+	if perm := info.Mode().Perm(); perm != CredsFilePerm {
+		t.Errorf("context config perms = %#o, want %#o", perm, CredsFilePerm)
+	}
+}
+
+func TestSaveContextConfig_HardensLegacyPermissions(t *testing.T) {
+	dir := setupContextTestDir(t)
+	url := "https://legacy.example.com"
+	path := filepath.Join(dir, contextFilename(url))
+	if err := os.WriteFile(path, []byte(`{"headers":{"X-Old":"value"}}`), 0o644); err != nil {
+		t.Fatalf("seed legacy context: %v", err)
+	}
+
+	if err := SaveContextConfig(url, ContextConfig{Headers: map[string]string{"X-New": "value"}}); err != nil {
+		t.Fatalf("SaveContextConfig: %v", err)
+	}
+	info, err := os.Stat(path)
+	if err != nil {
+		t.Fatalf("stat context config: %v", err)
+	}
+	if perm := info.Mode().Perm(); perm != CredsFilePerm {
+		t.Errorf("legacy context config perms = %#o after save, want %#o", perm, CredsFilePerm)
 	}
 }
 

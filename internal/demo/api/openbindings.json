@@ -228,11 +228,6 @@
       "location": "http://localhost:8080/openapi.json",
       "description": "REST API — the mobile ordering app calls this"
     },
-    "eventStream": {
-      "bindingSpec": "openbindings.asyncapi@1",
-      "location": "http://localhost:8080/asyncapi.json",
-      "description": "SSE event stream — the barista dashboard watches this"
-    },
     "mcpServer": {
       "bindingSpec": "openbindings.mcp@1",
       "location": "http://localhost:8080/mcp",
@@ -240,7 +235,7 @@
     },
     "grpcServer": {
       "bindingSpec": "openbindings.grpc@1",
-      "location": "localhost:9090",
+      "location": "grpc://localhost:9090",
       "description": "gRPC service — backend microservices talk over this"
     },
     "connectServer": {
@@ -255,7 +250,7 @@
     },
     "placeAndTrackGraph": {
       "bindingSpec": "openbindings.operation-graph@1",
-      "description": "Operation graph — places an order and tracks it via the SSE event stream until ready",
+      "description": "Operation graph — places an order and tracks it via a selected live update stream until ready",
       "content": {
         "graphs": {
           "placeAndTrack": {
@@ -410,6 +405,7 @@
       "operation": "getMenu",
       "source": "connectServer",
       "ref": "blend.CoffeeShop/GetMenu",
+      "inputTransform": "{}",
       "preference": 5
     },
     "placeOrder.connectServer": {
@@ -453,12 +449,6 @@
       "source": "graphqlServer",
       "ref": "Mutation/cancelOrder",
       "preference": 1
-    },
-    "orderUpdates.eventStream": {
-      "operation": "orderUpdates",
-      "source": "eventStream",
-      "ref": "#/operations/onOrderUpdate",
-      "preference": 30
     },
     "orderUpdates.grpcServer": {
       "operation": "orderUpdates",

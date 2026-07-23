@@ -84,14 +84,13 @@ func operationKeyForName(name string, iface *openbindings.Interface) string {
 	return ""
 }
 
-// DefaultBindingForOp finds the most-preferred, non-deprecated binding for a given operation.
-// Returns the binding key and entry, or ("", nil) if no binding matches.
-func DefaultBindingForOp(opKey string, iface *openbindings.Interface) (string, *openbindings.BindingEntry) {
-	key, entry, err := openbindings.DefaultBindingSelector(iface, opKey)
-	if err != nil {
-		return "", nil
-	}
-	return key, entry
+// DefaultBindingForOp applies the operation-invoker contract's automatic
+// resolution rule over bindings ob can act on: exactly one candidate resolves;
+// zero or several return the SDK's distinct not-found or selection-required
+// error. Preference, deprecation, source order, and key order never invent a
+// choice.
+func DefaultBindingForOp(opKey string, iface *openbindings.Interface) (string, *openbindings.BindingEntry, error) {
+	return selectBindingForOp(opKey, iface, nil)
 }
 
 // bindingByKey looks up a binding by its key.
@@ -141,6 +140,14 @@ type resolvedBinding struct {
 // from an OBI interface. Context resolution is handled by the invoker and
 // per-format invokers via the ContextStore.
 func resolveBindingAndSource(iface *openbindings.Interface, opKey, bindingKey string, input any) (*resolvedBinding, error) {
+	return resolveBindingAndSourceWithContext(iface, opKey, bindingKey, input, nil)
+}
+
+// resolveBindingAndSourceWithContext is the operation-invoker resolution
+// surface used by invocation and preflight. An explicit binding bypasses
+// selection; otherwise context.configuration.selection is the caller's ordered
+// choice and sole-candidate inference is the only automatic resolution.
+func resolveBindingAndSourceWithContext(iface *openbindings.Interface, opKey, bindingKey string, input any, callerContext map[string]any) (*resolvedBinding, error) {
 	if opKey != "" && bindingKey != "" {
 		return nil, fmt.Errorf("operation key and binding key are mutually exclusive")
 	}
@@ -168,9 +175,10 @@ func resolveBindingAndSource(iface *openbindings.Interface, opKey, bindingKey st
 				return nil, fmt.Errorf("operation %q not found", opKey)
 			}
 		}
-		resolvedKey, binding = DefaultBindingForOp(opKey, iface)
-		if binding == nil {
-			return nil, fmt.Errorf("no binding for operation %q", opKey)
+		var selectionErr error
+		resolvedKey, binding, selectionErr = selectBindingForOp(opKey, iface, contextSelection(callerContext))
+		if selectionErr != nil {
+			return nil, selectionErr
 		}
 	}
 
@@ -194,6 +202,77 @@ func resolveBindingAndSource(iface *openbindings.Interface, opKey, bindingKey st
 		source:     source,
 		input:      execInput,
 	}, nil
+}
+
+// contextSelection reads the operation-invoker contract's selection point.
+// Malformed values provide no effective choice.
+func contextSelection(ctx map[string]any) []string {
+	configuration, _ := ctx["configuration"].(map[string]any)
+	switch raw := configuration["selection"].(type) {
+	case []string:
+		return append([]string(nil), raw...)
+	case []any:
+		out := make([]string, len(raw))
+		for index, value := range raw {
+			s, ok := value.(string)
+			if !ok {
+				return nil
+			}
+			out[index] = s
+		}
+		return out
+	default:
+		return nil
+	}
+}
+
+// selectBindingForOp applies an ordered caller choice, then the
+// policy-neutral sole-invocable-candidate rule. "Invocable" is evaluated
+// against ob's builtin and registered-delegate reach, not merely document
+// presence.
+func selectBindingForOp(opKey string, iface *openbindings.Interface, ordered []string) (string, *openbindings.BindingEntry, error) {
+	if iface == nil {
+		return "", nil, fmt.Errorf("%w: %s", openbindings.ErrBindingNotFound, opKey)
+	}
+	invocable := func(binding openbindings.BindingEntry) bool {
+		source, ok := iface.Sources[binding.Source]
+		if !ok {
+			// Preserve the document error for the selected candidate. The
+			// operation-invoker contract assumes a valid OBI; treating a
+			// dangling source as "unsupported" would mask the real defect.
+			return true
+		}
+		return BuiltinSupportsFormat(source.BindingSpec) || selectDelegate(CapInvoke, source.BindingSpec) != nil
+	}
+
+	for _, key := range ordered {
+		binding, ok := iface.Bindings[key]
+		if ok && binding.Operation == opKey && invocable(binding) {
+			copy := binding
+			return key, &copy, nil
+		}
+	}
+
+	var selectedKey string
+	var selected *openbindings.BindingEntry
+	count := 0
+	for key, binding := range iface.Bindings {
+		if binding.Operation != opKey || !invocable(binding) {
+			continue
+		}
+		count++
+		copy := binding
+		selectedKey, selected = key, &copy
+	}
+	switch count {
+	case 0:
+		return "", nil, fmt.Errorf("%w: %s", openbindings.ErrBindingNotFound, opKey)
+	case 1:
+		return selectedKey, selected, nil
+	default:
+		return "", nil, fmt.Errorf("%w: operation %q has %d invocable bindings; choose one with --binding or --select-binding",
+			openbindings.ErrBindingSelectionRequired, opKey, count)
+	}
 }
 
 // resolveSourceLocation builds the InvocationSource for a binding's source.
@@ -512,7 +591,8 @@ func statusFromError(err *openbindings.InvocationError) int {
 // a single InvocationOutput.
 //
 // Exactly one of opKey or bindingKey must be non-empty:
-//   - opKey: selects the most-preferred binding for that operation.
+//   - opKey: resolves the sole invocable binding for that operation and
+//     returns ERR_BINDING_SELECTION_REQUIRED when several remain.
 //   - bindingKey: looks up the binding directly (operation is read from the entry).
 //
 // The string result is the key of the binding the invocation resolved to —
@@ -585,7 +665,8 @@ func InvokeOBIOperationConfigured(ctx context.Context, obiPath, opKey, bindingKe
 // output is T-08-validated against the operation's declared output schema
 // before it reaches the caller (stop-and-return on nonconformant emission).
 func invokeOnInterface(ctx context.Context, iface *openbindings.Interface, opKey, bindingKey string, input any, config *InvokeConfig) (*ConfiguredInvocation, error) {
-	resolved, err := resolveBindingAndSource(iface, opKey, bindingKey, input)
+	callerContext := config.context()
+	resolved, err := resolveBindingAndSourceWithContext(iface, opKey, bindingKey, input, callerContext)
 	if err != nil {
 		return nil, err
 	}
@@ -615,6 +696,7 @@ func invokeOnInterface(ctx context.Context, iface *openbindings.Interface, opKey
 		Source:      InvokeSource{BindingSpec: es.BindingSpec, Location: es.Location, Content: es.Content},
 		Ref:         resolved.binding.Ref,
 		Input:       resolved.input,
+		Context:     callerContext,
 		Interface:   iface,
 		Binding:     resolved.binding,
 		InputSchema: effectiveInputSchema(iface, resolved.binding, resolved.input),
@@ -815,8 +897,17 @@ func PrepareOperation(ctx context.Context, obiPath string, opKey string, binding
 	if err != nil {
 		return nil, fmt.Errorf("load OBI %q: %w", obiPath, err)
 	}
+	return PrepareInterfaceOperation(ctx, iface, opKey, bindingKey, callerContext)
+}
 
-	resolved, err := resolveBindingAndSource(iface, opKey, bindingKey, nil)
+// PrepareInterfaceOperation is PrepareOperation's document-valued form. It is
+// used by remote APIs, where the interface is request data rather than a local
+// path, while preserving the CLI path's acquisition and preflight semantics.
+func PrepareInterfaceOperation(ctx context.Context, iface *openbindings.Interface, opKey string, bindingKey string, callerContext map[string]any) (*openbindings.ContextRequiredDetails, error) {
+	if iface == nil {
+		return nil, fmt.Errorf("interface is required")
+	}
+	resolved, err := resolveBindingAndSourceWithContext(iface, opKey, bindingKey, nil, callerContext)
 	if err != nil {
 		return nil, err
 	}
@@ -1010,7 +1101,7 @@ func InvokeOperationWithContext(ctx context.Context, input InvocationInput) Invo
 		return InvocationResult{
 			Error: &Error{
 				Code:    "invalid_input",
-				Message: "source.format is required",
+				Message: "source.bindingSpec is required",
 			},
 		}
 	}
@@ -1069,7 +1160,7 @@ func InvokeOperationWithContext(ctx context.Context, input InvocationInput) Invo
 // across process boundaries requires a transport protocol; use builtin drivers).
 func SubscribeOperationWithContext(ctx context.Context, input InvocationInput) (<-chan InvocationOutput, error) {
 	if input.Source.BindingSpec == "" {
-		return nil, fmt.Errorf("source.format is required")
+		return nil, fmt.Errorf("source.bindingSpec is required")
 	}
 	if input.Ref == "" {
 		return nil, fmt.Errorf("ref is required")

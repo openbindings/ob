@@ -75,7 +75,7 @@ func TestInputFrameStrictDecode(t *testing.T) {
 		{"open with legacy bearerToken", `{"kind":"open","input":{"source":{"format":"f","location":"x"},"ref":"r","bearerToken":"t"}}`},
 		{"open without ref", `{"kind":"open","input":{"source":{"format":"f","location":"x"}}}`},
 		{"open without source format", `{"kind":"open","input":{"source":{"location":"x"},"ref":"r"}}`},
-		{"open with unknown source property", `{"kind":"open","input":{"source":{"format":"f","location":"x","binary":"b"},"ref":"r"}}`},
+		{"open without source carrier", `{"kind":"open","input":{"source":{"bindingSpec":"f"},"ref":"r"}}`},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -89,6 +89,20 @@ func TestInputFrameStrictDecode(t *testing.T) {
 				t.Errorf("expected *ProtocolError, got %T: %v", err, err)
 			}
 		})
+	}
+}
+
+func TestBindingOpenAcceptsExtensibleSource(t *testing.T) {
+	// Source is deliberately open in the OBI contract. Transport-irrelevant
+	// extension fields must not turn an otherwise valid open frame into a
+	// protocol violation.
+	raw := `{"kind":"open","input":{"source":{"bindingSpec":"f","location":"x","binary":"b","x-driver":{"mode":"fast"}},"ref":"r"}}`
+	var frame InputFrame
+	if err := json.Unmarshal([]byte(raw), &frame); err != nil {
+		t.Fatalf("extensible Source was rejected: %v", err)
+	}
+	if frame.Input == nil || frame.Input.Source.BindingSpec != "f" {
+		t.Fatalf("decoded frame = %#v", frame)
 	}
 }
 
@@ -197,5 +211,36 @@ func TestContextRequiredDetailsCrossTheWire(t *testing.T) {
 	if got.Target != "api.example.com" || len(got.Alternatives) != 1 ||
 		got.Alternatives[0].Requirements[0].Type != "auth.bearer" {
 		t.Errorf("details after round trip = %#v", got)
+	}
+}
+
+func TestOperationInputFrameRoundTrip(t *testing.T) {
+	iface := &openbindings.Interface{
+		OpenBindings: openbindings.MaxTestedVersion,
+		Operations:   map[string]openbindings.Operation{"echo": {}},
+	}
+	frame := OperationOpen(&OperationInvocationInput{Interface: iface, Operation: "echo"})
+	b, err := json.Marshal(frame)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var back OperationInputFrame
+	if err := json.Unmarshal(b, &back); err != nil {
+		t.Fatal(err)
+	}
+	if back.Kind != KindOpen || back.Input == nil || back.Input.Operation != "echo" || back.Input.Interface == nil {
+		t.Fatalf("round trip = %#v", back)
+	}
+}
+
+func TestOperationInputFrameRequiresExclusiveTarget(t *testing.T) {
+	for _, raw := range []string{
+		`{"kind":"open","input":{"interface":{"openbindings":"0.2.0","operations":{}}}}`,
+		`{"kind":"open","input":{"interface":{"openbindings":"0.2.0","operations":{}},"operation":"x","binding":"x.http"}}`,
+	} {
+		var frame OperationInputFrame
+		if err := json.Unmarshal([]byte(raw), &frame); err == nil {
+			t.Fatalf("expected protocol error for %s", raw)
+		}
 	}
 }

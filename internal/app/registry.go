@@ -62,9 +62,8 @@ func newDefaultInvoker() *openbindings.OperationInvoker {
 	// moved onto invoker.Invoke, remove driveBinding's loop first — otherwise
 	// both loops fire and a single challenge is retried up to 3×3 times.
 	//
-	// Least privilege: the resolver hands back only challenge-scoped context
-	// (openbindings.ScopeContext) — the credentials the satisfied alternative
-	// needs plus non-secret config, never other stored credentials — and a
+	// Least privilege: the resolver hands back only context fields named by
+	// the satisfied challenge alternative (openbindings.ScopeContext), and a
 	// binding invoker never gets raw store access.
 	invoker.ContextResolver = CLIContextResolver()
 	// ob's own consumer configuration: the site-guarded hook table for the

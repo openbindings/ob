@@ -24,7 +24,7 @@ import (
 func InvokeBindingHandle(ctx context.Context, input InvocationInput) openbindings.Invocation[any, any] {
 	if input.Source.BindingSpec == "" {
 		return openbindings.NewErroredInvocation[any, any](&Error{
-			Code: openbindings.ErrCodeValidationFailed, Message: "source.format is required",
+			Code: openbindings.ErrCodeValidationFailed, Message: "source.bindingSpec is required",
 		})
 	}
 	if input.Ref == "" {
@@ -64,6 +64,53 @@ func InvokeBindingHandle(ctx context.Context, input InvocationInput) openbinding
 	return delegateInvoker.InvokeBinding(ctx, args)
 }
 
+// OperationHandleInput identifies an operation (or one of its bindings) on an
+// inline interface. It is the application form of the operation-invoker open
+// payload used by ob start's frame endpoint.
+type OperationHandleInput struct {
+	Interface *openbindings.Interface
+	Operation string
+	Binding   string
+	Context   map[string]any
+}
+
+// InvokeOperationHandle returns the cardinality-agnostic operation-layer
+// handle for an inline interface. Creation is inert; callers drive it with
+// Write/Close and consume Outputs exactly as they do InvokeBindingHandle.
+func InvokeOperationHandle(ctx context.Context, input OperationHandleInput) openbindings.Invocation[any, any] {
+	if input.Interface == nil {
+		return openbindings.NewErroredInvocation[any, any](&openbindings.InvocationError{
+			Code: openbindings.ErrCodeValidationFailed, Message: "interface is required",
+		})
+	}
+	if (input.Operation == "") == (input.Binding == "") {
+		return openbindings.NewErroredInvocation[any, any](&openbindings.InvocationError{
+			Code:    openbindings.ErrCodeValidationFailed,
+			Message: "exactly one of operation or binding is required",
+		})
+	}
+
+	operation := input.Operation
+	var opts []openbindings.InvokeOption
+	if len(input.Context) > 0 {
+		opts = append(opts, openbindings.WithContext(input.Context))
+	}
+	if input.Binding != "" {
+		binding, ok := input.Interface.Bindings[input.Binding]
+		if !ok {
+			return openbindings.NewErroredInvocation[any, any](&openbindings.InvocationError{
+				Code:    openbindings.ErrCodeBindingNotFound,
+				Message: fmt.Sprintf("binding %q is not defined on this interface", input.Binding),
+			})
+		}
+		operation = binding.Operation
+		opts = append(opts, openbindings.WithBindingKey(input.Binding))
+	}
+
+	sig := openbindings.NewOperationSignature[any, any](operation)
+	return openbindings.Invoke(ctx, DefaultInvoker(), input.Interface, sig, opts...)
+}
+
 // resolveDelegateInvoker selects an invoke-capable delegate that handles the
 // format via the unified delegate selection (OBI-T-09's semantics applied to
 // delegates — ob's narrowing, not a spec rule: capability + format,
@@ -91,10 +138,13 @@ func resolveDelegateInvoker(format string) (openbindings.BindingInvoker, error) 
 	})
 }
 
-// withStoredContext runs the side-effect-free preflight and merges stored
-// context beneath the per-call context when the merge satisfies the reported
-// requirements; otherwise the per-call context passes through untouched and
-// the binding's own CONTEXT_REQUIRED challenge reaches the caller.
+// withStoredContext runs the side-effect-free preflight and adds only the
+// challenge-scoped subset of stored context beneath the explicitly supplied
+// per-call context. The caller's context is not store-derived ambient
+// authority, so it remains intact and wins on collision. If stored plus
+// per-call context cannot satisfy the reported requirements, only the
+// per-call context passes through and the binding's own CONTEXT_REQUIRED
+// challenge reaches the caller.
 func withStoredContext(ctx context.Context, invoker *openbindings.OperationInvoker, args *openbindings.BindingInvocationArgs) map[string]any {
 	details, err := invoker.PrepareBinding(ctx, args)
 	if err != nil || details == nil {
@@ -114,9 +164,18 @@ func withStoredContext(ctx context.Context, invoker *openbindings.OperationInvok
 	if !openbindings.ContextSatisfies(merged, details) {
 		return args.Context
 	}
-	// Least privilege: the preflight already told us the requirements, so hand the
-	// invoker only the context they scope to, not the whole merged store.
-	return openbindings.ScopeContext(merged, details)
+	// Least privilege applies to reusable stored context. Preserve explicit
+	// invocation context after reducing the stored entry to the selected
+	// challenge alternative.
+	scoped := openbindings.ScopeContext(stored, details)
+	out := make(map[string]any, len(scoped)+len(args.Context))
+	for k, v := range scoped {
+		out[k] = v
+	}
+	for k, v := range args.Context {
+		out[k] = v
+	}
+	return out
 }
 
 // PrepareBinding is the prepareBinding operation: a side-effect-free
@@ -127,7 +186,7 @@ func withStoredContext(ctx context.Context, invoker *openbindings.OperationInvok
 // CONTEXT_REQUIRED challenge remains authoritative.
 func PrepareBinding(ctx context.Context, input InvocationInput) (*openbindings.ContextRequiredDetails, error) {
 	if input.Source.BindingSpec == "" {
-		return nil, fmt.Errorf("source.format is required")
+		return nil, fmt.Errorf("source.bindingSpec is required")
 	}
 	if input.Ref == "" {
 		return nil, fmt.Errorf("ref is required")

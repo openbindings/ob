@@ -16,6 +16,11 @@ import (
 // per-invocation intent: every axis falls through the chain to the
 // table/builtin. Flags are PER-AXIS; an unmentioned axis or field declines.
 type InvokeConfig struct {
+	// Selection is the operation-invoker contract's ordered caller choice.
+	// The first invocable binding key belonging to each resolved operation
+	// wins. Keeping it as invocation context lets the same list govern nested
+	// operation-graph calls without putting selection policy in the OBI.
+	Selection []string
 	// Decode is the output-lane override: "json" (strict parse), "text"
 	// (trailing-newline-stripped string), "none" (stdout unconsulted,
 	// output null — T-08 STILL applies on a typed contract), or "" (unset).
@@ -31,6 +36,19 @@ type InvokeConfig struct {
 // empty reports whether the config carries no per-invocation intent.
 func (c *InvokeConfig) empty() bool {
 	return c == nil || (c.Decode == "" && len(c.OKExits) == 0 && len(c.Routes) == 0)
+}
+
+// context returns the caller-owned operation context carried into this
+// invocation. Selection is the only CLI-authored context point; credentials
+// and protocol configuration continue to come from the scoped context loop.
+func (c *InvokeConfig) context() map[string]any {
+	if c == nil || len(c.Selection) == 0 {
+		return nil
+	}
+	selection := append([]string(nil), c.Selection...)
+	return map[string]any{
+		"configuration": map[string]any{"selection": selection},
+	}
 }
 
 // perInvocationHooks compiles the config into a seam carrier composed over

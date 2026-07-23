@@ -83,7 +83,7 @@ func serveOBI(port, grpcPort int) http.HandlerFunc {
 		baseURL := fmt.Sprintf("http://localhost:%d", port)
 
 		// The static OBI declares the default ports (http://localhost:8080,
-		// grpc localhost:9090) so it is a valid standalone OBI; rewrite both
+		// gRPC grpc://localhost:9090) so it is a valid standalone OBI; rewrite both
 		// to the running ports so the served document's source locations
 		// point at this process.
 		body := strings.ReplaceAll(string(data), "http://localhost:8080", baseURL)
@@ -97,7 +97,7 @@ func serveOBI(port, grpcPort int) http.HandlerFunc {
 
 // serveSpec serves an embedded source spec (openapi.json / asyncapi.json)
 // with its declared default ports rewritten to the running ones. The specs,
-// like the OBI, declare http://localhost:8080 / localhost:9090 so they are
+// like the OBI, declare http://localhost:8080 / grpc://localhost:9090 so they are
 // valid standalone documents; a consumer that resolves a server URL from
 // them (the openapi invoker reads `servers`) must land on this process,
 // whatever --port it runs on.

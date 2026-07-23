@@ -1,23 +1,48 @@
 {
   "bindings": {
+    "openbindings.ob.addOperation.openapi": {
+      "operation": "openbindings.ob.addOperation",
+      "ref": "#/paths/~1interfaces~1operations~1add/post",
+      "source": "openapi"
+    },
+    "openbindings.ob.addOperationAlias.openapi": {
+      "operation": "openbindings.ob.addOperationAlias",
+      "ref": "#/paths/~1interfaces~1operations~1aliases~1add/post",
+      "source": "openapi"
+    },
+    "openbindings.ob.addSource.openapi": {
+      "operation": "openbindings.ob.addSource",
+      "ref": "#/paths/~1interfaces~1sources~1add/post",
+      "source": "openapi"
+    },
+    "openbindings.ob.bindOperation.openapi": {
+      "operation": "openbindings.ob.bindOperation",
+      "ref": "#/paths/~1interfaces~1operations~1bind/post",
+      "source": "openapi"
+    },
     "openbindings.ob.codegen.openapi": {
       "operation": "openbindings.ob.codegen",
-      "ref": "#/paths/~1codegen/post",
+      "ref": "#/paths/~1interfaces~1codegen/post",
       "source": "openapi"
     },
     "openbindings.ob.compareInterfaces.openapi": {
       "operation": "openbindings.ob.compareInterfaces",
-      "ref": "#/paths/~1diff/post",
+      "ref": "#/paths/~1interfaces~1compare/post",
       "source": "openapi"
     },
     "openbindings.ob.conform.openapi": {
       "operation": "openbindings.ob.conform",
-      "ref": "#/paths/~1conform/post",
+      "ref": "#/paths/~1interfaces~1conform/post",
       "source": "openapi"
     },
     "openbindings.ob.describe.openapi": {
       "operation": "openbindings.ob.describe",
       "ref": "#/paths/~1describe/get",
+      "source": "openapi"
+    },
+    "openbindings.ob.detachOperation.openapi": {
+      "operation": "openbindings.ob.detachOperation",
+      "ref": "#/paths/~1interfaces~1operations~1detach/post",
       "source": "openapi"
     },
     "openbindings.ob.getContext.openapi": {
@@ -31,6 +56,11 @@
       "ref": "#/paths/~1delegate-requirements~1{capability}/get",
       "source": "openapi"
     },
+    "openbindings.ob.initializeEnvironment.openapi": {
+      "operation": "openbindings.ob.initializeEnvironment",
+      "ref": "#/paths/~1environment~1initialize/post",
+      "source": "openapi"
+    },
     "openbindings.ob.inspectSource.openapi": {
       "operation": "openbindings.ob.inspectSource",
       "ref": "#/paths/~1sources~1inspect/post",
@@ -41,9 +71,19 @@
       "ref": "#/operations/invokeBinding",
       "source": "asyncapi"
     },
+    "openbindings.ob.invokeOperation.asyncapi": {
+      "operation": "openbindings.ob.invokeOperation",
+      "ref": "#/operations/invokeOperation",
+      "source": "asyncapi"
+    },
     "openbindings.ob.listBindingSpecs.openapi": {
       "operation": "openbindings.ob.listBindingSpecs",
       "ref": "#/paths/~1binding-specs/get",
+      "source": "openapi"
+    },
+    "openbindings.ob.listBindings.openapi": {
+      "operation": "openbindings.ob.listBindings",
+      "ref": "#/paths/~1interfaces~1bindings~1list/post",
       "source": "openapi"
     },
     "openbindings.ob.listContexts.openapi": {
@@ -56,9 +96,29 @@
       "ref": "#/paths/~1delegates/get",
       "source": "openapi"
     },
+    "openbindings.ob.listOperationAliases.openapi": {
+      "operation": "openbindings.ob.listOperationAliases",
+      "ref": "#/paths/~1interfaces~1operations~1aliases~1list/post",
+      "source": "openapi"
+    },
+    "openbindings.ob.listOperations.openapi": {
+      "operation": "openbindings.ob.listOperations",
+      "ref": "#/paths/~1interfaces~1operations~1list/post",
+      "source": "openapi"
+    },
+    "openbindings.ob.listSources.openapi": {
+      "operation": "openbindings.ob.listSources",
+      "ref": "#/paths/~1interfaces~1sources~1list/post",
+      "source": "openapi"
+    },
     "openbindings.ob.mergeInterfaces.openapi": {
       "operation": "openbindings.ob.mergeInterfaces",
-      "ref": "#/paths/~1merge/post",
+      "ref": "#/paths/~1interfaces~1merge/post",
+      "source": "openapi"
+    },
+    "openbindings.ob.newInterface.openapi": {
+      "operation": "openbindings.ob.newInterface",
+      "ref": "#/paths/~1interfaces/post",
       "source": "openapi"
     },
     "openbindings.ob.prepareBinding.openapi": {
@@ -66,14 +126,56 @@
       "ref": "#/paths/~1bindings~1prepare/post",
       "source": "openapi"
     },
+    "openbindings.ob.prepareOperation.openapi": {
+      "inputTransform": "{ \"input\": $$ }",
+      "operation": "openbindings.ob.prepareOperation",
+      "ref": "#/paths/~1operations~1prepare/post",
+      "source": "openapi"
+    },
+    "openbindings.ob.pullSource.openapi": {
+      "operation": "openbindings.ob.pullSource",
+      "ref": "#/paths/~1interfaces~1sources~1pull/post",
+      "source": "openapi"
+    },
+    "openbindings.ob.purifyInterface.openapi": {
+      "operation": "openbindings.ob.purifyInterface",
+      "ref": "#/paths/~1interfaces~1purify/post",
+      "source": "openapi"
+    },
+    "openbindings.ob.registerDelegate.openapi": {
+      "operation": "openbindings.ob.registerDelegate",
+      "ref": "#/paths/~1delegates~1register/post",
+      "source": "openapi"
+    },
     "openbindings.ob.removeContext.openapi": {
+      "inputTransform": "{ \"url\": key }",
       "operation": "openbindings.ob.removeContext",
       "ref": "#/paths/~1contexts~1{url}/delete",
       "source": "openapi"
     },
+    "openbindings.ob.removeOperation.openapi": {
+      "operation": "openbindings.ob.removeOperation",
+      "ref": "#/paths/~1interfaces~1operations~1remove/post",
+      "source": "openapi"
+    },
+    "openbindings.ob.removeOperationAlias.openapi": {
+      "operation": "openbindings.ob.removeOperationAlias",
+      "ref": "#/paths/~1interfaces~1operations~1aliases~1remove/post",
+      "source": "openapi"
+    },
+    "openbindings.ob.removeSource.openapi": {
+      "operation": "openbindings.ob.removeSource",
+      "ref": "#/paths/~1interfaces~1sources~1remove/post",
+      "source": "openapi"
+    },
+    "openbindings.ob.renameOperation.openapi": {
+      "operation": "openbindings.ob.renameOperation",
+      "ref": "#/paths/~1interfaces~1operations~1rename/post",
+      "source": "openapi"
+    },
     "openbindings.ob.reportCompatibility.openapi": {
       "operation": "openbindings.ob.reportCompatibility",
-      "ref": "#/paths/~1compatibility/post",
+      "ref": "#/paths/~1interfaces~1compatibility/post",
       "source": "openapi"
     },
     "openbindings.ob.reportEnvironmentStatus.openapi": {
@@ -91,9 +193,14 @@
       "ref": "#/paths/~1delegates~1resolve~1{operation}/get",
       "source": "openapi"
     },
+    "openbindings.ob.resolveDelegateForBindingSpec.openapi": {
+      "operation": "openbindings.ob.resolveDelegateForBindingSpec",
+      "ref": "#/paths/~1delegates~1resolve-binding-spec/post",
+      "source": "openapi"
+    },
     "openbindings.ob.resolveInterface.openapi": {
       "operation": "openbindings.ob.resolveInterface",
-      "ref": "#/paths/~1resolve/post",
+      "ref": "#/paths/~1interfaces~1resolve/post",
       "source": "openapi"
     },
     "openbindings.ob.setContext.openapi": {
@@ -102,14 +209,49 @@
       "ref": "#/paths/~1contexts~1{url}/put",
       "source": "openapi"
     },
+    "openbindings.ob.setDelegatePreference.openapi": {
+      "operation": "openbindings.ob.setDelegatePreference",
+      "ref": "#/paths/~1delegates~1preference/post",
+      "source": "openapi"
+    },
+    "openbindings.ob.setMetadata.openapi": {
+      "operation": "openbindings.ob.setMetadata",
+      "ref": "#/paths/~1interfaces~1metadata/post",
+      "source": "openapi"
+    },
+    "openbindings.ob.setOperation.openapi": {
+      "operation": "openbindings.ob.setOperation",
+      "ref": "#/paths/~1interfaces~1operations~1set/post",
+      "source": "openapi"
+    },
+    "openbindings.ob.setOperationCodegenName.openapi": {
+      "operation": "openbindings.ob.setOperationCodegenName",
+      "ref": "#/paths/~1interfaces~1operations~1codegen-name/post",
+      "source": "openapi"
+    },
+    "openbindings.ob.setOperationOutputSchema.openapi": {
+      "operation": "openbindings.ob.setOperationOutputSchema",
+      "ref": "#/paths/~1interfaces~1operations~1output-schema/post",
+      "source": "openapi"
+    },
     "openbindings.ob.synthesizeInterface.openapi": {
       "operation": "openbindings.ob.synthesizeInterface",
       "ref": "#/paths/~1interfaces~1synthesize/post",
       "source": "openapi"
     },
+    "openbindings.ob.unbindOperation.openapi": {
+      "operation": "openbindings.ob.unbindOperation",
+      "ref": "#/paths/~1interfaces~1operations~1unbind/post",
+      "source": "openapi"
+    },
+    "openbindings.ob.unregisterDelegate.openapi": {
+      "operation": "openbindings.ob.unregisterDelegate",
+      "ref": "#/paths/~1delegates~1unregister/post",
+      "source": "openapi"
+    },
     "openbindings.ob.validateInterface.openapi": {
       "operation": "openbindings.ob.validateInterface",
-      "ref": "#/paths/~1validate/post",
+      "ref": "#/paths/~1interfaces~1validate/post",
       "source": "openapi"
     }
   },
@@ -117,6 +259,42 @@
   "name": "ob",
   "openbindings": "0.2.0",
   "operations": {
+    "openbindings.ob.addOperation": {
+      "description": "Add an operation with the given key to an interface and return the modified interface.",
+      "input": {
+        "$ref": "#/schemas/AddOperationInput"
+      },
+      "output": {
+        "$ref": "#/schemas/OpenBindingsInterface"
+      }
+    },
+    "openbindings.ob.addOperationAlias": {
+      "description": "Declare satisfaction alias(es) on an operation (OBI-T-12) and return the modified interface.",
+      "input": {
+        "$ref": "#/schemas/AddOperationAliasInput"
+      },
+      "output": {
+        "$ref": "#/schemas/OpenBindingsInterface"
+      }
+    },
+    "openbindings.ob.addSource": {
+      "description": "Register a binding source reference on an interface and return the modified interface.",
+      "input": {
+        "$ref": "#/schemas/AddSourceInput"
+      },
+      "output": {
+        "$ref": "#/schemas/OpenBindingsInterface"
+      }
+    },
+    "openbindings.ob.bindOperation": {
+      "description": "Attach a source ref to an existing operation (preserving the operation's key) and return the modified interface. Warns and optionally scaffolds transform stubs on a shape mismatch.",
+      "input": {
+        "$ref": "#/schemas/BindOperationInput"
+      },
+      "output": {
+        "$ref": "#/schemas/OpenBindingsInterface"
+      }
+    },
     "openbindings.ob.codegen": {
       "description": "Generate a typed invoker for an interface in a target language (TypeScript or Go). The output is an invoker over the cardinality-agnostic handle, not a cardinality-specific client.",
       "idempotent": true,
@@ -156,6 +334,15 @@
         "$ref": "#/schemas/SoftwareIdentity"
       }
     },
+    "openbindings.ob.detachOperation": {
+      "description": "Convert a source-owned operation into a hand-authored one (so pull no longer overwrites it) and return the modified interface.",
+      "input": {
+        "$ref": "#/schemas/DetachOperationInput"
+      },
+      "output": {
+        "$ref": "#/schemas/OpenBindingsInterface"
+      }
+    },
     "openbindings.ob.getContext": {
       "aliases": [
         "openbindings.document-store.get"
@@ -177,13 +364,22 @@
       }
     },
     "openbindings.ob.getDelegateRequirements": {
-      "description": "Return the published interface a delegate must satisfy to provide a capability (invoke → binding-invoker, synthesize → interface-synthesizer, inspect → source-inspector), so a prospective delegate can be checked against the exact contract (e.g. via reportCompatibility). The interfaces are immutable documents bundled with this ob release.",
+      "description": "Return the exact operation subset a delegate must satisfy to provide an ob capability (invoke → listBindingSpecs + invokeBinding, synthesize → listBindingSpecs + synthesizeInterface, inspect → listBindingSpecs + inspectSource). Definitions are derived from immutable published interfaces bundled with this ob release. Correspondence is per operation, so unrelated operations from the same published interface are not imposed on a delegate.",
       "idempotent": true,
       "input": {
         "$ref": "#/schemas/GetDelegateRequirementsInput"
       },
       "output": {
         "$ref": "#/schemas/OpenBindingsInterface"
+      }
+    },
+    "openbindings.ob.initializeEnvironment": {
+      "description": "Initialize an OpenBindings environment (a local .openbindings/ directory, or the global one with global) and return the created environment's status.",
+      "input": {
+        "$ref": "#/schemas/InitializeEnvironmentInput"
+      },
+      "output": {
+        "$ref": "#/schemas/EnvironmentStatus"
       }
     },
     "openbindings.ob.inspectSource": {
@@ -211,6 +407,18 @@
         "$ref": "#/schemas/BindingInvokerOutputFrame"
       }
     },
+    "openbindings.ob.invokeOperation": {
+      "aliases": [
+        "openbindings.operation-invoker.invokeOperation"
+      ],
+      "description": "Invoke an operation on an interface via a typed bidirectional I/O frame stream (the operation-invoker frame protocol). Unlike invokeBinding, the caller names an operation (or a specific binding) on a supplied interface, and the invoker resolves the name, selects a binding, validates against the operation's schemas, applies its transforms, and drives the underlying binding invoker. The frame shape mirrors invokeBinding exactly: one `open` carrying the OperationInvocationInput, then input frames and a close; output frames plus a terminal complete or error. Cardinality is observed, not declared, so a request/response and a streaming binding can satisfy the same operation identically. Missing context fails with a terminal CONTEXT_REQUIRED error before any side effect.",
+      "input": {
+        "$ref": "#/schemas/OperationInvokerInputFrame"
+      },
+      "output": {
+        "$ref": "#/schemas/OperationInvokerOutputFrame"
+      }
+    },
     "openbindings.ob.listBindingSpecs": {
       "aliases": [
         "openbindings.binding-invoker.listBindingSpecs",
@@ -226,8 +434,21 @@
         "type": "array"
       }
     },
+    "openbindings.ob.listBindings": {
+      "description": "List the bindings the interface declares, optionally scoped to a single operation.",
+      "idempotent": true,
+      "input": {
+        "$ref": "#/schemas/ListBindingsInput"
+      },
+      "output": {
+        "items": {
+          "$ref": "#/schemas/BindingListEntry"
+        },
+        "type": "array"
+      }
+    },
     "openbindings.ob.listContexts": {
-      "description": "List non-secret metadata summaries for all stored contexts; never returns secret values. Completes the context surface with listing and inspection: the generic document-store substrate these contexts are stored under (satisfied by getContext/setContext/removeContext) standardizes only opaque get/set/delete, so this management view is ob's own.",
+      "description": "List metadata-only summaries for stored contexts; never returns stored context values. Completes the context surface with listing and inspection: the generic document-store substrate these contexts are stored under (satisfied by getContext/setContext/removeContext) standardizes only opaque get/set/delete, so this management view is ob's own.",
       "idempotent": true,
       "output": {
         "items": {
@@ -259,6 +480,45 @@
         "type": "object"
       }
     },
+    "openbindings.ob.listOperationAliases": {
+      "description": "List the correspondence map — each operation and the interface operations it corresponds to via aliases.",
+      "idempotent": true,
+      "input": {
+        "$ref": "#/schemas/ListOperationAliasesInput"
+      },
+      "output": {
+        "items": {
+          "$ref": "#/schemas/OperationAliasEntry"
+        },
+        "type": "array"
+      }
+    },
+    "openbindings.ob.listOperations": {
+      "description": "List the operations on an interface, optionally filtered by tag.",
+      "idempotent": true,
+      "input": {
+        "$ref": "#/schemas/ListOperationsInput"
+      },
+      "output": {
+        "items": {
+          "$ref": "#/schemas/OperationListEntry"
+        },
+        "type": "array"
+      }
+    },
+    "openbindings.ob.listSources": {
+      "description": "List the source references on an interface.",
+      "idempotent": true,
+      "input": {
+        "$ref": "#/schemas/InterfaceInput"
+      },
+      "output": {
+        "items": {
+          "$ref": "#/schemas/SourceListEntry"
+        },
+        "type": "array"
+      }
+    },
     "openbindings.ob.mergeInterfaces": {
       "description": "Selectively apply changes from one interface (or from the target's own sources) into another, and return the merged interface alongside a report of what was applied and skipped.",
       "input": {
@@ -266,6 +526,16 @@
       },
       "output": {
         "$ref": "#/schemas/MergeResult"
+      }
+    },
+    "openbindings.ob.newInterface": {
+      "description": "Create an empty interface document (core fields + empty operations map) and return it.",
+      "idempotent": true,
+      "input": {
+        "$ref": "#/schemas/NewInterfaceInput"
+      },
+      "output": {
+        "$ref": "#/schemas/OpenBindingsInterface"
       }
     },
     "openbindings.ob.prepareBinding": {
@@ -288,6 +558,57 @@
         ]
       }
     },
+    "openbindings.ob.prepareOperation": {
+      "aliases": [
+        "openbindings.operation-invoker.prepareOperation"
+      ],
+      "description": "Operation-level preflight: report the context invoking an operation would require, without invoking it or causing side effects. The by-reference counterpart to prepareBinding. Resolves the named operation (or binding) on the supplied interface to a concrete binding and reports that binding's ContextRequiredDetails, or null when requirements cannot be determined without invoking. Returning null is always conformant. Advisory: invokeOperation's reactive CONTEXT_REQUIRED is authoritative. When context is supplied, the result reports only the requirements still unsatisfied by it.",
+      "idempotent": true,
+      "input": {
+        "$ref": "#/schemas/OperationInvocationInput"
+      },
+      "output": {
+        "oneOf": [
+          {
+            "$ref": "#/schemas/ContextRequiredDetails"
+          },
+          {
+            "type": "null"
+          }
+        ]
+      }
+    },
+    "openbindings.ob.pullSource": {
+      "description": "Derive operations and bindings from registered sources into the interface — create on first pull, overwrite + prune source-owned objects on later pulls, leave hand-authored objects untouched. Returns the resulting interface document plus the change log of affected operation and binding keys.",
+      "input": {
+        "$ref": "#/schemas/PullSourceInput"
+      },
+      "output": {
+        "$ref": "#/schemas/SourcePullOutput"
+      }
+    },
+    "openbindings.ob.purifyInterface": {
+      "description": "Strip x-ob vendor metadata from an interface, yielding a spec-only document suitable for publishing.",
+      "idempotent": true,
+      "input": {
+        "$ref": "#/schemas/OpenBindingsInterface"
+      },
+      "output": {
+        "$ref": "#/schemas/OpenBindingsInterface"
+      }
+    },
+    "openbindings.ob.registerDelegate": {
+      "aliases": [
+        "openbindings.delegate-manager.registerDelegate"
+      ],
+      "description": "Register a delegate — any referenceable OpenBindings interface (an exec: or http(s) location) that ob may route operations to. ob resolves the location to the delegate's OBI and records a snapshot: the operation identifiers it carries (keys and aliases), a content digest pinning the resolved document, and what ob derives for its own routing — which of ob's format capabilities the delegate satisfies (checked by conformance, not name-matching) and the formats it handles. Registration fails when the location cannot be resolved to an interface. Re-registering a location re-resolves and replaces the snapshot; the registrar's preferences persist unless a new preference is supplied. An OBI carrying none of ob's three format capabilities registers successfully but is inert for ob; registration warns.",
+      "input": {
+        "$ref": "#/schemas/RegisterDelegateInput"
+      },
+      "output": {
+        "$ref": "#/schemas/DelegateSummary"
+      }
+    },
     "openbindings.ob.removeContext": {
       "aliases": [
         "openbindings.document-store.delete"
@@ -296,6 +617,42 @@
       "idempotent": true,
       "input": {
         "$ref": "#/schemas/ContextKeyInput"
+      }
+    },
+    "openbindings.ob.removeOperation": {
+      "description": "Remove one or more operations and their bindings from an interface and return the modified interface.",
+      "input": {
+        "$ref": "#/schemas/RemoveOperationInput"
+      },
+      "output": {
+        "$ref": "#/schemas/OpenBindingsInterface"
+      }
+    },
+    "openbindings.ob.removeOperationAlias": {
+      "description": "Withdraw satisfaction alias(es) from an operation and return the modified interface.",
+      "input": {
+        "$ref": "#/schemas/RemoveOperationAliasInput"
+      },
+      "output": {
+        "$ref": "#/schemas/OpenBindingsInterface"
+      }
+    },
+    "openbindings.ob.removeSource": {
+      "description": "Remove a source reference and the bindings that reference it from an interface; operations are always preserved. Returns the modified interface.",
+      "input": {
+        "$ref": "#/schemas/SourceKeyInput"
+      },
+      "output": {
+        "$ref": "#/schemas/OpenBindingsInterface"
+      }
+    },
+    "openbindings.ob.renameOperation": {
+      "description": "Rename an operation and update every reference to it across the interface — binding operation fields and binding keys following the <operation>.<source> convention. Returns the modified interface.",
+      "input": {
+        "$ref": "#/schemas/RenameOperationInput"
+      },
+      "output": {
+        "$ref": "#/schemas/OpenBindingsInterface"
       }
     },
     "openbindings.ob.reportCompatibility": {
@@ -338,6 +695,16 @@
         "$ref": "#/schemas/ResolveDelegateResult"
       }
     },
+    "openbindings.ob.resolveDelegateForBindingSpec": {
+      "description": "Report which delegate ob's routing would select for a format token, and the capabilities it offers for it — ob's format-narrowing diagnostic, layered on top of the operation-keyed resolveDelegate.",
+      "idempotent": true,
+      "input": {
+        "$ref": "#/schemas/ResolveDelegateForBindingSpecInput"
+      },
+      "output": {
+        "$ref": "#/schemas/ResolveDelegateForBindingSpecResult"
+      }
+    },
     "openbindings.ob.resolveInterface": {
       "description": "Resolve an OpenBindings interface from a URL or host. Performs well-known discovery, follows redirects, and synthesizes an OBI from a raw binding spec (e.g. an OpenAPI document) when the target is not already an OBI. Returns the interface and metadata about how it was resolved.",
       "idempotent": true,
@@ -358,6 +725,55 @@
         "$ref": "#/schemas/SetContextInput"
       }
     },
+    "openbindings.ob.setDelegatePreference": {
+      "aliases": [
+        "openbindings.delegate-manager.setDelegatePreference"
+      ],
+      "description": "Set or clear a delegate's selection preference (higher = more preferred; 0 is the baseline; negatives rank below it; null clears). Without an operation, sets the delegate-level default; with one, sets that operation's entry in the delegate's preference index. ob additionally accepts a binding-source format scope on an operation entry — how synthesis of one format can prefer one delegate while everything else prefers another. Preference governs the order resolveDelegate returns candidates in; routing applies OBI-T-09's selection semantics to delegates — ob's own narrowing, not a spec rule — with effective preference the per-operation value, else the delegate-level value, else 0. Returns the updated summary.",
+      "idempotent": true,
+      "input": {
+        "$ref": "#/schemas/SetDelegatePreferenceInput"
+      },
+      "output": {
+        "$ref": "#/schemas/DelegateSummary"
+      }
+    },
+    "openbindings.ob.setMetadata": {
+      "description": "Edit an interface's top-level metadata (name, version, description) and return the modified interface.",
+      "input": {
+        "$ref": "#/schemas/SetMetadataInput"
+      },
+      "output": {
+        "$ref": "#/schemas/OpenBindingsInterface"
+      }
+    },
+    "openbindings.ob.setOperation": {
+      "description": "Edit an existing operation's fields (description, idempotency, deprecation, schemas, tags) and return the modified interface. A source-owned operation requires own=true (detaches first).",
+      "input": {
+        "$ref": "#/schemas/SetOperationInput"
+      },
+      "output": {
+        "$ref": "#/schemas/OpenBindingsInterface"
+      }
+    },
+    "openbindings.ob.setOperationCodegenName": {
+      "description": "Set (or clear) the symbol name 'ob codegen' emits for an operation, stored in the operation's x-ob.codegenName metadata, and return the modified interface. The operation key is unchanged; the override survives source pull and is stripped by purify.",
+      "input": {
+        "$ref": "#/schemas/SetOperationCodegenNameInput"
+      },
+      "output": {
+        "$ref": "#/schemas/OpenBindingsInterface"
+      }
+    },
+    "openbindings.ob.setOperationOutputSchema": {
+      "description": "Elect an operation's real output schema (the non-detaching remedy for a floor-stamped synthesis), writing it into the operation's output and stamping an x-ob election marker, and return the modified interface. The marker survives source pull (re-applied onto each fresh derivation; a grown, non-floor-stamped source schema wins and displaces it) and is stripped by purify.",
+      "input": {
+        "$ref": "#/schemas/SetOperationOutputSchemaInput"
+      },
+      "output": {
+        "$ref": "#/schemas/OpenBindingsInterface"
+      }
+    },
     "openbindings.ob.synthesizeInterface": {
       "aliases": [
         "openbindings.interface-synthesizer.synthesizeInterface"
@@ -369,6 +785,28 @@
       },
       "output": {
         "$ref": "#/schemas/OpenBindingsInterface"
+      }
+    },
+    "openbindings.ob.unbindOperation": {
+      "description": "Remove a binding from an operation without removing the operation, and return the modified interface.",
+      "input": {
+        "$ref": "#/schemas/UnbindOperationInput"
+      },
+      "output": {
+        "$ref": "#/schemas/OpenBindingsInterface"
+      }
+    },
+    "openbindings.ob.unregisterDelegate": {
+      "aliases": [
+        "openbindings.delegate-manager.unregisterDelegate"
+      ],
+      "description": "Remove a registered delegate by its location. Idempotent: unregistering a location that is not registered succeeds.",
+      "idempotent": true,
+      "input": {
+        "$ref": "#/schemas/DelegateLocationInput"
+      },
+      "output": {
+        "type": "null"
       }
     },
     "openbindings.ob.validateInterface": {
@@ -491,7 +929,7 @@
           "type": "string"
         },
         "preference": {
-          "description": "Binding selection preference (higher = more preferred).",
+          "description": "Author preference signal (higher = more preferred); this field does not itself select a binding.",
           "type": "number"
         },
         "ref": {
@@ -516,7 +954,7 @@
       "type": "object"
     },
     "BindableTarget": {
-      "additionalProperties": true,
+      "description": "A target admitted by the source's governing binding specification that can be framed as an OpenBindings operation. Any included framing is a sound projection of this same target.",
       "properties": {
         "operation": {
           "$ref": "#/schemas/Operation"
@@ -526,7 +964,7 @@
           "type": "string"
         },
         "ref": {
-          "description": "Reference within the source identifying this target.",
+          "description": "Reference string a conforming binding entry can use under the governing binding specification.",
           "type": "string"
         }
       },
@@ -537,12 +975,12 @@
     },
     "BindingContext": {
       "additionalProperties": true,
-      "description": "Opaque runtime context for invocation, typically sourced from a context store. Well-known credential fields: bearerToken, apiKey, basic (username/password), accessToken/refreshToken/expiresAt for OAuth. Well-known transport fields: headers/cookies/environment (string-valued objects) and metadata. Implementations and callers MAY add fields; drivers SHOULD ignore fields they don't recognize.",
+      "description": "Opaque context supplied by value for one binding invocation. The contract neither requires nor exposes a context store; callers may assemble this object from per-call values, durable state, a credential broker, or any other source before invocation. Well-known credential fields: 'bearerToken' (string), 'apiKey' (string), 'apiKeys' (object mapping a requirement's 'name' to its key), 'basic' (object with 'username' and 'password'), and 'accessToken' / 'refreshToken' / 'expiresAt' for OAuth. Well-known transport fields: 'headers' / 'cookies' / 'environment' (objects with string values) and 'metadata' (object with arbitrary values). Well-known configuration field: 'configuration' (object), keyed by configuration-point name and interpreted by the specification that defines each point. Implementations and callers MAY add fields for session state, consent, or other runtime data; consumers SHOULD ignore fields they do not recognize unless the governing binding specification says otherwise. Credential fields are secret, and any other field may also be secret according to its requirement family, binding specification, or application policy.",
       "type": "object"
     },
     "BindingInvocationInput": {
       "additionalProperties": false,
-      "description": "Initial payload carried by the open frame: identifies the binding to invoke and provides context.",
+      "description": "Initial payload carried by the `open` input frame: identifies the binding to invoke and provides context.",
       "properties": {
         "context": {
           "$ref": "#/schemas/BindingContext"
@@ -562,7 +1000,7 @@
       "type": "object"
     },
     "BindingInvokerInputFrame": {
-      "description": "One frame from the caller into invokeBinding. The caller streams: exactly one `open` first (carrying the BindingInvocationInput), then zero or more `input` frames, then exactly one `close`.",
+      "description": "One frame from the caller into invokeBinding. The caller streams a sequence: exactly one `open` frame first (carrying the BindingInvocationInput), then zero or more `input` frames carrying values to deliver to the underlying binding, then exactly one `close` frame signaling no more input.",
       "discriminator": {
         "propertyName": "kind"
       },
@@ -587,7 +1025,7 @@
         },
         {
           "additionalProperties": false,
-          "description": "Write one input value to the underlying binding. The value's schema is the underlying operation's, not this contract's.",
+          "description": "Write one input value to the underlying binding. The value's schema is determined by the underlying binding's operation, not by this contract.",
           "properties": {
             "kind": {
               "const": "input"
@@ -605,7 +1043,7 @@
         },
         {
           "additionalProperties": false,
-          "description": "Caller signals no more input frames will be sent. Idempotent.",
+          "description": "Caller signals that no more input frames will be sent. Idempotent.",
           "properties": {
             "kind": {
               "const": "close"
@@ -620,14 +1058,14 @@
       ]
     },
     "BindingInvokerOutputFrame": {
-      "description": "One frame from the service back to the caller. Zero or more non-terminal frames (`output`, `input_closed`) followed by exactly one terminal frame (`complete` or `error`).",
+      "description": "One frame from the service back to the caller. The service streams a sequence: zero or more non-terminal frames (`output`, `input_closed`) followed by exactly one terminal frame (`complete` or `error`).",
       "discriminator": {
         "propertyName": "kind"
       },
       "oneOf": [
         {
           "additionalProperties": false,
-          "description": "One output value from the underlying binding. Opaque at this layer.",
+          "description": "One output value from the underlying binding. The value's schema is determined by the underlying binding's operation, not by this contract.",
           "properties": {
             "kind": {
               "const": "output"
@@ -645,7 +1083,7 @@
         },
         {
           "additionalProperties": false,
-          "description": "The binding has closed the input side from its end. Subsequent caller input frames are ignored. Outputs may still flow.",
+          "description": "Binding has closed the input side from its end (e.g., a unary binding closes input after the first read). Subsequent caller `input` frames are ignored (never written; see rule 3). The invocation continues; outputs may still flow.",
           "properties": {
             "kind": {
               "const": "input_closed"
@@ -659,7 +1097,7 @@
         },
         {
           "additionalProperties": false,
-          "description": "Terminal: the binding completed normally. MUST be the last frame.",
+          "description": "Terminal: the underlying binding completed normally. MUST be the last frame.",
           "properties": {
             "kind": {
               "const": "complete"
@@ -673,7 +1111,7 @@
         },
         {
           "additionalProperties": false,
-          "description": "Terminal: the binding failed. MUST be the last frame. Carries a structured InvocationError.",
+          "description": "Terminal: the underlying binding failed. MUST be the last frame. Carries a structured InvocationError.",
           "properties": {
             "error": {
               "$ref": "#/schemas/InvocationError"
@@ -736,15 +1174,14 @@
       "type": "object"
     },
     "BindingSpecInfo": {
-      "additionalProperties": false,
-      "description": "Information about a supported binding format.",
+      "description": "Information about a supported binding specification.",
       "properties": {
         "bindingSpec": {
-          "description": "Binding specification identifier, exact and opaque (e.g. openbindings.openapi@1).",
+          "description": "Binding specification identifier, exact and opaque (e.g., openbindings.openapi@1, openbindings.mcp@1).",
           "type": "string"
         },
         "description": {
-          "description": "Human-readable description of this format.",
+          "description": "Human-readable description of this binding specification.",
           "type": "string"
         }
       },
@@ -1125,14 +1562,14 @@
       "type": "object"
     },
     "ContextRequiredDetails": {
-      "additionalProperties": false,
-      "description": "The details payload of a CONTEXT_REQUIRED error, and the return shape of prepareBinding. Enumerates the context the invoker needs. `alternatives` are disjunctive (satisfy ANY one); the requirements within an alternative are conjunctive (satisfy ALL). This OR-of-AND shape captures semantics such as 'OAuth2 OR (apiKey AND clientCert)'.",
+      "description": "The `details` payload of an InvocationError whose `code` is CONTEXT_REQUIRED, and the return shape of this contract's preflight operation. Enumerates the context the invoker needs before it can proceed. `alternatives` are disjunctive: satisfying ANY one suffices. The `requirements` within a single alternative are conjunctive: ALL must be satisfied. This OR-of-AND shape captures real authentication semantics such as 'OAuth2 OR (apiKey AND clientCert)', which a flat list cannot. A challenge is a scope, not a hint: a caller that resolves it MUST provision only the context needed for one selected alternative and MUST NOT disclose unrelated credentials. The interface supplies context by value and exposes no context-store access.",
       "properties": {
         "alternatives": {
+          "description": "Disjunctive set of ways to satisfy the requirement. A resolving caller selects one alternative whose every requirement it can resolve and provisions only the context needed for that alternative, never unrelated credentials.",
           "items": {
-            "additionalProperties": false,
             "properties": {
               "requirements": {
+                "description": "Conjunctive set: every requirement in this alternative must be resolved for the alternative to be satisfied.",
                 "items": {
                   "$ref": "#/schemas/ContextRequirement"
                 },
@@ -1149,7 +1586,7 @@
           "type": "array"
         },
         "target": {
-          "description": "The target the binding addresses; the runtime derives a storage key from it.",
+          "description": "Opaque identifier for the concrete destination or context scope the invoker is about to use. A runtime MAY use it to scope resolution or reuse and MAY compare it with independently derived source information before releasing secrets. Interpretation, verification, normalization, hierarchy, key derivation, and persistence policy are outside this contract.",
           "type": "string"
         }
       },
@@ -1161,18 +1598,37 @@
     },
     "ContextRequirement": {
       "additionalProperties": true,
-      "description": "One prerequisite that must be satisfied before invocation, resolved into context. `type` names the requirement family (e.g. auth.bearer, auth.oauth2, auth.basic, auth.apiKey, approval.user, config.value); remaining fields are type-specific. A runtime dispatches each requirement to a resolver registered for its type.",
+      "description": "One prerequisite that must be satisfied before a binding can be invoked. `type` names the requirement family; the remaining fields are type-specific. The well-known `auth.*` family resolves into BindingContext credential fields: `auth.bearer` produces 'bearerToken', `auth.apiKey` produces 'apiKey' (or a scheme-keyed entry in 'apiKeys' when the requirement carries a `name`), `auth.basic` produces 'basic', and `auth.oauth2` produces 'accessToken' (carrying flow fields such as 'grantType', 'authorizeUrl', 'tokenUrl', and 'scopes'). The `config.value` family carries a configuration value a binding needs but the artifact does not supply: it carries 'point' and 'key' (and optional 'choices') and resolves into the 'configuration' context field under 'point'. Other families (e.g. 'approval.user', 'account.link') resolve into their own context fields. Resolution architecture and value secrecy beyond the always-secret credential fields are determined by the requirement family, governing binding specification, and caller.",
       "properties": {
+        "choices": {
+          "description": "config.value only: values declared by the source artifact, suitable for rendering as a picker. Whether an off-list value is valid is defined by the governing binding specification: a closed artifact enum is enforced; an advisory list remains advisory.",
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
         "description": {
-          "description": "Human-readable description shown during resolution.",
+          "description": "Human-readable description shown to a user or operator during resolution (e.g. an approval prompt message).",
           "type": "string"
         },
         "durable": {
-          "description": "Whether resolved context MAY be cached under the challenge key and reused (true; e.g. credentials), or MUST be satisfied freshly each time (false; e.g. a one-shot approval). Defaults to true.",
+          "description": "Whether resolved context for this requirement MAY be persisted and reused for later invocations (true), or MUST be satisfied freshly and MUST NOT be persisted or reused (false). Defaults to true. This permission does not require persistence or prescribe a store, key, or reuse policy.",
           "type": "boolean"
         },
+        "key": {
+          "description": "config.value only: the specific value needed within 'point' — a server-variable name, or 'address' for a whole channel address.",
+          "type": "string"
+        },
+        "name": {
+          "description": "The scheme name as the source artifact declares it (e.g. an OpenAPI securitySchemes key). Distinguishes two requirements of the same type within one alternative — two ANDed API keys are otherwise indistinguishable — and keys scheme-scoped credential lookup (see BindingContext's 'apiKeys').",
+          "type": "string"
+        },
+        "point": {
+          "description": "config.value only: the binding-specification configuration point the value belongs to ('server', 'address', a family's decode point, …). The resolved value is carried in the 'configuration' context field under this point; the value's shape there is the invoker's own (configuration carriage is implementation surface, not contract).",
+          "type": "string"
+        },
         "type": {
-          "description": "Requirement type identifier.",
+          "description": "Requirement type identifier, e.g. 'auth.bearer', 'auth.oauth2', 'auth.basic', 'auth.apiKey', 'approval.user', 'config.value'. An unrecognized type is unsatisfiable by a runtime that has no way to satisfy it. An invoker may surface an artifact-defined scheme as an extension requirement only when it knows how the resulting context will be applied faithfully; an invoker that cannot represent or apply a prerequisite refuses before dispatch rather than emitting a satisfiable-looking challenge or attempting the interaction without it.",
           "type": "string"
         }
       },
@@ -1233,7 +1689,7 @@
       "type": "object"
     },
     "DelegateCapability": {
-      "description": "One of ob's three format-handling needs, mapping to the published interface a delegate satisfies for it: invoke (binding-invoker), synthesize (interface-synthesizer), inspect (source-inspector). A capability is ob's shorthand for the operation it delegates; a delegate offers whichever subset it satisfies.",
+      "description": "One of ob's three binding-specification handling needs, derived from a minimal operation subset of a published interface: invoke (binding-invoker), synthesize (interface-synthesizer), inspect (source-inspector). A delegate offers whichever subsets it satisfies; operations outside a subset remain independent capabilities.",
       "enum": [
         "invoke",
         "synthesize",
@@ -1483,6 +1939,31 @@
       ],
       "type": "object"
     },
+    "InspectionLimitation": {
+      "description": "Machine-readable evidence explaining why a source inspection is not exhaustive.",
+      "properties": {
+        "code": {
+          "description": "Stable namespaced reason code.",
+          "pattern": "^[a-z][a-z0-9]*(?:[._-][a-z0-9]+)+$",
+          "type": "string"
+        },
+        "details": {
+          "additionalProperties": true,
+          "description": "Optional implementation- or family-specific structured evidence.",
+          "type": "object"
+        },
+        "message": {
+          "description": "Human-readable explanation of what may be missing and why.",
+          "minLength": 1,
+          "type": "string"
+        }
+      },
+      "required": [
+        "code",
+        "message"
+      ],
+      "type": "object"
+    },
     "InterfaceInput": {
       "additionalProperties": false,
       "description": "Wraps the interface document an operation acts on.",
@@ -1544,7 +2025,7 @@
       "type": "object"
     },
     "InvocationError": {
-      "description": "Structured error carried by an `error` output frame. Indicates terminal failure of the invocation. Codes named by a normative rule of either invoker contract — binding-invoker or its operation-invoker peer — (CONTEXT_REQUIRED, ERR_PROTOCOL, ERR_TRANSPORT_CLOSED, ERR_CANCELLED, ERR_VALIDATION_FAILED, ERR_BINDING_NOT_FOUND) are normative where named; other codes are recommended conventions (see the binding-invoker README's registry), and consumers SHOULD handle unknown codes gracefully.",
+      "description": "Structured error carried by an `error` output frame. Indicates terminal failure of the invocation. Codes named by a normative rule of either invoker contract — binding-invoker or its operation-invoker peer — (CONTEXT_REQUIRED, ERR_PROTOCOL, ERR_TRANSPORT_CLOSED, ERR_CANCELLED, ERR_VALIDATION_FAILED, ERR_BINDING_NOT_FOUND, ERR_BINDING_SELECTION_REQUIRED) are normative where named; other codes are recommended conventions (see the binding-invoker README's registry), and consumers SHOULD handle unknown codes gracefully.",
       "properties": {
         "category": {
           "description": "The normative classification axis consumers branch on. One of a fixed, closed set; a consumer that meets an unknown value treats it as `permanent`. `context` is the resolve-and-retry hinge (CONTEXT_REQUIRED); `auth` means supplied credentials were rejected; `cancelled` means the caller ended the invocation; `transient` is a lower-layer condition that may clear on its own; `service` means the target was reached and returned an error of its own; `validation` means a value or the schema graph failed the validation claim; `protocol` means the frame or invocation contract was violated; `permanent` is terminal.",
@@ -2533,20 +3014,21 @@
           ]
         }
       ],
-      "description": "A binding source artifact, referenced by location or carried inline.",
+      "description": "A binding source (binding-specification identifier plus location or content), as an OpenBindings document carries it. Open to extension fields so a document's source entry forwards verbatim.",
       "properties": {
         "bindingSpec": {
-          "description": "Binding specification identifier, exact and opaque (e.g. openbindings.openapi@1).",
+          "description": "Binding specification identifier governing this source.",
           "type": "string"
         },
         "content": {
-          "description": "Source content provided directly."
+          "description": "Embedded source-artifact representation, per its binding specification."
         },
         "description": {
+          "description": "Human-readable description for this source.",
           "type": "string"
         },
         "location": {
-          "description": "Location of the source (path or URL).",
+          "description": "Absolute address of the source, per its binding specification (core OBI-D-05).",
           "type": "string"
         }
       },
@@ -2556,11 +3038,33 @@
       "type": "object"
     },
     "SourceInspection": {
-      "additionalProperties": true,
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "exhaustive": {
+                "const": false
+              }
+            },
+            "required": [
+              "exhaustive"
+            ]
+          },
+          "then": {
+            "required": [
+              "limitation"
+            ]
+          }
+        }
+      ],
+      "description": "Inspection result for a binding source artifact. Its inventory boundary is the targets admitted by the governing binding specification, not every interaction in the upstream artifact.",
       "properties": {
         "exhaustive": {
-          "description": "True if every bindable target in the source is listed.",
+          "description": "True when targets is the complete list of targets admitted by the governing binding specification. False means more admitted targets may exist and requires limitation evidence.",
           "type": "boolean"
+        },
+        "limitation": {
+          "$ref": "#/schemas/InspectionLimitation"
         },
         "targets": {
           "items": {
@@ -2830,11 +3334,11 @@
           "type": "string"
         },
         "openbindingsVersion": {
-          "description": "Target OpenBindings spec version (e.g. 0.2.0).",
+          "description": "Target OpenBindings spec version.",
           "type": "string"
         },
         "sources": {
-          "description": "Binding sources to extract from.",
+          "description": "Binding sources to synthesize from.",
           "items": {
             "$ref": "#/schemas/SynthesizeInterfaceSource"
           },
@@ -2861,10 +3365,10 @@
           ]
         }
       ],
-      "description": "A binding source to extract operations from.",
+      "description": "A binding source to synthesize an interface from.",
       "properties": {
         "bindingSpec": {
-          "description": "Binding specification identifier, exact and opaque (e.g. openbindings.openapi@1).",
+          "description": "Binding specification identifier governing this source.",
           "type": "string"
         },
         "content": {
@@ -2875,7 +3379,7 @@
           "type": "string"
         },
         "embed": {
-          "description": "If true, embed content inline in the output interface.",
+          "description": "If true, embed content inline in the output.",
           "type": "boolean"
         },
         "location": {
@@ -2883,11 +3387,11 @@
           "type": "string"
         },
         "name": {
-          "description": "Key for this source in the output interface's sources.",
+          "description": "Key name for this binding source in the output.",
           "type": "string"
         },
         "outputLocation": {
-          "description": "Location to reference in the output interface's source.",
+          "description": "Location to reference in the output.",
           "type": "string"
         }
       },
