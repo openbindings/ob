@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/openbindings/ob/internal/servecontract"
 	openbindings "github.com/openbindings/openbindings-go"
 	"gopkg.in/yaml.v3"
 )
@@ -14,12 +15,55 @@ import (
 type ServeRoute struct {
 	Method       string
 	Path         string
+	RuntimePath  string
 	Operation    string
 	PathParam    string
 	BodySchema   openbindings.JSONSchema
 	Success      int
 	ResponseType string
 	Notes        string
+}
+
+// ServeStreamRoute is one canonical WebSocket realization of a cardinality-
+// agnostic invocation operation. The same inventory drives AsyncAPI generation,
+// serve-OBI binding generation, and realization coverage tests.
+type ServeStreamRoute struct {
+	Operation    string
+	Channel      string
+	Path         string
+	InputSchema  string
+	OutputSchema string
+}
+
+// ServeStreamRoutes returns the operations whose full interaction cannot be
+// represented by the unary HTTP surface. Their open/input/close and
+// output/error frame grammar rides the binding- and operation-invoker
+// interfaces over WebSocket.
+func ServeStreamRoutes() []ServeStreamRoute {
+	return []ServeStreamRoute{
+		{
+			Operation:    "invokeBinding",
+			Channel:      "bindingsInvoke",
+			Path:         "/bindings/invoke",
+			InputSchema:  "BindingInvokerInputFrame",
+			OutputSchema: "BindingInvokerOutputFrame",
+		},
+		{
+			Operation:    "invokeOperation",
+			Channel:      "operationsInvoke",
+			Path:         "/operations/invoke",
+			InputSchema:  "OperationInvokerInputFrame",
+			OutputSchema: "OperationInvokerOutputFrame",
+		},
+	}
+}
+
+// LocalOnlyOperations are contract operations whose meaning is to run a
+// foreground process in the caller's environment. Advertising them from
+// ob start would either create a second server lifecycle inside the first or
+// detach a foreground experience from the terminal that owns it.
+func LocalOnlyOperations() []string {
+	return []string{"demo", "startMCPServer", "startServer"}
 }
 
 // ServeHTTPRoutes returns the canonical, document-oriented HTTP surface.
@@ -58,9 +102,9 @@ func ServeHTTPRoutes() []ServeRoute {
 			"required":             []any{"input"},
 			"additionalProperties": false,
 		}},
-		{Method: "get", Path: "/contexts/{url}", Operation: "getContext", PathParam: "url"},
-		{Method: "put", Path: "/contexts/{url}", Operation: "setContext", PathParam: "url", BodySchema: map[string]any{"$ref": "#/components/schemas/BindingContext"}, Success: 204},
-		{Method: "delete", Path: "/contexts/{url}", Operation: "removeContext", PathParam: "url", Success: 204},
+		{Method: "get", Path: "/contexts/{url}", RuntimePath: "/contexts/{url...}", Operation: "getContext", PathParam: "url"},
+		{Method: "put", Path: "/contexts/{url}", RuntimePath: "/contexts/{url...}", Operation: "setContext", PathParam: "url", BodySchema: map[string]any{"$ref": "#/components/schemas/BindingContext"}, Success: 204},
+		{Method: "delete", Path: "/contexts/{url}", RuntimePath: "/contexts/{url...}", Operation: "removeContext", PathParam: "url", Success: 204},
 		{Method: "get", Path: "/contexts", Operation: "listContexts"},
 		{Method: "post", Path: "/delegates/register", Operation: "registerDelegate"},
 		{Method: "post", Path: "/delegates/unregister", Operation: "unregisterDelegate"},
@@ -165,10 +209,10 @@ func GenerateServeOpenAPI(contractPath, serverURL string) ([]byte, error) {
 		schemas[name] = openAPISchema(schema)
 	}
 	schemas["ErrorResponse"] = map[string]any{
-		"type": "object", "additionalProperties": false, "required": []string{"error"},
+		"type": "object", "additionalProperties": false, "required": []string{"error", "code"},
 		"properties": map[string]any{
 			"error":  map[string]any{"type": "string", "description": "Human-readable error message."},
-			"code":   map[string]any{"type": "string", "description": "Stable machine-readable error code."},
+			"code":   map[string]any{"type": "string", "enum": servecontract.ErrorCodes(), "description": "Stable machine-readable error code."},
 			"detail": map[string]any{"type": "string", "description": "Optional diagnostic detail."},
 		},
 	}
@@ -220,18 +264,9 @@ func GenerateServeAsyncAPI(contractPath, serverHost, serverProtocol string) ([]b
 	channels := map[string]any{}
 	operations := map[string]any{}
 	messages := map[string]any{}
-	for _, inv := range []struct {
-		Short        string
-		Channel      string
-		Address      string
-		InputSchema  string
-		OutputSchema string
-	}{
-		{Short: "invokeBinding", Channel: "bindingsInvoke", Address: "/bindings/invoke", InputSchema: "BindingInvokerInputFrame", OutputSchema: "BindingInvokerOutputFrame"},
-		{Short: "invokeOperation", Channel: "operationsInvoke", Address: "/operations/invoke", InputSchema: "OperationInvokerInputFrame", OutputSchema: "OperationInvokerOutputFrame"},
-	} {
-		inputMessage := inv.Short + "InputFrame"
-		outputMessage := inv.Short + "OutputFrame"
+	for _, inv := range ServeStreamRoutes() {
+		inputMessage := inv.Operation + "InputFrame"
+		outputMessage := inv.Operation + "OutputFrame"
 		messages[inputMessage] = map[string]any{
 			"name": inputMessage, "payload": map[string]any{"$ref": "#/components/schemas/" + inv.InputSchema},
 		}
@@ -239,15 +274,18 @@ func GenerateServeAsyncAPI(contractPath, serverHost, serverProtocol string) ([]b
 			"name": outputMessage, "payload": map[string]any{"$ref": "#/components/schemas/" + inv.OutputSchema},
 		}
 		channels[inv.Channel] = map[string]any{
-			"address":  inv.Address,
+			"address":  inv.Path,
 			"bindings": map[string]any{"ws": map[string]any{"method": "GET"}},
 			"messages": map[string]any{
 				"inputFrame":  map[string]any{"$ref": "#/components/messages/" + inputMessage},
 				"outputFrame": map[string]any{"$ref": "#/components/messages/" + outputMessage},
 			},
 		}
-		op := contract.Operations["openbindings.ob."+inv.Short]
-		operations[inv.Short] = map[string]any{
+		op, ok := contract.Operations["openbindings.ob."+inv.Operation]
+		if !ok {
+			return nil, fmt.Errorf("stream route %s references an unknown contract operation", inv.Operation)
+		}
+		operations[inv.Operation] = map[string]any{
 			"action": "receive", "summary": firstSentence(op.Description), "description": op.Description,
 			"channel":  map[string]any{"$ref": "#/channels/" + inv.Channel},
 			"messages": []any{map[string]any{"$ref": "#/channels/" + inv.Channel + "/messages/inputFrame"}},

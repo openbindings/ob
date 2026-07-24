@@ -110,6 +110,7 @@ func newOperationInvokeCmd() *cobra.Command {
 	var okExits string
 	var routes []string
 	var selection []string
+	var configurationArg string
 
 	cmd := &cobra.Command{
 		Use:   "invoke <obi> [operation]",
@@ -139,6 +140,7 @@ invocation):
   --decode json|text|none   how the output bytes become a value
   --ok-exit 0,1             which exit codes count as success (CLI lanes)
   --route field=argv|stdin|stdin-dash|file   where an input field rides
+  --configuration JSON     binding-spec interpretation points for this call
 Each is per-axis: an unmentioned axis or field falls through to ob's
 built-in handling. These configure ob's in-process handling; when an
 external delegate is preferred for the format, it owns the binding hop
@@ -154,6 +156,8 @@ Examples:
   ob op invoke interface.json listPets --input '{"limit":10}'
   ob op invoke interface.json echo
   ob op invoke interface.json validate --input @doc.json --ok-exit 0,1
+  ob op invoke interface.json --binding viewer.graphql \
+    --configuration '{"document":"query { viewer { id name } }"}'
   ob op invoke interface.json format --route source=stdin-dash --input -
   ob op invoke interface.json placeAndTrack \
     --select-binding placeOrder.rest --select-binding orderUpdates.grpc
@@ -173,6 +177,9 @@ Examples:
 			if operationKey != "" && bindingKey != "" {
 				return app.ExitResult{Code: 2, Message: "operation key and --binding are mutually exclusive", ToStderr: true}
 			}
+			if conflict := invocationStdinConflict(obiFile, inputArg, configurationArg); conflict != "" {
+				return app.ExitResult{Code: 2, Message: conflict, ToStderr: true}
+			}
 
 			input, ierr := readInvokeInput(inputArg)
 			if ierr != nil {
@@ -184,6 +191,11 @@ Examples:
 				return app.ExitResult{Code: 2, Message: cerr.Error(), ToStderr: true}
 			}
 			config.Selection = append([]string(nil), selection...)
+			configuration, configErr := readInvokeConfiguration(configurationArg)
+			if configErr != nil {
+				return app.ExitResult{Code: 2, Message: configErr.Error(), ToStderr: true}
+			}
+			config.Configuration = configuration
 
 			// The invoke lane is a streaming Unix filter: output rides stdout as
 			// one JSON value per event. -o (write-to-file) has no place on a
@@ -261,6 +273,7 @@ Examples:
 	cmd.Flags().StringVar(&decode, "decode", "", "output decode lane: json|text|none")
 	cmd.Flags().StringVar(&okExits, "ok-exit", "", "exit codes classified as success, comma-separated (e.g. 0,1)")
 	cmd.Flags().StringArrayVar(&routes, "route", nil, "field routing: field=argv|stdin|stdin-dash|file (repeatable)")
+	cmd.Flags().StringVar(&configurationArg, "configuration", "", "binding-spec configuration object as JSON, @file, or - for stdin")
 
 	return cmd
 }
@@ -424,6 +437,60 @@ func readInvokeInput(arg string) (any, error) {
 	return v, nil
 }
 
+func invocationStdinConflict(obiFile, inputArg, configurationArg string) string {
+	var consumers []string
+	if obiFile == "-" {
+		consumers = append(consumers, "OBI")
+	}
+	if inputArg == "-" {
+		consumers = append(consumers, "--input")
+	}
+	if configurationArg == "-" {
+		consumers = append(consumers, "--configuration")
+	}
+	if len(consumers) < 2 {
+		return ""
+	}
+	return strings.Join(consumers, " and ") + " cannot both consume stdin"
+}
+
+// readInvokeConfiguration resolves --configuration using the same house
+// grammar as --input, but requires a JSON object because binding
+// specifications name their interpretation points as object members.
+func readInvokeConfiguration(arg string) (map[string]any, error) {
+	if arg == "" {
+		return nil, nil
+	}
+	var raw []byte
+	switch {
+	case arg == "-":
+		b, err := io.ReadAll(os.Stdin)
+		if err != nil {
+			return nil, fmt.Errorf("read --configuration from stdin: %w", err)
+		}
+		raw = b
+	case strings.HasPrefix(arg, "@"):
+		b, err := os.ReadFile(arg[1:])
+		if err != nil {
+			return nil, fmt.Errorf("read --configuration file: %w", err)
+		}
+		raw = b
+	default:
+		raw = []byte(arg)
+	}
+	if len(strings.TrimSpace(string(raw))) == 0 {
+		return nil, nil
+	}
+	var configuration map[string]any
+	if err := json.Unmarshal(raw, &configuration); err != nil {
+		return nil, fmt.Errorf("invalid --configuration JSON object: %w", err)
+	}
+	if configuration == nil {
+		return nil, fmt.Errorf("--configuration must be a JSON object")
+	}
+	return configuration, nil
+}
+
 // buildInvokeConfig validates and compiles the data-face flags into an
 // InvokeConfig. Unknown decode lanes and channel tokens are refused at
 // parse (a typo can never silently change behavior).
@@ -473,6 +540,7 @@ func buildInvokeConfig(decode, okExits string, routes []string) (*app.InvokeConf
 func newOperationPrepareCmd() *cobra.Command {
 	var bindingKey string
 	var selection []string
+	var configurationArg string
 
 	cmd := &cobra.Command{
 		Use:   "prepare <obi> [operation]",
@@ -483,13 +551,16 @@ it or causing any side effect.
 Resolves the operation (or, with --binding, a specific binding) to a
 concrete binding and reports its context requirements, or reports none
 when they cannot be determined without invoking. Repeat --select-binding
-to supply the same ordered caller choice accepted by invocation. This is
-advisory: the reactive CONTEXT_REQUIRED error from 'ob op invoke' is
-authoritative.
+to supply the same ordered caller choice accepted by invocation. Use
+--configuration with the same JSON, @file, or stdin grammar as invocation
+when binding-spec interpretation points are already known. This is advisory:
+the reactive CONTEXT_REQUIRED error from 'ob op invoke' is authoritative.
 
 Examples:
   ob op prepare interface.json createOrder
-  ob op prepare interface.json --binding createOrder.openapi`,
+  ob op prepare interface.json --binding createOrder.openapi
+  ob op prepare interface.json --binding viewer.graphql \
+    --configuration '{"document":"query { viewer { id } }"}'`,
 		Args: cobra.RangeArgs(1, 2),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			obiFile := args[0]
@@ -505,16 +576,19 @@ Examples:
 			if operationKey != "" && bindingKey != "" {
 				return app.ExitResult{Code: 2, Message: "operation key and --binding are mutually exclusive", ToStderr: true}
 			}
-
-			var callerContext map[string]any
-			if len(selection) > 0 {
-				callerContext = map[string]any{
-					"configuration": map[string]any{
-						"selection": append([]string(nil), selection...),
-					},
-				}
+			if conflict := invocationStdinConflict(obiFile, "", configurationArg); conflict != "" {
+				return app.ExitResult{Code: 2, Message: conflict, ToStderr: true}
 			}
-			details, err := app.PrepareOperation(context.Background(), obiFile, operationKey, bindingKey, callerContext)
+
+			configuration, configErr := readInvokeConfiguration(configurationArg)
+			if configErr != nil {
+				return app.ExitResult{Code: 2, Message: configErr.Error(), ToStderr: true}
+			}
+			config := &app.InvokeConfig{
+				Selection:     append([]string(nil), selection...),
+				Configuration: configuration,
+			}
+			details, err := app.PrepareOperation(context.Background(), obiFile, operationKey, bindingKey, config.Context())
 			if err != nil {
 				return app.ExitResult{Code: 1, Message: fmt.Sprintf("prepare %s in %s: %v", operationKey, obiFile, err), ToStderr: true}
 			}
@@ -530,6 +604,7 @@ Examples:
 
 	cmd.Flags().StringVar(&bindingKey, "binding", "", "binding key to preflight (operation is derived from the entry)")
 	cmd.Flags().StringArrayVar(&selection, "select-binding", nil, "ordered binding choice (repeatable)")
+	cmd.Flags().StringVar(&configurationArg, "configuration", "", "binding-spec configuration object as JSON, @file, or - for stdin")
 
 	return cmd
 }

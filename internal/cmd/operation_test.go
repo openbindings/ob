@@ -110,3 +110,56 @@ func TestReadInvokeInput_Inline(t *testing.T) {
 		t.Errorf("empty input should be nil/no-error, got %v / %v", v, err)
 	}
 }
+
+func TestReadInvokeConfiguration_RequiresObjectAndCarriesNamedPoints(t *testing.T) {
+	configuration, err := readInvokeConfiguration(`{
+		"document":{"source":"query Viewer { viewer { id } }","operationName":"Viewer"},
+		"protocolFields":{"httpHeaders":{"X-Tenant":"acme"}}
+	}`)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	document, ok := configuration["document"].(map[string]any)
+	if !ok || document["operationName"] != "Viewer" {
+		t.Fatalf("document configuration = %#v", configuration["document"])
+	}
+
+	for _, invalid := range []string{`["query { viewer { id } }"]`, `"query { viewer { id } }"`, `null`} {
+		if _, err := readInvokeConfiguration(invalid); err == nil {
+			t.Errorf("expected non-object %s to be refused", invalid)
+		}
+	}
+
+	config := &app.InvokeConfig{
+		Selection:     []string{"viewer.graphql"},
+		Configuration: configuration,
+	}
+	context := config.Context()
+	got := context["configuration"].(map[string]any)
+	if got["selection"].([]string)[0] != "viewer.graphql" {
+		t.Fatalf("selection was not merged: %#v", got)
+	}
+	if _, ok := got["protocolFields"]; !ok {
+		t.Fatalf("binding configuration was not carried: %#v", got)
+	}
+}
+
+func TestInvocationStdinConflict(t *testing.T) {
+	for _, tc := range []struct {
+		obi, input, configuration string
+		conflict                  bool
+	}{
+		{"interface.json", "-", "", false},
+		{"interface.json", "", "-", false},
+		{"-", "", "", false},
+		{"interface.json", "-", "-", true},
+		{"-", "-", "", true},
+		{"-", "", "-", true},
+		{"-", "-", "-", true},
+	} {
+		got := invocationStdinConflict(tc.obi, tc.input, tc.configuration)
+		if (got != "") != tc.conflict {
+			t.Errorf("invocationStdinConflict(%q, %q, %q) = %q", tc.obi, tc.input, tc.configuration, got)
+		}
+	}
+}

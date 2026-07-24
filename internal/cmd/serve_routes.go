@@ -22,19 +22,6 @@ import (
 	"github.com/openbindings/ob/internal/server"
 )
 
-// registerBindingRoutes adds binding invocation (the binding-invoker frame
-// protocol), preflight, and interface creation endpoints, making ob start a
-// binding invoker host.
-func registerBindingRoutes(srv *server.Server, logger *slog.Logger) {
-	mux := srv.Mux()
-	mux.HandleFunc("GET /bindings/invoke", handleBindingInvoke(srv, logger))
-	mux.HandleFunc("POST /bindings/prepare", handleBindingPrepare(logger))
-	mux.HandleFunc("GET /operations/invoke", handleOperationInvoke(srv, logger))
-	mux.HandleFunc("POST /operations/prepare", handleOperationPrepare(logger))
-	mux.HandleFunc("POST /interfaces/synthesize", handleInterfaceSynthesize)
-	mux.HandleFunc("POST /sources/inspect", handleSourceInspect)
-}
-
 // handleBindingInvoke serves invokeBinding as the binding-invoker frame
 // protocol over WebSocket: the caller streams BindingInvokerInputFrame
 // messages (open, input..., close) and receives BindingInvokerOutputFrame
@@ -493,17 +480,9 @@ func handleSourceInspect(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, result)
 }
 
-// registerAuthoringRoutes adds interface authoring endpoints (validate, diff, compat).
-func registerAuthoringRoutes(srv *server.Server) {
-	mux := srv.Mux()
-	// Canonical document API.
-	mux.HandleFunc("POST /interfaces/validate", handleValidate)
-	mux.HandleFunc("POST /interfaces/compare", handleDiff)
-	mux.HandleFunc("POST /interfaces/compatibility", handleCompat)
-	mux.HandleFunc("POST /interfaces/conform", handleConform)
-	mux.HandleFunc("POST /interfaces/codegen", handleCodegen)
-	mux.HandleFunc("POST /interfaces/merge", handleMerge)
-
+// registerLegacyAuthoringRoutes keeps compatibility aliases from the original
+// preview surface. Canonical operation routes come from ServeHTTPRoutes.
+func registerLegacyAuthoringRoutes(mux *http.ServeMux) {
 	// Compatibility aliases from the original preview surface. They remain
 	// callable but are not published in the canonical OpenAPI document.
 	mux.HandleFunc("POST /validate", handleValidate)
@@ -512,7 +491,6 @@ func registerAuthoringRoutes(srv *server.Server) {
 	mux.HandleFunc("POST /conform", handleConform)
 	mux.HandleFunc("POST /codegen", handleCodegen)
 	mux.HandleFunc("POST /merge", handleMerge)
-	mux.HandleFunc("POST /interfaces/status", handleInterfaceStatus)
 }
 
 func handleValidate(w http.ResponseWriter, r *http.Request) {

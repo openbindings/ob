@@ -12,7 +12,6 @@ import (
 	"crypto/x509"
 	"crypto/x509/pkix"
 	"encoding/hex"
-	"encoding/json"
 	"encoding/pem"
 	"fmt"
 	"log/slog"
@@ -27,6 +26,8 @@ import (
 	"strings"
 	"sync/atomic"
 	"time"
+
+	"github.com/openbindings/ob/internal/servecontract"
 )
 
 type contextKey string
@@ -453,10 +454,8 @@ func bearerToken(authorization string) (string, bool) {
 	return returnToken, returnToken != ""
 }
 
-func writeServerError(w http.ResponseWriter, status int, code, message string) {
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(status)
-	_ = json.NewEncoder(w).Encode(map[string]string{"error": message, "code": code})
+func writeServerError(w http.ResponseWriter, status int, code servecontract.ErrorCode, message string) {
+	servecontract.WriteError(w, status, code, message)
 }
 
 // loggingMiddleware logs every request with method, path, status, duration, and request ID.

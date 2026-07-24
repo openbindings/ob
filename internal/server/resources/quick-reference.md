@@ -47,9 +47,8 @@ A source names the binding specification that governs its artifact via its `bind
 | Connect | `openbindings.connect@1` | `<fully-qualified-service>/<method>` |
 | MCP | `openbindings.mcp@1` | `<entity>/<remainder>`, entity ∈ `tools`/`resources`/`prompts` (e.g. `tools/create_task`) |
 | usage (CLI) | `openbindings.usage@1` | space-separated command path (absent `ref` = root) |
+| GraphQL | `openbindings.graphql@1` | `query/<field>`, `mutation/<field>`, or `subscription/<field>` |
 | Operation Graph | `openbindings.operation-graph@1` | JSON Pointer to a graph definition |
-
-GraphQL and Workers RPC binding specifications exist in draft and have not yet minted a published identifier.
 
 ## Transforms
 

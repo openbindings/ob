@@ -69,10 +69,11 @@ func TestDemoSmoke_PrintedCommands(t *testing.T) {
 		"getMenu.connectServer",
 		"getMenu.grpcServer",
 		"getMenu.mcpServer",
-		"getMenu.graphqlServer",
 	} {
 		run("op", "invoke", base, "--binding", binding)
 	}
+	run("op", "invoke", base, "--binding", "getMenu.graphqlServer",
+		"--configuration", `{"document":"query { getMenu { items { name description category sizes { id label price } } } }"}`)
 
 	// Place an order (the demo's printed input, verbatim).
 	out := run("op", "invoke", base, "--binding", "placeOrder.restApi",

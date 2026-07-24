@@ -48,7 +48,7 @@ Features scheduled for removal are:
 
 `ob` depends on all ten `openbindings-go` modules: the core SDK plus the
 nine `formats/*` sub-modules (asyncapi, connect, graphql, grpc, mcp,
-openapi, operationgraph, usage, workersrpc). Every one must be **tagged at
+openapi, operationgraph, usage). Every one must be **tagged at
 the exact version `go.mod` requires before tagging ob** — the release build
 sees no `go.work`, and goreleaser's `go mod tidy` hook resolves tagged
 versions only. An untagged requirement fails the release build.

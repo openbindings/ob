@@ -159,6 +159,7 @@ cmd "synthesize" help="Synthesize an interface from binding sources" {
 cmd "source" help="Manage source references on an OBI" subcommand_required=true {
   alias "src" "sources"
   cmd "add" help="Register a source reference on an OBI" {
+    flag "--input <json>" help="AddSourceInput as a JSON string (machine lane; exclusive with positional arguments and source flags)"
     flag "--key <name>" help="Explicit source key (default: derived from format and path)"
     flag "--resolve <mode>" help="Resolution mode: content (default for local files) or location (default for URLs)"
     flag "--uri <url>" help="Explicit published URI for location mode"
@@ -167,8 +168,8 @@ cmd "source" help="Manage source references on an OBI" subcommand_required=true 
     flag "-y --yes" help="Accept first capable delegate without prompting"
     flag "-o --output <path>" help="Write output to file"
     flag "-F --format <format>" help="Output format: json|yaml|text"
-    arg "<obi-path>" help="Path to the OBI file (- reads stdin and writes the modified document to stdout)"
-    arg "<source>" help="Source path or bindingSpec:path (e.g., openapi.json or openbindings.usage@1:./cli.kdl)"
+    arg "[obi-path]" help="Path to the OBI file (- reads stdin and writes the modified document to stdout)"
+    arg "[source]" help="Source path or bindingSpec:path (e.g., openapi.json or openbindings.usage@1:./cli.kdl)"
   }
   cmd "pull" help="Derive operations and bindings from registered sources" {
     flag "--pure" help="Strip x-ob metadata from the output (publish-clean); requires -o"
@@ -291,6 +292,7 @@ cmd "operation" help="Manage and invoke operations on an OBI" subcommand_require
     flag "--binding <key>" help="Binding key to invoke (operation is derived from the entry)"
     flag "--select-binding <key>" help="Ordered binding choice for this and nested operations (repeatable)" var=#true
     flag "--input <value>" help="Operation input: inline JSON, @file, or - for stdin"
+    flag "--configuration <json>" help="Binding-spec configuration object: inline JSON, @file, or - for stdin"
     flag "--decode <lane>" help="Output decode lane: json, text, or none" {
       arg "<lane>"
     }
@@ -303,6 +305,7 @@ cmd "operation" help="Manage and invoke operations on an OBI" subcommand_require
   cmd "prepare" help="Preflight an operation's required context without invoking it" {
     flag "--binding <key>" help="Binding key to preflight (operation is derived from the entry)"
     flag "--select-binding <key>" help="Ordered binding choice (repeatable)" var=#true
+    flag "--configuration <json>" help="Binding-spec configuration object: inline JSON, @file, or - for stdin"
     flag "-o --output <path>" help="Write output to file"
     flag "-F --format <format>" help="Output format: json|yaml|text"
     arg "<obi>" help="OBI locator (file path, URL, exec: reference, or - for stdin)"

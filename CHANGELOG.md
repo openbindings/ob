@@ -18,6 +18,21 @@ ship as part of 0.2.0.
 
 ### Changed
 
+- **The experimental Workers RPC registration was removed.** `ob` no longer
+  advertises a token backed only by a Go stub that could neither invoke nor
+  synthesize its source family. The CLI now reports only complete native
+  binding implementations.
+
+- **GraphQL is now a first-class native `openbindings.graphql@1`
+  implementation.** The CLI no longer advertises or emits the legacy
+  versionless token. Its demo uses canonical lower-case refs, exact
+  executable-document configuration, and output transforms that explicitly
+  unwrap the binding specification's complete GraphQL response envelope.
+  `ob op invoke` and `ob op prepare` accept `--configuration` as an inline
+  JSON object, `@file`, or stdin, carrying the same named binding-spec
+  interpretation points that `ob start` accepts through
+  `context.configuration`.
+
 - **Delegate frame-endpoint resolution moved behind the SDK's asyncapi
   seam.** Resolving a delegate's advertised `invokeBinding` endpoint from
   its AsyncAPI document now uses the format package's exported resolution

@@ -15,7 +15,6 @@ require (
 	github.com/openbindings/openbindings-go/formats/openapi v0.2.0
 	github.com/openbindings/openbindings-go/formats/operationgraph v0.2.0
 	github.com/openbindings/openbindings-go/formats/usage v0.2.0
-	github.com/openbindings/openbindings-go/formats/workersrpc v0.2.0
 	github.com/sblinch/kdl-go v0.0.0-20260120205643-17a91a33fe63 // indirect
 	github.com/spf13/cobra v1.10.2
 	gopkg.in/yaml.v3 v3.0.1

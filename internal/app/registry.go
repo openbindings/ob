@@ -16,7 +16,6 @@ import (
 	"github.com/openbindings/openbindings-go/formats/openapi"
 	operationgraph "github.com/openbindings/openbindings-go/formats/operationgraph"
 	"github.com/openbindings/openbindings-go/formats/usage"
-	workersrpc "github.com/openbindings/openbindings-go/formats/workersrpc"
 )
 
 var (
@@ -44,12 +43,6 @@ func newDefaultInvoker() *openbindings.OperationInvoker {
 		asyncapi.NewInvoker(),
 		graphqlbinding.NewInvoker(),
 		newUsageInvoker(),
-		// workers-rpc invoker stub: ob recognizes the format token and
-		// codegen produces clients for workers-rpc OBIs, but actual
-		// dispatch is impossible from Go (Workers RPC requires the
-		// Workers runtime). Real dispatch happens via @openbindings/workers-rpc
-		// from inside a Cloudflare Worker. See workers-rpc-go/invoker.go.
-		workersrpc.NewInvoker(),
 	)
 	// Operation graph invoker needs the OperationInvoker itself (recursive:
 	// operation nodes invoke sub-operations). Register after construction.
@@ -86,13 +79,6 @@ func newDefaultSynthesizer() openbindings.InterfaceSynthesizer {
 		mcp.NewSynthesizer(mcp.WithSynthesizerClientVersion(OBVersion)),
 		graphqlbinding.NewSynthesizer(),
 		newUsageSynthesizer(),
-		// workers-rpc synthesizer stub: workers-rpc OBIs are hand-authored
-		// (the contract is the WorkerEntrypoint TS class on the target
-		// Worker, not a machine-readable spec) so the synthesizer returns
-		// an error directing users to write the OBI manually. The
-		// registration here makes ob recognize the format token without
-		// rejecting it as unknown.
-		workersrpc.NewSynthesizer(),
 	)
 }
 

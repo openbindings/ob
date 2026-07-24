@@ -21,6 +21,10 @@ type InvokeConfig struct {
 	// wins. Keeping it as invocation context lets the same list govern nested
 	// operation-graph calls without putting selection policy in the OBI.
 	Selection []string
+	// Configuration carries the governing binding specification's named
+	// interpretation points for this call (document, server, address, and
+	// so on). It is merged with Selection under context.configuration.
+	Configuration map[string]any
 	// Decode is the output-lane override: "json" (strict parse), "text"
 	// (trailing-newline-stripped string), "none" (stdout unconsulted,
 	// output null — T-08 STILL applies on a typed contract), or "" (unset).
@@ -33,22 +37,37 @@ type InvokeConfig struct {
 	Routes map[string]string
 }
 
-// empty reports whether the config carries no per-invocation intent.
+// empty reports whether the config carries no per-invocation hook intent.
+// Binding-spec configuration and selection ride context independently.
 func (c *InvokeConfig) empty() bool {
 	return c == nil || (c.Decode == "" && len(c.OKExits) == 0 && len(c.Routes) == 0)
 }
 
 // context returns the caller-owned operation context carried into this
-// invocation. Selection is the only CLI-authored context point; credentials
-// and protocol configuration continue to come from the scoped context loop.
+// invocation. Selection and named binding-spec interpretation points are
+// caller-owned; credentials and standing transport context continue to come
+// from the scoped context loop.
 func (c *InvokeConfig) context() map[string]any {
-	if c == nil || len(c.Selection) == 0 {
+	if c == nil || (len(c.Selection) == 0 && len(c.Configuration) == 0) {
 		return nil
 	}
-	selection := append([]string(nil), c.Selection...)
-	return map[string]any{
-		"configuration": map[string]any{"selection": selection},
+	configuration := make(map[string]any, len(c.Configuration)+1)
+	for key, value := range c.Configuration {
+		configuration[key] = value
 	}
+	if len(c.Selection) > 0 {
+		configuration["selection"] = append([]string(nil), c.Selection...)
+	}
+	return map[string]any{
+		"configuration": configuration,
+	}
+}
+
+// Context returns the caller-owned context represented by this invocation
+// configuration. It is shared by the CLI invoke and prepare surfaces so the
+// same binding-spec interpretation points reach both contracts.
+func (c *InvokeConfig) Context() map[string]any {
+	return c.context()
 }
 
 // perInvocationHooks compiles the config into a seam carrier composed over

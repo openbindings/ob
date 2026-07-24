@@ -43,6 +43,53 @@ type SynthesizeInterfaceInput struct {
 	Description         string                      `json:"description,omitempty"`
 }
 
+// AddInterfaceSourceInput is the transport-independent addSource operation
+// input. Unlike SourceAddInput, it contains values rather than CLI file
+// locators and can therefore represent embedded source artifacts faithfully.
+type AddInterfaceSourceInput struct {
+	Interface *openbindings.Interface   `json:"interface"`
+	Source    SynthesizeInterfaceSource `json:"source"`
+}
+
+// SourceExistsError reports the conflict specific to AddInterfaceSource.
+type SourceExistsError struct {
+	Key string
+}
+
+func (e *SourceExistsError) Error() string {
+	return fmt.Sprintf("source key %q already exists", e.Key)
+}
+
+// AddInterfaceSource realizes addSource on an in-memory interface. The CLI
+// machine lane and ob start share it so location- and content-based artifacts
+// have one semantic implementation.
+func AddInterfaceSource(input AddInterfaceSourceInput) (*openbindings.Interface, error) {
+	if input.Interface == nil {
+		return nil, fmt.Errorf("interface is required")
+	}
+	if input.Source.BindingSpec == "" {
+		return nil, fmt.Errorf("source.bindingSpec is required")
+	}
+
+	derived, err := SynthesizeInterface(SynthesizeInterfaceInput{Sources: []SynthesizeInterfaceSource{input.Source}})
+	if err != nil {
+		return nil, err
+	}
+	if len(derived.Sources) != 1 {
+		return nil, fmt.Errorf("source synthesis returned %d source entries; expected exactly one", len(derived.Sources))
+	}
+	if input.Interface.Sources == nil {
+		input.Interface.Sources = map[string]openbindings.Source{}
+	}
+	for key, source := range derived.Sources {
+		if _, exists := input.Interface.Sources[key]; exists {
+			return nil, &SourceExistsError{Key: key}
+		}
+		input.Interface.Sources[key] = source
+	}
+	return input.Interface, nil
+}
+
 // ParseSource parses a source string in one of two forms:
 //
 //	format:path[?option&option...]   — explicit format

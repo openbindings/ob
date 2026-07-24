@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"encoding/json"
 	"fmt"
 	"os"
 	"strings"
@@ -42,10 +43,11 @@ func newSourceAddCmd() *cobra.Command {
 		delegateArg string
 		description string
 		yes         bool
+		inputJSON   string
 	)
 
 	cmd := &cobra.Command{
-		Use:   "add <obi-path> <source>",
+		Use:   "add [obi-path] [source]",
 		Short: "Register a source reference on an OBI",
 		Long: `Register a binding source reference on an OpenBindings interface document.
 
@@ -88,15 +90,46 @@ formats — e.g. pin a .proto and carry its server:
 Pass '-' as <obi-path> to read the document from stdin and write the
 modified document to stdout (the summary moves to stderr).
 
+Machine callers pass the addSource operation input wholesale with --input.
+This lane accepts location-based and inline-content sources and returns the
+modified interface as JSON. It is exclusive with positional arguments and
+the human-oriented source flags.
+
 Examples:
   ob source add my.obi.json openapi.json
   ob source add my.obi.json ./api.yaml --key restApi
   ob source add my.obi.json openbindings.openapi@1:./api.yaml
   ob source add my.obi.json openapi.json --delegate ob
   ob source add my.obi.json 'openbindings.openapi@1:https://example.com/openapi.json?embed'
-  ob source add my.obi.json openbindings.openapi@1:./api.yaml --uri https://cdn.example.com/api.yaml`,
-		Args: cobra.ExactArgs(2),
+  ob source add my.obi.json openbindings.openapi@1:./api.yaml --uri https://cdn.example.com/api.yaml
+  ob source add --input '{"interface":{"openbindings":"0.2.0","operations":{}},"source":{"bindingSpec":"openbindings.openapi@1","content":{"openapi":"3.1.0","info":{"title":"Example","version":"1"},"paths":{}}}}'`,
+		Args: cobra.MaximumNArgs(2),
 		RunE: func(cmd *cobra.Command, args []string) error {
+			if inputJSON != "" {
+				exclusiveFlag := false
+				for _, name := range []string{"key", "resolve", "uri", "delegate", "description", "yes"} {
+					exclusiveFlag = exclusiveFlag || cmd.Flags().Changed(name)
+				}
+				if len(args) != 0 || exclusiveFlag {
+					return app.ExitResult{Code: 2, Message: "--input is exclusive with positional arguments and source flags", ToStderr: true}
+				}
+				var input app.AddInterfaceSourceInput
+				if err := json.Unmarshal([]byte(inputJSON), &input); err != nil {
+					return app.ExitResult{Code: 2, Message: fmt.Sprintf("parse --input: %v", err), ToStderr: true}
+				}
+				result, err := app.AddInterfaceSource(input)
+				if err != nil {
+					return app.ExitResult{Code: 1, Message: err.Error(), ToStderr: true}
+				}
+				format, outputPath := getOutputFlags(cmd)
+				if format == "" {
+					format = "json"
+				}
+				return app.OutputResult(result, format, outputPath)
+			}
+			if len(args) != 2 {
+				return app.ExitResult{Code: 2, Message: "provide <obi-path> and <source>, or --input", ToStderr: true}
+			}
 			obiPath := args[0]
 
 			src, err := app.ParseSource(args[1])
@@ -199,6 +232,7 @@ Examples:
 	cmd.Flags().StringVar(&delegateArg, "delegate", "", "delegate to use for this source (skips detection)")
 	cmd.Flags().StringVar(&description, "description", "", "human-readable description for this source")
 	cmd.Flags().BoolVarP(&yes, "yes", "y", false, "accept first capable delegate without prompting")
+	cmd.Flags().StringVar(&inputJSON, "input", "", "AddSourceInput as a JSON string (machine lane)")
 
 	return cmd
 }

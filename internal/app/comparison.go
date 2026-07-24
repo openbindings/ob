@@ -1059,6 +1059,8 @@ func inputDescriptor(locator, label string, iface *openbindings.Interface) Input
 
 func locatorSource(locator string) string {
 	switch {
+	case locator == "":
+		return ""
 	case locator == "-":
 		return "stdin"
 	case strings.HasPrefix(locator, "http://"), strings.HasPrefix(locator, "https://"):

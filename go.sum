@@ -139,8 +139,6 @@ github.com/openbindings/openbindings-go/formats/operationgraph v0.1.0 h1:UV3llnl
 github.com/openbindings/openbindings-go/formats/operationgraph v0.1.0/go.mod h1:9nrSY2selss2NJ3p+0rm4+TFThX3VfsGYaf+7lqHQOo=
 github.com/openbindings/openbindings-go/formats/usage v0.1.0 h1:XUT+2BDFJQqTHiDqUGKTyqblfsALcnXp72ncNCnB1wE=
 github.com/openbindings/openbindings-go/formats/usage v0.1.0/go.mod h1:yUj0txgBDHz0gIIzHLJ5dUB6n+XMjCVO75MKdmSE0lw=
-github.com/openbindings/openbindings-go/formats/workersrpc v0.1.0 h1:hd8Z/UTnl0un06Bdxya009GqYl/4DpHa7N2L6msPuTQ=
-github.com/openbindings/openbindings-go/formats/workersrpc v0.1.0/go.mod h1:w8Y4Et16Pt9+jTQOZKtiiuCiKMJ5Q7YDB1MyC7rnGAU=
 github.com/perimeterx/marshmallow v1.1.5 h1:a2LALqQ1BlHM8PZblsDdidgv1mWi1DgC2UmX50IvK2s=
 github.com/perimeterx/marshmallow v1.1.5/go.mod h1:dsXbUu8CRzfYP5a87xpp0xq9S3u0Vchtcl8we9tYaXw=
 github.com/petermattis/goid v0.0.0-20260113132338-7c7de50cc741 h1:KPpdlQLZcHfTMQRi6bFQ7ogNO0ltFT4PmtwTLW4W+14=

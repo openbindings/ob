@@ -124,6 +124,26 @@ func (m *mockEchoInvoker) InvokeBinding(ctx context.Context, _ *openbindings.Bin
 	return inv
 }
 
+type contextCaptureInvoker struct {
+	formats []openbindings.BindingSpecInfo
+	seen    chan map[string]any
+}
+
+func (m *contextCaptureInvoker) BindingSpecs() []openbindings.BindingSpecInfo { return m.formats }
+func (m *contextCaptureInvoker) InvokeBinding(ctx context.Context, args *openbindings.BindingInvocationArgs) openbindings.Invocation[any, any] {
+	m.seen <- args.Context
+	inv := openbindings.NewInvocationImpl[any, any](ctx)
+	go func() {
+		for {
+			if _, err := inv.ReadInput(ctx); err != nil {
+				break
+			}
+		}
+		inv.CloseOutput()
+	}()
+	return inv
+}
+
 // gatedUnaryInvoker reads one input, closes the input side, emits one output,
 // then parks until release closes before emitting a second output and
 // completing — letting a test interleave a late input frame deterministically.
@@ -811,6 +831,56 @@ func TestServeOperationInvoke_WS_BindingAddressed(t *testing.T) {
 	}
 	if outputs[0].(map[string]any)["echo"] != "bound" {
 		t.Fatalf("binding-addressed output = %#v", outputs[0])
+	}
+}
+
+func TestServeOperationInvoke_WS_CarriesSameConfigurationAsCLI(t *testing.T) {
+	mock := &contextCaptureInvoker{
+		formats: []openbindings.BindingSpecInfo{{BindingSpec: "openbindings.graphql@1"}},
+		seen:    make(chan map[string]any, 1),
+	}
+	cleanup := app.OverrideInvokerForTest(openbindings.NewOperationInvoker(mock))
+	defer cleanup()
+
+	configuration := map[string]any{
+		"document": map[string]any{
+			"source":        "query Viewer { viewer { id } }",
+			"operationName": "Viewer",
+		},
+		"protocolFields": map[string]any{
+			"httpHeaders": map[string]any{"X-Tenant": "acme"},
+		},
+	}
+	iface := echoOperationInterface()
+	iface.Sources["mock"] = openbindings.Source{
+		BindingSpec: "openbindings.graphql@1",
+		Location:    "https://example.test/graphql",
+	}
+
+	ts := testEnv(t)
+	defer ts.Close()
+	ctx := t.Context()
+	conn := dialFrameWSAt(t, ctx, ts, "/operations/invoke", "test-token")
+	sendFrame(t, ctx, conn, map[string]any{
+		"kind": "open",
+		"input": map[string]any{
+			"interface": iface,
+			"binding":   "echo.mock",
+			"context":   map[string]any{"configuration": configuration},
+		},
+	})
+	sendFrame(t, ctx, conn, map[string]any{"kind": "close"})
+	_, terminal := collectUntilTerminal(t, ctx, conn)
+	if terminal.Kind != "complete" {
+		t.Fatalf("terminal = %#v", terminal)
+	}
+
+	servedContext := <-mock.seen
+	cliContext := (&app.InvokeConfig{Configuration: configuration}).Context()
+	servedJSON, _ := json.Marshal(servedContext)
+	cliJSON, _ := json.Marshal(cliContext)
+	if !bytes.Equal(servedJSON, cliJSON) {
+		t.Fatalf("configuration differs across surfaces\nCLI: %s\nAPI: %s", cliJSON, servedJSON)
 	}
 }
 

@@ -3280,6 +3280,42 @@ components:
             properties:
                 code:
                     description: Stable machine-readable error code.
+                    enum:
+                        - codegen_failed
+                        - comparison_failed
+                        - context_store_failed
+                        - delegate_not_found
+                        - delegate_resolution_failed
+                        - edit_failed
+                        - environment_failed
+                        - initialization_failed
+                        - inspection_failed
+                        - internal_error
+                        - invalid_host
+                        - invalid_request
+                        - invalid_upstream
+                        - list_failed
+                        - merge_failed
+                        - not_found
+                        - origin_forbidden
+                        - preference_failed
+                        - preflight_failed
+                        - pull_failed
+                        - registration_failed
+                        - relative_source_reference
+                        - request_too_large
+                        - resolution_failed
+                        - resolution_forbidden
+                        - source_exists
+                        - source_failed
+                        - status_failed
+                        - synthesis_failed
+                        - unauthorized
+                        - unknown_capability
+                        - unregistration_failed
+                        - unsupported_language
+                        - unsupported_media_type
+                        - upgrade_required
                     type: string
                 detail:
                     description: Optional diagnostic detail.
@@ -3289,6 +3325,7 @@ components:
                     type: string
             required:
                 - error
+                - code
             type: object
         GetDelegateRequirementsInput:
             additionalProperties: false

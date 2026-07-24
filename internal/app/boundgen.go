@@ -77,14 +77,15 @@ var CommandByShort = map[string]string{
 
 // WireInputByShort names the machine-natured commands whose whole wire input
 // rides one --input flag as JSON (the relocated wireInput props). The batch-5
-// audit RATIFIED all four: they are the delegate-facing derivation and
-// invocation surface (detect → inspect → synthesize; invoke/prepare), their
+// audit ratified the delegate-facing derivation/invocation surface plus
+// addSource's content-capable authoring lane: their
 // wire inputs are nested, content-bearing objects with no natural argv shape,
 // and --input implies wire-shaped JSON output on each. setContext converted
 // to stdin delivery in batch 3 (the Context value rides stdin so credentials
 // never touch argv; see the adaptation and delivery tables in
 // GenerateBoundCLI).
 var WireInputByShort = map[string]string{
+	"addSource":           "input",
 	"inspectSource":       "input",
 	"invokeBinding":       "input",
 	"prepareBinding":      "input",
@@ -230,13 +231,6 @@ func GenerateBoundCLI(contractPath, usagePath string) (*openbindings.Interface, 
 		"removeOperationAlias":     `{"obi-path": $string($$.interface), "operation": $$.operation, "alias": $$.aliases}`,
 		"setOperationCodegenName":  `{"obi-path": $string($$.interface), "operation": $$.operation, "name": $$.codegenName, "clear": $$.clear}`,
 		"setOperationOutputSchema": `{"obi-path": $string($$.interface), "operation": $$.operation, "schema": $string($$.outputSchema), "clear": $$.clear}`,
-		// addSource: the wire's SynthesizeInterfaceSource maps onto the CLI's
-		// composite <source> token (format:location) and flags; embed=true is
-		// the CLI's --resolve content; -y skips the delegate/name prompts
-		// (moot on the non-TTY wire, but explicit). A content-provided source
-		// (inline `content`, no location) has no CLI carriage yet and fails
-		// loudly at the empty-location token — see the tracker's batch-5 note.
-		"addSource": `$merge([{"obi-path": $string($$.interface), "source": $$.source.bindingSpec & ":" & $$.source.location, "key": $$.source.name, "uri": $$.source.outputLocation, "description": $$.source.description, "yes": true}, $$.source.embed ? {"resolve": "content"} : {}])`,
 		// removeSource: the wire key is the CLI's <key> argument.
 		"removeSource": `{"obi-path": $string($$.interface), "key": $$.key}`,
 		// pullSource: the ONE editing op whose contract output is a report
@@ -254,6 +248,19 @@ func GenerateBoundCLI(contractPath, usagePath string) (*openbindings.Interface, 
 	// a sequence, and $string would serialize a one-element array.
 	for short, flag := range WireInputByShort {
 		adaptationByShort[short] = fmt.Sprintf("{ %q: $string($$) }", flag)
+	}
+
+	// The CLI's natural machine output occasionally includes information about
+	// the carrier it used (stdin or a materialized file). That information is
+	// useful when the command is called directly, but it is not part of the
+	// operation value being realized through this binding. Adapt it back to the
+	// transport-independent contract shape at the binding boundary.
+	outputAdaptationByShort := map[string]string{
+		"validateInterface": `$sift($$, function($v, $k) { $k != "locator" })`,
+		"reportCompatibility": `$merge([$$, {"inputs": {
+			"left": $merge([$$.inputs.left, {"source": "", "uri": ""}]),
+			"right": $merge([$$.inputs.right, {"source": "", "uri": ""}])
+		}}])`,
 	}
 
 	// Commands whose kdl declares a --format flag get the machine lane
@@ -302,6 +309,9 @@ func GenerateBoundCLI(contractPath, usagePath string) (*openbindings.Interface, 
 			be.InputTransform = &openbindings.TransformOrRef{
 				Inline: `$merge([$type($$) = "object" ? $$ : {}, {"format": "json"}])`,
 			}
+		}
+		if adaptation, ok := outputAdaptationByShort[short]; ok {
+			be.OutputTransform = &openbindings.TransformOrRef{Inline: adaptation}
 		}
 		bound.Bindings[key+".usage"] = be
 	}
@@ -465,11 +475,11 @@ func GenerateBoundServe(contractPath, openapiPath, existingServePath, servedBase
 	}
 
 	// WS (asyncapi) cardinality-agnostic invocation bindings.
-	for _, short := range []string{"invokeBinding", "invokeOperation"} {
-		invKey := "openbindings.ob." + short
+	for _, stream := range ServeStreamRoutes() {
+		invKey := "openbindings.ob." + stream.Operation
 		if include(invKey) {
-			be := openbindings.BindingEntry{Operation: invKey, Source: "asyncapi", Ref: "#/operations/" + short}
-			carry(invKey, short, "asyncapi", &be)
+			be := openbindings.BindingEntry{Operation: invKey, Source: "asyncapi", Ref: "#/operations/" + stream.Operation}
+			carry(invKey, stream.Operation, "asyncapi", &be)
 			bound.Bindings[invKey+".asyncapi"] = be
 		}
 	}
@@ -519,7 +529,6 @@ var routesByShort = map[string]map[string]string{
 	"removeOperationAlias":     {"obi-path": usage.RouteStdinDash},
 	"setOperationCodegenName":  {"obi-path": usage.RouteStdinDash},
 	"setOperationOutputSchema": {"obi-path": usage.RouteStdinDash},
-	"addSource":                {"obi-path": usage.RouteStdinDash},
 	"removeSource":             {"obi-path": usage.RouteStdinDash},
 	// pullSource: stdout carries the -F json report, so the document rides a
 	// temp file instead of stdin (the CLI writes the pulled result back to

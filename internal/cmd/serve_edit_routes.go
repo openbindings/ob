@@ -18,41 +18,6 @@ import (
 	"github.com/openbindings/ob/internal/app"
 )
 
-// registerInterfaceEditingRoutes publishes ob's document-editing command
-// family as a stateless document API. Requests carry an interface and results
-// carry the transformed interface; CLI paths never leak onto the wire.
-func registerInterfaceEditingRoutes(mux *http.ServeMux) {
-	mux.HandleFunc("POST /interfaces", handleNewInterface)
-	mux.HandleFunc("POST /interfaces/metadata", handleSetMetadata)
-	mux.HandleFunc("POST /interfaces/purify", handlePurifyInterface)
-
-	mux.HandleFunc("POST /interfaces/sources/add", handleAddSource)
-	mux.HandleFunc("POST /interfaces/sources/remove", handleRemoveSource)
-	mux.HandleFunc("POST /interfaces/sources/list", handleListSources)
-	mux.HandleFunc("POST /interfaces/sources/pull", handlePullSource)
-	mux.HandleFunc("POST /interfaces/bindings/list", handleListBindings)
-
-	mux.HandleFunc("POST /interfaces/operations/add", handleAddOperation)
-	mux.HandleFunc("POST /interfaces/operations/set", handleSetOperation)
-	mux.HandleFunc("POST /interfaces/operations/detach", handleDetachOperation)
-	mux.HandleFunc("POST /interfaces/operations/rename", handleRenameOperation)
-	mux.HandleFunc("POST /interfaces/operations/remove", handleRemoveOperation)
-	mux.HandleFunc("POST /interfaces/operations/list", handleListOperations)
-	mux.HandleFunc("POST /interfaces/operations/bind", handleBindOperation)
-	mux.HandleFunc("POST /interfaces/operations/unbind", handleUnbindOperation)
-	mux.HandleFunc("POST /interfaces/operations/aliases/add", handleAddOperationAlias)
-	mux.HandleFunc("POST /interfaces/operations/aliases/remove", handleRemoveOperationAlias)
-	mux.HandleFunc("POST /interfaces/operations/aliases/list", handleListOperationAliases)
-	mux.HandleFunc("POST /interfaces/operations/codegen-name", handleSetOperationCodegenName)
-	mux.HandleFunc("POST /interfaces/operations/output-schema", handleSetOperationOutputSchema)
-
-	mux.HandleFunc("POST /environment/initialize", handleInitializeEnvironment)
-	mux.HandleFunc("POST /delegates/register", handleRegisterDelegate)
-	mux.HandleFunc("POST /delegates/unregister", handleUnregisterDelegate)
-	mux.HandleFunc("POST /delegates/preference", handleSetDelegatePreference)
-	mux.HandleFunc("POST /delegates/resolve-binding-spec", handleResolveDelegateForBindingSpec)
-}
-
 // decodeRequest enforces the JSON portion of the published contract: a bounded
 // body, exactly one JSON value, and no undeclared object properties.
 func decodeRequest(w http.ResponseWriter, r *http.Request, dst any) bool {
@@ -197,37 +162,21 @@ func handlePurifyInterface(w http.ResponseWriter, r *http.Request) {
 }
 
 func handleAddSource(w http.ResponseWriter, r *http.Request) {
-	var body struct {
-		Interface *openbindings.Interface       `json:"interface"`
-		Source    app.SynthesizeInterfaceSource `json:"source"`
-	}
+	var body app.AddInterfaceSourceInput
 	if !decodeRequest(w, r, &body) || !requireInterface(w, body.Interface) {
 		return
 	}
-	if body.Source.BindingSpec == "" {
-		writeErrorJSON(w, http.StatusBadRequest, "invalid_request", "source.bindingSpec is required")
-		return
-	}
-	derived, err := app.SynthesizeInterface(app.SynthesizeInterfaceInput{Sources: []app.SynthesizeInterfaceSource{body.Source}})
+	result, err := app.AddInterfaceSource(body)
 	if err != nil {
+		var conflict *app.SourceExistsError
+		if errors.As(err, &conflict) {
+			writeErrorJSON(w, http.StatusConflict, "source_exists", err.Error())
+			return
+		}
 		writeErrorJSON(w, http.StatusBadRequest, "source_failed", err.Error())
 		return
 	}
-	if len(derived.Sources) != 1 {
-		writeErrorJSON(w, http.StatusBadGateway, "source_failed", fmt.Sprintf("source synthesis returned %d source entries; expected exactly one", len(derived.Sources)))
-		return
-	}
-	if body.Interface.Sources == nil {
-		body.Interface.Sources = map[string]openbindings.Source{}
-	}
-	for key, src := range derived.Sources {
-		if _, exists := body.Interface.Sources[key]; exists {
-			writeErrorJSON(w, http.StatusConflict, "source_exists", fmt.Sprintf("source key %q already exists", key))
-			return
-		}
-		body.Interface.Sources[key] = src
-	}
-	writeOBI(w, http.StatusOK, body.Interface)
+	writeOBI(w, http.StatusOK, result)
 }
 
 func handleRemoveSource(w http.ResponseWriter, r *http.Request) {

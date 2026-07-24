@@ -49,12 +49,12 @@ jobs:
         env:
           OB_SPEC_CORPUS: ${{ github.workspace }}/spec/conformance
       # The exec-lane suites are -short-gated because they build and exec the
-      # real binary, so the line above skips them. Wire conformance is ob's
-      # strongest oracle (every operation's output judged against its schema);
-      # leaving it to dev machines meant CI could not see it fail. Named
-      # explicitly rather than dropping -short, because the remaining gated
-      # tests want live network and a keychain.
-      - run: go test -race -run 'TestWireConformance_ExecLane|TestDemoSmoke_PrintedCommands' ./internal/cmd/
+      # real binary, so the line above skips them. Wire conformance judges each
+      # CLI realization against its schema; cross-surface conformance also
+      # proves that the CLI and ob-start bindings preserve the same operation
+      # meaning. Named explicitly rather than dropping -short, because the
+      # remaining gated tests want live network and a keychain.
+      - run: go test -race -run 'TestWireConformance_ExecLane|TestCrossSurfaceConformance|TestDemoSmoke_PrintedCommands' ./internal/cmd/
         env:
           OB_SPEC_CORPUS: ${{ github.workspace }}/spec/conformance
           # The context cohort writes through the OS credential store, which a

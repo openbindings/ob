@@ -45,8 +45,8 @@ func RenderBindingSpecList(formats []BindingSpecInfo) string {
 }
 
 // isDraftBindingSpec reports whether a binding-spec token is one of ob's
-// pre-promotion drafts, whose identifier is not yet minted (e.g. "graphql",
-// "workers-rpc@^1.0.0"). A minted OB binding spec (openbindings.<name>@<n>) and
+// pre-promotion drafts, whose identifier is not yet minted. A minted OB
+// binding spec (openbindings.<name>@<n>) and
 // a namespaced third-party identifier both carry a dot in the name; the bare
 // core version marker (openbindings@<version>) is a name of just "openbindings".
 // A bare, dotless token that isn't the core marker is a draft.
@@ -133,7 +133,7 @@ func uniqueSortedFormats(in []BindingSpecInfo) []BindingSpecInfo {
 
 // SpecFamily extracts the lowercase family name from a binding-specification
 // identifier ("openbindings.openapi@1" → "openapi"; a pre-promotion draft
-// token like "graphql" passes through). Identifiers themselves stay exact
+// token passes through). Identifiers themselves stay exact
 // and opaque for matching (core §6); this is dispatch/display convenience.
 func SpecFamily(identifier string) string {
 	name := strings.TrimSpace(identifier)

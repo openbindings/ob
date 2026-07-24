@@ -17,7 +17,7 @@ success = exit 0, fields ride argv).
 | --- | --- | --- | --- | --- |
 | `openbindings.ob.addOperation` | `ob operation add` | json | 0 (assumption) | obi-path=stdin-dash |
 | `openbindings.ob.addOperationAlias` | `ob operation alias add` | json | 0 (assumption) | obi-path=stdin-dash |
-| `openbindings.ob.addSource` | `ob source add` | json | 0 (assumption) | obi-path=stdin-dash |
+| `openbindings.ob.addSource` | `ob source add` | json | 0 (assumption) | — |
 | `openbindings.ob.bindOperation` | `ob operation bind` | json | 0 (assumption) | obi-path=stdin-dash |
 | `openbindings.ob.codegen` | `ob codegen` | json | 0 (assumption) | source=stdin-dash |
 | `openbindings.ob.compareInterfaces` | `ob diff` | json | 0, 1 | baseline=stdin-dash, comparison=file |

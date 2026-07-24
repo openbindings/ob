@@ -22,6 +22,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/openbindings/ob/internal/app"
+	"github.com/openbindings/ob/internal/servecontract"
 	"github.com/openbindings/ob/internal/server"
 )
 
@@ -180,28 +181,14 @@ func registerRoutes(srv *server.Server, logger *slog.Logger, port int, oauthSt *
 	mux.HandleFunc("GET /.well-known/openbindings", handleOBI(port))
 	mux.HandleFunc("GET /openapi.yaml", handleOpenAPISpec(port))
 	mux.HandleFunc("GET /asyncapi.yaml", handleAsyncAPISpec(port))
-	mux.HandleFunc("GET /describe", handleDescribe)
-	mux.HandleFunc("GET /binding-specs", handleBindingSpecs)
-	mux.HandleFunc("GET /delegates", handleDelegates)
-	mux.HandleFunc("GET /delegates/resolve/{operation}", handleResolveDelegate)
-
-	mux.HandleFunc("GET /environment", handleEnvironment)
-
-	mux.HandleFunc("GET /contexts", handleContextList)
-	mux.HandleFunc("GET /contexts/{url...}", handleContextGet)
-	mux.HandleFunc("PUT /contexts/{url...}", handleContextSet)
-	mux.HandleFunc("DELETE /contexts/{url...}", handleContextDelete)
 
 	mux.HandleFunc("POST /resolve", handleResolve)
-	mux.HandleFunc("POST /interfaces/resolve", handleResolve)
 
 	mux.HandleFunc("GET /spec/{name...}", handleSpecResource)
-	mux.HandleFunc("GET /delegate-requirements/{capability}", handleDelegateRequirements)
 
 	registerOAuthRoutes(srv, oauthSt, logger)
-	registerBindingRoutes(srv, logger)
-	registerAuthoringRoutes(srv)
-	registerInterfaceEditingRoutes(mux)
+	registerCanonicalOperationRoutes(srv, logger)
+	registerLegacyAuthoringRoutes(mux)
 	// MCP is not a built-in endpoint: ob's served interface is exposed as an MCP
 	// server by pointing the generic bridge at this running server —
 	// `ob mcp <this-url>`. That dogfoods the same OBI→MCP path ob offers for any
@@ -577,13 +564,6 @@ const (
 
 // --- Helpers ---
 
-// ErrorResponse is the standard error body returned by all ob start endpoints.
-type ErrorResponse struct {
-	Error  string `json:"error"`
-	Detail string `json:"detail,omitempty"`
-	Code   string `json:"code,omitempty"`
-}
-
 func writeJSON(w http.ResponseWriter, status int, v any) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(status)
@@ -606,6 +586,6 @@ func writeOBI(w http.ResponseWriter, status int, v any) {
 	}
 }
 
-func writeErrorJSON(w http.ResponseWriter, status int, code string, message string) {
-	writeJSON(w, status, ErrorResponse{Error: message, Code: code})
+func writeErrorJSON(w http.ResponseWriter, status int, code servecontract.ErrorCode, message string) {
+	servecontract.WriteError(w, status, code, message)
 }

@@ -63,10 +63,10 @@ func TestGenerateBoundServe_BindsServedSurface(t *testing.T) {
 		t.Errorf("expected an openapi binding for describe, got %+v (present=%v)", b, ok)
 	}
 	// Both cardinality-agnostic invokers are bound over WS (asyncapi).
-	for _, short := range []string{"invokeBinding", "invokeOperation"} {
-		key := "openbindings.ob." + short + ".asyncapi"
-		if b, ok := serve.Bindings[key]; !ok || b.Ref != "#/operations/"+short {
-			t.Errorf("expected asyncapi %s binding, got %+v (present=%v)", short, b, ok)
+	for _, stream := range ServeStreamRoutes() {
+		key := "openbindings.ob." + stream.Operation + ".asyncapi"
+		if b, ok := serve.Bindings[key]; !ok || b.Ref != "#/operations/"+stream.Operation {
+			t.Errorf("expected asyncapi %s binding, got %+v (present=%v)", stream.Operation, b, ok)
 		}
 	}
 	// MCP is bridged at runtime (`ob mcp <url>`), not a served transport: the
@@ -108,10 +108,9 @@ func TestGenerateBoundServe_BindsServedSurface(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	localOnly := map[string]bool{
-		"openbindings.ob.startServer":    true,
-		"openbindings.ob.startMCPServer": true,
-		"openbindings.ob.demo":           true,
+	localOnly := map[string]bool{}
+	for _, short := range LocalOnlyOperations() {
+		localOnly["openbindings.ob."+short] = true
 	}
 	for key := range contract.Operations {
 		_, served := serve.Operations[key]
@@ -221,7 +220,7 @@ func TestGenerateBoundCLI_AttachesWireInputTransforms(t *testing.T) {
 		"source": map[string]any{"bindingSpec": "openbindings.openapi@1", "location": "api.yaml"},
 		"ref":    "#/x",
 	}
-	for _, short := range []string{"invokeBinding", "prepareBinding", "synthesizeInterface", "inspectSource"} {
+	for _, short := range []string{"addSource", "invokeBinding", "prepareBinding", "synthesizeInterface", "inspectSource"} {
 		key := "openbindings.ob." + short + ".usage"
 		b, ok := bound.Bindings[key]
 		if !ok {
@@ -319,5 +318,41 @@ func TestGenerateBoundCLI_AttachesWireInputTransforms(t *testing.T) {
 	}
 	if m, ok := out.(map[string]any); !ok || m["url"] != "https://x" {
 		t.Errorf("getContext: expected {url, format}, got %#v", out)
+	}
+
+	// Direct CLI commands may report their file/stdin carriers. Their bound
+	// operation realization must remove those transport details.
+	b = bound.Bindings["openbindings.ob.validateInterface.usage"]
+	out, terr = ApplyTransform(bound.Transforms, b.OutputTransform, map[string]any{
+		"locator": "-", "valid": true, "version": "0.2.0",
+	})
+	if terr != nil {
+		t.Fatalf("validateInterface output transform failed: %v", terr)
+	}
+	if m, ok := out.(map[string]any); !ok || m["valid"] != true || m["version"] != "0.2.0" || m["locator"] != nil {
+		t.Errorf("validateInterface should remove the CLI locator, got %#v", out)
+	}
+
+	b = bound.Bindings["openbindings.ob.reportCompatibility.usage"]
+	out, terr = ApplyTransform(bound.Transforms, b.OutputTransform, map[string]any{
+		"generated_at": "2026-01-01T00:00:00.000Z",
+		"inputs": map[string]any{
+			"left":  map[string]any{"source": "stdin", "uri": "-", "content_sha256": "a", "label": "left"},
+			"right": map[string]any{"source": "file", "uri": "/tmp/x", "content_sha256": "b", "label": "right"},
+		},
+	})
+	if terr != nil {
+		t.Fatalf("reportCompatibility output transform failed: %v", terr)
+	}
+	report, ok := out.(map[string]any)
+	if !ok {
+		t.Fatalf("reportCompatibility output transform produced %T", out)
+	}
+	inputs, _ := report["inputs"].(map[string]any)
+	for _, side := range []string{"left", "right"} {
+		descriptor, _ := inputs[side].(map[string]any)
+		if descriptor["source"] != "" || descriptor["uri"] != "" {
+			t.Errorf("reportCompatibility %s carrier leaked through output transform: %#v", side, descriptor)
+		}
 	}
 }

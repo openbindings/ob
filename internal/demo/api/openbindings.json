@@ -244,7 +244,7 @@
       "description": "Connect (Buf) — same protobuf service over HTTP/1.1 + JSON"
     },
     "graphqlServer": {
-      "bindingSpec": "graphql",
+      "bindingSpec": "openbindings.graphql@1",
       "location": "http://localhost:8080/graphql",
       "description": "GraphQL API — flexible queries with field selection"
     },
@@ -429,25 +429,29 @@
     "getMenu.graphqlServer": {
       "operation": "getMenu",
       "source": "graphqlServer",
-      "ref": "Query/getMenu",
+      "ref": "query/getMenu",
+      "outputTransform": "data.getMenu",
       "preference": 1
     },
     "placeOrder.graphqlServer": {
       "operation": "placeOrder",
       "source": "graphqlServer",
-      "ref": "Mutation/placeOrder",
+      "ref": "mutation/placeOrder",
+      "outputTransform": "data.placeOrder",
       "preference": 1
     },
     "getOrderStatus.graphqlServer": {
       "operation": "getOrderStatus",
       "source": "graphqlServer",
-      "ref": "Mutation/getOrderStatus",
+      "ref": "mutation/getOrderStatus",
+      "outputTransform": "data.getOrderStatus",
       "preference": 1
     },
     "cancelOrder.graphqlServer": {
       "operation": "cancelOrder",
       "source": "graphqlServer",
-      "ref": "Mutation/cancelOrder",
+      "ref": "mutation/cancelOrder",
+      "outputTransform": "data.cancelOrder",
       "preference": 1
     },
     "orderUpdates.grpcServer": {
@@ -459,7 +463,8 @@
     "orderUpdates.graphqlServer": {
       "operation": "orderUpdates",
       "source": "graphqlServer",
-      "ref": "Subscription/orderUpdates",
+      "ref": "subscription/orderUpdates",
+      "outputTransform": "data.orderUpdates",
       "preference": 1
     },
     "placeAndTrack.graph": {
