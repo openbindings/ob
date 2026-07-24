@@ -18,6 +18,39 @@ ship as part of 0.2.0.
 
 ### Changed
 
+- **The generic `ob mcp` adapter now preserves the complete abstract
+  OpenBindings boundary without binding-family guesses.** Explicit object
+  inputs remain direct; every other JSON input uses an optional, reversible
+  `{"input": ...}` envelope so the per-value schema does not invent input
+  cardinality.
+  Results use one structured and text-compatible `{"outputs": [...]}` envelope
+  so zero, one, many, and explicit-null outputs remain distinct, and terminal
+  errors retain partial outputs plus their OpenBindings code, message, and
+  details. Startup reports and excludes operations with unusable wiring or
+  unresolved binding ambiguity; repeatable `--select-binding` supplies
+  explicit selection. `--context` and `--configuration` expose ordinary
+  invocation context without guessing carriers. Raw-artifact acquisition now
+  retains synthesis coverage in both SDKs; `--coverage-report` persists it and
+  `--require-complete-coverage` can gate bridge startup.
+
+- **`ob mcp` now preserves the represented MCP-native surface instead of
+  flattening it.** Exact, untransformed `openbindings.mcp@1` bindings retain
+  original tool names and primitive families (tools, static resources,
+  resource templates, prompts), complete descriptors from embedded listings,
+  complete success and application-error results, progress, and cancellation.
+  Resource-template reads use a narrow same-protocol forwarding lane because
+  expanded RFC 6570 URIs are not generally reversible to operation variables.
+  A real differential test exercises MCP server → synthesized OBI → bridge
+  across descriptors, structured/multimodal content, metadata, errors,
+  progress, resources, prompts, and cancellation. Transformed MCP bindings
+  remain abstract operations and use the generic tool adapter.
+
+- **CLI and served-API correspondence now includes GraphQL authoring.** The
+  cross-surface conformance lane inspects and synthesizes the same embedded
+  GraphQL introspection artifact through the bound CLI OBI and the `ob start`
+  OBI, comparing canonical operation results just as it already does for
+  OpenAPI.
+
 - **The experimental Workers RPC registration was removed.** `ob` no longer
   advertises a token backed only by a Go stub that could neither invoke nor
   synthesize its source family. The CLI now reports only complete native

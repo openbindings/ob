@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -48,17 +49,76 @@ func ResolveInterface(locator string) (*openbindings.Interface, error) {
 	return resolveInterface(locator)
 }
 
-// resolveInterface loads an OpenBindings interface from a locator.
-// Locator types: local file path, HTTP(S) URL, exec: reference.
 func resolveInterface(locator string) (*openbindings.Interface, error) {
 	locator = strings.TrimSpace(locator)
 	if locator == "" {
 		return nil, fmt.Errorf("empty locator")
 	}
 
-	// Local file: anything that isn't an exec: ref or URL with scheme.
+	// Preserve the document-editing and validation path: a local JSON object
+	// that is not yet a valid OBI still parses into an Interface so callers can
+	// diagnose or repair it. Raw-artifact synthesis is the additional behavior
+	// of ResolveInterfaceDetailed.
 	if !IsExecURL(locator) && !IsHTTPURL(locator) && !strings.Contains(locator, "://") {
 		return loadInterfaceFile(locator)
+	}
+
+	result := ProbeOBI(locator, DefaultProbeTimeout)
+	if result.Status != ProbeStatusOK || result.OBI == "" {
+		detail := result.Detail
+		if detail == "" {
+			detail = "no OpenBindings interface found"
+		}
+		return nil, fmt.Errorf("%s", detail)
+	}
+	return parseInterfaceJSON([]byte(result.OBI), locator)
+}
+
+// ResolvedInterface is the interface plus acquisition evidence useful to
+// consumers that care whether a raw artifact was synthesized.
+type ResolvedInterface struct {
+	Interface         *openbindings.Interface
+	Synthesized       bool
+	SourceBindingSpec string
+	Coverage          *openbindings.SynthesisCoverage
+}
+
+// ResolveInterfaceDetailed loads an OBI or synthesizes one from a raw local or
+// remote artifact, retaining synthesis coverage when available.
+func ResolveInterfaceDetailed(locator string) (*ResolvedInterface, error) {
+	locator = strings.TrimSpace(locator)
+	if locator == "" {
+		return nil, fmt.Errorf("empty locator")
+	}
+
+	// A local OBI takes the direct path. When the file is not an OBI, retry it
+	// through the same raw-artifact synthesis chain used by file:// URLs.
+	if !IsExecURL(locator) && !IsHTTPURL(locator) && !strings.Contains(locator, "://") {
+		data, directErr := readLocatorBytes(locator)
+		if directErr == nil {
+			if _, isOBI := normalizeOBIJSON(data); isOBI {
+				iface, parseErr := parseInterfaceJSON(data, locator)
+				if parseErr != nil {
+					return nil, parseErr
+				}
+				return &ResolvedInterface{Interface: iface}, nil
+			}
+			_, directErr = parseInterfaceJSON(data, locator)
+			if directErr == nil {
+				directErr = fmt.Errorf("%s: JSON object is not an OpenBindings interface", locator)
+			}
+		}
+		if locator == StdinLocator {
+			return nil, directErr
+		}
+		if _, statErr := os.Stat(locator); statErr != nil {
+			return nil, directErr
+		}
+		absolute, err := filepath.Abs(locator)
+		if err != nil {
+			return nil, err
+		}
+		locator = "file://" + absolute
 	}
 
 	// Remote or exec: probe.
@@ -71,7 +131,16 @@ func resolveInterface(locator string) (*openbindings.Interface, error) {
 		return nil, fmt.Errorf("%s", detail)
 	}
 
-	return parseInterfaceJSON([]byte(result.OBI), locator)
+	iface, err := parseInterfaceJSON([]byte(result.OBI), locator)
+	if err != nil {
+		return nil, err
+	}
+	return &ResolvedInterface{
+		Interface:         iface,
+		Synthesized:       result.Synthesized,
+		SourceBindingSpec: result.SourceBindingSpec,
+		Coverage:          result.Coverage,
+	}, nil
 }
 
 // loadInterfaceFile reads and parses an OpenBindings interface JSON file.

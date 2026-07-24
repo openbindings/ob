@@ -422,14 +422,19 @@ cmd "codegen" help="Generate a typed invoker from an interface" {
   arg "<source>" help="Interface to generate from (file path, URL, or - for stdin)"
 }
 
-cmd "mcp" help="Serve an interface URL as an MCP server" {
+cmd "mcp" help="Serve an interface or raw artifact as an MCP server" {
   flag "--transport <transport>" help="Transport: stdio or http (default: stdio)"
   flag "--port <port>" help="HTTP port (when transport is http, default: 8080)"
   flag "--name <name>" help="MCP server name (default: ob-mcp)"
   flag "--token <token>" help="Bearer token for authenticating to target servers (also: OB_TOKEN)"
   flag "--token-file <path>" help="Read Bearer token from file"
   flag "--tool-timeout <duration>" help="Bound on a single bridged tool call (MCP tools are request-scoped; a subscription-style operation cannot complete as a tool)"
-  arg "<url>" help="Interface URL to expose as an MCP server (compose an aggregate OBI for several services)"
+  flag "--context <json>" help="Invocation context JSON object or @file (credentials, headers, cookies, extensions)"
+  flag "--configuration <json>" help="Binding-spec configuration JSON object or @file"
+  flag "--select-binding <binding>" help="Ordered binding choice for this and nested operations (repeatable)" var=#true
+  flag "--require-complete-coverage" help="Refuse synthesized raw artifacts unless coverage is exhaustive and fully represented"
+  flag "--coverage-report <path>" help="Write synthesis coverage evidence to a JSON file"
+  arg "<interface-or-artifact>" help="OBI locator or raw artifact to expose as an MCP server"
 }
 
 cmd "start" help="Start a local server exposing ob operations (HTTP, WebSocket)" {

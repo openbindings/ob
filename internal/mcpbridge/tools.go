@@ -22,12 +22,38 @@ import (
 // until the agent's own client gives up.
 const DefaultToolDeadline = 60 * time.Second
 
+// MCPBindingSpec is the exact binding-specification identifier whose
+// protocol-native results and primitive families this bridge knows how to
+// preserve. Binding-spec identifiers are opaque and exact in OpenBindings;
+// shorthand and prefix matching would accidentally claim compatibility with
+// unevaluated revisions.
+const MCPBindingSpec = "openbindings.mcp@1"
+
 // RegisterOptions configures how an interface is bridged.
 type RegisterOptions struct {
 	// ToolDeadline bounds each bridged call's drain (zero = DefaultToolDeadline).
 	// The bridge adapts stream-scoped invocations to request-scoped MCP
 	// primitives; boundedness is that adapter's job, not a service timeout.
 	ToolDeadline time.Duration
+}
+
+// RegistrationEntry records the bridge's disposition of one OBI operation.
+// It is adapter evidence: it reports only facts knowable from the interface
+// and installed invokers, never guesses a binding's runtime cardinality.
+type RegistrationEntry struct {
+	Operation string `json:"operation"`
+	Name      string `json:"name,omitempty"`
+	Primitive string `json:"primitive,omitempty"`
+	Status    string `json:"status"`
+	Reason    string `json:"reason,omitempty"`
+}
+
+// RegistrationReport is the complete, deterministic admission report for one
+// bridged interface.
+type RegistrationReport struct {
+	Entries    []RegistrationEntry `json:"entries"`
+	Registered int                 `json:"registered"`
+	Excluded   int                 `json:"excluded"`
 }
 
 func (o RegisterOptions) deadline() time.Duration {
@@ -37,23 +63,20 @@ func (o RegisterOptions) deadline() time.Duration {
 	return DefaultToolDeadline
 }
 
-// drainOperation drives an operation invocation to completion: it writes the
-// input (when non-nil), closes the input side, and collects every output,
-// bounded by the register options' tool deadline.
-//
-// MCP tool/resource/prompt results are request/response, so a streaming
-// operation's outputs are surfaced as a JSON array — a unary operation's single
-// output is returned as-is (a scalar), preserving the common shape, while a
-// multi-output operation returns the FULL sequence rather than silently
-// dropping all but the last value. A terminal error before EOF surfaces as the
-// MCP error (collected outputs are discarded, matching how callers render it).
-// A drain that outlives the deadline returns an honest refusal naming the
-// mismatch: a subscription-style operation cannot complete as a tool call.
-func drainOperation(ctx context.Context, call openbindings.Invocation[any, any], input any, opKey string, deadline time.Duration) (any, *openbindings.InvocationError) {
+type drainedOperation struct {
+	Outputs []any
+	Error   *openbindings.InvocationError
+}
+
+// drainOperation drives one cardinality-agnostic OpenBindings invocation to
+// completion. The complete output sequence is retained even when the
+// invocation later terminates with an error; OpenBindings does not retract
+// already-emitted values, so an adapter must not discard them either.
+func drainOperation(ctx context.Context, call openbindings.Invocation[any, any], input operationInput, opKey string, deadline time.Duration) drainedOperation {
 	dctx, cancel := context.WithTimeout(ctx, deadline)
 	defer cancel()
-	if input != nil {
-		_ = call.Write(dctx, input)
+	if input.Present {
+		_ = call.Write(dctx, input.Value)
 	}
 	_ = call.Close()
 	out := call.Outputs()
@@ -61,26 +84,19 @@ func drainOperation(ctx context.Context, call openbindings.Invocation[any, any],
 	for {
 		v, err := out.Read(dctx)
 		if errors.Is(err, io.EOF) {
-			switch len(outputs) {
-			case 0:
-				return nil, nil
-			case 1:
-				return outputs[0], nil
-			default:
-				return outputs, nil
-			}
+			return drainedOperation{Outputs: outputs}
 		}
 		if err != nil {
+			call.Cancel()
 			if dctx.Err() == context.DeadlineExceeded && ctx.Err() == nil {
-				call.Cancel()
-				return nil, &openbindings.InvocationError{
+				return drainedOperation{Outputs: outputs, Error: &openbindings.InvocationError{
 					Code: openbindings.ErrCodeTimeout,
 					Message: fmt.Sprintf(
 						"operation %q streamed for %s without completing (%d event(s) collected); MCP tool calls are request-scoped, and a subscription-style operation cannot complete as a tool — invoke it through an OpenBindings consumer that speaks streams (ob operation invoke, the SDKs)",
 						opKey, deadline, len(outputs)),
-				}
+				}}
 			}
-			return nil, openbindings.AsInvocationError(err)
+			return drainedOperation{Outputs: outputs, Error: openbindings.AsInvocationError(err)}
 		}
 		outputs = append(outputs, v)
 	}
@@ -105,6 +121,21 @@ func RegisterInterface(
 	baseContext map[string]any,
 	opts RegisterOptions,
 ) int {
+	return RegisterInterfaceWithReport(srv, iface, invoker, baseContext, opts).Registered
+}
+
+// RegisterInterfaceWithReport is RegisterInterface with explicit evidence for
+// every advertised or excluded operation.
+func RegisterInterfaceWithReport(
+	srv *mcp.Server,
+	iface *openbindings.Interface,
+	invoker *openbindings.OperationInvoker,
+	baseContext map[string]any,
+	opts RegisterOptions,
+) RegistrationReport {
+	if iface == nil {
+		return RegistrationReport{}
+	}
 	names := toolNames(iface)
 
 	// Deterministic registration order (map iteration is randomized).
@@ -114,23 +145,152 @@ func RegisterInterface(
 	}
 	sort.Strings(opKeys)
 
-	count := 0
+	report := RegistrationReport{Entries: make([]RegistrationEntry, 0, len(opKeys))}
 	for _, opKey := range opKeys {
 		op := iface.Operations[opKey]
-		ref, kind := findMCPBinding(iface, opKey)
+		if reason := operationAdmissionReason(iface, opKey, invoker, baseContext); reason != "" {
+			report.Entries = append(report.Entries, RegistrationEntry{
+				Operation: opKey,
+				Status:    "excluded",
+				Reason:    reason,
+			})
+			report.Excluded++
+			continue
+		}
+		binding, nativeMCP := findMCPBindingDetails(iface, opKey)
+		// A transformed MCP binding no longer exposes the protocol-native
+		// argument/result boundary. Present it as the abstract OBI operation,
+		// just like any other binding, rather than pretending its transformed
+		// value is still a CallToolResult/ReadResourceResult/GetPromptResult.
+		if nativeMCP && (binding.entry.InputTransform != nil || binding.entry.OutputTransform != nil) {
+			nativeMCP = false
+			binding = mcpBinding{kind: "tools"}
+		}
+		ref, kind := binding.ref, binding.kind
 		name := names[opKey]
+		if nativeMCP && kind == "tools" {
+			name = strings.TrimPrefix(ref, "tools/")
+		}
 
 		switch kind {
-		case "resources", "resourceTemplates":
-			registerResource(srv, name, op, iface, opKey, ref, invoker, baseContext, opts)
+		case "resources":
+			registerStaticResource(srv, name, op, iface, opKey, binding, invoker, baseContext, opts)
+		case "resourceTemplates":
+			registerResourceTemplate(srv, name, op, iface, opKey, binding, invoker, baseContext, opts)
 		case "prompts":
-			registerPrompt(srv, name, op, iface, opKey, ref, invoker, baseContext, opts)
+			registerPrompt(srv, name, op, iface, opKey, binding, invoker, baseContext, opts)
 		default:
-			registerTool(srv, name, op, iface, opKey, invoker, baseContext, opts)
+			registerTool(srv, name, op, iface, opKey, binding, nativeMCP, invoker, baseContext, opts)
 		}
-		count++
+		report.Entries = append(report.Entries, RegistrationEntry{
+			Operation: opKey,
+			Name:      name,
+			Primitive: kind,
+			Status:    "registered",
+		})
+		report.Registered++
 	}
-	return count
+	return report
+}
+
+func operationAdmissionReason(
+	iface *openbindings.Interface,
+	opKey string,
+	invoker *openbindings.OperationInvoker,
+	baseContext map[string]any,
+) string {
+	if invoker == nil {
+		return "no OpenBindings invoker is installed"
+	}
+	available := map[string]bool{}
+	for _, info := range invoker.BindingSpecs() {
+		available[info.BindingSpec] = true
+	}
+
+	// Match OperationInvoker's override exactly: the first listed binding for
+	// this operation whose existing source uses an installed binding spec wins.
+	// A selected missing source is not silently skipped; resolution would fail
+	// with ERR_UNKNOWN_SOURCE, so the bridge excludes it before advertising.
+	for _, key := range contextSelection(baseContext) {
+		binding, ok := iface.Bindings[key]
+		if !ok || binding.Operation != opKey {
+			continue
+		}
+		source, sourceOK := iface.Sources[binding.Source]
+		if !sourceOK {
+			return fmt.Sprintf("%s references missing source %s", key, binding.Source)
+		}
+		if available[source.BindingSpec] {
+			return ""
+		}
+	}
+
+	var (
+		candidates  []string
+		missing     map[string]string
+		unavailable map[string]string
+	)
+	missing = map[string]string{}
+	unavailable = map[string]string{}
+	for key, binding := range iface.Bindings {
+		if binding.Operation != opKey {
+			continue
+		}
+		source, ok := iface.Sources[binding.Source]
+		if !ok {
+			// OperationInvoker counts a missing-source binding during default
+			// selection, then reports the unknown source after selection.
+			candidates = append(candidates, key)
+			missing[key] = binding.Source
+			continue
+		}
+		if !available[source.BindingSpec] {
+			unavailable[key] = source.BindingSpec
+			continue
+		}
+		candidates = append(candidates, key)
+	}
+	if len(candidates) == 0 {
+		if len(unavailable) > 0 {
+			keys := make([]string, 0, len(unavailable))
+			for key := range unavailable {
+				keys = append(keys, key)
+			}
+			sort.Strings(keys)
+			needs := make([]string, 0, len(keys))
+			for _, key := range keys {
+				needs = append(needs, fmt.Sprintf("%s requires unavailable %s", key, unavailable[key]))
+			}
+			return strings.Join(needs, "; ")
+		}
+		return "operation has no binding"
+	}
+	if len(candidates) == 1 {
+		if source, bad := missing[candidates[0]]; bad {
+			return fmt.Sprintf("%s references missing source %s", candidates[0], source)
+		}
+		return ""
+	}
+	sort.Strings(candidates)
+	return fmt.Sprintf("binding selection required among %s; configure an ordered selection", strings.Join(candidates, ", "))
+}
+
+func contextSelection(ctx map[string]any) []string {
+	configuration, _ := ctx["configuration"].(map[string]any)
+	switch values := configuration["selection"].(type) {
+	case []string:
+		return append([]string(nil), values...)
+	case []any:
+		out := make([]string, 0, len(values))
+		for _, value := range values {
+			if key, ok := value.(string); ok {
+				out = append(out, key)
+			}
+		}
+		return out
+	default:
+		return nil
+	}
 }
 
 // toolNames assigns each operation an MCP tool name that stays as close to the
@@ -157,7 +317,12 @@ func toolNames(iface *openbindings.Interface) map[string]string {
 		name := sanitizeName(k)
 		base := name
 		for i := 2; used[name]; i++ {
-			name = fmt.Sprintf("%s_%d", base, i)
+			suffix := fmt.Sprintf("_%d", i)
+			prefix := base
+			if len(prefix)+len(suffix) > 64 {
+				prefix = prefix[:64-len(suffix)]
+			}
+			name = prefix + suffix
 		}
 		used[name] = true
 		out[k] = name
@@ -191,28 +356,58 @@ func sanitizeName(s string) string {
 // findMCPBinding looks for an MCP binding for the given operation and returns
 // the ref value and the entity kind (tools, resources, prompts). If no MCP
 // binding exists, returns ("", "tools").
-func findMCPBinding(iface *openbindings.Interface, opKey string) (ref string, kind string) {
+type mcpBinding struct {
+	entry  openbindings.BindingEntry
+	source openbindings.Source
+	ref    string
+	kind   string
+}
+
+func findMCPBindingDetails(iface *openbindings.Interface, opKey string) (mcpBinding, bool) {
+	var candidate mcpBinding
+	bindingCount := 0
 	for _, be := range iface.Bindings {
 		if be.Operation != opKey {
 			continue
 		}
+		bindingCount++
 		src, ok := iface.Sources[be.Source]
 		if !ok {
 			continue
 		}
-		if !strings.HasPrefix(src.BindingSpec, "mcp") {
+		if src.BindingSpec != MCPBindingSpec {
 			continue
 		}
 		// Found an MCP binding. Parse the ref prefix. resourceTemplates/ is
 		// checked before resources/ for clarity (the two cannot prefix-collide).
 		for _, prefix := range []string{"resourceTemplates/", "resources/", "prompts/", "tools/"} {
 			if strings.HasPrefix(be.Ref, prefix) {
-				return be.Ref, strings.TrimSuffix(prefix, "/")
+				candidate = mcpBinding{
+					entry: be, source: src, ref: be.Ref,
+					kind: strings.TrimSuffix(prefix, "/"),
+				}
+				break
 			}
 		}
-		return be.Ref, "tools"
+		if candidate.kind == "" {
+			candidate = mcpBinding{entry: be, source: src, ref: be.Ref, kind: "tools"}
+		}
 	}
-	return "", "tools"
+	// Re-emitting a protocol-native primitive also commits the invocation to
+	// the MCP binding whose descriptor supplied that primitive. OpenBindings
+	// deliberately refuses to choose among several valid bindings, so the
+	// bridge may take this lane only when the operation has one unambiguous
+	// binding. Multi-binding operations stay generic and preserve normal
+	// selection semantics instead of acquiring an MCP-preference convention.
+	if bindingCount == 1 && candidate.kind != "" {
+		return candidate, true
+	}
+	return mcpBinding{kind: "tools"}, false
+}
+
+func findMCPBinding(iface *openbindings.Interface, opKey string) (ref string, kind string) {
+	binding, _ := findMCPBindingDetails(iface, opKey)
+	return binding.ref, binding.kind
 }
 
 func registerTool(
@@ -221,99 +416,156 @@ func registerTool(
 	op openbindings.Operation,
 	iface *openbindings.Interface,
 	opKey string,
+	binding mcpBinding,
+	nativeMCP bool,
 	invoker *openbindings.OperationInvoker,
 	baseContext map[string]any,
 	opts RegisterOptions,
 ) {
-	srv.AddTool(&mcp.Tool{
-		Name:        toolName,
-		Description: op.Description,
-		InputSchema: bundleInputSchema(op.Input, iface.Schemas),
-	}, func(ctx context.Context, req *mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-		var input any
-		if len(req.Params.Arguments) > 0 {
-			if err := json.Unmarshal(req.Params.Arguments, &input); err != nil {
-				return &mcp.CallToolResult{
-					IsError: true,
-					Content: []mcp.Content{&mcp.TextContent{Text: "invalid arguments: " + err.Error()}},
-				}, nil
-			}
+	projection := projectGenericTool(op, iface.Schemas)
+	descriptor := &mcp.Tool{
+		Name:         toolName,
+		Description:  op.Description,
+		InputSchema:  projection.InputSchema,
+		OutputSchema: projection.OutputSchema,
+	}
+	if nativeMCP {
+		descriptor.OutputSchema = nil
+		if pinned := pinnedTool(binding.source.Content, strings.TrimPrefix(binding.ref, "tools/")); pinned != nil {
+			descriptor = pinned
+		} else if outputSchema := toolStructuredOutputSchema(op.Output); outputSchema != nil {
+			descriptor.OutputSchema = outputSchema
+		}
+	}
+	if descriptor.InputSchema == nil {
+		descriptor.InputSchema = bundleInputSchema(op.Input, iface.Schemas)
+	}
+
+	srv.AddTool(descriptor, func(ctx context.Context, req *mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+		input, err := projection.decodeInput(req.Params.Arguments)
+		if err != nil {
+			return &mcp.CallToolResult{
+				IsError: true,
+				Content: []mcp.Content{&mcp.TextContent{Text: err.Error()}},
+			}, nil
 		}
 
 		call := openbindings.Invoke(ctx, invoker, iface,
 			openbindings.NewOperationSignature[any, any](opKey),
-			openbindings.WithContext(baseContext))
-		lastData, ierr := drainOperation(ctx, call, input, opKey, opts.deadline())
+			openbindings.WithContext(mcpToolContext(baseContext, nativeMCP && req.Params.GetProgressToken() != nil)))
+		var genericResult drainedOperation
+		var lastData any
+		var nativeFinal bool
+		var ierr *openbindings.InvocationError
+		if nativeMCP && req.Params.GetProgressToken() != nil && req.Session != nil {
+			lastData, nativeFinal, ierr = drainMCPTool(ctx, call, input, opKey, opts.deadline(), req)
+		} else {
+			genericResult = drainOperation(ctx, call, input, opKey, opts.deadline())
+			ierr = genericResult.Error
+			if len(genericResult.Outputs) == 1 {
+				lastData = genericResult.Outputs[0]
+				nativeFinal = true
+			}
+		}
 		if ierr != nil {
-			return &mcp.CallToolResult{
-				IsError: true,
-				Content: []mcp.Content{&mcp.TextContent{Text: ierr.Message}},
-			}, nil
+			if nativeMCP {
+				if result := mcpErrorResult(ierr); result != nil {
+					return result, nil
+				}
+				genericResult.Error = ierr
+			}
+			return genericToolResult(genericResult), nil
 		}
 
-		data, err := json.Marshal(lastData)
-		if err != nil {
-			return &mcp.CallToolResult{
-				IsError: true,
-				Content: []mcp.Content{&mcp.TextContent{Text: fmt.Sprintf("failed to marshal output: %v", err)}},
-			}, nil
+		if nativeMCP {
+			if !nativeFinal {
+				return nil, fmt.Errorf("MCP binding %q emitted %d final results; exactly one CallToolResult is required", binding.ref, len(genericResult.Outputs))
+			}
+			result := &mcp.CallToolResult{}
+			if err := remarshal(lastData, result); err != nil {
+				return nil, fmt.Errorf("MCP binding %q returned an invalid CallToolResult: %w", binding.ref, err)
+			}
+			return result, nil
 		}
-		return &mcp.CallToolResult{
-			Content: []mcp.Content{&mcp.TextContent{Text: string(data)}},
-		}, nil
+		return genericToolResult(genericResult), nil
 	})
 }
 
-func registerResource(
+func registerStaticResource(
 	srv *mcp.Server,
 	name string,
 	op openbindings.Operation,
 	iface *openbindings.Interface,
 	opKey string,
-	ref string,
+	binding mcpBinding,
 	invoker *openbindings.OperationInvoker,
 	baseContext map[string]any,
 	opts RegisterOptions,
 ) {
-	// Trim whichever resource-family prefix the ref carries: a static resource
-	// (resources/<uri>) or a resource template (resourceTemplates/<uriTemplate>).
-	uri := ref
-	if strings.HasPrefix(uri, "resourceTemplates/") {
-		uri = strings.TrimPrefix(uri, "resourceTemplates/")
-	} else {
-		uri = strings.TrimPrefix(uri, "resources/")
-	}
-
-	srv.AddResource(&mcp.Resource{
+	uri := strings.TrimPrefix(binding.ref, "resources/")
+	descriptor := &mcp.Resource{
 		URI:         uri,
 		Name:        name,
 		Description: op.Description,
 		MIMEType:    guessMIME(uri),
-	}, func(ctx context.Context, req *mcp.ReadResourceRequest) (*mcp.ReadResourceResult, error) {
+	}
+	if pinned := pinnedResource(binding.source.Content, uri); pinned != nil {
+		descriptor = pinned
+	}
+
+	srv.AddResource(descriptor, func(ctx context.Context, req *mcp.ReadResourceRequest) (*mcp.ReadResourceResult, error) {
 		call := openbindings.Invoke(ctx, invoker, iface,
 			openbindings.NewOperationSignature[any, any](opKey),
 			openbindings.WithContext(baseContext))
-		lastData, ierr := drainOperation(ctx, call, map[string]any{"uri": req.Params.URI}, opKey, opts.deadline())
-		if ierr != nil {
-			return nil, fmt.Errorf("%s: %s", ierr.Code, ierr.Message)
+		// A static MCP resource's URI lives in the binding ref. The binding
+		// intentionally takes no OpenBindings input value.
+		drained := drainOperation(ctx, call, operationInput{}, opKey, opts.deadline())
+		if drained.Error != nil {
+			return nil, fmt.Errorf("%s: %s", drained.Error.Code, drained.Error.Message)
 		}
-
-		text := ""
-		switch v := lastData.(type) {
-		case string:
-			text = v
-		default:
-			b, _ := json.MarshalIndent(v, "", "  ")
-			text = string(b)
+		if len(drained.Outputs) != 1 {
+			return nil, fmt.Errorf("MCP binding %q emitted %d results; exactly one ReadResourceResult is required", binding.ref, len(drained.Outputs))
 		}
+		result := &mcp.ReadResourceResult{}
+		if err := remarshal(drained.Outputs[0], result); err != nil {
+			return nil, fmt.Errorf("MCP binding %q returned an invalid ReadResourceResult: %w", binding.ref, err)
+		}
+		return result, nil
+	})
+}
 
-		return &mcp.ReadResourceResult{
-			Contents: []*mcp.ResourceContents{{
-				URI:      req.Params.URI,
-				MIMEType: guessMIME(req.Params.URI),
-				Text:     text,
-			}},
-		}, nil
+func registerResourceTemplate(
+	srv *mcp.Server,
+	name string,
+	op openbindings.Operation,
+	iface *openbindings.Interface,
+	opKey string,
+	binding mcpBinding,
+	invoker *openbindings.OperationInvoker,
+	baseContext map[string]any,
+	opts RegisterOptions,
+) {
+	uriTemplate := strings.TrimPrefix(binding.ref, "resourceTemplates/")
+	descriptor := &mcp.ResourceTemplate{
+		URITemplate: uriTemplate,
+		Name:        name,
+		Description: op.Description,
+		MIMEType:    guessMIME(uriTemplate),
+	}
+	if pinned := pinnedResourceTemplate(binding.source.Content, uriTemplate); pinned != nil {
+		descriptor = pinned
+	}
+
+	srv.AddResourceTemplate(descriptor, func(ctx context.Context, req *mcp.ReadResourceRequest) (*mcp.ReadResourceResult, error) {
+		// resources/read carries the expanded URI, while the OpenBindings
+		// operation takes RFC 6570 variables. RFC 6570 does not define a
+		// generally reversible matching algorithm. For an untransformed native
+		// MCP binding, forwarding the protocol request is the only faithful
+		// adapter; an authored transform would make that bypass incorrect.
+		if binding.entry.InputTransform != nil || binding.entry.OutputTransform != nil {
+			return nil, fmt.Errorf("MCP resource-template bridge cannot reverse an expanded URI through authored transforms")
+		}
+		return readMCPResource(ctx, binding.source.Location, req.Params.URI, baseContext)
 	})
 }
 
@@ -323,50 +575,273 @@ func registerPrompt(
 	op openbindings.Operation,
 	iface *openbindings.Interface,
 	opKey string,
-	ref string,
+	binding mcpBinding,
 	invoker *openbindings.OperationInvoker,
 	baseContext map[string]any,
 	opts RegisterOptions,
 ) {
-	promptName := strings.TrimPrefix(ref, "prompts/")
+	promptName := strings.TrimPrefix(binding.ref, "prompts/")
 
-	var args []*mcp.PromptArgument
-	inputObj, _ := op.Input.(map[string]any)
-	if props, ok := inputObj["properties"].(map[string]any); ok {
-		for k := range props {
-			args = append(args, &mcp.PromptArgument{Name: k})
+	descriptor := pinnedPrompt(binding.source.Content, promptName)
+	if descriptor == nil {
+		var args []*mcp.PromptArgument
+		inputObj, _ := op.Input.(map[string]any)
+		required := stringSet(inputObj["required"])
+		if props, ok := inputObj["properties"].(map[string]any); ok {
+			keys := make([]string, 0, len(props))
+			for k := range props {
+				keys = append(keys, k)
+			}
+			sort.Strings(keys)
+			for _, k := range keys {
+				arg := &mcp.PromptArgument{Name: k, Required: required[k]}
+				if schema, ok := props[k].(map[string]any); ok {
+					arg.Description, _ = schema["description"].(string)
+				}
+				args = append(args, arg)
+			}
 		}
+		descriptor = &mcp.Prompt{Name: promptName, Description: op.Description, Arguments: args}
 	}
 
-	srv.AddPrompt(&mcp.Prompt{
-		Name:        promptName,
-		Description: op.Description,
-		Arguments:   args,
-	}, func(ctx context.Context, req *mcp.GetPromptRequest) (*mcp.GetPromptResult, error) {
-		var input any
+	srv.AddPrompt(descriptor, func(ctx context.Context, req *mcp.GetPromptRequest) (*mcp.GetPromptResult, error) {
+		var input operationInput
 		if len(req.Params.Arguments) > 0 {
 			m := make(map[string]any, len(req.Params.Arguments))
 			for k, v := range req.Params.Arguments {
 				m[k] = v
 			}
-			input = m
+			input = operationInput{Value: m, Present: true}
 		}
 
 		call := openbindings.Invoke(ctx, invoker, iface,
 			openbindings.NewOperationSignature[any, any](opKey),
 			openbindings.WithContext(baseContext))
-		lastData, ierr := drainOperation(ctx, call, input, opKey, opts.deadline())
-		if ierr != nil {
-			return nil, fmt.Errorf("%s: %s", ierr.Code, ierr.Message)
+		drained := drainOperation(ctx, call, input, opKey, opts.deadline())
+		if drained.Error != nil {
+			return nil, fmt.Errorf("%s: %s", drained.Error.Code, drained.Error.Message)
+		}
+		if len(drained.Outputs) != 1 {
+			return nil, fmt.Errorf("MCP binding %q emitted %d results; exactly one GetPromptResult is required", binding.ref, len(drained.Outputs))
 		}
 
 		// The operation invoker returns the prompt result as an object with
 		// "messages" and optional "description".
 		result := &mcp.GetPromptResult{}
-		b, _ := json.Marshal(lastData)
-		json.Unmarshal(b, result)
+		if err := remarshal(drained.Outputs[0], result); err != nil {
+			return nil, fmt.Errorf("MCP binding %q returned an invalid GetPromptResult: %w", binding.ref, err)
+		}
 		return result, nil
 	})
+}
+
+func remarshal(value any, target any) error {
+	data, err := json.Marshal(value)
+	if err != nil {
+		return err
+	}
+	return json.Unmarshal(data, target)
+}
+
+func mcpErrorResult(ierr *openbindings.InvocationError) *mcp.CallToolResult {
+	details, ok := ierr.Details.(map[string]any)
+	if !ok {
+		return nil
+	}
+	value, ok := details["mcpResult"]
+	if !ok {
+		return nil
+	}
+	result := &mcp.CallToolResult{}
+	if remarshal(value, result) != nil {
+		return nil
+	}
+	return result
+}
+
+func toolStructuredOutputSchema(output openbindings.JSONSchema) any {
+	root, ok := output.(map[string]any)
+	if !ok {
+		return nil
+	}
+	if properties, ok := root["properties"].(map[string]any); ok {
+		if schema := properties["structuredContent"]; schema != nil {
+			return schema
+		}
+	}
+	if alternatives, ok := root["anyOf"].([]any); ok {
+		for _, alternative := range alternatives {
+			if schema := toolStructuredOutputSchema(alternative); schema != nil {
+				return schema
+			}
+		}
+	}
+	return nil
+}
+
+func mcpToolContext(base map[string]any, solicit bool) map[string]any {
+	if !solicit {
+		return base
+	}
+	out := make(map[string]any, len(base)+1)
+	for key, value := range base {
+		out[key] = value
+	}
+	configuration := map[string]any{}
+	if existing, ok := base["configuration"].(map[string]any); ok {
+		for key, value := range existing {
+			configuration[key] = value
+		}
+	}
+	configuration["solicit"] = true
+	out["configuration"] = configuration
+	return out
+}
+
+// drainMCPTool preserves the MCP stream shape. Each non-final OpenBindings
+// output is a progress value and is re-correlated to the downstream client's
+// token; the last output is the complete CallToolResult.
+func drainMCPTool(
+	ctx context.Context,
+	call openbindings.Invocation[any, any],
+	input operationInput,
+	opKey string,
+	deadline time.Duration,
+	req *mcp.CallToolRequest,
+) (any, bool, *openbindings.InvocationError) {
+	dctx, cancel := context.WithTimeout(ctx, deadline)
+	defer cancel()
+	if input.Present {
+		_ = call.Write(dctx, input.Value)
+	}
+	_ = call.Close()
+
+	var pending any
+	pendingPresent := false
+	outputs := call.Outputs()
+	for {
+		value, err := outputs.Read(dctx)
+		if errors.Is(err, io.EOF) {
+			return pending, pendingPresent, nil
+		}
+		if err != nil {
+			call.Cancel()
+			if dctx.Err() == context.DeadlineExceeded && ctx.Err() == nil {
+				return nil, false, &openbindings.InvocationError{
+					Code:    openbindings.ErrCodeTimeout,
+					Message: fmt.Sprintf("operation %q did not complete within %s", opKey, deadline),
+				}
+			}
+			return nil, false, openbindings.AsInvocationError(err)
+		}
+		if pendingPresent {
+			progress := &mcp.ProgressNotificationParams{}
+			if err := remarshal(pending, progress); err != nil {
+				call.Cancel()
+				return nil, false, &openbindings.InvocationError{
+					Code: openbindings.ErrCodeProtocol, Message: "MCP binding emitted an invalid progress value",
+					Details: err.Error(),
+				}
+			}
+			progress.ProgressToken = req.Params.GetProgressToken()
+			if err := req.Session.NotifyProgress(dctx, progress); err != nil {
+				call.Cancel()
+				return nil, false, &openbindings.InvocationError{
+					Code: openbindings.ErrCodeProtocol, Message: "failed to forward MCP progress",
+					Details: err.Error(),
+				}
+			}
+		}
+		pending = value
+		pendingPresent = true
+	}
+}
+
+func stringSet(value any) map[string]bool {
+	out := map[string]bool{}
+	switch values := value.(type) {
+	case []string:
+		for _, value := range values {
+			out[value] = true
+		}
+	case []any:
+		for _, value := range values {
+			if s, ok := value.(string); ok {
+				out[s] = true
+			}
+		}
+	}
+	return out
+}
+
+type pinnedMCPListing struct {
+	Tools             []*mcp.Tool             `json:"tools"`
+	Resources         []*mcp.Resource         `json:"resources"`
+	ResourceTemplates []*mcp.ResourceTemplate `json:"resourceTemplates"`
+	Prompts           []*mcp.Prompt           `json:"prompts"`
+}
+
+func decodePinnedMCPListing(content json.RawMessage) *pinnedMCPListing {
+	if content == nil {
+		return nil
+	}
+	var listing pinnedMCPListing
+	if json.Unmarshal(content, &listing) != nil {
+		return nil
+	}
+	return &listing
+}
+
+func pinnedTool(content json.RawMessage, name string) *mcp.Tool {
+	listing := decodePinnedMCPListing(content)
+	if listing == nil {
+		return nil
+	}
+	for _, descriptor := range listing.Tools {
+		if descriptor != nil && descriptor.Name == name {
+			return descriptor
+		}
+	}
+	return nil
+}
+
+func pinnedResource(content json.RawMessage, uri string) *mcp.Resource {
+	listing := decodePinnedMCPListing(content)
+	if listing == nil {
+		return nil
+	}
+	for _, descriptor := range listing.Resources {
+		if descriptor != nil && descriptor.URI == uri {
+			return descriptor
+		}
+	}
+	return nil
+}
+
+func pinnedResourceTemplate(content json.RawMessage, uriTemplate string) *mcp.ResourceTemplate {
+	listing := decodePinnedMCPListing(content)
+	if listing == nil {
+		return nil
+	}
+	for _, descriptor := range listing.ResourceTemplates {
+		if descriptor != nil && descriptor.URITemplate == uriTemplate {
+			return descriptor
+		}
+	}
+	return nil
+}
+
+func pinnedPrompt(content json.RawMessage, name string) *mcp.Prompt {
+	listing := decodePinnedMCPListing(content)
+	if listing == nil {
+		return nil
+	}
+	for _, descriptor := range listing.Prompts {
+		if descriptor != nil && descriptor.Name == name {
+			return descriptor
+		}
+	}
+	return nil
 }
 
 func guessMIME(uri string) string {
@@ -388,64 +863,136 @@ func guessMIME(uri string) string {
 // tool schema stands alone, so those refs would dangle and an agent couldn't see
 // the fields. This deep-copies the input (never mutating the contract), resolves
 // a top-level schema ref so the root is a concrete object schema, and bundles
-// every transitively-referenced shared schema under "$defs", rewriting
-// "#/schemas/X" -> "#/$defs/X". Cyclic schemas are handled (each is added once).
+// every transitively-referenced shared schema under "$defs", rewriting each
+// "#/schemas/X" to its collision-safe bundled entry. Cyclic schemas are handled
+// (each is added once).
 func bundleInputSchema(input openbindings.JSONSchema, schemas map[string]openbindings.JSONSchema) any {
-	// Boolean and non-object schema forms carry no refs to bundle; MCP tool
-	// schemas want a concrete object root, so treat them like an absent
-	// contract (true/{} accept everything; false has no MCP rendering).
-	inputObj, isObj := input.(map[string]any)
-	if !isObj || len(inputObj) == 0 {
-		return map[string]any{"type": "object"}
-	}
-	root, ok := deepCopyJSON(inputObj).(map[string]any)
+	root, ok := bundleValueSchema(input, schemas).(map[string]any)
 	if !ok {
 		return map[string]any{"type": "object"}
-	}
-
-	// Resolve a top-level $ref to a shared schema so the root is concrete
-	// (type/properties/required), which is the most broadly-accepted tool shape.
-	if name, ok := schemaRefName(root["$ref"]); ok {
-		if target, ok := schemas[name].(map[string]any); ok {
-			if cp, ok := deepCopyJSON(target).(map[string]any); ok {
-				root = cp
-			}
-		}
-	}
-
-	// Bundle transitively-referenced shared schemas under $defs.
-	defs := map[string]any{}
-	var walk func(node any)
-	walk = func(node any) {
-		switch n := node.(type) {
-		case map[string]any:
-			if name, ok := schemaRefName(n["$ref"]); ok {
-				n["$ref"] = "#/$defs/" + name
-				if _, seen := defs[name]; !seen {
-					if target, ok := schemas[name].(map[string]any); ok {
-						cp, _ := deepCopyJSON(target).(map[string]any)
-						defs[name] = cp
-						walk(cp)
-					}
-				}
-			}
-			for _, v := range n {
-				walk(v)
-			}
-		case []any:
-			for _, v := range n {
-				walk(v)
-			}
-		}
-	}
-	walk(root)
-
-	if len(defs) > 0 {
-		root["$defs"] = defs
 	}
 	if _, ok := root["type"]; !ok {
 		root["type"] = "object"
 	}
+	return root
+}
+
+// bundleValueSchema makes any OBI per-value schema self-contained without
+// changing its accepted JSON value domain. Unlike bundleInputSchema it does
+// not force an object root, so it is suitable inside the generic bridge's
+// reversible input/output envelopes.
+func bundleValueSchema(schema openbindings.JSONSchema, schemas map[string]openbindings.JSONSchema) any {
+	if schema == nil {
+		return map[string]any{}
+	}
+	if value, ok := schema.(bool); ok {
+		return value
+	}
+	schemaObj, isObj := schema.(map[string]any)
+	if !isObj {
+		return map[string]any{}
+	}
+	root, ok := deepCopyJSON(schemaObj).(map[string]any)
+	if !ok {
+		return map[string]any{}
+	}
+
+	// Resolve a top-level $ref to a shared schema so the root is concrete
+	// and then bundle every nested document schema reference.
+	if name, ok := schemaRefName(root["$ref"]); ok {
+		if target, exists := schemas[name]; exists {
+			switch cp := deepCopyJSON(target).(type) {
+			case map[string]any:
+				root = cp
+			case bool:
+				return cp
+			}
+		}
+	}
+
+	// Discover the complete reachable shared-schema set before allocating
+	// definition names. Allocation is sorted, so a collision with an authored
+	// local $defs entry never makes output depend on Go map iteration.
+	reachable := map[string]bool{}
+	var collect func(node any)
+	collect = func(node any) {
+		switch n := node.(type) {
+		case map[string]any:
+			if name, ok := schemaRefName(n["$ref"]); ok {
+				if !reachable[name] {
+					if target, exists := schemas[name]; exists {
+						reachable[name] = true
+						collect(target)
+					}
+				}
+			}
+			for _, v := range n {
+				collect(v)
+			}
+		case []any:
+			for _, v := range n {
+				collect(v)
+			}
+		}
+	}
+	collect(root)
+
+	if len(reachable) == 0 {
+		return root
+	}
+
+	defs := map[string]any{}
+	if authored, ok := root["$defs"].(map[string]any); ok {
+		for key, value := range authored {
+			defs[key] = value
+		}
+	}
+	names := make([]string, 0, len(reachable))
+	for name := range reachable {
+		names = append(names, name)
+	}
+	sort.Strings(names)
+
+	allocated := make(map[string]string, len(names))
+	for _, name := range names {
+		key := name
+		if _, collision := defs[key]; collision {
+			base := "__openbindings_" + name
+			key = base
+			for suffix := 2; ; suffix++ {
+				if _, exists := defs[key]; !exists {
+					break
+				}
+				key = fmt.Sprintf("%s_%d", base, suffix)
+			}
+		}
+		allocated[name] = key
+		defs[key] = deepCopyJSON(schemas[name])
+	}
+	root["$defs"] = defs
+
+	// Rewrite only resolvable OBI document-schema refs. Boolean shared schemas
+	// are definitions too; treating only object targets would leave a dangling
+	// ref for a valid `schemas: {"Never": false}` contract.
+	var rewrite func(node any)
+	rewrite = func(node any) {
+		switch n := node.(type) {
+		case map[string]any:
+			if name, ok := schemaRefName(n["$ref"]); ok {
+				if key, exists := allocated[name]; exists {
+					n["$ref"] = "#/$defs/" + jsonPointerToken(key)
+				}
+			}
+			for _, value := range n {
+				rewrite(value)
+			}
+		case []any:
+			for _, value := range n {
+				rewrite(value)
+			}
+		}
+	}
+	rewrite(root)
 	return root
 }
 
@@ -465,7 +1012,31 @@ func schemaRefName(ref any) (string, bool) {
 	if name == "" || strings.Contains(name, "/") {
 		return "", false
 	}
-	return name, true
+	var decoded strings.Builder
+	for index := 0; index < len(name); index++ {
+		if name[index] != '~' {
+			decoded.WriteByte(name[index])
+			continue
+		}
+		if index+1 >= len(name) {
+			return "", false
+		}
+		index++
+		switch name[index] {
+		case '0':
+			decoded.WriteByte('~')
+		case '1':
+			decoded.WriteByte('/')
+		default:
+			return "", false
+		}
+	}
+	return decoded.String(), true
+}
+
+func jsonPointerToken(value string) string {
+	value = strings.ReplaceAll(value, "~", "~0")
+	return strings.ReplaceAll(value, "/", "~1")
 }
 
 // deepCopyJSON returns a deep copy of a JSON-serializable value via a marshal

@@ -501,22 +501,59 @@ Missing runtime context surfaces as a terminal `error` with code `CONTEXT_REQUIR
 
 ### `ob mcp` — Model Context Protocol bridge
 
-`ob mcp` exposes one OBI URL as an MCP server. AI agents (Claude Desktop, Cursor, etc.) that speak MCP connect and call the interface's operations as MCP tools, with `ob` translating the MCP requests into native binding invocations. Tool names are the interface's operation keys, sanitized to the MCP/LLM charset (`[A-Za-z0-9_-]`, ≤64) — e.g. `openbindings.ob.describe` becomes `openbindings_ob_describe`, a bare key like `createCharge` is unchanged. The bridge assumes no key convention.
+`ob mcp` exposes one OBI or supported raw artifact locator as an MCP server. AI agents (Claude Desktop, Cursor, etc.) connect and call the interface through native binding invocations. Ordinary OBI operations become tools whose names are the operation keys sanitized to the MCP/LLM charset (`[A-Za-z0-9_-]`, ≤64) — e.g. `openbindings.ob.describe` becomes `openbindings_ob_describe`, while `createCharge` is unchanged. Untransformed bindings governed by exact identifier `openbindings.mcp@1` keep their original MCP family and identity: tools, static resources, resource templates, and prompts remain those primitives rather than being flattened into generated tools.
 
 ```bash
 ob mcp https://api.example.com           # stdio transport (for Claude Desktop, Cursor)
 ob mcp --transport http --port 9100 https://api.example.com    # HTTP transport
 ob mcp --token "$API_TOKEN" https://api.example.com  # bearer credential for the target API
 ob mcp --token-file ~/.ob/start.token http://127.0.0.1:20290   # bridge a running `ob start`
+ob mcp --require-complete-coverage --coverage-report coverage.json ./openapi.yaml
 ```
 
 Use `--token-file` or `OB_TOKEN` to avoid putting credentials on the command line.
+For other context, pass `--context` as an inline JSON object or `@file`;
+`--configuration` supplies binding-spec interpretation points, and repeatable
+`--select-binding` resolves an operation with several invocable bindings.
+Conflicting declarations are refused rather than silently overwritten.
 
 To expose **several** services as one MCP server, compose them into a single aggregate OBI first (e.g. `ob merge`), then bridge that — collisions and naming are resolved deliberately in the composed contract rather than guessed at runtime.
 
-This is also how you get an MCP server for `ob` itself: point `ob mcp` at a running `ob start` (last line above). `ob start` exposes no MCP endpoint of its own; ob's served interface becomes an MCP server through the same bridge it offers for any interface, so the MCP surface stays in lockstep with the REST surface automatically.
+This is also how you get an MCP server for `ob` itself: point `ob mcp` at a running `ob start` (the token-file example above). `ob start` exposes no MCP endpoint of its own; ob's served interface becomes an MCP server through the same bridge it offers for any interface, so the MCP surface stays in lockstep with the REST surface automatically.
 
-When invoked through MCP, an operation's input schema is exposed as the tool's input schema; the response body is returned as the tool result.
+Generated tools use one protocol-neutral projection. Explicit object-valued
+operation inputs remain direct; scalar, array, unspecified, and other input
+contracts use an optional, reversible `{"input": ...}` argument envelope
+required by MCP's object-only tool boundary. An absent member sends no input
+value, because a per-value schema never asserts cardinality. Every result
+returns the complete ordered OpenBindings output
+sequence as structured content and identical JSON text:
+`{"outputs": [...]}`. This preserves zero, one, many, and explicit-null
+outputs without inferring cardinality from the binding family. Terminal errors
+retain their OpenBindings code, message, details, and any outputs emitted
+before failure. Operations with no usable binding, unresolved binding
+ambiguity, or broken source wiring are reported and not advertised.
+
+When a raw source is synthesized, the bridge reports synthesis coverage.
+`--coverage-report` persists the evidence and
+`--require-complete-coverage` refuses startup if the source inventory was not
+exhaustively and fully represented. See
+[generic OBI-to-MCP projection](docs/mcp-generic-projection.md) for the exact
+adapter contract.
+
+One generated MCP tool call supplies at most one OpenBindings input value.
+Client-streaming and truly bidirectional interactions that require several
+caller values or interactive exchange remain the province of stream-speaking
+OpenBindings consumers; terminating output streams are collected in
+`outputs`, while an unbounded stream is cancelled at `--tool-timeout`.
+
+An MCP-origin operation instead preserves the complete native result object,
+protocol-native tool errors, solicited progress, and cancellation. Synthesize
+the MCP source with embedded content when descriptor fidelity matters: the
+pagination-exhausted listing lets the bridge preserve titles, annotations,
+icons, MIME types, and prompt-argument metadata as well as behavior. See
+[MCP-origin round-trip fidelity](docs/mcp-round-trip.md) for the tested profile
+and intentional revision-1 boundary.
 
 For interfaces whose operations take a whole OBI as input — much of `ob`'s own contract does — remember that tool arguments are paid for in model tokens. When the document is the vehicle for a call rather than its subject (invoking one operation of a large interface through `openbindings_ob_invokeOperation`, say), the agent can pass a slice: the operation being invoked plus everything it transitively references is itself a valid OBI, and the invocation behaves identically. Operations whose subject is the document itself (`validateInterface`, `compareInterfaces`) need the real thing.
 

@@ -5,6 +5,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/url"
 	"os"
@@ -36,6 +37,9 @@ type ProbeResult struct {
 	// SourceBindingSpec is the detected binding specification identifier
 	// when the interface was synthesized. Empty for native OBIs.
 	SourceBindingSpec string
+	// Coverage is present when this resolution synthesized a raw artifact
+	// through a coverage-capable synthesizer.
+	Coverage *openbindings.SynthesisCoverage
 }
 
 // NormalizeURL trims input and canonicalises the scheme.
@@ -215,6 +219,7 @@ func probeHTTP(u string, timeout time.Duration) ProbeResult {
 		OBIURL:      u,
 		FinalURL:    u,
 		Synthesized: fetched.Synthesized,
+		Coverage:    fetched.Coverage,
 	}
 
 	if fetched.Synthesized {
@@ -293,10 +298,30 @@ func normalizeOBIJSON(body []byte) (string, bool) {
 func trySynthesizeInterface(location, originalURL, obiDir string) (ProbeResult, bool) {
 	synthesizer := DefaultSynthesizer()
 	for _, fi := range synthesizer.BindingSpecs() {
-		iface, err := synthesizer.SynthesizeInterface(context.Background(), &openbindings.SynthesizeInput{
+		input := &openbindings.SynthesizeInput{
 			Sources: []openbindings.SynthesizeSource{{BindingSpec: fi.BindingSpec, Location: location}},
-		})
-		if err != nil || iface == nil {
+		}
+		var coverage *openbindings.SynthesisCoverage
+		var iface *openbindings.Interface
+		if coverageSynthesizer, ok := synthesizer.(openbindings.CoverageSynthesizer); ok {
+			result, err := coverageSynthesizer.SynthesizeInterfaceWithCoverage(context.Background(), input)
+			if errors.Is(err, openbindings.ErrSynthesisCoverageUnsupported) {
+				iface, err = synthesizer.SynthesizeInterface(context.Background(), input)
+			} else if err != nil {
+				continue
+			} else if result != nil {
+				iface = result.Interface
+				value := result.Coverage
+				coverage = &value
+			}
+		} else {
+			var err error
+			iface, err = synthesizer.SynthesizeInterface(context.Background(), input)
+			if err != nil {
+				continue
+			}
+		}
+		if iface == nil {
 			continue
 		}
 		if len(iface.Operations) == 0 {
@@ -319,6 +344,7 @@ func trySynthesizeInterface(location, originalURL, obiDir string) (ProbeResult, 
 			OBIDir:            obiDir,
 			Synthesized:       true,
 			SourceBindingSpec: srcFormat,
+			Coverage:          coverage,
 		}, true
 	}
 	return ProbeResult{}, false

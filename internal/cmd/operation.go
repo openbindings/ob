@@ -458,6 +458,10 @@ func invocationStdinConflict(obiFile, inputArg, configurationArg string) string 
 // grammar as --input, but requires a JSON object because binding
 // specifications name their interpretation points as object members.
 func readInvokeConfiguration(arg string) (map[string]any, error) {
+	return readJSONObjectArg(arg, "--configuration")
+}
+
+func readJSONObjectArg(arg, flagName string) (map[string]any, error) {
 	if arg == "" {
 		return nil, nil
 	}
@@ -466,13 +470,13 @@ func readInvokeConfiguration(arg string) (map[string]any, error) {
 	case arg == "-":
 		b, err := io.ReadAll(os.Stdin)
 		if err != nil {
-			return nil, fmt.Errorf("read --configuration from stdin: %w", err)
+			return nil, fmt.Errorf("read %s from stdin: %w", flagName, err)
 		}
 		raw = b
 	case strings.HasPrefix(arg, "@"):
 		b, err := os.ReadFile(arg[1:])
 		if err != nil {
-			return nil, fmt.Errorf("read --configuration file: %w", err)
+			return nil, fmt.Errorf("read %s file: %w", flagName, err)
 		}
 		raw = b
 	default:
@@ -483,10 +487,10 @@ func readInvokeConfiguration(arg string) (map[string]any, error) {
 	}
 	var configuration map[string]any
 	if err := json.Unmarshal(raw, &configuration); err != nil {
-		return nil, fmt.Errorf("invalid --configuration JSON object: %w", err)
+		return nil, fmt.Errorf("invalid %s JSON object: %w", flagName, err)
 	}
 	if configuration == nil {
-		return nil, fmt.Errorf("--configuration must be a JSON object")
+		return nil, fmt.Errorf("%s must be a JSON object", flagName)
 	}
 	return configuration, nil
 }

@@ -115,6 +115,32 @@ func TestCrossSurfaceConformance(t *testing.T) {
 			}},
 		},
 	}
+	graphQLSource := map[string]any{
+		"data": map[string]any{
+			"__schema": map[string]any{
+				"queryType":        map[string]any{"name": "Query"},
+				"mutationType":     nil,
+				"subscriptionType": nil,
+				"types": []any{
+					map[string]any{
+						"kind": "OBJECT",
+						"name": "Query",
+						"fields": []any{
+							map[string]any{
+								"name": "status",
+								"args": []any{},
+								"type": map[string]any{
+									"kind": "SCALAR", "name": "String", "ofType": nil,
+								},
+								"isDeprecated": false,
+							},
+						},
+					},
+					map[string]any{"kind": "SCALAR", "name": "String"},
+				},
+			},
+		},
+	}
 
 	cases := []struct {
 		name  string
@@ -130,6 +156,20 @@ func TestCrossSurfaceConformance(t *testing.T) {
 			"name": "Surface synthesis",
 			"sources": []any{map[string]any{
 				"bindingSpec": "openbindings.openapi@1", "name": "api", "content": openAPISource,
+			}},
+		}},
+		{name: "inspect embedded GraphQL source", short: "inspectSource", input: map[string]any{"source": map[string]any{
+			"bindingSpec": "openbindings.graphql@1",
+			"location":    "https://graphql.example.test/query",
+			"content":     graphQLSource,
+		}}},
+		{name: "synthesize embedded GraphQL source", short: "synthesizeInterface", input: map[string]any{
+			"name": "GraphQL surface synthesis",
+			"sources": []any{map[string]any{
+				"bindingSpec": "openbindings.graphql@1",
+				"name":        "graphql",
+				"location":    "https://graphql.example.test/query",
+				"content":     graphQLSource,
 			}},
 		}},
 		{name: "add embedded source", short: "addSource", input: map[string]any{

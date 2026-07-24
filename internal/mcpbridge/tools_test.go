@@ -36,7 +36,7 @@ func TestRegisterInterface_ToolsFromNonMCPBindings(t *testing.T) {
 		},
 	}
 	srv := gomcp.NewServer(&gomcp.Implementation{Name: "test"}, nil)
-	invoker := openbindings.NewOperationInvoker()
+	invoker := newRegistrationTestInvoker("openbindings.openapi@1")
 	count := RegisterInterface(srv, iface, invoker, nil, RegisterOptions{})
 	if count != 2 {
 		t.Fatalf("expected 2 primitives, got %d", count)
@@ -51,7 +51,7 @@ func TestRegisterInterface_ResourceFromMCPBinding(t *testing.T) {
 			"readSpec": {Description: "Read the spec doc"},
 		},
 		Sources: map[string]openbindings.Source{
-			"mcpServer": {BindingSpec: "mcp", Location: "http://localhost:8080"},
+			"mcpServer": {BindingSpec: MCPBindingSpec, Location: "http://localhost:8080"},
 		},
 		Bindings: map[string]openbindings.BindingEntry{
 			"readSpec.mcp": {
@@ -62,7 +62,7 @@ func TestRegisterInterface_ResourceFromMCPBinding(t *testing.T) {
 		},
 	}
 	srv := gomcp.NewServer(&gomcp.Implementation{Name: "test"}, nil)
-	invoker := openbindings.NewOperationInvoker()
+	invoker := newRegistrationTestInvoker(MCPBindingSpec)
 	count := RegisterInterface(srv, iface, invoker, nil, RegisterOptions{})
 	if count != 1 {
 		t.Fatalf("expected 1 primitive, got %d", count)
@@ -85,7 +85,7 @@ func TestRegisterInterface_PromptFromMCPBinding(t *testing.T) {
 			},
 		},
 		Sources: map[string]openbindings.Source{
-			"mcpServer": {BindingSpec: "mcp", Location: "http://localhost:8080"},
+			"mcpServer": {BindingSpec: MCPBindingSpec, Location: "http://localhost:8080"},
 		},
 		Bindings: map[string]openbindings.BindingEntry{
 			"codeReview.mcp": {
@@ -96,7 +96,7 @@ func TestRegisterInterface_PromptFromMCPBinding(t *testing.T) {
 		},
 	}
 	srv := gomcp.NewServer(&gomcp.Implementation{Name: "test"}, nil)
-	invoker := openbindings.NewOperationInvoker()
+	invoker := newRegistrationTestInvoker(MCPBindingSpec)
 	count := RegisterInterface(srv, iface, invoker, nil, RegisterOptions{})
 	if count != 1 {
 		t.Fatalf("expected 1 primitive, got %d", count)
@@ -113,7 +113,7 @@ func TestRegisterInterface_MixedPrimitives(t *testing.T) {
 			"askQuestion": {Description: "A prompt"},
 		},
 		Sources: map[string]openbindings.Source{
-			"mcpServer": {BindingSpec: "mcp", Location: "http://localhost:8080"},
+			"mcpServer": {BindingSpec: MCPBindingSpec, Location: "http://localhost:8080"},
 		},
 		Bindings: map[string]openbindings.BindingEntry{
 			"callTool.mcp":    {Operation: "callTool", Source: "mcpServer", Ref: "tools/callTool"},
@@ -122,11 +122,33 @@ func TestRegisterInterface_MixedPrimitives(t *testing.T) {
 		},
 	}
 	srv := gomcp.NewServer(&gomcp.Implementation{Name: "test"}, nil)
-	invoker := openbindings.NewOperationInvoker()
+	invoker := newRegistrationTestInvoker(MCPBindingSpec)
 	count := RegisterInterface(srv, iface, invoker, nil, RegisterOptions{})
 	if count != 3 {
 		t.Fatalf("expected 3 primitives, got %d", count)
 	}
+}
+
+type registrationTestInvoker struct {
+	specs []openbindings.BindingSpecInfo
+}
+
+func newRegistrationTestInvoker(specs ...string) *openbindings.OperationInvoker {
+	infos := make([]openbindings.BindingSpecInfo, 0, len(specs))
+	for _, spec := range specs {
+		infos = append(infos, openbindings.BindingSpecInfo{BindingSpec: spec})
+	}
+	return openbindings.NewOperationInvoker(&registrationTestInvoker{specs: infos})
+}
+
+func (i *registrationTestInvoker) BindingSpecs() []openbindings.BindingSpecInfo {
+	return i.specs
+}
+
+func (i *registrationTestInvoker) InvokeBinding(ctx context.Context, _ *openbindings.BindingInvocationArgs) openbindings.Invocation[any, any] {
+	inv := openbindings.NewInvocationImpl[any, any](ctx)
+	inv.FireError(&openbindings.InvocationError{Code: openbindings.ErrCodeRuntime, Message: "registration-only test invoker"})
+	return inv
 }
 
 func TestFindMCPBinding_NoMCPSource(t *testing.T) {
@@ -144,10 +166,42 @@ func TestFindMCPBinding_NoMCPSource(t *testing.T) {
 	}
 }
 
+func TestFindMCPBinding_RequiresExactBindingSpecIdentifier(t *testing.T) {
+	iface := &openbindings.Interface{
+		Sources: map[string]openbindings.Source{
+			"legacy": {BindingSpec: "mcp"},
+		},
+		Bindings: map[string]openbindings.BindingEntry{
+			"doc.legacy": {Operation: "doc", Source: "legacy", Ref: "resources/file:///readme.md"},
+		},
+	}
+	ref, kind := findMCPBinding(iface, "doc")
+	if ref != "" || kind != "tools" {
+		t.Fatalf("non-normative shorthand was treated as MCP: ref=%q kind=%q", ref, kind)
+	}
+}
+
+func TestFindMCPBinding_DoesNotInventChoiceForMultiBindingOperation(t *testing.T) {
+	iface := &openbindings.Interface{
+		Sources: map[string]openbindings.Source{
+			"mcp":  {BindingSpec: MCPBindingSpec},
+			"http": {BindingSpec: "openbindings.openapi@1"},
+		},
+		Bindings: map[string]openbindings.BindingEntry{
+			"doc.mcp":  {Operation: "doc", Source: "mcp", Ref: "resources/file:///readme.md"},
+			"doc.http": {Operation: "doc", Source: "http", Ref: "#/paths/~1readme/get"},
+		},
+	}
+	ref, kind := findMCPBinding(iface, "doc")
+	if ref != "" || kind != "tools" {
+		t.Fatalf("multi-binding operation acquired an implicit MCP preference: ref=%q kind=%q", ref, kind)
+	}
+}
+
 func TestFindMCPBinding_ResourceRef(t *testing.T) {
 	iface := &openbindings.Interface{
 		Sources: map[string]openbindings.Source{
-			"mcp": {BindingSpec: "mcp"},
+			"mcp": {BindingSpec: MCPBindingSpec},
 		},
 		Bindings: map[string]openbindings.BindingEntry{
 			"doc.mcp": {Operation: "doc", Source: "mcp", Ref: "resources/file:///readme.md"},
@@ -165,7 +219,7 @@ func TestFindMCPBinding_ResourceRef(t *testing.T) {
 func TestFindMCPBinding_ResourceTemplateRef(t *testing.T) {
 	iface := &openbindings.Interface{
 		Sources: map[string]openbindings.Source{
-			"mcp": {BindingSpec: "mcp"},
+			"mcp": {BindingSpec: MCPBindingSpec},
 		},
 		Bindings: map[string]openbindings.BindingEntry{
 			"log.mcp": {Operation: "log", Source: "mcp", Ref: "resourceTemplates/file:///logs/{date}"},
@@ -199,11 +253,14 @@ func TestToolNames_SanitizesFullKey(t *testing.T) {
 }
 
 func TestToolNames_CharsetSafeUniqueAndBounded(t *testing.T) {
+	longPrefix := strings.Repeat("a", 64)
 	iface := &openbindings.Interface{
 		Operations: map[string]openbindings.Operation{
 			"openbindings.kv.get":   {},
 			"openbindings.blob.get": {},
 			"weird key/with:chars":  {},
+			longPrefix + ".x":       {},
+			longPrefix + ".y":       {},
 		},
 	}
 	names := toolNames(iface)
@@ -298,6 +355,55 @@ func TestBundleInputSchema_HandlesCycle(t *testing.T) {
 	}
 }
 
+func TestBundleInputSchema_PreservesBooleanSharedSchema(t *testing.T) {
+	got := bundleInputSchema(map[string]any{
+		"type":       "object",
+		"properties": map[string]any{"never": map[string]any{"$ref": "#/schemas/Never"}},
+	}, map[string]openbindings.JSONSchema{"Never": false}).(map[string]any)
+	defs := got["$defs"].(map[string]any)
+	if value, ok := defs["Never"]; !ok || value != false {
+		t.Fatalf("boolean shared schema was not bundled: %#v", got)
+	}
+}
+
+func TestBundleInputSchema_DoesNotOverwriteAuthoredDefinitions(t *testing.T) {
+	got := bundleInputSchema(map[string]any{
+		"type": "object",
+		"$defs": map[string]any{
+			"Thing": map[string]any{"type": "string"},
+		},
+		"properties": map[string]any{
+			"local":  map[string]any{"$ref": "#/$defs/Thing"},
+			"shared": map[string]any{"$ref": "#/schemas/Thing"},
+		},
+	}, map[string]openbindings.JSONSchema{
+		"Thing": map[string]any{"type": "integer"},
+	}).(map[string]any)
+
+	defs := got["$defs"].(map[string]any)
+	if defs["Thing"].(map[string]any)["type"] != "string" {
+		t.Fatalf("authored definition was overwritten: %#v", defs)
+	}
+	sharedRef := got["properties"].(map[string]any)["shared"].(map[string]any)["$ref"]
+	if sharedRef == "#/$defs/Thing" {
+		t.Fatalf("shared schema collided with authored definition: %#v", got)
+	}
+	allocatedName := strings.TrimPrefix(sharedRef.(string), "#/$defs/")
+	if defs[allocatedName].(map[string]any)["type"] != "integer" {
+		t.Fatalf("shared definition was not allocated separately: %#v", got)
+	}
+}
+
+func TestSchemaRefName_DecodesJSONPointerToken(t *testing.T) {
+	name, ok := schemaRefName("#/schemas/A~1B~0C")
+	if !ok || name != "A/B~C" {
+		t.Fatalf("decoded name = %q, %v", name, ok)
+	}
+	if jsonPointerToken(name) != "A~1B~0C" {
+		t.Fatalf("pointer token did not round trip: %q", jsonPointerToken(name))
+	}
+}
+
 // neverEndingInvoker emits outputs forever: the shape of a subscription
 // binding bridged into a request-scoped MCP tool call.
 type neverEndingInvoker struct{}
@@ -344,21 +450,39 @@ func TestDrainOperation_UnboundedStreamHitsDeadline(t *testing.T) {
 	start := time.Now()
 	call := openbindings.Invoke(context.Background(), invoker, iface,
 		openbindings.NewOperationSignature[any, any]("orderUpdates"))
-	out, ierr := drainOperation(context.Background(), call, nil, "orderUpdates", 120*time.Millisecond)
+	drained := drainOperation(context.Background(), call, operationInput{}, "orderUpdates", 120*time.Millisecond)
 	elapsed := time.Since(start)
 
-	if ierr == nil {
-		t.Fatalf("unbounded stream must terminate with a refusal, got output %v", out)
+	if drained.Error == nil {
+		t.Fatalf("unbounded stream must terminate with a refusal, got outputs %v", drained.Outputs)
 	}
-	if ierr.Code != openbindings.ErrCodeTimeout {
-		t.Errorf("want ERR_TIMEOUT, got %s", ierr.Code)
+	if drained.Error.Code != openbindings.ErrCodeTimeout {
+		t.Errorf("want ERR_TIMEOUT, got %s", drained.Error.Code)
 	}
 	for _, want := range []string{"request-scoped", "subscription-style", "event(s) collected"} {
-		if !strings.Contains(ierr.Message, want) {
-			t.Errorf("refusal must mention %q, got: %s", want, ierr.Message)
+		if !strings.Contains(drained.Error.Message, want) {
+			t.Errorf("refusal must mention %q, got: %s", want, drained.Error.Message)
 		}
+	}
+	if len(drained.Outputs) == 0 {
+		t.Error("already-emitted outputs must survive the terminal timeout")
 	}
 	if elapsed > 2*time.Second {
 		t.Errorf("drain must terminate at the deadline, took %v", elapsed)
+	}
+}
+
+func TestDrainMCPTool_DistinguishesNoFinalResult(t *testing.T) {
+	ctx := context.Background()
+	call := openbindings.NewInvocationImpl[any, any](ctx)
+	_ = call.CloseInput()
+	call.CloseOutput()
+
+	final, found, ierr := drainMCPTool(ctx, call, operationInput{}, "empty", time.Second, nil)
+	if ierr != nil {
+		t.Fatalf("empty successful stream returned an error: %v", ierr)
+	}
+	if found || final != nil {
+		t.Fatalf("empty stream invented a final CallToolResult: final=%#v found=%v", final, found)
 	}
 }
