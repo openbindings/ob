@@ -13,7 +13,7 @@ import (
 	"strings"
 	"testing"
 
-	"nhooyr.io/websocket"
+	"github.com/coder/websocket"
 
 	openbindings "github.com/openbindings/openbindings-go"
 

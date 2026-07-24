@@ -18,6 +18,29 @@ ship as part of 0.2.0.
 
 ### Changed
 
+- **`ob start` no longer modifies system trust or accepts arbitrary HTTPS
+  origins by default.** The zero-configuration server is loopback HTTP only.
+  `--tls` adds HTTPS without installing trust, while `--trust-local-ca`
+  explicitly authorizes trust-store installation and implies TLS. Remote
+  browser origins now require an exact `--allow-origin`; loopback origins
+  remain available by default. HTTP and WebSocket use the same origin policy.
+
+- **`ob start` now serves an embedded OpenBindings workbench at its root.**
+  The framework-neutral OBI explorer, operation detail, and invocation
+  elements are built from the separate `openbindings/elements` workspace.
+  The browser discovers the server OBI and fulfills its published Operation
+  Invoker dependency through `ob`; raw API URLs can be synthesized and
+  invoked without bundling protocol-family implementations in the page.
+  Session authentication and target invocation context remain separate, the
+  URL-fragment token is scrubbed after bootstrap, and generated assets are
+  protected by the server's no-store and content-security policies.
+
+- **WebSocket frame endpoints now complete a browser-clean close handshake.**
+  The application-frame reader stops before the WebSocket library reads the
+  peer close response, and final cleanup no longer sends a second close frame.
+  This removes the browser-visible abnormal `1006` / “Close received after
+  close” result while retaining exactly one application terminal frame.
+
 - **The generic `ob mcp` adapter now preserves the complete abstract
   OpenBindings boundary without binding-family guesses.** Explicit object
   inputs remain direct; every other JSON input uses an optional, reversible
@@ -125,7 +148,10 @@ ship as part of 0.2.0.
     frames, the server streams `output`/`input_closed` frames and exactly one
     terminal `complete`/`error` frame. One connection per invocation; every
     cardinality crosses the wire. The session token rides the upgrade request
-    (`Authorization` header, or `token` query parameter for browsers). The
+    (`Authorization` header, or an unpadded-base64url
+    `openbindings.bearer.<token>` request subprotocol for browsers, alongside
+    the selected non-secret `openbindings.frames.v1` protocol); URL query
+    credentials are rejected and credential protocols are never echoed. The
     legacy WS event envelope and the unary `POST /bindings/invoke` route are
     gone. `POST /bindings/prepare` implements the now-required
     `prepareBinding` preflight.

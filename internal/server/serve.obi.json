@@ -3307,17 +3307,21 @@
           },
           "type": "array"
         },
-        "noTls": {
-          "description": "Skip the HTTPS listener and CA trust setup (HTTP only).",
-          "type": "boolean"
-        },
         "port": {
           "description": "Port to listen on (default 20290).",
           "type": "integer"
         },
+        "tls": {
+          "description": "Also serve HTTPS using a locally generated CA without modifying system trust.",
+          "type": "boolean"
+        },
         "token": {
           "description": "Pre-shared session token.",
           "type": "string"
+        },
+        "trustLocalCA": {
+          "description": "Install the locally generated HTTPS CA into system trust; implies tls and may require administrator approval.",
+          "type": "boolean"
         }
       },
       "type": "object"

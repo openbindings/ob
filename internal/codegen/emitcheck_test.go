@@ -39,13 +39,13 @@ replace github.com/openbindings/openbindings-go => ` + mustAbs(t, "../../../open
 	}
 	tidy := exec.Command("go", "mod", "tidy")
 	tidy.Dir = dir
-	tidy.Env = append(os.Environ(), "GOWORK=off", "GOFLAGS=-mod=mod")
+	tidy.Env = append(os.Environ(), "GOWORK=off", "GOFLAGS=-mod=mod", "GOPROXY=off", "GOSUMDB=off")
 	if out, err := tidy.CombinedOutput(); err != nil {
 		t.Fatalf("go mod tidy: %v\n%s", err, out)
 	}
 	build := exec.Command("go", "build", "./...")
 	build.Dir = dir
-	build.Env = append(os.Environ(), "GOWORK=off")
+	build.Env = append(os.Environ(), "GOWORK=off", "GOPROXY=off", "GOSUMDB=off")
 	if out, err := build.CombinedOutput(); err != nil {
 		t.Fatalf("emitted Go does not compile:\n%s\n--- emitted code ---\n%s", out, code)
 	}

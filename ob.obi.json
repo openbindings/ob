@@ -423,7 +423,7 @@
       }
     },
     "openbindings.ob.startServer": {
-      "description": "Start a local server that exposes ob's operations over HTTP and HTTPS (and the binding-invoker frame protocol). A foreground, environment-local operation; not meaningfully invoked over a remote transport.",
+      "description": "Start a local server that exposes ob's operations over HTTP and the binding-invoker frame protocol, optionally adding HTTPS. A foreground, environment-local operation; not meaningfully invoked over a remote transport.",
       "input": {
         "$ref": "#/schemas/StartServerInput"
       },
@@ -2235,9 +2235,13 @@
           "type": "string",
           "description": "Pre-shared session token."
         },
-        "noTls": {
+        "tls": {
           "type": "boolean",
-          "description": "Skip the HTTPS listener and CA trust setup (HTTP only)."
+          "description": "Also serve HTTPS using a locally generated CA without modifying system trust."
+        },
+        "trustLocalCA": {
+          "type": "boolean",
+          "description": "Install the locally generated HTTPS CA into system trust; implies tls and may require administrator approval."
         }
       },
       "additionalProperties": false

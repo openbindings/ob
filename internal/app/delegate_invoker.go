@@ -12,7 +12,7 @@ import (
 	"strings"
 	"time"
 
-	"nhooyr.io/websocket"
+	"github.com/coder/websocket"
 
 	openbindings "github.com/openbindings/openbindings-go"
 

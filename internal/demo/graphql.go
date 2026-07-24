@@ -8,7 +8,7 @@ import (
 	"strings"
 	"sync"
 
-	"nhooyr.io/websocket"
+	"github.com/coder/websocket"
 )
 
 // RegisterGraphQLRoutes sets up the GraphQL HTTP endpoint.

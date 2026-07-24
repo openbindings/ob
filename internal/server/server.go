@@ -35,8 +35,8 @@ type contextKey string
 const requestIDKey contextKey = "request_id"
 
 // wsInvokePaths are the routes whose handlers perform their own
-// upgrade-request authentication (Authorization header or `token` query
-// parameter — browsers can't set headers on WebSocket upgrades) and therefore
+// upgrade-request authentication (Authorization header or a bearer WebSocket
+// subprotocol for browsers, which cannot set headers on upgrades) and therefore
 // must receive upgrade requests that carry no Authorization header. The
 // auth-middleware exemption is scoped to exactly this path. It must match the
 // route registered on the mux (see internal/cmd/serve_routes.go).
@@ -60,6 +60,11 @@ type Config struct {
 	Logger         *slog.Logger
 	Token          string
 	TLS            bool
+	// TrustLocalCA explicitly authorizes ob to install its locally-generated
+	// HTTPS CA into the platform trust store. It has no effect unless TLS is
+	// enabled. Keeping this separate from TLS prevents serving HTTPS from
+	// implicitly becoming a privileged system mutation.
+	TrustLocalCA bool
 }
 
 // Server is the ob start HTTP server.
@@ -134,16 +139,14 @@ func (s *Server) Handler() http.Handler {
 	return s.buildMiddlewareChain(s.mux)
 }
 
-// ListenAndServe binds HTTP (and HTTPS, unless --no-tls) to localhost and
+// ListenAndServe binds HTTP (and optionally HTTPS) to localhost and
 // serves until the context is cancelled.
 //
-// By default, ob runs two listeners: HTTP on `config.Port` and HTTPS on
-// `config.Port + 1`. Clients probe either protocol; whichever the page
-// can reach wins. HTTP always works with zero config. HTTPS works once
-// the local CA is trusted by the system keychain (auto-installed on
-// first run). If TLS setup fails for any reason (declined sudo prompt,
-// permission error, non-interactive terminal), HTTP still serves — the
-// user is never fully blocked.
+// HTTP is the zero-configuration default. When TLS is explicitly enabled, ob
+// adds HTTPS on `config.Port + 1` using a locally-generated CA. Generating and
+// serving with that CA does not modify platform trust. Installation into the
+// system trust store occurs only when TrustLocalCA is also explicitly enabled.
+// If TLS setup fails, HTTP still serves so the user is never fully blocked.
 func (s *Server) ListenAndServe(ctx context.Context) error {
 	handler := s.buildMiddlewareChain(s.mux)
 
@@ -164,11 +167,11 @@ func (s *Server) ListenAndServe(ctx context.Context) error {
 	httpsPort := 0
 
 	if s.config.TLS {
-		tlsCfg, tlsErr := ensureLocalhostTLS(s.logger)
+		tlsCfg, tlsErr := ensureLocalhostTLS(s.logger, s.config.TrustLocalCA)
 		if tlsErr != nil {
 			s.logger.Warn("HTTPS disabled — HTTP remains available",
 				"reason", tlsErr,
-				"fix", "re-run `ob start` in a terminal to retry cert install",
+				"fix", "resolve the certificate error or continue over loopback HTTP",
 			)
 		} else {
 			rawHTTPS, p, bindErr := bindLocalhostPort(httpPort+1, 10)
@@ -182,6 +185,15 @@ func (s *Server) ListenAndServe(ctx context.Context) error {
 					TLSConfig:         tlsCfg,
 					ReadHeaderTimeout: 10 * time.Second,
 					IdleTimeout:       120 * time.Second,
+				}
+			}
+			if !s.config.TrustLocalCA {
+				if dir, pathErr := obTLSDir(); pathErr == nil {
+					s.logger.Warn(
+						"HTTPS local CA was not installed into system trust",
+						"ca", filepath.Join(dir, "ob-ca.crt"),
+						"fix", "trust the certificate manually or restart with --trust-local-ca after reviewing the risk",
+					)
 				}
 			}
 		}
@@ -307,12 +319,11 @@ func hostWithoutPort(hostport string) string {
 
 // corsMiddleware handles CORS preflight and sets headers for allowed origins.
 //
-// ob start binds to localhost only and requires a session token on every
-// request. CORS is defense-in-depth, not the primary security boundary.
-// Any HTTPS origin and any localhost origin are allowed by default so that
-// any web app (local or remote) can connect to the user's host without
-// the user needing to configure --allow-origin. The session token prevents
-// unauthorized access regardless of origin.
+// ob start binds to localhost only and requires a session token on protected
+// requests. CORS remains an independent defense-in-depth boundary: loopback
+// origins are allowed by default, while every remote origin requires an exact
+// --allow-origin entry. Possession of a token does not grant an arbitrary
+// website permission to drive a local process-capable API.
 func (s *Server) corsMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		origin := r.Header.Get("Origin")
@@ -353,7 +364,7 @@ func (s *Server) AllowsOrigin(origin string) bool {
 			return true
 		}
 	}
-	return isLocalhostOrigin(origin) || isHTTPSOrigin(origin)
+	return isLocalhostOrigin(origin)
 }
 
 // IsLoopbackHost returns true if the hostname (without port or scheme) is a
@@ -392,19 +403,15 @@ func isLocalhostOrigin(origin string) bool {
 	return IsLoopbackHost(u.Hostname())
 }
 
-func isHTTPSOrigin(origin string) bool {
-	u, err := url.Parse(origin)
-	return err == nil && u.Scheme == "https" && u.Host != "" && u.User == nil
-}
-
 // authMiddleware requires a valid Bearer token on all requests except
-// public endpoints (root, well-known, healthz, the served openapi/asyncapi
-// specs, and the OAuth authorize/token endpoints).
+// public endpoints (the workbench root and assets, well-known, healthz, the
+// served openapi/asyncapi specs, and the OAuth authorize/token endpoints).
 func (s *Server) authMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		path := r.URL.Path
 
-		if path == "/" || path == "/.well-known/openbindings" || path == "/healthz" ||
+		if path == "/" || strings.HasPrefix(path, "/assets/") ||
+			path == "/.well-known/openbindings" || path == "/healthz" ||
 			path == "" ||
 			path == "/openapi.yaml" || path == "/asyncapi.yaml" {
 			next.ServeHTTP(w, r)
@@ -417,8 +424,8 @@ func (s *Server) authMiddleware(next http.Handler) http.Handler {
 
 		// The WebSocket invocation endpoint authenticates the upgrade request
 		// itself, accepting the token from either the Authorization header or
-		// the `token` query parameter (browsers can't set headers on upgrade
-		// requests). Let genuine upgrade requests to those routes through to
+		// a bearer WebSocket subprotocol (browsers can't set headers on
+		// upgrade requests). Let genuine upgrade requests to those routes through to
 		// the handler, which authenticates before accepting the upgrade. This
 		// exemption is scoped to the exact route AND requires a real WebSocket
 		// upgrade (Connection: upgrade + Upgrade: websocket), so a spoofed
@@ -509,20 +516,20 @@ func generateToken() (string, error) {
 	return hex.EncodeToString(b), nil
 }
 
-// ensureLocalhostTLS returns a tls.Config for localhost using a locally-
-// installed root CA. The full flow, self-healing on every call:
+// ensureLocalhostTLS returns a tls.Config for localhost using a local CA.
+// Trust-store installation is a distinct, explicit decision:
 //
 //  1. Load or create the CA at ~/.ob/tls/ob-ca.crt.
-//  2. Verify the CA is trusted by the system (macOS: present in the
+//  2. When trustLocalCA is true, verify the CA is trusted by the system
+//     (macOS: present in the
 //     System keychain; Linux: in /etc/ssl/certs; Windows: Root store).
 //     If not — or if it's only in the user-login keychain from an earlier
 //     broken install — purge stale copies and re-install system-wide.
 //  3. Load or mint a leaf cert signed by the CA with 90-day validity.
 //
-// If cert install fails (user declines sudo, non-interactive terminal,
-// permission error), returns an error so the caller can log a warning
-// and fall back to HTTP-only. The user is never fully blocked.
-func ensureLocalhostTLS(logger *slog.Logger) (*tls.Config, error) {
+// With trustLocalCA false this function never reads from or writes to the
+// system trust store and never executes a privilege-elevation command.
+func ensureLocalhostTLS(logger *slog.Logger, trustLocalCA bool) (*tls.Config, error) {
 	dir, err := obTLSDir()
 	if err != nil {
 		return nil, err
@@ -538,13 +545,10 @@ func ensureLocalhostTLS(logger *slog.Logger) (*tls.Config, error) {
 		return nil, fmt.Errorf("CA setup: %w", err)
 	}
 
-	// Verify the CA is actually trusted by the system. If it was created
-	// just now (`created=true`) skip the verify — we already know we need
-	// to install. If it's existing, check: if a prior install was broken
-	// (e.g., landed in the user login keychain without proper trust) the
-	// verify flags that and we re-install cleanly.
-	needInstall := created || !caIsSystemTrusted(caCert, logger)
-	if needInstall {
+	// Trust-store inspection and mutation are both forbidden unless the caller
+	// explicitly authorized them. `created` is relevant only on that path.
+	needInstall := trustLocalCA && (created || !caIsSystemTrusted(caCert, logger))
+	if trustLocalCA && needInstall {
 		if err := purgeStaleCAs(logger); err != nil {
 			logger.Warn("could not purge stale CA entries", "error", err)
 		}
@@ -573,7 +577,7 @@ func loadOrCreateCA(certPath, keyPath string, logger *slog.Logger) (*x509.Certif
 			if block != nil {
 				caCert, err := x509.ParseCertificate(block.Bytes)
 				now := time.Now()
-				if err == nil && caCert.IsCA && now.After(caCert.NotBefore) && now.Before(caCert.NotAfter) && caCert.CheckSignatureFrom(caCert) == nil {
+				if err == nil && isConstrainedLocalCA(caCert) && now.After(caCert.NotBefore) && now.Before(caCert.NotAfter) && caCert.CheckSignatureFrom(caCert) == nil {
 					keyBlock, _ := pem.Decode(keyPEM)
 					if keyBlock != nil {
 						caKey, err := x509.ParseECPrivateKey(keyBlock.Bytes)
@@ -600,13 +604,20 @@ func loadOrCreateCA(certPath, keyPath string, logger *slog.Logger) (*x509.Certif
 		return nil, nil, false, fmt.Errorf("generating CA serial: %w", err)
 	}
 	caTmpl := &x509.Certificate{
-		SerialNumber:          serial,
-		NotBefore:             time.Now().Add(-5 * time.Minute),
-		NotAfter:              time.Now().Add(10 * 365 * 24 * time.Hour),
-		KeyUsage:              x509.KeyUsageCertSign | x509.KeyUsageCRLSign,
-		BasicConstraintsValid: true,
-		IsCA:                  true,
-		MaxPathLen:            0,
+		SerialNumber:                serial,
+		NotBefore:                   time.Now().Add(-5 * time.Minute),
+		NotAfter:                    time.Now().Add(365 * 24 * time.Hour),
+		KeyUsage:                    x509.KeyUsageCertSign | x509.KeyUsageCRLSign,
+		BasicConstraintsValid:       true,
+		IsCA:                        true,
+		MaxPathLen:                  0,
+		MaxPathLenZero:              true,
+		PermittedDNSDomainsCritical: true,
+		PermittedDNSDomains:         []string{"localhost"},
+		PermittedIPRanges: []*net.IPNet{
+			{IP: net.IP{127, 0, 0, 0}, Mask: net.CIDRMask(8, 32)},
+			{IP: net.IPv6loopback, Mask: net.CIDRMask(128, 128)},
+		},
 		Subject: pkix.Name{
 			Organization: []string{"OpenBindings"},
 			CommonName:   "OpenBindings Local CA",
@@ -635,6 +646,24 @@ func loadOrCreateCA(certPath, keyPath string, logger *slog.Logger) (*x509.Certif
 	}
 
 	return caCert, caKey, true, nil
+}
+
+// isConstrainedLocalCA prevents a previously generated broad root from being
+// silently reused. The key is useful only for localhost leaf certificates,
+// cannot sign an intermediate CA, and expires after the short local-tool
+// lifecycle above. An older unconstrained CA is rotated on the next TLS start;
+// explicit --trust-local-ca also purges its stale trust-store copy.
+func isConstrainedLocalCA(cert *x509.Certificate) bool {
+	if cert == nil || !cert.IsCA || !cert.BasicConstraintsValid ||
+		cert.MaxPathLen != 0 || !cert.MaxPathLenZero ||
+		!cert.PermittedDNSDomainsCritical ||
+		len(cert.PermittedDNSDomains) != 1 ||
+		cert.PermittedDNSDomains[0] != "localhost" ||
+		len(cert.PermittedIPRanges) != 2 {
+		return false
+	}
+	return cert.PermittedIPRanges[0].String() == "127.0.0.0/8" &&
+		cert.PermittedIPRanges[1].String() == "::1/128"
 }
 
 func loadOrMintLeaf(certPath, keyPath string, caCert *x509.Certificate, caKey *ecdsa.PrivateKey) (tls.Certificate, error) {

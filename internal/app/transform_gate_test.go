@@ -19,8 +19,9 @@ import (
 // evalTransform path invocation uses) and asserts it matches. It is the
 // cross-SDK parity gate on the Go side and the regression guard on the engine.
 //
-// The corpus is located under OB_SPEC_CORPUS (the conformance root); the test
-// skips when that is unset, matching the other corpus-backed tests.
+// The corpus is located under OB_SPEC_CORPUS (the conformance root), or in the
+// sibling spec checkout used by the monorepo development layout. Absence is a
+// local skip unless OB_CORPUS_REQUIRED is set, in which case it is a failure.
 
 type gateOutcome struct {
 	Status                string          `json:"status"` // value | undefined | error
@@ -48,13 +49,16 @@ func transformCorpusDir(t *testing.T) string {
 	t.Helper()
 	root := os.Getenv("OB_SPEC_CORPUS")
 	if root == "" {
-		t.Skip("OB_SPEC_CORPUS not set; skipping transform differential-conformance gate")
+		root = filepath.Clean(filepath.Join("..", "..", "..", "spec", "conformance"))
 	}
 	dir := root
 	if filepath.Base(root) != "transforms" {
 		dir = filepath.Join(root, "transforms")
 	}
-	if _, err := os.Stat(dir); err != nil {
+	if st, err := os.Stat(dir); err != nil || !st.IsDir() {
+		if os.Getenv("OB_CORPUS_REQUIRED") != "" {
+			t.Fatalf("transforms corpus not found at %s (OB_CORPUS_REQUIRED is set; set OB_SPEC_CORPUS)", dir)
+		}
 		t.Skipf("transforms corpus not found at %s", dir)
 	}
 	return dir

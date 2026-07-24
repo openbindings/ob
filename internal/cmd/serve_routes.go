@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"io"
@@ -11,8 +12,8 @@ import (
 	"sync"
 	"sync/atomic"
 
-	"nhooyr.io/websocket"
-	"nhooyr.io/websocket/wsjson"
+	"github.com/coder/websocket"
+	"github.com/coder/websocket/wsjson"
 
 	openbindings "github.com/openbindings/openbindings-go"
 
@@ -33,7 +34,10 @@ func handleBindingInvoke(srv *server.Server, logger *slog.Logger) http.HandlerFu
 		if conn == nil {
 			return
 		}
-		defer conn.Close(websocket.StatusInternalError, "unexpected close")
+		// Every protocol terminal below performs its own close handshake.
+		// Teardown must not send a second close frame after that handshake:
+		// browsers report the double-close as an abnormal 1006 termination.
+		defer conn.CloseNow()
 
 		// The lifetime ctx must be cancelled when the client disconnects.
 		// websocket.Accept hijacks the connection, so r.Context() is no
@@ -56,7 +60,10 @@ func handleOperationInvoke(srv *server.Server, logger *slog.Logger) http.Handler
 		if conn == nil {
 			return
 		}
-		defer conn.Close(websocket.StatusInternalError, "unexpected close")
+		// Every protocol terminal below performs its own close handshake.
+		// CloseNow is only the final transport cleanup; it cannot overwrite a
+		// normal close with a second close frame.
+		defer conn.CloseNow()
 
 		ctx, cancel := context.WithCancel(r.Context())
 		defer cancel()
@@ -72,7 +79,8 @@ func acceptInvocationWebSocket(w http.ResponseWriter, r *http.Request, srv *serv
 		writeErrorJSON(w, http.StatusUpgradeRequired, "upgrade_required", "WebSocket upgrade required ("+protocol+" frame protocol)")
 		return nil
 	}
-	if !srv.IsValidToken(wsAuthToken(r)) {
+	token, validCredentialShape := wsAuthToken(r)
+	if !validCredentialShape || !srv.IsValidToken(token) {
 		logger.Warn("websocket auth failure", "remote_addr", r.RemoteAddr)
 		writeErrorJSON(w, http.StatusUnauthorized, "unauthorized", "a valid bearer token is required")
 		return nil
@@ -85,7 +93,13 @@ func acceptInvocationWebSocket(w http.ResponseWriter, r *http.Request, srv *serv
 
 	// Origin validation happened above. InsecureSkipVerify disables the
 	// library's narrower same-origin default so the shared CORS policy wins.
-	conn, err := websocket.Accept(w, r, &websocket.AcceptOptions{InsecureSkipVerify: true})
+	// Select only the public frame-protocol value. The credential protocol is
+	// request-only and must never be echoed into the response headers.
+	options := &websocket.AcceptOptions{
+		InsecureSkipVerify: true,
+		Subprotocols:       []string{wsFrameProtocol},
+	}
+	conn, err := websocket.Accept(w, r, options)
 	if err != nil {
 		logger.Error("websocket accept failed", "error", err)
 		return nil
@@ -94,14 +108,67 @@ func acceptInvocationWebSocket(w http.ResponseWriter, r *http.Request, srv *serv
 	return conn
 }
 
-// wsAuthToken extracts the session token from a WebSocket upgrade request:
-// the Authorization header when present, else the `token` query parameter.
-func wsAuthToken(r *http.Request) string {
-	parts := strings.Fields(r.Header.Get("Authorization"))
-	if len(parts) == 2 && strings.EqualFold(parts[0], "Bearer") {
-		return parts[1]
+const (
+	wsFrameProtocol        = "openbindings.frames.v1"
+	wsBearerProtocolPrefix = "openbindings.bearer."
+)
+
+// wsAuthToken extracts the session token from a WebSocket upgrade request.
+// Non-browser clients use Authorization. Browsers use a WebSocket subprotocol
+// because their WebSocket API cannot set arbitrary headers. The browser
+// credential is unpadded base64url so any configured token fits RFC 6455's
+// subprotocol token grammar. Credentials are never accepted in the URL, where
+// they leak into logs and copied links.
+func wsAuthToken(r *http.Request) (token string, validShape bool) {
+	authorizationToken := ""
+	authorizationValues := r.Header.Values("Authorization")
+	if len(authorizationValues) > 1 {
+		return "", false
 	}
-	return r.URL.Query().Get("token")
+	if len(authorizationValues) == 1 {
+		parts := strings.Fields(authorizationValues[0])
+		if len(parts) != 2 || !strings.EqualFold(parts[0], "Bearer") {
+			return "", false
+		}
+		authorizationToken = parts[1]
+	}
+
+	frameProtocolOffered := false
+	encodedToken := ""
+	for _, header := range r.Header.Values("Sec-WebSocket-Protocol") {
+		for _, candidate := range strings.Split(header, ",") {
+			candidate = strings.TrimSpace(candidate)
+			if candidate == wsFrameProtocol {
+				frameProtocolOffered = true
+				continue
+			}
+			if strings.HasPrefix(candidate, wsBearerProtocolPrefix) {
+				// More than one credential is ambiguous and could make a
+				// proxy and the application authenticate different values.
+				if encodedToken != "" {
+					return "", false
+				}
+				encodedToken = strings.TrimPrefix(candidate, wsBearerProtocolPrefix)
+			}
+		}
+	}
+	// Two credential carriers are ambiguous even when their decoded values
+	// happen to match. Reject the request instead of assigning precedence that
+	// an intermediary may interpret differently.
+	if authorizationToken != "" {
+		if encodedToken != "" {
+			return "", false
+		}
+		return authorizationToken, true
+	}
+	if !frameProtocolOffered || encodedToken == "" {
+		return "", false
+	}
+	raw, err := base64.RawURLEncoding.DecodeString(encodedToken)
+	if err != nil || len(raw) == 0 {
+		return "", false
+	}
+	return string(raw), true
 }
 
 // frameWriter serializes output-frame writes and latches the terminal frame:
@@ -226,7 +293,11 @@ func driveFrameStream(
 	var callerClosed atomic.Bool
 
 	// Input side: frames -> handle.
-	go readInputFrames(ctx, cancel, conn, inv, &callerClosed, protoErr, logger)
+	inputReaderDone := make(chan struct{})
+	go func() {
+		defer close(inputReaderDone)
+		readInputFrames(ctx, cancel, conn, inv, &callerClosed, protoErr, logger)
+	}()
 
 	// `input_closed`: emitted once when the binding closes the input side
 	// from below (a unary binding after its first read). The caller's own
@@ -267,6 +338,13 @@ func driveFrameStream(
 			return
 		}
 	}
+	// Stop the application-frame reader before beginning the WebSocket close
+	// handshake. nhooyr's Close reads the peer's close response internally;
+	// leaving readInputFrames blocked in a concurrent Conn.Read lets that
+	// goroutine consume the response and makes browsers observe an abnormal
+	// "Close received after close" / 1006 termination.
+	cancel()
+	<-inputReaderDone
 	conn.Close(websocket.StatusNormalClosure, "")
 }
 

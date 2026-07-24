@@ -442,7 +442,8 @@ cmd "start" help="Start a local server exposing ob operations (HTTP, WebSocket)"
   flag "--allow-origin <origin>" help="Allowed CORS origin (repeatable)" var=#true
   flag "--token <token>" help="Pre-shared session token (also: OB_START_TOKEN env var)"
   flag "--token-file <path>" help="Write session token to file instead of stderr"
-  flag "--no-tls" help="Skip HTTPS listener and CA trust setup (HTTP only, no sudo prompt)"
+  flag "--tls" help="Also serve HTTPS using a local CA (does not modify system trust)"
+  flag "--trust-local-ca" help="Install the local HTTPS CA into system trust (implies --tls; may prompt)"
 }
 
 cmd "demo" help="Start the OpenBlendings demo server (one interface, six protocols)" {

@@ -19,9 +19,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/coder/websocket"
+	"github.com/coder/websocket/wsjson"
 	"gopkg.in/yaml.v3"
-	"nhooyr.io/websocket"
-	"nhooyr.io/websocket/wsjson"
 
 	openbindings "github.com/openbindings/openbindings-go"
 
@@ -577,8 +577,8 @@ func TestServeWellKnown(t *testing.T) {
 }
 
 // Root is deliberately NOT an OBI discovery location: discovery is well-known
-// only (spec §7), consistent with the registry. Root serves a non-OBI landing
-// page so the SDK direct-fetch branch fails over to well-known instead of
+// only (spec §7), consistent with the registry. Root serves the non-OBI
+// workbench, so the SDK direct-fetch branch fails over to well-known instead of
 // treating root as canonical. This guards against re-introducing OBI-at-root.
 func TestServeRoot_NotOBI(t *testing.T) {
 	ts := testEnv(t)
@@ -593,7 +593,15 @@ func TestServeRoot_NotOBI(t *testing.T) {
 		t.Fatalf("status = %d, want 200", resp.StatusCode)
 	}
 	if ct := resp.Header.Get("Content-Type"); !strings.HasPrefix(ct, "text/html") {
-		t.Errorf("root Content-Type = %q, want text/html (a non-OBI landing page)", ct)
+		t.Errorf("root Content-Type = %q, want text/html (a non-OBI workbench)", ct)
+	}
+	csp := resp.Header.Get("Content-Security-Policy")
+	if !strings.Contains(csp, "frame-ancestors 'none'") {
+		t.Errorf("root Content-Security-Policy = %q, want workbench framing protection", csp)
+	}
+	expectedWebSocketOrigin := "ws://" + strings.TrimPrefix(ts.URL, "http://")
+	if !strings.Contains(csp, "connect-src 'self' "+expectedWebSocketOrigin) {
+		t.Errorf("root Content-Security-Policy = %q, want exact WebSocket origin %q", csp, expectedWebSocketOrigin)
 	}
 	raw, err := io.ReadAll(resp.Body)
 	if err != nil {
@@ -760,7 +768,7 @@ func TestServeContextList(t *testing.T) {
 // --- /bindings/invoke (binding-invoker frame protocol) ---
 
 // dialFrameWS opens the frame-protocol WebSocket, authenticating via the
-// `token` query parameter (the browser path; the Authorization-header path is
+// bearer WebSocket subprotocol (the browser path; the Authorization-header path is
 // covered by TestServeBindingInvoke_FrameRoundTripViaClient).
 func dialFrameWS(t *testing.T, ctx context.Context, ts *httptest.Server, token string) *websocket.Conn {
 	return dialFrameWSAt(t, ctx, ts, "/bindings/invoke", token)
@@ -769,14 +777,21 @@ func dialFrameWS(t *testing.T, ctx context.Context, ts *httptest.Server, token s
 func dialFrameWSAt(t *testing.T, ctx context.Context, ts *httptest.Server, path, token string) *websocket.Conn {
 	t.Helper()
 	wsURL := strings.Replace(ts.URL, "http://", "ws://", 1) + path
+	options := &websocket.DialOptions{}
 	if token != "" {
-		wsURL += "?token=" + token
+		options.Subprotocols = []string{
+			wsFrameProtocol,
+			wsBearerProtocolPrefix + base64.RawURLEncoding.EncodeToString([]byte(token)),
+		}
 	}
-	conn, _, err := websocket.Dial(ctx, wsURL, nil)
+	conn, _, err := websocket.Dial(ctx, wsURL, options)
 	if err != nil {
 		t.Fatalf("websocket dial failed: %v", err)
 	}
 	t.Cleanup(func() { _ = conn.CloseNow() })
+	if token != "" && conn.Subprotocol() != wsFrameProtocol {
+		t.Fatalf("selected WebSocket protocol = %q, want %q", conn.Subprotocol(), wsFrameProtocol)
+	}
 	return conn
 }
 
@@ -1302,7 +1317,7 @@ func TestServeBindingInvoke_WS_StreamThenError(t *testing.T) {
 }
 
 func TestServeBindingInvoke_WS_NoAuth(t *testing.T) {
-	// Without a token on the upgrade request (header or query parameter),
+	// Without a token on the upgrade request (header or bearer subprotocol),
 	// the upgrade is rejected before the WebSocket is accepted.
 	ts := testEnv(t)
 	defer ts.Close()
@@ -1316,14 +1331,154 @@ func TestServeBindingInvoke_WS_NoAuth(t *testing.T) {
 	}
 }
 
-func TestServeBindingInvoke_WS_RejectsDisallowedBrowserOrigin(t *testing.T) {
+func TestServeBindingInvoke_WS_RejectsQueryToken(t *testing.T) {
 	ts := testEnv(t)
 	defer ts.Close()
 
 	wsURL := strings.Replace(ts.URL, "http://", "ws://", 1) + "/bindings/invoke?token=test-token"
+	conn, _, err := websocket.Dial(t.Context(), wsURL, nil)
+	if conn != nil {
+		conn.CloseNow()
+	}
+	if err == nil {
+		t.Fatal("expected URL query token to be rejected")
+	}
+}
+
+func TestWSAuthTokenRejectsAmbiguousOrMalformedCarriers(t *testing.T) {
+	encode := func(token string) string {
+		return wsBearerProtocolPrefix + base64.RawURLEncoding.EncodeToString([]byte(token))
+	}
+	tests := []struct {
+		name          string
+		authorization []string
+		protocols     []string
+		wantToken     string
+		wantValid     bool
+	}{
+		{
+			name:          "authorization header",
+			authorization: []string{"Bearer header-token"},
+			wantToken:     "header-token",
+			wantValid:     true,
+		},
+		{
+			name:      "browser credential",
+			protocols: []string{wsFrameProtocol, encode("browser-token")},
+			wantToken: "browser-token",
+			wantValid: true,
+		},
+		{
+			name:          "duplicate authorization headers",
+			authorization: []string{"Bearer first", "Bearer second"},
+		},
+		{
+			name:          "malformed authorization cannot fall through",
+			authorization: []string{"Basic ignored"},
+			protocols:     []string{wsFrameProtocol, encode("browser-token")},
+		},
+		{
+			name:          "authorization plus browser credential",
+			authorization: []string{"Bearer header-token"},
+			protocols:     []string{wsFrameProtocol, encode("browser-token")},
+		},
+		{
+			name:      "browser credential requires frame protocol",
+			protocols: []string{encode("browser-token")},
+		},
+		{
+			name:      "padded base64url is not accepted",
+			protocols: []string{wsFrameProtocol, wsBearerProtocolPrefix + "dGVzdA=="},
+		},
+		{
+			name:      "multiple browser credentials across header lines",
+			protocols: []string{wsFrameProtocol, encode("first"), encode("second")},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			request := httptest.NewRequest(http.MethodGet, "/bindings/invoke", nil)
+			for _, value := range tt.authorization {
+				request.Header.Add("Authorization", value)
+			}
+			for _, value := range tt.protocols {
+				request.Header.Add("Sec-WebSocket-Protocol", value)
+			}
+			token, valid := wsAuthToken(request)
+			if token != tt.wantToken || valid != tt.wantValid {
+				t.Fatalf("wsAuthToken() = (%q, %t), want (%q, %t)", token, valid, tt.wantToken, tt.wantValid)
+			}
+		})
+	}
+}
+
+func TestServeBindingInvoke_WS_DoesNotEchoCredentialProtocol(t *testing.T) {
+	ts := testEnv(t)
+	defer ts.Close()
+
+	const token = "test-token"
+	credentialProtocol := wsBearerProtocolPrefix + base64.RawURLEncoding.EncodeToString([]byte(token))
+	wsURL := strings.Replace(ts.URL, "http://", "ws://", 1) + "/bindings/invoke"
+	conn, resp, err := websocket.Dial(t.Context(), wsURL, &websocket.DialOptions{
+		Subprotocols: []string{wsFrameProtocol, credentialProtocol},
+	})
+	if err != nil {
+		t.Fatalf("authenticated WebSocket dial failed: %v", err)
+	}
+	defer conn.CloseNow()
+
+	if conn.Subprotocol() != wsFrameProtocol {
+		t.Fatalf("selected protocol = %q, want %q", conn.Subprotocol(), wsFrameProtocol)
+	}
+	if resp == nil {
+		t.Fatal("authenticated WebSocket dial returned no upgrade response")
+	}
+	for name, values := range resp.Header {
+		for _, value := range values {
+			if strings.Contains(value, token) || strings.Contains(value, credentialProtocol) {
+				t.Fatalf("response header %s echoed credential material", name)
+			}
+		}
+	}
+}
+
+func TestServeBindingInvoke_WS_RejectsMultipleCredentialProtocols(t *testing.T) {
+	ts := testEnv(t)
+	defer ts.Close()
+
+	encode := func(token string) string {
+		return wsBearerProtocolPrefix + base64.RawURLEncoding.EncodeToString([]byte(token))
+	}
+	wsURL := strings.Replace(ts.URL, "http://", "ws://", 1) + "/bindings/invoke"
+	conn, resp, err := websocket.Dial(t.Context(), wsURL, &websocket.DialOptions{
+		Subprotocols: []string{wsFrameProtocol, encode("test-token"), encode("other-token")},
+	})
+	if conn != nil {
+		conn.CloseNow()
+	}
+	if err == nil {
+		t.Fatal("expected ambiguous WebSocket credentials to fail")
+	}
+	if resp == nil || resp.StatusCode != http.StatusUnauthorized {
+		t.Fatalf("upgrade response = %#v, want 401", resp)
+	}
+}
+
+func TestServeBindingInvoke_WS_RejectsDisallowedBrowserOrigin(t *testing.T) {
+	ts := testEnv(t)
+	defer ts.Close()
+
+	wsURL := strings.Replace(ts.URL, "http://", "ws://", 1) + "/bindings/invoke"
 	header := http.Header{}
 	header.Set("Origin", "http://evil.example")
-	conn, resp, err := websocket.Dial(t.Context(), wsURL, &websocket.DialOptions{HTTPHeader: header})
+	conn, resp, err := websocket.Dial(t.Context(), wsURL, &websocket.DialOptions{
+		HTTPHeader: header,
+		Subprotocols: []string{
+			wsFrameProtocol,
+			wsBearerProtocolPrefix + base64.RawURLEncoding.EncodeToString([]byte("test-token")),
+		},
+	})
 	if conn != nil {
 		conn.CloseNow()
 	}

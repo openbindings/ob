@@ -177,6 +177,23 @@ func TestAuthMiddleware_HealthzExempt(t *testing.T) {
 	}
 }
 
+func TestAuthMiddleware_WorkbenchAssetsExempt(t *testing.T) {
+	s := mustNewServer(t, "test-token-123")
+	rec := &callRecorder{}
+	handler := s.authMiddleware(rec.handler())
+
+	req := httptest.NewRequest("GET", "/assets/workbench.js", nil)
+	w := httptest.NewRecorder()
+	handler.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Errorf("status = %d, want %d", w.Code, http.StatusOK)
+	}
+	if !rec.called {
+		t.Error("inner handler was not called for public workbench asset")
+	}
+}
+
 func TestAuthMiddleware_SpoofedUpgradeOnNonWSRouteRejected(t *testing.T) {
 	// A spoofed `Upgrade: websocket` header must NOT exempt a non-WebSocket
 	// route from bearer-token auth. Only the /bindings/invoke handler does
@@ -402,7 +419,7 @@ func TestCORSMiddleware_AutoLocalhostRejectsRemote(t *testing.T) {
 	}
 }
 
-func TestCORSMiddleware_AnyHTTPSOriginAllowed(t *testing.T) {
+func TestCORSMiddleware_RemoteHTTPSRequiresExplicitAllow(t *testing.T) {
 	s := mustNewServer(t, "tok")
 	rec := &callRecorder{}
 	handler := s.corsMiddleware(rec.handler())
@@ -414,10 +431,26 @@ func TestCORSMiddleware_AnyHTTPSOriginAllowed(t *testing.T) {
 			w := httptest.NewRecorder()
 			handler.ServeHTTP(w, req)
 
-			if got := w.Header().Get("Access-Control-Allow-Origin"); got != origin {
-				t.Errorf("Access-Control-Allow-Origin = %q, want %q", got, origin)
+			if got := w.Header().Get("Access-Control-Allow-Origin"); got != "" {
+				t.Errorf("Access-Control-Allow-Origin = %q, want empty for non-allowlisted origin %q", got, origin)
 			}
 		})
+	}
+}
+
+func TestCORSMiddleware_ExplicitRemoteHTTPSOriginAllowed(t *testing.T) {
+	const origin = "https://app.example.com"
+	s := mustNewServerWithOrigins(t, "tok", []string{origin})
+	rec := &callRecorder{}
+	handler := s.corsMiddleware(rec.handler())
+
+	req := httptest.NewRequest("GET", "/describe", nil)
+	req.Header.Set("Origin", origin)
+	w := httptest.NewRecorder()
+	handler.ServeHTTP(w, req)
+
+	if got := w.Header().Get("Access-Control-Allow-Origin"); got != origin {
+		t.Errorf("Access-Control-Allow-Origin = %q, want %q", got, origin)
 	}
 }
 
@@ -610,6 +643,12 @@ func TestLocalCertificateLifecycle(t *testing.T) {
 	if !created || !caCert.IsCA {
 		t.Fatalf("created = %v, IsCA = %v; want true, true", created, caCert.IsCA)
 	}
+	if !isConstrainedLocalCA(caCert) {
+		t.Fatal("local CA is not constrained to localhost with zero intermediate depth")
+	}
+	if lifetime := caCert.NotAfter.Sub(caCert.NotBefore); lifetime > 366*24*time.Hour {
+		t.Fatalf("local CA lifetime = %v, want at most 366 days", lifetime)
+	}
 	if err := caCert.CheckSignatureFrom(caCert); err != nil {
 		t.Fatalf("CA is not self-signed: %v", err)
 	}
@@ -656,6 +695,24 @@ func TestLocalCertificateLifecycle(t *testing.T) {
 		t.Fatal("leaf certificate was reused after CA rotation")
 	}
 	verifyLocalLeaf(t, rotatedLeaf, otherCert)
+}
+
+func TestLocalTLSWithoutTrustDoesNotInspectOrInstallSystemCA(t *testing.T) {
+	// The trust-store decision is deliberately visible at the API boundary:
+	// without explicit authorization, a freshly-created local CA is usable by
+	// the TLS listener without calling caIsSystemTrusted, purgeStaleCAs, or
+	// installCASystemWide. Running under a temporary home also proves all
+	// generated material stays in user-controlled test storage.
+	t.Setenv("HOME", t.TempDir())
+	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
+
+	cfg, err := ensureLocalhostTLS(logger, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(cfg.Certificates) != 1 {
+		t.Fatalf("TLS certificates = %d, want 1", len(cfg.Certificates))
+	}
 }
 
 func TestCAIsSystemTrustedFor(t *testing.T) {

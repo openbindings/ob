@@ -42,7 +42,8 @@ func newStartCmd() *cobra.Command {
 		allowedOrigins []string
 		tokenFlag      string
 		tokenFile      string
-		noTLS          bool
+		tlsEnabled     bool
+		trustLocalCA   bool
 	)
 
 	cmd := &cobra.Command{
@@ -61,9 +62,10 @@ The token can be provided via --token flag or OB_START_TOKEN environment variabl
 to enable stable tokens for CI/CD and automation. When provided, the token is not
 printed to stderr (the caller already knows it).
 
-By default the server dual-listens HTTP and HTTPS; the HTTPS listener uses a
-locally-generated CA installed into the system trust store (prompts for sudo
-on first run). Use --no-tls to skip HTTPS entirely.
+By default the server listens over HTTP on the loopback interface. Use --tls
+to add an HTTPS listener backed by a locally-generated CA. ob does not modify
+the system trust store unless --trust-local-ca is also supplied; that explicit
+option may prompt for administrator credentials and implies --tls.
 
 Environment variables: OB_START_TOKEN (pre-shared token), OB_START_PORT
 (default port), OB_START_ORIGINS (comma-separated CORS origins).
@@ -105,12 +107,17 @@ To expose this server's operations to an MCP agent, bridge it with
 				}
 			}
 
+			if trustLocalCA {
+				tlsEnabled = true
+			}
+
 			srv, err := server.New(server.Config{
 				Port:           port,
 				AllowedOrigins: allowedOrigins,
 				Logger:         logger,
 				Token:          resolvedToken,
-				TLS:            !noTLS,
+				TLS:            tlsEnabled,
+				TrustLocalCA:   trustLocalCA,
 			})
 			if err != nil {
 				return app.ExitResult{Code: 1, Message: err.Error(), ToStderr: true}
@@ -160,7 +167,8 @@ To expose this server's operations to an MCP agent, bridge it with
 	cmd.Flags().StringArrayVar(&allowedOrigins, "allow-origin", nil, "allowed CORS origin (repeatable)")
 	cmd.Flags().StringVar(&tokenFlag, "token", "", "pre-shared session token (also: OB_START_TOKEN env var)")
 	cmd.Flags().StringVar(&tokenFile, "token-file", "", "write session token to file instead of stderr")
-	cmd.Flags().BoolVar(&noTLS, "no-tls", false, "skip HTTPS listener and CA trust setup (HTTP only, no sudo prompt)")
+	cmd.Flags().BoolVar(&tlsEnabled, "tls", false, "also serve HTTPS using a local CA (does not modify system trust)")
+	cmd.Flags().BoolVar(&trustLocalCA, "trust-local-ca", false, "install the local HTTPS CA into system trust (implies --tls; may prompt)")
 
 	return cmd
 }
@@ -178,6 +186,7 @@ func registerRoutes(srv *server.Server, logger *slog.Logger, port int, oauthSt *
 
 	mux.HandleFunc("GET /healthz", handleHealthz)
 	mux.HandleFunc("GET /{$}", handleRoot)
+	mux.Handle("GET /assets/", server.WorkbenchAssets())
 	mux.HandleFunc("GET /.well-known/openbindings", handleOBI(port))
 	mux.HandleFunc("GET /openapi.yaml", handleOpenAPISpec(port))
 	mux.HandleFunc("GET /asyncapi.yaml", handleAsyncAPISpec(port))
@@ -203,26 +212,30 @@ func handleHealthz(w http.ResponseWriter, r *http.Request) {
 
 // --- Root ---
 
-// handleRoot serves a minimal human-facing landing page. The machine-readable
-// interface lives at /.well-known/openbindings (http-discovery companion,
-// DISC-S-01); root is deliberately
-// NOT an OBI discovery location, so this returns a non-OBI page. That keeps
-// discovery consistent with the companion and the registry (both well-known only),
-// and avoids the SDK direct-fetch branch treating root as canonical: a non-OBI
-// body fails tryFetchOBI, so a bare base URL correctly falls through to
-// well-known discovery.
+// handleRoot serves the embedded OpenBindings workbench. The machine-readable
+// interface still lives only at /.well-known/openbindings (http-discovery
+// companion, DISC-S-01): root remains HTML, so a bare base URL correctly falls
+// through direct OBI parsing to well-known discovery.
 func handleRoot(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	// Shadow-root component styles are emitted as <style> elements, so the
+	// style policy permits inline CSS. Script remains external/self-only and
+	// all document values are assigned with textContent.
+	wsScheme := "ws"
+	if r.TLS != nil {
+		wsScheme = "wss"
+	}
+	w.Header().Set(
+		"Content-Security-Policy",
+		fmt.Sprintf(
+			"default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; connect-src 'self' %s://%s; img-src 'self' data:; object-src 'none'; base-uri 'none'; frame-ancestors 'none'",
+			wsScheme,
+			r.Host,
+		),
+	)
 	w.WriteHeader(http.StatusOK)
-	_, _ = w.Write([]byte(rootPageHTML))
+	_, _ = w.Write(server.WorkbenchIndex())
 }
-
-const rootPageHTML = `<!doctype html>
-<meta charset="utf-8">
-<title>ob start</title>
-<p>This is an <code>ob start</code> server. Its OpenBindings interface is published at
-<a href="/.well-known/openbindings">/.well-known/openbindings</a>.</p>
-`
 
 // --- OBI / Info / Formats / Delegates ---
 

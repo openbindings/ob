@@ -3,14 +3,40 @@ package app
 import (
 	"context"
 	"encoding/json"
+	"net/http"
+	"net/http/httptest"
 	"os"
-	"os/exec"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	openbindings "github.com/openbindings/openbindings-go"
 	"github.com/zalando/go-keyring"
 )
+
+const testGitHubToken = "test-github-token"
+
+// newGitHubAPIStub provides the only GitHub behavior these tests depend on:
+// /user requires a bearer token and returns a small authenticated-user shape.
+// Keeping it local makes the default suite deterministic and offline while
+// preserving the OpenAPI and context-resolution paths under test.
+func newGitHubAPIStub(t *testing.T) *httptest.Server {
+	t.Helper()
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/user" {
+			http.NotFound(w, r)
+			return
+		}
+		if r.Header.Get("Authorization") != "Bearer "+testGitHubToken {
+			http.Error(w, `{"message":"Requires authentication"}`, http.StatusUnauthorized)
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"login":"openbindings-test"}`))
+	}))
+	t.Cleanup(server.Close)
+	return server
+}
 
 // skipIfKeychainUnavailable skips the test when OS keychain writes are blocked
 // (e.g. in a sandbox, CI container, or headless environment). It probes with
@@ -27,19 +53,16 @@ func skipIfKeychainUnavailable(t *testing.T) {
 
 // TestContextGitHub_OperationInvokerDriven tests the full operation-invoker-driven
 // context resolution pipeline:
-//  1. Gets a real GitHub token via `gh auth token`
+//  1. Uses a local GitHub-shaped API stub and bearer token
 //  2. Creates a minimal OpenAPI spec and OBI for GET /user
-//  3. Sets context for https://api.github.com (the normalizeContextKey-derived key)
+//  3. Sets context for the stub base URL (the normalizeContextKey-derived key)
 //  4. Invokes via InvokeOBIOperation — the operation invoker derives the same key
 //     via NormalizeContextKey and looks up context from the store internally
 //  5. Validates the response contains the authenticated user's login
-//
-// Requires: `gh` CLI installed and authenticated.
-// Skipped in environments without `gh` or network access.
 func TestContextGitHub_OperationInvokerDriven(t *testing.T) {
 	skipIfKeychainUnavailable(t)
-	ghToken := getGitHubToken(t)
 	setupContextTestDir(t)
+	github := newGitHubAPIStub(t)
 
 	dir := t.TempDir()
 
@@ -68,6 +91,7 @@ func TestContextGitHub_OperationInvokerDriven(t *testing.T) {
     }
   }
 }`
+	specContent = strings.ReplaceAll(specContent, "https://api.github.com", github.URL)
 
 	// The source embeds its artifact (the D-05 ruling's local lane; the
 	// courtesy lane that resolved relative locations is deleted).
@@ -110,13 +134,13 @@ func TestContextGitHub_OperationInvokerDriven(t *testing.T) {
 
 	// Set context for the API base URL (the key the OpenAPI invoker returns).
 	cfg := ContextConfig{}
-	if err := SaveContextConfig("https://api.github.com", cfg); err != nil {
+	if err := SaveContextConfig(github.URL, cfg); err != nil {
 		t.Fatalf("SaveContextConfig: %v", err)
 	}
-	if err := SaveContextCredentials("https://api.github.com", map[string]any{"bearerToken": ghToken}); err != nil {
+	if err := SaveContextCredentials(github.URL, map[string]any{"bearerToken": testGitHubToken}); err != nil {
 		t.Fatalf("SaveContextCredentials: %v", err)
 	}
-	t.Cleanup(func() { _ = DeleteContextCredentials("https://api.github.com") })
+	t.Cleanup(func() { _ = DeleteContextCredentials(github.URL) })
 
 	ch, _, err := InvokeOBIOperation(context.Background(), obiPath, "getAuthenticatedUser", "", nil)
 	if err != nil {
@@ -126,9 +150,6 @@ func TestContextGitHub_OperationInvokerDriven(t *testing.T) {
 	var lastData any
 	for ev := range ch {
 		if ev.Error != nil {
-			if ev.Error.Code == openbindings.ErrCodeAuthRequired {
-				t.Skipf("GitHub token expired or invalid (code: %s)", ev.Error.Code)
-			}
 			t.Fatalf("InvokeOBIOperation stream error: %s (code: %s)", ev.Error.Message, ev.Error.Code)
 		}
 		lastData = ev.Output
@@ -151,7 +172,7 @@ func TestContextGitHub_OperationInvokerDriven(t *testing.T) {
 // when the target URL is a deeper path.
 func TestContextGitHub_HierarchicalAPIBaseURL(t *testing.T) {
 	skipIfKeychainUnavailable(t)
-	ghToken := getGitHubToken(t)
+	ghToken := testGitHubToken
 	setupContextTestDir(t)
 
 	cfg := ContextConfig{}
@@ -187,9 +208,7 @@ func TestContextGitHub_HierarchicalAPIBaseURL(t *testing.T) {
 // correctly reads securitySchemes and places the bearer token in the
 // Authorization header.
 func TestContextGitHub_SecuritySchemeApplication(t *testing.T) {
-	skipIfKeychainUnavailable(t)
-	ghToken := getGitHubToken(t)
-	setupContextTestDir(t)
+	github := newGitHubAPIStub(t)
 
 	dir := t.TempDir()
 
@@ -218,6 +237,7 @@ func TestContextGitHub_SecuritySchemeApplication(t *testing.T) {
     }
   }
 }`
+	specContent = strings.ReplaceAll(specContent, "https://api.github.com", github.URL)
 
 	specPath := filepath.Join(dir, "github-user.openapi.json")
 	if err := os.WriteFile(specPath, []byte(specContent), 0644); err != nil {
@@ -234,7 +254,7 @@ func TestContextGitHub_SecuritySchemeApplication(t *testing.T) {
 		},
 		Ref:     "#/paths/~1user/get",
 		Input:   nil,
-		Context: map[string]any{"bearerToken": ghToken},
+		Context: map[string]any{"bearerToken": testGitHubToken},
 	}
 
 	result := InvokeOperationWithContext(context.Background(), execInput)
@@ -255,19 +275,11 @@ func TestContextGitHub_SecuritySchemeApplication(t *testing.T) {
 	t.Logf("Authenticated as: %s (via direct execution)", login)
 }
 
-// TestContextGitHub_NoCredentialsFails verifies that calling the GitHub
-// authenticated endpoint without credentials returns a 401.
+// TestContextGitHub_NoCredentialsFails verifies that a GitHub-shaped
+// authenticated endpoint returns its 401 without supplied credentials. The
+// server is local so this transport/error classification test is hermetic.
 func TestContextGitHub_NoCredentialsFails(t *testing.T) {
-	if testing.Short() {
-		t.Skip("skipping network test in short mode")
-	}
-	skipIfKeychainUnavailable(t)
-	setupContextTestDir(t)
-
-	// Ensure no stored credentials from prior tests are picked up by
-	// the operation invoker's context resolution.
-	_ = DeleteContextCredentials("https://api.github.com")
-	t.Cleanup(func() { _ = DeleteContextCredentials("https://api.github.com") })
+	github := newGitHubAPIStub(t)
 
 	dir := t.TempDir()
 
@@ -289,6 +301,7 @@ func TestContextGitHub_NoCredentialsFails(t *testing.T) {
     }
   }
 }`
+	specContent = strings.ReplaceAll(specContent, "https://api.github.com", github.URL)
 
 	specPath := filepath.Join(dir, "github-user.openapi.json")
 	if err := os.WriteFile(specPath, []byte(specContent), 0644); err != nil {
@@ -361,24 +374,4 @@ func TestContext_HTTPSNormalization(t *testing.T) {
 	if openbindings.ContextHeaders(ctx2)["X-Test"] != "normalized" {
 		t.Errorf("expected http lookup to work, got: %v", ctx2)
 	}
-}
-
-func getGitHubToken(t *testing.T) string {
-	t.Helper()
-	if testing.Short() {
-		t.Skip("skipping network test in short mode")
-	}
-
-	out, err := exec.Command("gh", "auth", "token").Output()
-	if err != nil {
-		t.Skip("gh CLI not available or not authenticated; skipping")
-	}
-	token := string(out)
-	if len(token) > 0 && token[len(token)-1] == '\n' {
-		token = token[:len(token)-1]
-	}
-	if token == "" {
-		t.Skip("empty gh token; skipping")
-	}
-	return token
 }

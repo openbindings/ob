@@ -4,6 +4,8 @@
 *.test
 bin/
 dist/
+!internal/server/workbench/dist/
+!internal/server/workbench/dist/**
 
 # OS
 .DS_Store

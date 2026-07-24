@@ -1,0 +1,96 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta
+      name="description"
+      content="Inspect and invoke OpenBindings interfaces through ob start."
+    />
+    <link
+      rel="alternate"
+      type="application/json"
+      href="/.well-known/openbindings"
+      title="OpenBindings interface"
+    />
+    <title>OpenBindings Workbench · ob start</title>
+    <script type="module" crossorigin src="/assets/workbench.js"></script>
+    <link rel="stylesheet" crossorigin href="/assets/workbench.css">
+  </head>
+  <body>
+    <main>
+      <header class="app-header">
+        <div>
+          <p class="eyebrow">ob start</p>
+          <h1>OpenBindings Workbench</h1>
+        </div>
+        <div class="header-actions">
+          <span id="connection-status" role="status">Connecting…</span>
+          <button id="theme-toggle" type="button" aria-pressed="false">
+            Dark theme
+          </button>
+        </div>
+      </header>
+
+      <section class="bootstrap" aria-labelledby="target-heading">
+        <div>
+          <h2 id="target-heading">Target interface</h2>
+          <p>
+            This workbench fulfills its operation dependencies through this
+            <code>ob start</code> instance.
+          </p>
+        </div>
+        <form id="target-form">
+          <label>
+            OBI, API, or server URL
+            <input
+              id="target-url"
+              name="address"
+              type="url"
+              inputmode="url"
+              placeholder="https://api.example.com"
+            />
+          </label>
+          <button type="submit">Resolve</button>
+        </form>
+        <form id="token-form">
+          <label>
+            ob start session token
+            <input
+              id="session-token"
+              name="token"
+              type="password"
+              autocomplete="off"
+              placeholder="Paste the token printed by ob start"
+            />
+          </label>
+          <button type="submit">Use token</button>
+        </form>
+        <form id="target-context-form">
+          <label>
+            Target invocation context (JSON)
+            <textarea
+              id="target-context"
+              name="context"
+              rows="2"
+              autocomplete="off"
+              spellcheck="false"
+              placeholder='{"bearerToken":"target-api-token"}'
+            ></textarea>
+          </label>
+          <button type="submit">Use target context</button>
+        </form>
+        <p id="bootstrap-message" role="status"></p>
+      </section>
+
+      <section class="workbench-grid">
+        <ob-obi-explorer></ob-obi-explorer>
+        <div class="operation-column">
+          <ob-operation-detail></ob-operation-detail>
+          <ob-operation-workbench></ob-operation-workbench>
+        </div>
+      </section>
+    </main>
+
+  </body>
+</html>

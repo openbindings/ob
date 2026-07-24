@@ -4,12 +4,20 @@ The OpenBindings CLI (`ob`) authors, validates, invokes, and serves OpenBindings
 
 **Spec version:** implements OpenBindings 0.2. Run `ob describe` to see the exact range this build supports.
 
+> **Draft status:** this branch implements the unreleased 0.2 working draft.
+> The installation channels below currently resolve the latest released CLI,
+> not necessarily the command surface documented on this branch. To evaluate
+> the draft, clone `ob` beside `openbindings-go`, follow
+> [`CONTRIBUTING.md`](CONTRIBUTING.md), and build from the local workspace.
+
 When handing OpenBindings work to an AI agent, `ob --agent-primer` prints the
 version-aligned project primer as Markdown. The same canonical primer is
 published at [openbindings.com/agents](https://openbindings.com/agents) and
 linked first from the site's `llms.txt`.
 
 ## Install
+
+After the 0.2 release, these install the implementation documented here:
 
 ```bash
 brew install --cask openbindings/tap/ob
@@ -425,20 +433,38 @@ ob source pull interface.json -o dist/interface.json --pure # publish clean
 ### `ob start` — local HTTP/HTTPS service
 
 ```bash
-ob start                 # http://localhost:20290 + https://localhost:20291
-ob start --port 18000    # custom port
-ob start --no-tls        # HTTP only
+ob start                  # HTTP on http://localhost:20290
+ob start --port 18000     # custom HTTP port
+ob start --tls            # add HTTPS on the next port; no trust changes
+ob start --trust-local-ca # explicitly install that CA into system trust
 ob start --token-file ~/.ob/start.token  # write the session token to a file (for scripts)
 ```
 
-On startup `ob start` prints the address it bound and a random bearer token. The HTTPS listener uses a local CA installed into the system keychain (first run prompts for `sudo`; subsequent runs are silent).
+On startup `ob start` prints the address it bound and a random bearer token.
+HTTP over loopback is the default. `--tls` adds an HTTPS listener but does not
+modify system trust; `--trust-local-ca` explicitly authorizes system-wide trust
+installation, may prompt for administrator credentials, and implies `--tls`.
+Local CA trust is security-sensitive because the corresponding private key can
+sign certificates trusted by the machine. Review the generated files under
+`~/.ob/tls` and prefer plain loopback HTTP when the browser context permits it.
 
-**Authentication.** Every endpoint except `/`, `/healthz`, `/.well-known/openbindings`, `/openapi.yaml`, `/asyncapi.yaml`, `/oauth/authorize`, and `/oauth/token` requires `Authorization: Bearer <token>`. The token comes from one of:
+Opening the server root launches the embedded, framework-neutral OpenBindings
+workbench. It discovers this server's OBI, resolves or synthesizes a target
+URL, explores its operations, and invokes them through the canonical Operation
+Invoker capability. Protocol processing remains in `ob`; the browser does not
+ship every binding-family SDK.
+
+**Authentication.** Every endpoint except `/`, `/assets/*`, `/healthz`, `/.well-known/openbindings`, `/openapi.yaml`, `/asyncapi.yaml`, `/oauth/authorize`, and `/oauth/token` requires `Authorization: Bearer <token>`. The token comes from one of:
 - `--token` or the `OB_START_TOKEN` env var (static, caller-supplied)
 - Auto-generated at startup otherwise (printed once, lost on restart). `--token-file` writes that session token to a file instead of stderr, so scripts can read it; it does not supply a token.
 - An OAuth2 access token obtained via `/oauth/authorize` + `/oauth/token` (PKCE flow)
 
-**CORS.** By default `ob start` accepts localhost origins and HTTPS origins; `--allow-origin` (repeatable) adds explicit origins such as a non-local HTTP development host. The same policy is enforced on WebSocket upgrades. Private Network Access preflights (`Access-Control-Request-Private-Network: true`) are honored for allowed origins, so browser apps served from `https://app.example.com` can reach `https://localhost:20291`.
+**CORS.** By default `ob start` accepts only loopback origins.
+`--allow-origin` (repeatable) adds an exact remote origin, such as
+`https://app.example.com`. The same policy is enforced on WebSocket upgrades.
+Private Network Access preflights
+(`Access-Control-Request-Private-Network: true`) are honored only for allowed
+origins.
 
 #### HTTP endpoints
 
@@ -485,7 +511,7 @@ Example:
 
 ```bash
 TOKEN=$(cat ~/.ob/start.token)
-curl -X POST https://localhost:20291/bindings/prepare \
+curl -X POST http://localhost:20290/bindings/prepare \
   -H "Authorization: Bearer $TOKEN" \
   -H "Content-Type: application/json" \
   -d '{
@@ -496,9 +522,18 @@ curl -X POST https://localhost:20291/bindings/prepare \
 
 #### Invocation (WebSocket frame protocols)
 
-`GET /bindings/invoke` and `GET /operations/invoke` upgrade to WebSockets speaking the binding- and operation-invoker frame protocols. Each connection carries one invocation, with one shape for unary, server-streaming, client-streaming, and bidirectional operations. The operation-level `open` payload carries an inline interface plus exactly one of `operation` or `binding`; the rest of the lifecycle is identical. The complete protocols are described by [`internal/server/asyncapi.yaml`](https://github.com/openbindings/ob/blob/main/internal/server/asyncapi.yaml).
+`GET /bindings/invoke` and `GET /operations/invoke` upgrade to WebSockets speaking the binding- and operation-invoker frame protocols. Each connection carries one invocation, with one shape for unary, server-streaming, client-streaming, and bidirectional operations. The operation-level `open` payload carries an inline interface plus exactly one of `operation` or `binding`; the rest of the lifecycle is identical. The complete protocols are described by [`internal/server/asyncapi.yaml`](https://github.com/openbindings/ob/blob/main/internal/server/asyncapi.yaml). That artifact is transport documentation; its reply-bearing WebSocket `receive` operations are intentionally outside `openbindings.asyncapi@1` revision 1, so generic revision-1 AsyncAPI invokers refuse rather than silently discarding the reply stream.
 
-1. Client opens a WebSocket to `wss://host/bindings/invoke`, presenting the session token on the upgrade request: `Authorization: Bearer <token>`, or the `token` query parameter for browsers (which can't set headers on upgrades).
+1. Client opens a WebSocket to `ws://host/bindings/invoke` (or `wss://` when
+   the explicitly enabled TLS listener is in use), presenting the
+   session token on the upgrade request: `Authorization: Bearer <token>` for
+   non-browser clients, or the
+   `openbindings.frames.v1` and
+   `openbindings.bearer.<unpadded-base64url-token>` WebSocket subprotocols for
+   browsers (whose WebSocket API cannot set arbitrary headers). The server
+   selects only `openbindings.frames.v1`; it never echoes the credential
+   protocol. Tokens in URL query parameters are rejected so credentials do not
+   leak into logs or copied links.
 2. Client streams input frames: exactly one `{"kind": "open", "input": {source, ref, context?}}` first, then zero or more `{"kind": "input", "value": …}`, then one `{"kind": "close"}`.
 3. Server streams output frames: zero or more `{"kind": "output", "value": …}`, an `{"kind": "input_closed"}` once the binding stops accepting input (later `input` frames are ignored; the invocation continues), and exactly one terminal frame — `{"kind": "complete"}` or `{"kind": "error", "error": {code, message, details?}}` — after which the connection closes.
 

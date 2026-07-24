@@ -6,7 +6,7 @@ import (
 	"errors"
 	"io"
 
-	"nhooyr.io/websocket"
+	"github.com/coder/websocket"
 
 	openbindings "github.com/openbindings/openbindings-go"
 )
