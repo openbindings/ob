@@ -420,9 +420,12 @@ func addInfrastructurePaths(paths map[string]any) {
 	paths["/openapi.yaml"] = map[string]any{"get": publicGet("getOpenAPISpec", "Return this OpenAPI document.", "text/yaml", map[string]any{"type": "string"})}
 	paths["/asyncapi.yaml"] = map[string]any{"get": publicGet("getAsyncAPISpec", "Return the WebSocket frame API document.", "text/yaml", map[string]any{"type": "string"})}
 	paths["/spec/{name}"] = map[string]any{"get": map[string]any{
-		"operationId": "readSpecResource", "summary": "Read a bundled specification resource.",
-		"parameters": []any{map[string]any{"name": "name", "in": "path", "required": true, "schema": map[string]any{"type": "string"}}},
-		"responses":  map[string]any{"200": map[string]any{"description": "Resource contents.", "content": map[string]any{"text/markdown": map[string]any{"schema": map[string]any{"type": "string"}}}}},
+		"operationId": "readSpecResource", "summary": "Read a bundled OpenBindings guidance resource.",
+		"parameters": []any{map[string]any{
+			"name": "name", "in": "path", "required": true,
+			"schema": map[string]any{"type": "string", "enum": []string{"agent-primer.md", "quick-reference.md"}},
+		}},
+		"responses": map[string]any{"200": map[string]any{"description": "Resource contents.", "content": map[string]any{"text/markdown": map[string]any{"schema": map[string]any{"type": "string"}}}}},
 	}}
 	paths["/oauth/authorize"] = map[string]any{
 		"get": map[string]any{

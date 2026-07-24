@@ -4,6 +4,11 @@ The OpenBindings CLI (`ob`) authors, validates, invokes, and serves OpenBindings
 
 **Spec version:** implements OpenBindings 0.2. Run `ob describe` to see the exact range this build supports.
 
+When handing OpenBindings work to an AI agent, `ob --agent-primer` prints the
+version-aligned project primer as Markdown. The same canonical primer is
+published at [openbindings.com/agents](https://openbindings.com/agents) and
+linked first from the site's `llms.txt`.
+
 ## Install
 
 ```bash

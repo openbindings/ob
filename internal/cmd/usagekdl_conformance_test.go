@@ -38,7 +38,8 @@ import (
 //     wireInput — it parses as pure jdx usage-spec)
 //
 // Excluded: cobra builtins (help, completion) and the root meta-flags
-// (--openbindings, --usage-spec), which are CLI plumbing, not operations.
+// (--agent-primer, --openbindings, --usage-spec), which are CLI plumbing, not
+// operations.
 func TestUsageKDLMatchesCommandTree(t *testing.T) {
 	spec, err := usage.ParseKDL([]byte(embeddedUsageSpec))
 	if err != nil {

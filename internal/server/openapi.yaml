@@ -2494,6 +2494,9 @@ paths:
                   name: name
                   required: true
                   schema:
+                    enum:
+                        - agent-primer.md
+                        - quick-reference.md
                     type: string
             responses:
                 "200":
@@ -2502,7 +2505,7 @@ paths:
                             schema:
                                 type: string
                     description: Resource contents.
-            summary: Read a bundled specification resource.
+            summary: Read a bundled OpenBindings guidance resource.
 components:
     schemas:
         AddOperationAliasInput:
