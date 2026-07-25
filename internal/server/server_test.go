@@ -17,6 +17,7 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"strings"
 	"testing"
 	"time"
 )
@@ -799,6 +800,10 @@ func assertPrivateFile(t *testing.T, path string) {
 func TestListenAndServe_SetsTimeouts(t *testing.T) {
 	srv := mustNewServer(t, "tok")
 	srv.config.Port = 0
+	readyCh := make(chan ReadyInfo, 1)
+	srv.config.OnReady = func(ready ReadyInfo) {
+		readyCh <- ready
+	}
 
 	ctx, cancel := context.WithCancel(context.Background())
 
@@ -823,6 +828,17 @@ func TestListenAndServe_SetsTimeouts(t *testing.T) {
 	}
 	if httpSrv.IdleTimeout != 120*time.Second {
 		t.Errorf("IdleTimeout = %v, want 120s", httpSrv.IdleTimeout)
+	}
+	select {
+	case ready := <-readyCh:
+		if !strings.HasPrefix(ready.HTTPURL, "http://127.0.0.1:") {
+			t.Errorf("HTTPURL = %q, want bound loopback URL", ready.HTTPURL)
+		}
+		if ready.HTTPSURL != "" {
+			t.Errorf("HTTPSURL = %q without TLS, want empty", ready.HTTPSURL)
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("OnReady was not called within 2s")
 	}
 
 	cancel()

@@ -434,12 +434,27 @@ func handleUnbindOperation(w http.ResponseWriter, r *http.Request) {
 		Interface *openbindings.Interface `json:"interface"`
 		Operation string                  `json:"operation"`
 		Source    string                  `json:"source"`
+		Binding   string                  `json:"binding"`
 	}
 	if !decodeRequest(w, r, &body) || !requireInterface(w, body.Interface) {
 		return
 	}
+	if body.Binding != "" && (body.Operation != "" || body.Source != "") {
+		writeErrorJSON(
+			w,
+			http.StatusBadRequest,
+			"invalid_request",
+			"provide either binding or operation and source, not both",
+		)
+		return
+	}
 	result, err := editInterfaceFile(body.Interface, func(path string) error {
-		_, err := app.OperationUnbind(path, body.Operation, body.Source)
+		var err error
+		if body.Binding != "" {
+			_, err = app.OperationUnbindBinding(path, body.Binding)
+		} else {
+			_, err = app.OperationUnbind(path, body.Operation, body.Source)
+		}
 		return err
 	})
 	writeEditResult(w, result, err)

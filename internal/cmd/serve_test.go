@@ -616,6 +616,22 @@ func TestServeRoot_NotOBI(t *testing.T) {
 	}
 }
 
+func TestServeRoot_DoesNotReflectMalformedHostIntoCSP(t *testing.T) {
+	req := httptest.NewRequest(http.MethodGet, "http://localhost/", nil)
+	req.Host = "localhost:20402;sandbox"
+	rec := httptest.NewRecorder()
+
+	handleRoot(rec, req)
+
+	csp := rec.Header().Get("Content-Security-Policy")
+	if strings.Contains(csp, ";sandbox") {
+		t.Fatalf("root CSP reflected a Host-header directive: %q", csp)
+	}
+	if !strings.Contains(csp, "connect-src 'self' ws://localhost") {
+		t.Fatalf("root CSP did not retain a safe loopback WebSocket origin: %q", csp)
+	}
+}
+
 // The served /openapi.yaml is how a consumer discovers this server's own
 // transport auth: the SDK's openapi invoker reads these securitySchemes and
 // surfaces a CONTEXT_REQUIRED challenge (bearer or oauth2). The /oauth URLs

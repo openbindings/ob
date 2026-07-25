@@ -13,6 +13,7 @@
       href="/.well-known/openbindings"
       title="OpenBindings interface"
     />
+    <link rel="icon" href="/assets/favicon.svg" type="image/svg+xml" />
     <title>OpenBindings Workbench · ob start</title>
     <script type="module" crossorigin src="/assets/workbench.js"></script>
     <link rel="stylesheet" crossorigin href="/assets/workbench.css">
@@ -20,77 +21,310 @@
   <body>
     <main>
       <header class="app-header">
-        <div>
-          <p class="eyebrow">ob start</p>
-          <h1>OpenBindings Workbench</h1>
+        <div class="brand">
+          <div class="brand-mark" aria-hidden="true"></div>
+          <div>
+            <p class="eyebrow">OpenBindings</p>
+            <h1>Workbench</h1>
+          </div>
         </div>
         <div class="header-actions">
-          <span id="connection-status" role="status">Connecting…</span>
+          <span id="connection-status" class="status-pill" role="status">
+            <span class="status-dot" aria-hidden="true"></span>
+            <span id="connection-status-text">Connecting…</span>
+          </span>
+          <details class="layout-menu">
+            <summary>Panels</summary>
+            <div class="layout-popover">
+              <p class="eyebrow">Workspace</p>
+              <label>
+                <input id="show-explorer" type="checkbox" checked />
+                Interface rail
+              </label>
+              <label>
+                <input id="show-detail" type="checkbox" checked />
+                Operation detail
+              </label>
+              <label>
+                <input id="show-invocation" type="checkbox" checked />
+                Invocation
+              </label>
+              <label>
+                <input id="show-source" type="checkbox" checked />
+                Interface source
+              </label>
+              <button id="reset-layout" type="button">Reset layout</button>
+            </div>
+          </details>
           <button id="theme-toggle" type="button" aria-pressed="false">
             Dark theme
           </button>
         </div>
       </header>
 
-      <section class="bootstrap" aria-labelledby="target-heading">
-        <div>
-          <h2 id="target-heading">Target interface</h2>
-          <p>
-            This workbench fulfills its operation dependencies through this
-            <code>ob start</code> instance.
-          </p>
+      <section class="target-bar" aria-labelledby="target-heading">
+        <div class="target-heading">
+          <p class="eyebrow">Target interface</p>
+          <h2 id="target-heading">Open a capability surface</h2>
         </div>
         <form id="target-form">
-          <label>
-            OBI, API, or server URL
-            <input
-              id="target-url"
-              name="address"
-              type="url"
-              inputmode="url"
-              placeholder="https://api.example.com"
-            />
+          <label class="sr-only" for="target-url">
+            OpenBindings interface, API, or server URL
           </label>
-          <button type="submit">Resolve</button>
-        </form>
-        <form id="token-form">
-          <label>
-            ob start session token
-            <input
-              id="session-token"
-              name="token"
-              type="password"
-              autocomplete="off"
-              placeholder="Paste the token printed by ob start"
-            />
-          </label>
-          <button type="submit">Use token</button>
-        </form>
-        <form id="target-context-form">
-          <label>
-            Target invocation context (JSON)
-            <textarea
-              id="target-context"
-              name="context"
-              rows="2"
-              autocomplete="off"
-              spellcheck="false"
-              placeholder='{"bearerToken":"target-api-token"}'
-            ></textarea>
-          </label>
-          <button type="submit">Use target context</button>
+          <input
+            id="target-url"
+            name="address"
+            type="text"
+            inputmode="url"
+            autocomplete="url"
+            spellcheck="false"
+            placeholder="Paste an OBI, API, or server URL"
+          />
+          <button id="resolve-target" class="primary" type="submit">
+            Connect
+          </button>
+          <button id="use-local-target" type="button">This ob</button>
+          <button
+            id="connection-toggle"
+            type="button"
+            aria-expanded="false"
+            aria-controls="connection-panel"
+          >
+            Connection
+          </button>
         </form>
         <p id="bootstrap-message" role="status"></p>
       </section>
 
+      <section
+        id="connection-panel"
+        class="connection-panel"
+        aria-labelledby="connection-heading"
+        hidden
+      >
+        <header>
+          <div>
+            <p class="eyebrow">Advanced</p>
+            <h2 id="connection-heading">Connection and credentials</h2>
+          </div>
+          <button id="connection-close" type="button" aria-label="Close connection settings">
+            Done
+          </button>
+        </header>
+        <div class="connection-grid">
+          <article>
+            <div class="connection-card-heading">
+              <div>
+                <h3>This workbench</h3>
+                <p id="session-status">
+                  Checking the local <code>ob start</code> session…
+                </p>
+              </div>
+              <span id="session-badge" class="badge">Checking</span>
+            </div>
+            <p>
+              This credential authorizes the browser to use the local
+              workbench backend. It is never forwarded to a selected target.
+            </p>
+            <form id="token-form">
+              <label for="session-token">Replace session token</label>
+              <div class="field-actions">
+                <input
+                  id="session-token"
+                  name="token"
+                  type="password"
+                  autocomplete="off"
+                  placeholder="Paste a session token"
+                />
+                <button type="submit">Use token</button>
+                <button id="clear-session-token" type="button">Clear</button>
+              </div>
+            </form>
+          </article>
+
+          <article>
+            <div class="connection-card-heading">
+              <div>
+                <h3>Selected target</h3>
+                <p id="target-context-status">No target credentials configured.</p>
+              </div>
+              <span class="badge neutral">Optional</span>
+            </div>
+            <p>
+              Supply context only when the selected API requires it. These
+              values are held in this page and sent only with target
+              invocations.
+            </p>
+            <div id="target-requirements" class="target-requirements" hidden>
+              <p id="target-requirements-copy"></p>
+              <form id="requirement-form">
+                <label id="requirement-alternative-label" for="requirement-alternative">
+                  Authentication method
+                </label>
+                <select id="requirement-alternative"></select>
+                <div id="requirement-fields"></div>
+                <button id="apply-requirements" class="primary" type="submit">
+                  Apply credentials
+                </button>
+              </form>
+            </div>
+            <details class="raw-context">
+              <summary>Advanced JSON context</summary>
+              <form id="target-context-form">
+                <label for="target-context">Invocation context as JSON</label>
+                <textarea
+                  id="target-context"
+                  name="context"
+                  rows="4"
+                  autocomplete="off"
+                  spellcheck="false"
+                  placeholder='{"bearerToken":"target-api-token"}'
+                ></textarea>
+                <div class="field-actions">
+                  <button type="submit">Apply context</button>
+                  <button id="clear-target-context" type="button">Clear</button>
+                </div>
+              </form>
+            </details>
+          </article>
+        </div>
+      </section>
+
+      <div class="current-target" aria-live="polite">
+        <span class="target-indicator" aria-hidden="true"></span>
+        <span>Connected to</span>
+        <strong id="current-target-label">This ob start instance</strong>
+        <span id="current-target-meta"></span>
+      </div>
+
+      <aside id="requirement-banner" class="requirement-banner" hidden>
+        <div>
+          <strong id="requirement-banner-title">Target context needed</strong>
+          <span id="requirement-banner-copy"></span>
+        </div>
+        <button id="requirement-banner-action" type="button">
+          Add credentials
+        </button>
+      </aside>
+
       <section class="workbench-grid">
         <ob-obi-explorer></ob-obi-explorer>
+        <div
+          id="rail-gutter"
+          class="gutter gutter-vertical"
+          role="separator"
+          aria-label="Resize interface rail"
+          aria-orientation="vertical"
+          aria-valuemin="240"
+          aria-valuemax="560"
+          tabindex="0"
+        ></div>
         <div class="operation-column">
+          <ob-operation-tabs></ob-operation-tabs>
           <ob-operation-detail></ob-operation-detail>
-          <ob-operation-workbench></ob-operation-workbench>
+          <div
+            id="detail-gutter"
+            class="gutter gutter-horizontal"
+            role="separator"
+            aria-label="Resize operation detail and invocation"
+            aria-orientation="horizontal"
+            aria-valuemin="20"
+            aria-valuemax="75"
+            tabindex="0"
+          ></div>
+          <div id="invocation-sessions" class="invocation-sessions"></div>
+        </div>
+        <div
+          id="source-gutter"
+          class="gutter gutter-vertical"
+          role="separator"
+          aria-label="Resize interface source editor"
+          aria-orientation="vertical"
+          aria-valuemin="300"
+          aria-valuemax="720"
+          tabindex="0"
+        ></div>
+        <div class="source-column">
+          <div class="artifact-toolbar">
+            <div class="artifact-tabs" role="tablist" aria-label="Interface artifact views">
+              <button
+                id="show-document-pane"
+                type="button"
+                role="tab"
+                aria-selected="true"
+                aria-controls="document-pane"
+              >
+                Document
+              </button>
+              <button
+                id="show-sources-pane"
+                type="button"
+                role="tab"
+                aria-selected="false"
+                aria-controls="sources-pane"
+              >
+                Sources
+              </button>
+              <button
+                id="show-graph-pane"
+                type="button"
+                role="tab"
+                aria-selected="false"
+                aria-controls="graph-pane"
+              >
+                Graph
+              </button>
+            </div>
+          </div>
+          <div class="artifact-panels">
+            <section id="document-pane" class="artifact-pane">
+              <div class="draft-actions">
+                <span>Draft changes stay local until applied.</span>
+                <button id="apply-interface-draft" type="button" disabled>
+                  Apply to workspace
+                </button>
+              </div>
+              <ob-obi-editor></ob-obi-editor>
+            </section>
+            <section id="sources-pane" class="artifact-pane" hidden>
+              <ob-interface-sources></ob-interface-sources>
+            </section>
+            <section id="graph-pane" class="artifact-pane graph-pane" hidden>
+              <div class="graph-actions">
+                <span id="graph-status">Select an operation with an embedded operation-graph binding.</span>
+                <div>
+                  <button id="toggle-graph-edit" type="button" disabled>
+                    Edit graph
+                  </button>
+                  <button id="discard-graph-draft" type="button" hidden>
+                    Discard
+                  </button>
+                  <button id="apply-graph-draft" type="button" hidden>
+                    Apply graph
+                  </button>
+                </div>
+              </div>
+              <ob-operation-graph-viewer></ob-operation-graph-viewer>
+              <ob-operation-graph-editor hidden></ob-operation-graph-editor>
+            </section>
+          </div>
         </div>
       </section>
     </main>
+
+    <dialog id="confirmation-dialog" aria-labelledby="confirmation-title">
+      <form method="dialog">
+        <p class="eyebrow">Confirm change</p>
+        <h2 id="confirmation-title">Confirm change</h2>
+        <p id="confirmation-message"></p>
+        <div class="dialog-actions">
+          <button value="cancel" type="submit">Cancel</button>
+          <button id="confirmation-accept" class="primary" value="confirm" type="submit">
+            Confirm
+          </button>
+        </div>
+      </form>
+    </dialog>
 
   </body>
 </html>

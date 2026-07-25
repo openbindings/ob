@@ -1890,19 +1890,21 @@ components:
             type: object
         UnbindOperationInput:
             additionalProperties: false
+            description: Select exactly one binding either by its exact binding key, or by the operation and source pair used by ob's conventional binding-key form. Supplying neither selector, an incomplete pair, or both selectors is refused.
             properties:
+                binding:
+                    description: Exact binding key to remove. Do not also supply operation or source.
+                    type: string
                 interface:
                     $ref: '#/components/schemas/OpenBindingsInterface'
                 operation:
-                    description: The operation's key or any identifier.
+                    description: The operation's key or any identifier. Used with source when binding is absent.
                     type: string
                 source:
-                    description: Source key whose binding to remove.
+                    description: Source key whose binding to remove. Used with operation when binding is absent.
                     type: string
             required:
                 - interface
-                - operation
-                - source
             type: object
         ValidateInterfaceInput:
             additionalProperties: false

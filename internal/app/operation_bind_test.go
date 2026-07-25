@@ -1,6 +1,10 @@
 package app
 
-import "testing"
+import (
+	"testing"
+
+	openbindings "github.com/openbindings/openbindings-go"
+)
 
 func TestOperationDetach_Basic(t *testing.T) {
 	dir := t.TempDir()
@@ -141,6 +145,44 @@ func TestOperationUnbind_NotFound(t *testing.T) {
 	obiPath := writeInterface(t, dir, "t.obi.json", minimalInterface(map[string]any{"greet": map[string]any{}}))
 	if _, err := OperationUnbind(obiPath, "greet", "api"); err == nil {
 		t.Fatal("expected error: no such binding")
+	}
+}
+
+func TestOperationUnbindBinding_ArbitraryKey(t *testing.T) {
+	dir := t.TempDir()
+	obiPath := writeInterface(t, dir, "t.obi.json", minimalInterface(map[string]any{
+		"greet": map[string]any{},
+	}))
+	iface, err := loadInterfaceFile(obiPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	iface.Sources = map[string]openbindings.Source{
+		"api": {BindingSpec: "example.api@1", Content: []byte(`{}`)},
+	}
+	iface.Bindings = map[string]openbindings.BindingEntry{
+		"friendly-name": {Operation: "greet", Source: "api", Ref: "#/greet"},
+	}
+	if err := WriteInterfaceFile(obiPath, iface); err != nil {
+		t.Fatal(err)
+	}
+
+	result, err := OperationUnbindBinding(obiPath, "friendly-name")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if result.BindingKey != "friendly-name" {
+		t.Fatalf("binding key = %q, want friendly-name", result.BindingKey)
+	}
+	updated, err := loadInterfaceFile(obiPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, exists := updated.Bindings["friendly-name"]; exists {
+		t.Error("exact binding key should be removed")
+	}
+	if _, exists := updated.Operations["greet"]; !exists {
+		t.Error("operation should remain after exact unbind")
 	}
 }
 

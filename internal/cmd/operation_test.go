@@ -3,11 +3,64 @@ package cmd
 import (
 	"bytes"
 	"encoding/json"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
 	"github.com/openbindings/ob/internal/app"
 )
+
+func TestOperationUnbind_ExactBindingKey(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "interface.obi.json")
+	document := `{
+	  "openbindings": "0.2.0",
+	  "operations": {"greet": {}},
+	  "sources": {
+	    "api": {"bindingSpec": "example.api@1", "content": {}}
+	  },
+	  "bindings": {
+	    "friendly-name": {
+	      "operation": "greet",
+	      "source": "api",
+	      "ref": "#/greet"
+	    }
+	  }
+	}`
+	if err := os.WriteFile(path, []byte(document), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := runOB(
+		t,
+		"operation",
+		"unbind",
+		path,
+		"--binding",
+		"friendly-name",
+	); err != nil {
+		t.Fatalf("unbind exact binding: %v", err)
+	}
+
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var updated struct {
+		Operations map[string]json.RawMessage `json:"operations"`
+		Bindings   map[string]json.RawMessage `json:"bindings"`
+	}
+	if err := json.Unmarshal(data, &updated); err != nil {
+		t.Fatal(err)
+	}
+	if _, ok := updated.Operations["greet"]; !ok {
+		t.Error("operation should remain after exact unbind")
+	}
+	if _, ok := updated.Bindings["friendly-name"]; ok {
+		t.Error("exact binding key should be removed")
+	}
+}
 
 // The §4.5.6 machine envelope must carry the displaced-elections warning:
 // a machine consumer is never blind to a displaced standing election (the

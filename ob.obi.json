@@ -568,7 +568,7 @@
       }
     },
     "openbindings.ob.unbindOperation": {
-      "description": "Remove a binding from an operation without removing the operation, and return the modified interface.",
+      "description": "Remove one exact binding, or the binding identified by operation and source, without removing the operation; return the modified interface.",
       "input": {
         "$ref": "#/schemas/UnbindOperationInput"
       },
@@ -3155,23 +3155,26 @@
     },
     "UnbindOperationInput": {
       "type": "object",
+      "description": "Select exactly one binding either by its exact binding key, or by the operation and source pair used by ob's conventional binding-key form. Supplying neither selector, an incomplete pair, or both selectors is refused.",
       "properties": {
         "interface": {
           "$ref": "#/schemas/OpenBindingsInterface"
         },
         "operation": {
           "type": "string",
-          "description": "The operation's key or any identifier."
+          "description": "The operation's key or any identifier. Used with source when binding is absent."
         },
         "source": {
           "type": "string",
-          "description": "Source key whose binding to remove."
+          "description": "Source key whose binding to remove. Used with operation when binding is absent."
+        },
+        "binding": {
+          "type": "string",
+          "description": "Exact binding key to remove. Do not also supply operation or source."
         }
       },
       "required": [
-        "interface",
-        "operation",
-        "source"
+        "interface"
       ],
       "additionalProperties": false
     },

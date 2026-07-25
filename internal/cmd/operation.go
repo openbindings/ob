@@ -1039,8 +1039,9 @@ Examples:
 }
 
 func newOperationUnbindCmd() *cobra.Command {
+	var binding string
 	cmd := &cobra.Command{
-		Use:   "unbind <obi-path> <operation> <source>",
+		Use:   "unbind <obi-path> [operation] [source]",
 		Short: "Remove a binding from an operation (keep the operation)",
 		Long: `Remove the binding connecting an operation to a source, leaving the
 operation in place. Useful for re-pointing to a different backend.
@@ -1049,16 +1050,34 @@ Pass '-' as <obi-path> to read the document from stdin and write the
 modified document to stdout (the summary moves to stderr).
 
 Examples:
-  ob op unbind interface.json greet openapi`,
-		Args: cobra.ExactArgs(3),
+  ob op unbind interface.json greet openapi
+  ob op unbind interface.json --binding custom-binding-key`,
+		Args: func(cmd *cobra.Command, args []string) error {
+			if len(args) == 1 && binding != "" {
+				return nil
+			}
+			if len(args) == 3 && binding == "" {
+				return nil
+			}
+			return fmt.Errorf("provide either <operation> <source> or --binding <key>")
+		},
 		RunE: func(cmd *cobra.Command, args []string) error {
-			result, err := app.OperationUnbind(args[0], args[1], args[2])
+			var (
+				result app.OperationUnbindOutput
+				err    error
+			)
+			if binding != "" {
+				result, err = app.OperationUnbindBinding(args[0], binding)
+			} else {
+				result, err = app.OperationUnbind(args[0], args[1], args[2])
+			}
 			if err != nil {
 				return app.ExitResult{Code: 1, Message: fmt.Sprintf("unbind operation: %v", err), ToStderr: true}
 			}
 			return outputEditResult(cmd, args[0], result)
 		},
 	}
+	cmd.Flags().StringVar(&binding, "binding", "", "exact binding key to remove")
 	return cmd
 }
 

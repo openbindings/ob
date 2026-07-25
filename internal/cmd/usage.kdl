@@ -284,9 +284,10 @@ cmd "operation" help="Manage and invoke operations on an OBI" subcommand_require
   cmd "unbind" help="Remove a binding from an operation (keep the operation)" {
     flag "-o --output <path>" help="Write output to file"
     flag "-F --format <format>" help="Output format: json|yaml|text"
+    flag "--binding <key>" help="Exact binding key to remove (operation and source are not required)"
     arg "<obi-path>" help="Path to the OBI file (- reads stdin and writes the modified document to stdout)"
-    arg "<operation>" help="Operation key or identifier"
-    arg "<source>" help="Source key whose binding to remove"
+    arg "[operation]" help="Operation key or identifier"
+    arg "[source]" help="Source key whose binding to remove"
   }
   cmd "invoke" help="Invoke an operation via a binding" {
     flag "--binding <key>" help="Binding key to invoke (operation is derived from the entry)"
@@ -444,6 +445,8 @@ cmd "start" help="Start a local server exposing ob operations (HTTP, WebSocket)"
   flag "--token-file <path>" help="Write session token to file instead of stderr"
   flag "--tls" help="Also serve HTTPS using a local CA (does not modify system trust)"
   flag "--trust-local-ca" help="Install the local HTTPS CA into system trust (implies --tls; may prompt)"
+  flag "--open" help="Open the authenticated workbench in the default browser"
+  flag "-v --verbose" help="Show request and invocation logs"
 }
 
 cmd "demo" help="Start the OpenBlendings demo server (one interface, six protocols)" {

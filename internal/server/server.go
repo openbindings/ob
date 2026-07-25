@@ -60,11 +60,24 @@ type Config struct {
 	Logger         *slog.Logger
 	Token          string
 	TLS            bool
+	// OnReady is called after all requested listeners have been bound and the
+	// serving goroutines have started accepting requests. Interactive
+	// hosts can therefore present the actual URLs when a requested port was
+	// unavailable without making Server responsible for terminal UI.
+	OnReady func(ReadyInfo)
 	// TrustLocalCA explicitly authorizes ob to install its locally-generated
 	// HTTPS CA into the platform trust store. It has no effect unless TLS is
 	// enabled. Keeping this separate from TLS prevents serving HTTPS from
 	// implicitly becoming a privileged system mutation.
 	TrustLocalCA bool
+}
+
+// ReadyInfo identifies the listeners an ob start server successfully bound.
+// HTTPURL is always present. HTTPSURL is present only when TLS setup and
+// listener binding both succeeded.
+type ReadyInfo struct {
+	HTTPURL  string
+	HTTPSURL string
 }
 
 // Server is the ob start HTTP server.
@@ -217,6 +230,13 @@ func (s *Server) ListenAndServe(ctx context.Context) error {
 		go func() {
 			errCh <- httpsSrv.Serve(httpsListener)
 		}()
+	}
+	if s.config.OnReady != nil {
+		ready := ReadyInfo{HTTPURL: fmt.Sprintf("http://127.0.0.1:%d", httpPort)}
+		if httpsSrv != nil {
+			ready.HTTPSURL = fmt.Sprintf("https://127.0.0.1:%d", httpsPort)
+		}
+		s.config.OnReady(ready)
 	}
 
 	select {

@@ -10,7 +10,9 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"os/exec"
 	"os/signal"
+	"runtime"
 	"strconv"
 	"strings"
 	"syscall"
@@ -44,6 +46,8 @@ func newStartCmd() *cobra.Command {
 		tokenFile      string
 		tlsEnabled     bool
 		trustLocalCA   bool
+		openBrowser    bool
+		verbose        bool
 	)
 
 	cmd := &cobra.Command{
@@ -54,13 +58,18 @@ Authorized clients can invoke operations, transform interface documents,
 and manage contexts and delegates without shelling out to the CLI. Foreground
 process commands (start, mcp, and demo) remain local-only.
 
-A session token is generated on startup and printed to the terminal.
+A session token is generated on startup. In an interactive terminal, ob prints
+a clickable workbench URL that transfers the token in a URL fragment; fragments
+are not sent to the server and the workbench removes it immediately after load.
 Clients must present it as "Authorization: Bearer <token>" on every request.
 The server binds to 127.0.0.1 only — never exposed to the network.
 
 The token can be provided via --token flag or OB_START_TOKEN environment variable
-to enable stable tokens for CI/CD and automation. When provided, the token is not
-printed to stderr (the caller already knows it).
+to enable stable tokens for CI/CD and automation. No separate token line is
+printed; an interactive authenticated workbench URL carries the active token
+unless --open or --token-file keeps it out of terminal output. Non-interactive
+output never prints a generated secret; automation should supply --token or
+--token-file.
 
 By default the server listens over HTTP on the loopback interface. Use --tls
 to add an HTTPS listener backed by a locally-generated CA. ob does not modify
@@ -76,16 +85,19 @@ To expose this server's operations to an MCP agent, bridge it with
 			if err := refuseUnhonoredOutputFlags(cmd, "start", "output", "format"); err != nil {
 				return err
 			}
-			logger := slog.New(slog.NewTextHandler(os.Stderr, nil)).With("component", "ob-start")
+			stderr := cmd.ErrOrStderr()
+			logLevel := slog.LevelWarn
+			if verbose {
+				logLevel = slog.LevelInfo
+			}
+			logger := slog.New(slog.NewTextHandler(stderr, &slog.HandlerOptions{
+				Level: logLevel,
+			})).With("component", "ob-start")
 			slog.SetDefault(logger)
 
-			tokenProvided := false
 			resolvedToken := tokenFlag
 			if resolvedToken == "" {
 				resolvedToken = os.Getenv("OB_START_TOKEN")
-			}
-			if resolvedToken != "" {
-				tokenProvided = true
 			}
 
 			if !cmd.Flags().Changed("port") {
@@ -111,6 +123,7 @@ To expose this server's operations to an MCP agent, bridge it with
 				tlsEnabled = true
 			}
 
+			var actualToken string
 			srv, err := server.New(server.Config{
 				Port:           port,
 				AllowedOrigins: allowedOrigins,
@@ -118,22 +131,44 @@ To expose this server's operations to an MCP agent, bridge it with
 				Token:          resolvedToken,
 				TLS:            tlsEnabled,
 				TrustLocalCA:   trustLocalCA,
+				OnReady: func(ready server.ReadyInfo) {
+					workbenchBase := ready.HTTPURL
+					if trustLocalCA && ready.HTTPSURL != "" {
+						workbenchBase = ready.HTTPSURL
+					}
+					authenticatedURL := workbenchURL(workbenchBase, actualToken)
+					interactive := writerIsTerminal(stderr)
+					displayURL := authenticatedURL
+					if !interactive || tokenFile != "" || openBrowser {
+						displayURL = workbenchBase + "/"
+					}
+					var openErr error
+					if openBrowser {
+						openErr = openURL(authenticatedURL)
+					}
+					printStartSummary(stderr, startSummary{
+						WorkbenchURL: displayURL,
+						InterfaceURL: workbenchBase + "/.well-known/openbindings",
+						HTTPURL:      ready.HTTPURL,
+						HTTPSURL:     ready.HTTPSURL,
+						TokenFile:    tokenFile,
+						Interactive:  interactive,
+						Verbose:      verbose,
+						Opened:       openBrowser && openErr == nil,
+					})
+					if openErr != nil {
+						fmt.Fprintf(stderr, "\nCould not open the browser: %v\nOpen %s instead.\n", openErr, authenticatedURL)
+					}
+				},
 			})
 			if err != nil {
 				return app.ExitResult{Code: 1, Message: err.Error(), ToStderr: true}
 			}
 
-			actualToken := srv.Token()
+			actualToken = srv.Token()
 			if tokenFile != "" {
 				if err := os.WriteFile(tokenFile, []byte(actualToken+"\n"), 0600); err != nil {
 					return app.ExitResult{Code: 1, Message: fmt.Sprintf("writing token file: %v", err), ToStderr: true}
-				}
-				fmt.Fprintf(os.Stderr, "session token written to %s\n", tokenFile)
-			} else if !tokenProvided {
-				if term.IsTerminal(int(os.Stderr.Fd())) {
-					fmt.Fprintf(os.Stderr, "session token: %s\n", actualToken)
-				} else {
-					fmt.Fprintf(os.Stderr, "session token: %s...\n", actualToken[:8])
 				}
 			}
 
@@ -169,8 +204,89 @@ To expose this server's operations to an MCP agent, bridge it with
 	cmd.Flags().StringVar(&tokenFile, "token-file", "", "write session token to file instead of stderr")
 	cmd.Flags().BoolVar(&tlsEnabled, "tls", false, "also serve HTTPS using a local CA (does not modify system trust)")
 	cmd.Flags().BoolVar(&trustLocalCA, "trust-local-ca", false, "install the local HTTPS CA into system trust (implies --tls; may prompt)")
+	cmd.Flags().BoolVar(&openBrowser, "open", false, "open the authenticated workbench in the default browser")
+	cmd.Flags().BoolVarP(&verbose, "verbose", "v", false, "show request and invocation logs")
 
 	return cmd
+}
+
+type startSummary struct {
+	WorkbenchURL string
+	InterfaceURL string
+	HTTPURL      string
+	HTTPSURL     string
+	TokenFile    string
+	Interactive  bool
+	Verbose      bool
+	Opened       bool
+}
+
+func printStartSummary(w interface{ Write([]byte) (int, error) }, summary startSummary) {
+	if !summary.Interactive {
+		fmt.Fprintf(w, "ob start listening on %s\n", summary.HTTPURL)
+		if summary.HTTPSURL != "" {
+			fmt.Fprintf(w, "ob start TLS listening on %s\n", summary.HTTPSURL)
+		}
+		fmt.Fprintf(w, "OpenBindings interface: %s\n", summary.InterfaceURL)
+		if summary.TokenFile != "" {
+			fmt.Fprintf(w, "Session token written to %s\n", summary.TokenFile)
+		}
+		return
+	}
+
+	fmt.Fprintln(w)
+	fmt.Fprintln(w, "OpenBindings is ready")
+	fmt.Fprintln(w)
+	if summary.Opened {
+		fmt.Fprintf(w, "  Workbench  %s  (opened in your browser)\n", summary.WorkbenchURL)
+	} else {
+		fmt.Fprintf(w, "  Workbench  %s\n", summary.WorkbenchURL)
+	}
+	fmt.Fprintf(w, "  Interface  %s\n", summary.InterfaceURL)
+	if summary.HTTPSURL != "" {
+		fmt.Fprintf(w, "  HTTPS      %s\n", summary.HTTPSURL)
+	}
+	if summary.TokenFile != "" {
+		fmt.Fprintf(w, "  Token      written to %s\n", summary.TokenFile)
+	}
+	fmt.Fprintln(w)
+	if summary.Verbose {
+		fmt.Fprintln(w, "Request logs are enabled. Press Ctrl+C to stop.")
+	} else {
+		fmt.Fprintln(w, "Press Ctrl+C to stop. Add --verbose to show request logs.")
+	}
+}
+
+func workbenchURL(baseURL, token string) string {
+	values := url.Values{}
+	values.Set("token", token)
+	return strings.TrimRight(baseURL, "/") + "/#" + values.Encode()
+}
+
+func writerIsTerminal(w any) bool {
+	file, ok := w.(*os.File)
+	return ok && term.IsTerminal(int(file.Fd()))
+}
+
+var openURL = openURLWithPlatform
+
+func openURLWithPlatform(target string) error {
+	var command string
+	var args []string
+	switch runtime.GOOS {
+	case "darwin":
+		command, args = "open", []string{target}
+	case "windows":
+		command, args = "rundll32", []string{"url.dll,FileProtocolHandler", target}
+	default:
+		command, args = "xdg-open", []string{target}
+	}
+	process := exec.Command(command, args...)
+	if err := process.Start(); err != nil {
+		return fmt.Errorf("%s: %w", command, err)
+	}
+	_ = process.Process.Release()
+	return nil
 }
 
 func parsePort(s string) (int, error) {
@@ -230,11 +346,33 @@ func handleRoot(w http.ResponseWriter, r *http.Request) {
 		fmt.Sprintf(
 			"default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; connect-src 'self' %s://%s; img-src 'self' data:; object-src 'none'; base-uri 'none'; frame-ancestors 'none'",
 			wsScheme,
-			r.Host,
+			safeWebSocketAuthority(r.Host),
 		),
 	)
 	w.WriteHeader(http.StatusOK)
 	_, _ = w.Write(server.WorkbenchIndex())
+}
+
+func safeWebSocketAuthority(hostport string) string {
+	host, port, err := net.SplitHostPort(hostport)
+	if err == nil && server.IsLoopbackHost(host) {
+		if _, portErr := parsePort(port); portErr == nil {
+			return net.JoinHostPort(host, port)
+		}
+		return formatHostForAuthority(host)
+	}
+	host = strings.TrimSuffix(strings.TrimPrefix(hostport, "["), "]")
+	if server.IsLoopbackHost(host) {
+		return formatHostForAuthority(host)
+	}
+	return "127.0.0.1"
+}
+
+func formatHostForAuthority(host string) string {
+	if strings.Contains(host, ":") {
+		return "[" + strings.TrimSuffix(strings.TrimPrefix(host, "["), "]") + "]"
+	}
+	return host
 }
 
 // --- OBI / Info / Formats / Delegates ---

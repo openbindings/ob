@@ -1,0 +1,4 @@
+# The generated browser bundle contains dependency template literals whose
+# significant whitespace crosses physical line endings. It is intentional
+# JavaScript data, not formatting whitespace.
+internal/server/workbench/dist/assets/*.js whitespace=-trailing-space

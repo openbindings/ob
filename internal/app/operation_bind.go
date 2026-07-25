@@ -323,6 +323,9 @@ func (o OperationUnbindOutput) Render() string {
 // OperationUnbind removes a binding from an operation without removing the
 // operation itself.
 func OperationUnbind(obiPath, op, source string) (OperationUnbindOutput, error) {
+	if op == "" || source == "" {
+		return OperationUnbindOutput{}, fmt.Errorf("operation and source are required when binding key is absent")
+	}
 	iface, err := loadInterfaceFile(obiPath)
 	if err != nil {
 		return OperationUnbindOutput{}, fmt.Errorf("load OBI: %w", err)
@@ -334,6 +337,26 @@ func OperationUnbind(obiPath, op, source string) (OperationUnbindOutput, error) 
 	bindingKey := key + "." + source
 	if _, exists := iface.Bindings[bindingKey]; !exists {
 		return OperationUnbindOutput{}, fmt.Errorf("operation %q has no binding to source %q", key, source)
+	}
+	delete(iface.Bindings, bindingKey)
+	if err := WriteInterfaceFile(obiPath, iface); err != nil {
+		return OperationUnbindOutput{}, fmt.Errorf("write OBI: %w", err)
+	}
+	return OperationUnbindOutput{BindingKey: bindingKey}, nil
+}
+
+// OperationUnbindBinding removes the exact binding key without imposing the
+// conventional <operation>.<source> spelling on an OBI document.
+func OperationUnbindBinding(obiPath, bindingKey string) (OperationUnbindOutput, error) {
+	iface, err := loadInterfaceFile(obiPath)
+	if err != nil {
+		return OperationUnbindOutput{}, fmt.Errorf("load OBI: %w", err)
+	}
+	if bindingKey == "" {
+		return OperationUnbindOutput{}, fmt.Errorf("binding key is required")
+	}
+	if _, exists := iface.Bindings[bindingKey]; !exists {
+		return OperationUnbindOutput{}, fmt.Errorf("binding %q not found", bindingKey)
 	}
 	delete(iface.Bindings, bindingKey)
 	if err := WriteInterfaceFile(obiPath, iface); err != nil {

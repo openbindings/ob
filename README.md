@@ -435,12 +435,21 @@ ob source pull interface.json -o dist/interface.json --pure # publish clean
 ```bash
 ob start                  # HTTP on http://localhost:20290
 ob start --port 18000     # custom HTTP port
+ob start --open           # open the authenticated workbench
+ob start --verbose        # include request and invocation logs
 ob start --tls            # add HTTPS on the next port; no trust changes
 ob start --trust-local-ca # explicitly install that CA into system trust
 ob start --token-file ~/.ob/start.token  # write the session token to a file (for scripts)
 ```
 
-On startup `ob start` prints the address it bound and a random bearer token.
+In an interactive terminal, `ob start` prints a clickable workbench URL that
+contains the active session credential in its fragment. Fragments are not
+sent in HTTP requests; the workbench consumes and removes the fragment
+immediately, then retains the credential in tab-scoped session storage so
+refreshes remain connected. `--open` opens that authenticated URL directly.
+Non-interactive output remains stable and does not print a generated secret;
+automation should supply `--token` or use `--token-file`.
+
 HTTP over loopback is the default. `--tls` adds an HTTPS listener but does not
 modify system trust; `--trust-local-ca` explicitly authorizes system-wide trust
 installation, may prompt for administrator credentials, and implies `--tls`.
@@ -452,11 +461,18 @@ Opening the server root launches the embedded, framework-neutral OpenBindings
 workbench. It discovers this server's OBI, resolves or synthesizes a target
 URL, explores its operations, and invokes them through the canonical Operation
 Invoker capability. Protocol processing remains in `ob`; the browser does not
-ship every binding-family SDK.
+ship every binding-family SDK. Local session authentication and remote target
+credentials are visibly separate. When a target declares recognizable context
+requirements, the workbench preflights them into focused credential fields
+while preserving alternatives and leaving protocol-specific context to the
+advanced JSON control.
 
 **Authentication.** Every endpoint except `/`, `/assets/*`, `/healthz`, `/.well-known/openbindings`, `/openapi.yaml`, `/asyncapi.yaml`, `/oauth/authorize`, and `/oauth/token` requires `Authorization: Bearer <token>`. The token comes from one of:
 - `--token` or the `OB_START_TOKEN` env var (static, caller-supplied)
-- Auto-generated at startup otherwise (printed once, lost on restart). `--token-file` writes that session token to a file instead of stderr, so scripts can read it; it does not supply a token.
+- Auto-generated at startup otherwise (available through the interactive
+  authenticated URL and lost on restart). `--token-file` writes that session
+  token to a file instead of printing it, so scripts can read it; it does not
+  supply a token.
 - An OAuth2 access token obtained via `/oauth/authorize` + `/oauth/token` (PKCE flow)
 
 **CORS.** By default `ob start` accepts only loopback origins.

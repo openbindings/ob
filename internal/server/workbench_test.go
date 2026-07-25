@@ -39,3 +39,20 @@ func TestWorkbenchAssetsServeCompiledJavaScript(t *testing.T) {
 		t.Fatalf("compiled workbench JavaScript is unexpectedly small: %d bytes", len(body))
 	}
 }
+
+func TestWorkbenchAssetsServeProjectFavicon(t *testing.T) {
+	req := httptest.NewRequest("GET", "/assets/favicon.svg", nil)
+	rec := httptest.NewRecorder()
+	WorkbenchAssets().ServeHTTP(rec, req)
+
+	if rec.Code != 200 {
+		t.Fatalf("GET favicon status = %d, want 200", rec.Code)
+	}
+	body, err := io.ReadAll(rec.Result().Body)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(body), "<svg") {
+		t.Fatal("favicon is not an SVG")
+	}
+}

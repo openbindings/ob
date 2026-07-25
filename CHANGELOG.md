@@ -35,6 +35,16 @@ ship as part of 0.2.0.
   URL-fragment token is scrubbed after bootstrap, and generated assets are
   protected by the server's no-store and content-security policies.
 
+- **`ob start` now has a browser-first startup and workbench experience.**
+  Interactive startup prints a clickable authenticated workbench URL, `--open`
+  launches it directly, normal output is quiet, and `--verbose` restores
+  request diagnostics. The URL fragment is consumed before discovery and kept
+  only in tab-scoped session storage. The workbench separates local-session
+  and target credentials, preflights standard context requirements without
+  inventing protocol-specific configuration, supports explicit binding
+  selection, derives conservative input starters from schema evidence, and
+  pairs concise failures with exact technical details.
+
 - **WebSocket frame endpoints now complete a browser-clean close handshake.**
   The application-frame reader stops before the WebSocket library reads the
   peer close response, and final cleanup no longer sends a second close frame.
