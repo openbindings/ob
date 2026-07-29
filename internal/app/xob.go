@@ -379,6 +379,15 @@ func ReadSourceContent(ref string, obiDir string) ([]byte, error) {
 		if err != nil {
 			return nil, fmt.Errorf("parse exec ref: %w", err)
 		}
+		// USAGE-P-02 default-deny: an exec address is dereferenced only when
+		// the operator explicitly authorized it. This read path is reached
+		// from wire-facing routes (status, synthesize/addSource, pull, merge)
+		// that carry caller-supplied source locations, so the gate belongs
+		// here — not only on the SDK's usage invoker — or the served surface
+		// would auto-authorize execution ob's own contract says it never does.
+		if !authorizeExecAddress(args) {
+			return nil, fmt.Errorf("exec address %q is not authorized (USAGE-P-02); authorize it explicitly or register the delegate that owns it", ref)
+		}
 		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 		defer cancel()
 		cmd := exec.CommandContext(ctx, args[0], args[1:]...)
