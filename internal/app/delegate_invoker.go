@@ -240,6 +240,11 @@ func fetchFrameDoc(ctx context.Context, docURL string) ([]byte, error) {
 	if _, err := url.Parse(docURL); err != nil {
 		return nil, fmt.Errorf("invalid AsyncAPI document URL %q: %w", docURL, err)
 	}
+	// SSRF guard: a delegate's document URL may be attacker-influenced; same
+	// outbound policy as the other document fetches.
+	if err := ValidateOutboundURL(docURL); err != nil {
+		return nil, err
+	}
 	fetchCtx, cancel := context.WithTimeout(ctx, frameDocFetchTimeout)
 	defer cancel()
 
@@ -247,7 +252,7 @@ func fetchFrameDoc(ctx context.Context, docURL string) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := GuardedHTTPClient(0).Do(req)
 	if err != nil {
 		return nil, fmt.Errorf("fetching AsyncAPI document %s: %w", docURL, err)
 	}

@@ -952,11 +952,17 @@ func acquireSourceDocument(ctx context.Context, location string) []byte {
 	case execref.IsExec(location) || isHostPort(location):
 		return nil
 	case strings.HasPrefix(location, "http://") || strings.HasPrefix(location, "https://"):
+		// SSRF guard: this source location may come from an untrusted OBI;
+		// same outbound policy as /resolve and fetchSourceContent. On refusal
+		// the preflight answers from what it has (its existing nil behavior).
+		if err := ValidateOutboundURL(location); err != nil {
+			return nil
+		}
 		req, err := http.NewRequestWithContext(ctx, http.MethodGet, location, nil)
 		if err != nil {
 			return nil
 		}
-		resp, err := http.DefaultClient.Do(req)
+		resp, err := GuardedHTTPClient(0).Do(req)
 		if err != nil {
 			return nil
 		}

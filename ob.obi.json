@@ -12,6 +12,9 @@
       },
       "aliases": [
         "openbindings.software-descriptor.describe"
+      ],
+      "tags": [
+        "inspection"
       ]
     },
     "openbindings.ob.listBindingSpecs": {
@@ -27,7 +30,10 @@
         "items": {
           "$ref": "#/schemas/BindingSpecInfo"
         }
-      }
+      },
+      "tags": [
+        "bindings"
+      ]
     },
     "openbindings.ob.resolveInterface": {
       "description": "Resolve an OpenBindings interface from a URL or host. Performs well-known discovery, follows redirects, and synthesizes an OBI from a raw binding spec (e.g. an OpenAPI document) when the target is not already an OBI. Returns the interface and metadata about how it was resolved.",
@@ -37,7 +43,10 @@
       },
       "output": {
         "$ref": "#/schemas/ResolveInterfaceOutput"
-      }
+      },
+      "tags": [
+        "resolution"
+      ]
     },
     "openbindings.ob.synthesizeInterface": {
       "description": "Synthesize an OpenBindings interface, optionally from binding source artifacts. Given one or more sources (e.g. an OpenAPI spec, a CLI usage spec), extracts operations, schemas, sources, and bindings into the new OBI; with no sources, produces an empty interface to author by hand.",
@@ -50,6 +59,9 @@
       },
       "aliases": [
         "openbindings.interface-synthesizer.synthesizeInterface"
+      ],
+      "tags": [
+        "resolution"
       ]
     },
     "openbindings.ob.inspectSource": {
@@ -63,6 +75,9 @@
       },
       "aliases": [
         "openbindings.source-inspector.inspectSource"
+      ],
+      "tags": [
+        "sources"
       ]
     },
     "openbindings.ob.addSource": {
@@ -72,7 +87,10 @@
       },
       "output": {
         "$ref": "#/schemas/OpenBindingsInterface"
-      }
+      },
+      "tags": [
+        "sources"
+      ]
     },
     "openbindings.ob.removeSource": {
       "description": "Remove a source reference and the bindings that reference it from an interface; operations are always preserved. Returns the modified interface.",
@@ -81,7 +99,10 @@
       },
       "output": {
         "$ref": "#/schemas/OpenBindingsInterface"
-      }
+      },
+      "tags": [
+        "sources"
+      ]
     },
     "openbindings.ob.listSources": {
       "description": "List the source references on an interface.",
@@ -94,7 +115,10 @@
         "items": {
           "$ref": "#/schemas/SourceListEntry"
         }
-      }
+      },
+      "tags": [
+        "sources"
+      ]
     },
     "openbindings.ob.listBindings": {
       "description": "List the bindings the interface declares, optionally scoped to a single operation.",
@@ -107,7 +131,10 @@
         "items": {
           "$ref": "#/schemas/BindingListEntry"
         }
-      }
+      },
+      "tags": [
+        "bindings"
+      ]
     },
     "openbindings.ob.addOperation": {
       "description": "Add an operation with the given key to an interface and return the modified interface.",
@@ -116,16 +143,22 @@
       },
       "output": {
         "$ref": "#/schemas/OpenBindingsInterface"
-      }
+      },
+      "tags": [
+        "authoring"
+      ]
     },
     "openbindings.ob.renameOperation": {
-      "description": "Rename an operation and update every reference to it across the interface — binding operation fields and binding keys following the <operation>.<source> convention. Returns the modified interface.",
+      "description": "Rename an operation and update every reference to it across the interface \u2014 binding operation fields and binding keys following the <operation>.<source> convention. Returns the modified interface.",
       "input": {
         "$ref": "#/schemas/RenameOperationInput"
       },
       "output": {
         "$ref": "#/schemas/OpenBindingsInterface"
-      }
+      },
+      "tags": [
+        "authoring"
+      ]
     },
     "openbindings.ob.removeOperation": {
       "description": "Remove one or more operations and their bindings from an interface and return the modified interface.",
@@ -134,7 +167,10 @@
       },
       "output": {
         "$ref": "#/schemas/OpenBindingsInterface"
-      }
+      },
+      "tags": [
+        "authoring"
+      ]
     },
     "openbindings.ob.listOperations": {
       "description": "List the operations on an interface, optionally filtered by tag.",
@@ -147,7 +183,10 @@
         "items": {
           "$ref": "#/schemas/OperationListEntry"
         }
-      }
+      },
+      "tags": [
+        "inspection"
+      ]
     },
     "openbindings.ob.mergeInterfaces": {
       "description": "Selectively apply changes from one interface (or from the target's own sources) into another, and return the merged interface alongside a report of what was applied and skipped.",
@@ -156,7 +195,10 @@
       },
       "output": {
         "$ref": "#/schemas/MergeResult"
-      }
+      },
+      "tags": [
+        "authoring"
+      ]
     },
     "openbindings.ob.validateInterface": {
       "description": "Validate an OpenBindings interface document against the specification. Reports whether it is valid, the declared spec version, and any problems. A document declaring a spec version newer than the tool supports is refused in every mode (OBI-T-04); strict mode additionally rejects unknown (non-x-) fields.",
@@ -166,7 +208,10 @@
       },
       "output": {
         "$ref": "#/schemas/ValidationReport"
-      }
+      },
+      "tags": [
+        "inspection"
+      ]
     },
     "openbindings.ob.compareInterfaces": {
       "description": "Structurally compare two interfaces (or one interface against what its sources produce) and report the differences per operation and metadata field, including cross-source drift.",
@@ -176,7 +221,10 @@
       },
       "output": {
         "$ref": "#/schemas/DiffReport"
-      }
+      },
+      "tags": [
+        "inspection"
+      ]
     },
     "openbindings.ob.reportCompatibility": {
       "description": "Report whether a candidate interface conforms to a target interface, as an ob-comparison-report/v1 document: paired operations with directional schema verdicts and findings, a summary verdict, coverage, and category counts. A report, not a binary verdict. The target rides the report's left side, the candidate its right.",
@@ -186,7 +234,10 @@
       },
       "output": {
         "$ref": "#/schemas/CompatibilityReport"
-      }
+      },
+      "tags": [
+        "inspection"
+      ]
     },
     "openbindings.ob.invokeBinding": {
       "description": "Invoke a resolved binding via a typed bidirectional I/O frame stream (the binding-invoker frame protocol). The caller streams BindingInvokerInputFrame messages (one `open` carrying the BindingInvocationInput, zero or more `input`, one `close`); the service streams BindingInvokerOutputFrame messages back (zero or more `output`/`input_closed`, then exactly one terminal `complete` or `error`). One shape covers unary, server-streaming, client-streaming, and bidirectional bindings; cardinality is observed by how the caller drives the frames. Missing runtime context fails with a terminal CONTEXT_REQUIRED error carrying ContextRequiredDetails, before any output and any side effect.",
@@ -198,6 +249,9 @@
       },
       "aliases": [
         "openbindings.binding-invoker.invokeBinding"
+      ],
+      "tags": [
+        "invocation"
       ]
     },
     "openbindings.ob.prepareBinding": {
@@ -218,6 +272,10 @@
       },
       "aliases": [
         "openbindings.binding-invoker.prepareBinding"
+      ],
+      "tags": [
+        "bindings",
+        "invocation"
       ]
     },
     "openbindings.ob.invokeOperation": {
@@ -230,6 +288,9 @@
       },
       "aliases": [
         "openbindings.operation-invoker.invokeOperation"
+      ],
+      "tags": [
+        "invocation"
       ]
     },
     "openbindings.ob.prepareOperation": {
@@ -250,6 +311,9 @@
       },
       "aliases": [
         "openbindings.operation-invoker.prepareOperation"
+      ],
+      "tags": [
+        "invocation"
       ]
     },
     "openbindings.ob.getContext": {
@@ -270,6 +334,9 @@
       },
       "aliases": [
         "openbindings.document-store.get"
+      ],
+      "tags": [
+        "context"
       ]
     },
     "openbindings.ob.setContext": {
@@ -280,6 +347,9 @@
       },
       "aliases": [
         "openbindings.document-store.set"
+      ],
+      "tags": [
+        "context"
       ]
     },
     "openbindings.ob.removeContext": {
@@ -290,6 +360,9 @@
       },
       "aliases": [
         "openbindings.document-store.delete"
+      ],
+      "tags": [
+        "context"
       ]
     },
     "openbindings.ob.listContexts": {
@@ -300,10 +373,13 @@
         "items": {
           "$ref": "#/schemas/ContextSummary"
         }
-      }
+      },
+      "tags": [
+        "context"
+      ]
     },
     "openbindings.ob.registerDelegate": {
-      "description": "Register a delegate — any referenceable OpenBindings interface (an exec: or http(s) location) that ob may route operations to. ob resolves the location to the delegate's OBI and records a snapshot: the operation identifiers it carries (keys and aliases), a content digest pinning the resolved document, and what ob derives for its own routing — which of ob's format capabilities the delegate satisfies (checked by conformance, not name-matching) and the formats it handles. Registration fails when the location cannot be resolved to an interface. Re-registering a location re-resolves and replaces the snapshot; the registrar's preferences persist unless a new preference is supplied. An OBI carrying none of ob's three format capabilities registers successfully but is inert for ob; registration warns.",
+      "description": "Register a delegate \u2014 any referenceable OpenBindings interface (an exec: or http(s) location) that ob may route operations to. ob resolves the location to the delegate's OBI and records a snapshot: the operation identifiers it carries (keys and aliases), a content digest pinning the resolved document, and what ob derives for its own routing \u2014 which of ob's format capabilities the delegate satisfies (checked by conformance, not name-matching) and the formats it handles. Registration fails when the location cannot be resolved to an interface. Re-registering a location re-resolves and replaces the snapshot; the registrar's preferences persist unless a new preference is supplied. An OBI carrying none of ob's three format capabilities registers successfully but is inert for ob; registration warns.",
       "aliases": [
         "openbindings.delegate-manager.registerDelegate"
       ],
@@ -312,7 +388,10 @@
       },
       "output": {
         "$ref": "#/schemas/DelegateSummary"
-      }
+      },
+      "tags": [
+        "delegates"
+      ]
     },
     "openbindings.ob.unregisterDelegate": {
       "description": "Remove a registered delegate by its location. Idempotent: unregistering a location that is not registered succeeds.",
@@ -325,10 +404,13 @@
       },
       "output": {
         "type": "null"
-      }
+      },
+      "tags": [
+        "delegates"
+      ]
     },
     "openbindings.ob.listDelegates": {
-      "description": "List every registered delegate — the self-delegate included — with the operations each carried when last resolved, the capabilities and formats ob derived for routing, and its selection preferences.",
+      "description": "List every registered delegate \u2014 the self-delegate included \u2014 with the operations each carried when last resolved, the capabilities and formats ob derived for routing, and its selection preferences.",
       "aliases": [
         "openbindings.delegate-manager.listDelegates"
       ],
@@ -348,10 +430,13 @@
           "delegates"
         ],
         "additionalProperties": false
-      }
+      },
+      "tags": [
+        "delegates"
+      ]
     },
     "openbindings.ob.resolveDelegate": {
-      "description": "Resolve an operation to the registered delegates that carry it — those whose interface answers to the operation's key or an alias — ordered by effective preference: the per-operation override when set, else the delegate-level preference, else the baseline; ties favor the self-delegate, then registration order. Returns candidates only; it does not invoke anything, and ob's routing applies its own narrowing (format support) on top.",
+      "description": "Resolve an operation to the registered delegates that carry it \u2014 those whose interface answers to the operation's key or an alias \u2014 ordered by effective preference: the per-operation override when set, else the delegate-level preference, else the baseline; ties favor the self-delegate, then registration order. Returns candidates only; it does not invoke anything, and ob's routing applies its own narrowing (format support) on top.",
       "aliases": [
         "openbindings.delegate-manager.resolveDelegate"
       ],
@@ -361,30 +446,39 @@
       },
       "output": {
         "$ref": "#/schemas/ResolveDelegateResult"
-      }
+      },
+      "tags": [
+        "delegates"
+      ]
     },
     "openbindings.ob.resolveDelegateForBindingSpec": {
-      "description": "Report which delegate ob's routing would select for a format token, and the capabilities it offers for it — ob's format-narrowing diagnostic, layered on top of the operation-keyed resolveDelegate.",
+      "description": "Report which delegate ob's routing would select for a format token, and the capabilities it offers for it \u2014 ob's format-narrowing diagnostic, layered on top of the operation-keyed resolveDelegate.",
       "idempotent": true,
       "input": {
         "$ref": "#/schemas/ResolveDelegateForBindingSpecInput"
       },
       "output": {
         "$ref": "#/schemas/ResolveDelegateForBindingSpecResult"
-      }
+      },
+      "tags": [
+        "delegates"
+      ]
     },
     "openbindings.ob.getDelegateRequirements": {
-      "description": "Return the exact operation subset a delegate must satisfy to provide an ob capability (invoke → listBindingSpecs + invokeBinding, synthesize → listBindingSpecs + synthesizeInterface, inspect → listBindingSpecs + inspectSource). Definitions are derived from immutable published interfaces bundled with this ob release. Correspondence is per operation, so unrelated operations from the same published interface are not imposed on a delegate.",
+      "description": "Return the exact operation subset a delegate must satisfy to provide an ob capability (invoke \u2192 listBindingSpecs + invokeBinding, synthesize \u2192 listBindingSpecs + synthesizeInterface, inspect \u2192 listBindingSpecs + inspectSource). Definitions are derived from immutable published interfaces bundled with this ob release. Correspondence is per operation, so unrelated operations from the same published interface are not imposed on a delegate.",
       "idempotent": true,
       "input": {
         "$ref": "#/schemas/GetDelegateRequirementsInput"
       },
       "output": {
         "$ref": "#/schemas/OpenBindingsInterface"
-      }
+      },
+      "tags": [
+        "delegates"
+      ]
     },
     "openbindings.ob.setDelegatePreference": {
-      "description": "Set or clear a delegate's selection preference (higher = more preferred; 0 is the baseline; negatives rank below it; null clears). Without an operation, sets the delegate-level default; with one, sets that operation's entry in the delegate's preference index. ob additionally accepts a binding-source format scope on an operation entry — how synthesis of one format can prefer one delegate while everything else prefers another. Preference governs the order resolveDelegate returns candidates in; routing applies OBI-T-09's selection semantics to delegates — ob's own narrowing, not a spec rule — with effective preference the per-operation value, else the delegate-level value, else 0. Returns the updated summary.",
+      "description": "Set or clear a delegate's selection preference (higher = more preferred; 0 is the baseline; negatives rank below it; null clears). Without an operation, sets the delegate-level default; with one, sets that operation's entry in the delegate's preference index. ob additionally accepts a binding-source format scope on an operation entry \u2014 how synthesis of one format can prefer one delegate while everything else prefers another. Preference governs the order resolveDelegate returns candidates in; routing applies OBI-T-09's selection semantics to delegates \u2014 ob's own narrowing, not a spec rule \u2014 with effective preference the per-operation value, else the delegate-level value, else 0. Returns the updated summary.",
       "aliases": [
         "openbindings.delegate-manager.setDelegatePreference"
       ],
@@ -394,7 +488,10 @@
       },
       "output": {
         "$ref": "#/schemas/DelegateSummary"
-      }
+      },
+      "tags": [
+        "delegates"
+      ]
     },
     "openbindings.ob.initializeEnvironment": {
       "description": "Initialize an OpenBindings environment (a local .openbindings/ directory, or the global one with global) and return the created environment's status.",
@@ -403,24 +500,34 @@
       },
       "output": {
         "$ref": "#/schemas/EnvironmentStatus"
-      }
+      },
+      "tags": [
+        "environment"
+      ]
     },
     "openbindings.ob.reportEnvironmentStatus": {
       "description": "Report a snapshot of the active OpenBindings environment (the .openbindings/ directory): whether it is local or global, its path, the number of delegates it holds, and the number of contexts in the user's context store (contexts are user-scoped, not per-environment).",
       "idempotent": true,
       "output": {
         "$ref": "#/schemas/EnvironmentStatus"
-      }
+      },
+      "tags": [
+        "inspection",
+        "environment"
+      ]
     },
     "openbindings.ob.reportInterfaceStatus": {
-      "description": "Report an interface's status against its sources: per-source sync state (in-sync, tracked, what a pull would change) and the source-owned vs hand-authored breakdown of its operations and bindings. Read-only — distinct from pullSource (which re-derives and writes) and from compareInterfaces with fromSources (which reports raw differences).",
+      "description": "Report an interface's status against its sources: per-source sync state (in-sync, tracked, what a pull would change) and the source-owned vs hand-authored breakdown of its operations and bindings. Read-only \u2014 distinct from pullSource (which re-derives and writes) and from compareInterfaces with fromSources (which reports raw differences).",
       "idempotent": true,
       "input": {
         "$ref": "#/schemas/InterfaceStatusInput"
       },
       "output": {
         "$ref": "#/schemas/InterfaceStatus"
-      }
+      },
+      "tags": [
+        "inspection"
+      ]
     },
     "openbindings.ob.startServer": {
       "description": "Start a local server that exposes ob's operations over HTTP and the binding-invoker frame protocol, optionally adding HTTPS. A foreground, environment-local operation; not meaningfully invoked over a remote transport.",
@@ -429,7 +536,10 @@
       },
       "output": {
         "$ref": "#/schemas/ServerInfo"
-      }
+      },
+      "tags": [
+        "serving"
+      ]
     },
     "openbindings.ob.startMCPServer": {
       "description": "Serve an interface URL as an MCP server, exposing its operations as MCP tools (named by the sanitized full operation key) over stdio or HTTP. To bridge several services, compose them into one aggregate interface first. A foreground, environment-local operation, the MCP sibling of startServer; not meaningfully invoked over a remote transport.",
@@ -445,7 +555,10 @@
             "type": "null"
           }
         ]
-      }
+      },
+      "tags": [
+        "serving"
+      ]
     },
     "openbindings.ob.codegen": {
       "description": "Generate a typed invoker for an interface in a target language (TypeScript or Go). The output is an invoker over the cardinality-agnostic handle, not a cardinality-specific client.",
@@ -455,7 +568,10 @@
       },
       "output": {
         "$ref": "#/schemas/CodegenOutput"
-      }
+      },
+      "tags": [
+        "codegen"
+      ]
     },
     "openbindings.ob.conform": {
       "description": "Scaffold a target interface so it conforms to a reference interface: add the operations the reference requires and reconcile mismatches, returning the updated target and a report of each change. With dryRun, reports the changes without applying them.",
@@ -464,13 +580,19 @@
       },
       "output": {
         "$ref": "#/schemas/ConformResult"
-      }
+      },
+      "tags": [
+        "authoring"
+      ]
     },
     "openbindings.ob.demo": {
       "description": "Start the bundled demonstration servers (HTTP and gRPC) that showcase one interface satisfied across multiple binding formats. A foreground, environment-local operation, like startServer; not meaningfully invoked over a remote transport.",
       "input": {
         "$ref": "#/schemas/DemoInput"
-      }
+      },
+      "tags": [
+        "serving"
+      ]
     },
     "openbindings.ob.addOperationAlias": {
       "description": "Declare satisfaction alias(es) on an operation (OBI-T-12) and return the modified interface.",
@@ -479,7 +601,10 @@
       },
       "output": {
         "$ref": "#/schemas/OpenBindingsInterface"
-      }
+      },
+      "tags": [
+        "authoring"
+      ]
     },
     "openbindings.ob.removeOperationAlias": {
       "description": "Withdraw satisfaction alias(es) from an operation and return the modified interface.",
@@ -488,10 +613,13 @@
       },
       "output": {
         "$ref": "#/schemas/OpenBindingsInterface"
-      }
+      },
+      "tags": [
+        "authoring"
+      ]
     },
     "openbindings.ob.listOperationAliases": {
-      "description": "List the correspondence map — each operation and the interface operations it corresponds to via aliases.",
+      "description": "List the correspondence map \u2014 each operation and the interface operations it corresponds to via aliases.",
       "idempotent": true,
       "input": {
         "$ref": "#/schemas/ListOperationAliasesInput"
@@ -501,16 +629,22 @@
         "items": {
           "$ref": "#/schemas/OperationAliasEntry"
         }
-      }
+      },
+      "tags": [
+        "inspection"
+      ]
     },
     "openbindings.ob.pullSource": {
-      "description": "Derive operations and bindings from registered sources into the interface — create on first pull, overwrite + prune source-owned objects on later pulls, leave hand-authored objects untouched. Returns the resulting interface document plus the change log of affected operation and binding keys.",
+      "description": "Derive operations and bindings from registered sources into the interface \u2014 create on first pull, overwrite + prune source-owned objects on later pulls, leave hand-authored objects untouched. Returns the resulting interface document plus the change log of affected operation and binding keys.",
       "input": {
         "$ref": "#/schemas/PullSourceInput"
       },
       "output": {
         "$ref": "#/schemas/SourcePullOutput"
-      }
+      },
+      "tags": [
+        "sources"
+      ]
     },
     "openbindings.ob.purifyInterface": {
       "description": "Strip x-ob vendor metadata from an interface, yielding a spec-only document suitable for publishing.",
@@ -520,7 +654,10 @@
       },
       "output": {
         "$ref": "#/schemas/OpenBindingsInterface"
-      }
+      },
+      "tags": [
+        "authoring"
+      ]
     },
     "openbindings.ob.setOperation": {
       "description": "Edit an existing operation's fields (description, idempotency, deprecation, schemas, tags) and return the modified interface. A source-owned operation requires own=true (detaches first).",
@@ -529,7 +666,10 @@
       },
       "output": {
         "$ref": "#/schemas/OpenBindingsInterface"
-      }
+      },
+      "tags": [
+        "authoring"
+      ]
     },
     "openbindings.ob.detachOperation": {
       "description": "Convert a source-owned operation into a hand-authored one (so pull no longer overwrites it) and return the modified interface.",
@@ -538,7 +678,10 @@
       },
       "output": {
         "$ref": "#/schemas/OpenBindingsInterface"
-      }
+      },
+      "tags": [
+        "bindings"
+      ]
     },
     "openbindings.ob.setOperationCodegenName": {
       "description": "Set (or clear) the symbol name 'ob codegen' emits for an operation, stored in the operation's x-ob.codegenName metadata, and return the modified interface. The operation key is unchanged; the override survives source pull and is stripped by purify.",
@@ -547,7 +690,11 @@
       },
       "output": {
         "$ref": "#/schemas/OpenBindingsInterface"
-      }
+      },
+      "tags": [
+        "authoring",
+        "codegen"
+      ]
     },
     "openbindings.ob.setOperationOutputSchema": {
       "description": "Elect an operation's real output schema (the non-detaching remedy for a floor-stamped synthesis), writing it into the operation's output and stamping an x-ob election marker, and return the modified interface. The marker survives source pull (re-applied onto each fresh derivation; a grown, non-floor-stamped source schema wins and displaces it) and is stripped by purify.",
@@ -556,7 +703,10 @@
       },
       "output": {
         "$ref": "#/schemas/OpenBindingsInterface"
-      }
+      },
+      "tags": [
+        "authoring"
+      ]
     },
     "openbindings.ob.bindOperation": {
       "description": "Attach a source ref to an existing operation (preserving the operation's key) and return the modified interface. Warns and optionally scaffolds transform stubs on a shape mismatch.",
@@ -565,7 +715,10 @@
       },
       "output": {
         "$ref": "#/schemas/OpenBindingsInterface"
-      }
+      },
+      "tags": [
+        "bindings"
+      ]
     },
     "openbindings.ob.unbindOperation": {
       "description": "Remove one exact binding, or the binding identified by operation and source, without removing the operation; return the modified interface.",
@@ -574,7 +727,10 @@
       },
       "output": {
         "$ref": "#/schemas/OpenBindingsInterface"
-      }
+      },
+      "tags": [
+        "bindings"
+      ]
     },
     "openbindings.ob.newInterface": {
       "description": "Create an empty interface document (core fields + empty operations map) and return it.",
@@ -584,7 +740,10 @@
       },
       "output": {
         "$ref": "#/schemas/OpenBindingsInterface"
-      }
+      },
+      "tags": [
+        "authoring"
+      ]
     },
     "openbindings.ob.setMetadata": {
       "description": "Edit an interface's top-level metadata (name, version, description) and return the modified interface.",
@@ -593,7 +752,10 @@
       },
       "output": {
         "$ref": "#/schemas/OpenBindingsInterface"
-      }
+      },
+      "tags": [
+        "authoring"
+      ]
     }
   },
   "schemas": {
@@ -976,7 +1138,7 @@
           "items": {
             "type": "string"
           },
-          "description": "Satisfaction aliases — other interfaces' operation keys this operation also answers to (OBI-T-12)."
+          "description": "Satisfaction aliases \u2014 other interfaces' operation keys this operation also answers to (OBI-T-12)."
         }
       },
       "required": [
@@ -1079,7 +1241,7 @@
         },
         "opsOnly": {
           "type": "boolean",
-          "description": "Graft operations only (no bindings or source entries) — the adopt-keys satisfaction strategy."
+          "description": "Graft operations only (no bindings or source entries) \u2014 the adopt-keys satisfaction strategy."
         },
         "noBindings": {
           "type": "boolean",
@@ -1831,7 +1993,7 @@
     },
     "InvocationError": {
       "type": "object",
-      "description": "Structured error carried by an `error` output frame. Indicates terminal failure of the invocation. Codes named by a normative rule of either invoker contract — binding-invoker or its operation-invoker peer — (CONTEXT_REQUIRED, ERR_PROTOCOL, ERR_TRANSPORT_CLOSED, ERR_CANCELLED, ERR_VALIDATION_FAILED, ERR_BINDING_NOT_FOUND, ERR_BINDING_SELECTION_REQUIRED) are normative where named; other codes are recommended conventions (see the binding-invoker README's registry), and consumers SHOULD handle unknown codes gracefully.",
+      "description": "Structured error carried by an `error` output frame. Indicates terminal failure of the invocation. Codes named by a normative rule of either invoker contract \u2014 binding-invoker or its operation-invoker peer \u2014 (CONTEXT_REQUIRED, ERR_PROTOCOL, ERR_TRANSPORT_CLOSED, ERR_CANCELLED, ERR_VALIDATION_FAILED, ERR_BINDING_NOT_FOUND, ERR_BINDING_SELECTION_REQUIRED) are normative where named; other codes are recommended conventions (see the binding-invoker README's registry), and consumers SHOULD handle unknown codes gracefully.",
       "properties": {
         "code": {
           "type": "string",
@@ -1860,7 +2022,7 @@
         },
         "effects": {
           "type": "string",
-          "description": "Side-effect possibility gating safe retry, present where retry is in question (categories `transient` and `service`). `none`: the call's side effects provably did not take hold — safe to retry. `possible`: the call may have taken effect — not safe to auto-retry a non-idempotent operation. `definite`: the call took effect. Absent means treat as `possible`.",
+          "description": "Side-effect possibility gating safe retry, present where retry is in question (categories `transient` and `service`). `none`: the call's side effects provably did not take hold \u2014 safe to retry. `possible`: the call may have taken effect \u2014 not safe to auto-retry a non-idempotent operation. `definite`: the call took effect. Absent means treat as `possible`.",
           "enum": [
             "none",
             "possible",
@@ -1919,15 +2081,15 @@
         },
         "name": {
           "type": "string",
-          "description": "The scheme name as the source artifact declares it (e.g. an OpenAPI securitySchemes key). Distinguishes two requirements of the same type within one alternative — two ANDed API keys are otherwise indistinguishable — and keys scheme-scoped credential lookup (see BindingContext's 'apiKeys')."
+          "description": "The scheme name as the source artifact declares it (e.g. an OpenAPI securitySchemes key). Distinguishes two requirements of the same type within one alternative \u2014 two ANDed API keys are otherwise indistinguishable \u2014 and keys scheme-scoped credential lookup (see BindingContext's 'apiKeys')."
         },
         "point": {
           "type": "string",
-          "description": "config.value only: the binding-specification configuration point the value belongs to ('server', 'address', a family's decode point, …). The resolved value is carried in the 'configuration' context field under this point; the value's shape there is the invoker's own (configuration carriage is implementation surface, not contract)."
+          "description": "config.value only: the binding-specification configuration point the value belongs to ('server', 'address', a family's decode point, \u2026). The resolved value is carried in the 'configuration' context field under this point; the value's shape there is the invoker's own (configuration carriage is implementation surface, not contract)."
         },
         "key": {
           "type": "string",
-          "description": "config.value only: the specific value needed within 'point' — a server-variable name, or 'address' for a whole channel address."
+          "description": "config.value only: the specific value needed within 'point' \u2014 a server-variable name, or 'address' for a whole channel address."
         },
         "choices": {
           "type": "array",
@@ -2053,11 +2215,11 @@
           "items": {
             "type": "string"
           },
-          "description": "Every operation identifier the delegate answers to — the keys and aliases its interface declared when last resolved. A snapshot: re-registering the location refreshes it."
+          "description": "Every operation identifier the delegate answers to \u2014 the keys and aliases its interface declared when last resolved. A snapshot: re-registering the location refreshes it."
         },
         "contentHash": {
           "type": "string",
-          "description": "Digest of the delegate's interface document as last resolved (sha256: over its RFC 8785 canonical form). Pins the snapshot; opaque — compare for equality, don't recompute."
+          "description": "Digest of the delegate's interface document as last resolved (sha256: over its RFC 8785 canonical form). Pins the snapshot; opaque \u2014 compare for equality, don't recompute."
         },
         "capabilities": {
           "type": "array",
@@ -2075,7 +2237,7 @@
         },
         "preference": {
           "type": "number",
-          "description": "Delegate-level selection preference — the default for every operation it carries. Higher is more preferred; absent is the baseline."
+          "description": "Delegate-level selection preference \u2014 the default for every operation it carries. Higher is more preferred; absent is the baseline."
         },
         "operationPreferences": {
           "type": "object",
@@ -2089,11 +2251,11 @@
           "items": {
             "$ref": "#/schemas/BindingSpecPreference"
           },
-          "description": "Preference overrides scoped to one (operation, format) pair — ob's extra granularity beyond the delegate-manager contract's per-operation index."
+          "description": "Preference overrides scoped to one (operation, format) pair \u2014 ob's extra granularity beyond the delegate-manager contract's per-operation index."
         },
         "builtin": {
           "type": "boolean",
-          "description": "True for ob's own native handling — the self-delegate."
+          "description": "True for ob's own native handling \u2014 the self-delegate."
         }
       },
       "required": [
@@ -2601,7 +2763,7 @@
     },
     "BindingSpecPreference": {
       "type": "object",
-      "description": "A preference override scoped to one (operation, format) pair — ob's extra granularity beyond the delegate-manager contract's per-operation index. It replaces both the delegate-level and the per-operation preference when resolving that operation for that binding-source format.",
+      "description": "A preference override scoped to one (operation, format) pair \u2014 ob's extra granularity beyond the delegate-manager contract's per-operation index. It replaces both the delegate-level and the per-operation preference when resolving that operation for that binding-source format.",
       "properties": {
         "operation": {
           "type": "string",
@@ -2655,7 +2817,7 @@
         },
         "bindingSpec": {
           "type": "string",
-          "description": "Optional binding-source format scope for an operation entry (requires operation) — ob's extra granularity beyond the delegate-manager contract."
+          "description": "Optional binding-source format scope for an operation entry (requires operation) \u2014 ob's extra granularity beyond the delegate-manager contract."
         }
       },
       "required": [
@@ -2685,7 +2847,7 @@
     },
     "SourcePullOutput": {
       "type": "object",
-      "description": "The result of a `source pull`: the resulting interface document plus the change log — the source-owned operations and bindings added, updated, or pruned, the sources pulled and skipped, and any warnings.",
+      "description": "The result of a `source pull`: the resulting interface document plus the change log \u2014 the source-owned operations and bindings added, updated, or pruned, the sources pulled and skipped, and any warnings.",
       "properties": {
         "interface": {
           "$ref": "#/schemas/OpenBindingsInterface"

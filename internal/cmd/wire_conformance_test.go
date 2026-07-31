@@ -12,8 +12,82 @@ import (
 	"time"
 
 	"github.com/openbindings/ob/internal/app"
+	"github.com/openbindings/ob/internal/frames"
+	"github.com/openbindings/ob/internal/server"
 	openbindings "github.com/openbindings/openbindings-go"
 )
+
+// TestWireConformance_ErrorFramesMatchServedInvokerSchema asserts that every
+// terminal error frame ob start emits satisfies the served invoker contract:
+// the frame validates against the served OBI's OperationInvokerOutputFrame and
+// BindingInvokerOutputFrame schemas, whose InvocationError requires
+// ["code","message","category"] with category drawn from a closed enum. The
+// browser SDK rejects a frame missing category before clients can branch on it
+// (e.g. the CONTEXT_REQUIRED resolve-and-retry hinge), so this is the wire
+// guarantee the workbench depends on end to end.
+func TestWireConformance_ErrorFramesMatchServedInvokerSchema(t *testing.T) {
+	var served openbindings.Interface
+	if err := json.Unmarshal(server.ServeOBI(), &served); err != nil {
+		t.Fatal(err)
+	}
+
+	// The closed category enum the served contract publishes.
+	catEnum := map[string]bool{}
+	invErrSchema, _ := served.Schemas["InvocationError"].(map[string]any)
+	props, _ := invErrSchema["properties"].(map[string]any)
+	catSchema, _ := props["category"].(map[string]any)
+	enum, _ := catSchema["enum"].([]any)
+	for _, v := range enum {
+		if s, ok := v.(string); ok {
+			catEnum[s] = true
+		}
+	}
+	if len(catEnum) == 0 {
+		t.Fatal("served InvocationError schema publishes no category enum")
+	}
+
+	cases := []struct {
+		name string
+		err  *openbindings.InvocationError
+	}{
+		// The bare literals the serve routes write on protocol violations.
+		{"bare runtime literal", &openbindings.InvocationError{Code: openbindings.ErrCodeRuntime, Message: "boom"}},
+		{"bare protocol literal", &openbindings.InvocationError{Code: openbindings.ErrCodeProtocol, Message: "unexpected frame"}},
+		// The classified SDK path the workbench branches on.
+		{"context required", openbindings.NewContextRequiredError("need auth", &openbindings.ContextRequiredDetails{Target: "api.example.com"})},
+		{"nil terminal error", nil},
+	}
+	for _, schemaName := range []string{"OperationInvokerOutputFrame", "BindingInvokerOutputFrame"} {
+		frameSchema, ok := served.Schemas[schemaName]
+		if !ok {
+			t.Fatalf("served OBI has no %s schema", schemaName)
+		}
+		for _, tc := range cases {
+			t.Run(schemaName+"/"+tc.name, func(t *testing.T) {
+				raw, err := json.Marshal(frames.Error(tc.err))
+				if err != nil {
+					t.Fatal(err)
+				}
+				var frame any
+				if err := json.Unmarshal(raw, &frame); err != nil {
+					t.Fatal(err)
+				}
+				if err := openbindings.ValidateAgainstSchema(frame, frameSchema, served.Schemas); err != nil {
+					t.Fatalf("emitted error frame does not satisfy the served %s schema: %v\nframe: %s", schemaName, err, raw)
+				}
+				obj, _ := frame.(map[string]any)
+				wireErr, _ := obj["error"].(map[string]any)
+				category, _ := wireErr["category"].(string)
+				if category == "" {
+					t.Fatalf("emitted error frame carries no category: %s", raw)
+				}
+				if !catEnum[category] {
+					t.Fatalf("category %q is not in the served enum: %s", category, raw)
+				}
+			})
+		}
+	}
+}
 
 // TestWireConformance_ExecLane drives operations through the bound CLI OBI's
 // exec lane exactly as a delegate registrar would: resolve the bound OBI,

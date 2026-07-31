@@ -266,7 +266,10 @@
       },
       "output": {
         "$ref": "#/schemas/OpenBindingsInterface"
-      }
+      },
+      "tags": [
+        "authoring"
+      ]
     },
     "openbindings.ob.addOperationAlias": {
       "description": "Declare satisfaction alias(es) on an operation (OBI-T-12) and return the modified interface.",
@@ -275,7 +278,10 @@
       },
       "output": {
         "$ref": "#/schemas/OpenBindingsInterface"
-      }
+      },
+      "tags": [
+        "authoring"
+      ]
     },
     "openbindings.ob.addSource": {
       "description": "Register a binding source reference on an interface and return the modified interface.",
@@ -284,7 +290,10 @@
       },
       "output": {
         "$ref": "#/schemas/OpenBindingsInterface"
-      }
+      },
+      "tags": [
+        "sources"
+      ]
     },
     "openbindings.ob.bindOperation": {
       "description": "Attach a source ref to an existing operation (preserving the operation's key) and return the modified interface. Warns and optionally scaffolds transform stubs on a shape mismatch.",
@@ -293,7 +302,10 @@
       },
       "output": {
         "$ref": "#/schemas/OpenBindingsInterface"
-      }
+      },
+      "tags": [
+        "bindings"
+      ]
     },
     "openbindings.ob.codegen": {
       "description": "Generate a typed invoker for an interface in a target language (TypeScript or Go). The output is an invoker over the cardinality-agnostic handle, not a cardinality-specific client.",
@@ -303,7 +315,10 @@
       },
       "output": {
         "$ref": "#/schemas/CodegenOutput"
-      }
+      },
+      "tags": [
+        "codegen"
+      ]
     },
     "openbindings.ob.compareInterfaces": {
       "description": "Structurally compare two interfaces (or one interface against what its sources produce) and report the differences per operation and metadata field, including cross-source drift.",
@@ -313,7 +328,10 @@
       },
       "output": {
         "$ref": "#/schemas/DiffReport"
-      }
+      },
+      "tags": [
+        "inspection"
+      ]
     },
     "openbindings.ob.conform": {
       "description": "Scaffold a target interface so it conforms to a reference interface: add the operations the reference requires and reconcile mismatches, returning the updated target and a report of each change. With dryRun, reports the changes without applying them.",
@@ -322,7 +340,10 @@
       },
       "output": {
         "$ref": "#/schemas/ConformResult"
-      }
+      },
+      "tags": [
+        "authoring"
+      ]
     },
     "openbindings.ob.describe": {
       "aliases": [
@@ -332,7 +353,10 @@
       "idempotent": true,
       "output": {
         "$ref": "#/schemas/SoftwareIdentity"
-      }
+      },
+      "tags": [
+        "inspection"
+      ]
     },
     "openbindings.ob.detachOperation": {
       "description": "Convert a source-owned operation into a hand-authored one (so pull no longer overwrites it) and return the modified interface.",
@@ -341,7 +365,10 @@
       },
       "output": {
         "$ref": "#/schemas/OpenBindingsInterface"
-      }
+      },
+      "tags": [
+        "bindings"
+      ]
     },
     "openbindings.ob.getContext": {
       "aliases": [
@@ -361,7 +388,10 @@
             "type": "null"
           }
         ]
-      }
+      },
+      "tags": [
+        "context"
+      ]
     },
     "openbindings.ob.getDelegateRequirements": {
       "description": "Return the exact operation subset a delegate must satisfy to provide an ob capability (invoke → listBindingSpecs + invokeBinding, synthesize → listBindingSpecs + synthesizeInterface, inspect → listBindingSpecs + inspectSource). Definitions are derived from immutable published interfaces bundled with this ob release. Correspondence is per operation, so unrelated operations from the same published interface are not imposed on a delegate.",
@@ -371,7 +401,10 @@
       },
       "output": {
         "$ref": "#/schemas/OpenBindingsInterface"
-      }
+      },
+      "tags": [
+        "delegates"
+      ]
     },
     "openbindings.ob.initializeEnvironment": {
       "description": "Initialize an OpenBindings environment (a local .openbindings/ directory, or the global one with global) and return the created environment's status.",
@@ -380,7 +413,10 @@
       },
       "output": {
         "$ref": "#/schemas/EnvironmentStatus"
-      }
+      },
+      "tags": [
+        "environment"
+      ]
     },
     "openbindings.ob.inspectSource": {
       "aliases": [
@@ -393,7 +429,10 @@
       },
       "output": {
         "$ref": "#/schemas/SourceInspection"
-      }
+      },
+      "tags": [
+        "sources"
+      ]
     },
     "openbindings.ob.invokeBinding": {
       "aliases": [
@@ -405,7 +444,10 @@
       },
       "output": {
         "$ref": "#/schemas/BindingInvokerOutputFrame"
-      }
+      },
+      "tags": [
+        "invocation"
+      ]
     },
     "openbindings.ob.invokeOperation": {
       "aliases": [
@@ -417,7 +459,10 @@
       },
       "output": {
         "$ref": "#/schemas/OperationInvokerOutputFrame"
-      }
+      },
+      "tags": [
+        "invocation"
+      ]
     },
     "openbindings.ob.listBindingSpecs": {
       "aliases": [
@@ -432,7 +477,10 @@
           "$ref": "#/schemas/BindingSpecInfo"
         },
         "type": "array"
-      }
+      },
+      "tags": [
+        "bindings"
+      ]
     },
     "openbindings.ob.listBindings": {
       "description": "List the bindings the interface declares, optionally scoped to a single operation.",
@@ -445,7 +493,10 @@
           "$ref": "#/schemas/BindingListEntry"
         },
         "type": "array"
-      }
+      },
+      "tags": [
+        "bindings"
+      ]
     },
     "openbindings.ob.listContexts": {
       "description": "List metadata-only summaries for stored contexts; never returns stored context values. Completes the context surface with listing and inspection: the generic document-store substrate these contexts are stored under (satisfied by getContext/setContext/removeContext) standardizes only opaque get/set/delete, so this management view is ob's own.",
@@ -455,7 +506,10 @@
           "$ref": "#/schemas/ContextSummary"
         },
         "type": "array"
-      }
+      },
+      "tags": [
+        "context"
+      ]
     },
     "openbindings.ob.listDelegates": {
       "aliases": [
@@ -478,7 +532,10 @@
           "delegates"
         ],
         "type": "object"
-      }
+      },
+      "tags": [
+        "delegates"
+      ]
     },
     "openbindings.ob.listOperationAliases": {
       "description": "List the correspondence map — each operation and the interface operations it corresponds to via aliases.",
@@ -491,7 +548,10 @@
           "$ref": "#/schemas/OperationAliasEntry"
         },
         "type": "array"
-      }
+      },
+      "tags": [
+        "inspection"
+      ]
     },
     "openbindings.ob.listOperations": {
       "description": "List the operations on an interface, optionally filtered by tag.",
@@ -504,7 +564,10 @@
           "$ref": "#/schemas/OperationListEntry"
         },
         "type": "array"
-      }
+      },
+      "tags": [
+        "inspection"
+      ]
     },
     "openbindings.ob.listSources": {
       "description": "List the source references on an interface.",
@@ -517,7 +580,10 @@
           "$ref": "#/schemas/SourceListEntry"
         },
         "type": "array"
-      }
+      },
+      "tags": [
+        "sources"
+      ]
     },
     "openbindings.ob.mergeInterfaces": {
       "description": "Selectively apply changes from one interface (or from the target's own sources) into another, and return the merged interface alongside a report of what was applied and skipped.",
@@ -526,7 +592,10 @@
       },
       "output": {
         "$ref": "#/schemas/MergeResult"
-      }
+      },
+      "tags": [
+        "authoring"
+      ]
     },
     "openbindings.ob.newInterface": {
       "description": "Create an empty interface document (core fields + empty operations map) and return it.",
@@ -536,7 +605,10 @@
       },
       "output": {
         "$ref": "#/schemas/OpenBindingsInterface"
-      }
+      },
+      "tags": [
+        "authoring"
+      ]
     },
     "openbindings.ob.prepareBinding": {
       "aliases": [
@@ -556,7 +628,11 @@
             "type": "null"
           }
         ]
-      }
+      },
+      "tags": [
+        "bindings",
+        "invocation"
+      ]
     },
     "openbindings.ob.prepareOperation": {
       "aliases": [
@@ -576,7 +652,10 @@
             "type": "null"
           }
         ]
-      }
+      },
+      "tags": [
+        "invocation"
+      ]
     },
     "openbindings.ob.pullSource": {
       "description": "Derive operations and bindings from registered sources into the interface — create on first pull, overwrite + prune source-owned objects on later pulls, leave hand-authored objects untouched. Returns the resulting interface document plus the change log of affected operation and binding keys.",
@@ -585,7 +664,10 @@
       },
       "output": {
         "$ref": "#/schemas/SourcePullOutput"
-      }
+      },
+      "tags": [
+        "sources"
+      ]
     },
     "openbindings.ob.purifyInterface": {
       "description": "Strip x-ob vendor metadata from an interface, yielding a spec-only document suitable for publishing.",
@@ -595,7 +677,10 @@
       },
       "output": {
         "$ref": "#/schemas/OpenBindingsInterface"
-      }
+      },
+      "tags": [
+        "authoring"
+      ]
     },
     "openbindings.ob.registerDelegate": {
       "aliases": [
@@ -607,7 +692,10 @@
       },
       "output": {
         "$ref": "#/schemas/DelegateSummary"
-      }
+      },
+      "tags": [
+        "delegates"
+      ]
     },
     "openbindings.ob.removeContext": {
       "aliases": [
@@ -617,7 +705,10 @@
       "idempotent": true,
       "input": {
         "$ref": "#/schemas/ContextKeyInput"
-      }
+      },
+      "tags": [
+        "context"
+      ]
     },
     "openbindings.ob.removeOperation": {
       "description": "Remove one or more operations and their bindings from an interface and return the modified interface.",
@@ -626,7 +717,10 @@
       },
       "output": {
         "$ref": "#/schemas/OpenBindingsInterface"
-      }
+      },
+      "tags": [
+        "authoring"
+      ]
     },
     "openbindings.ob.removeOperationAlias": {
       "description": "Withdraw satisfaction alias(es) from an operation and return the modified interface.",
@@ -635,7 +729,10 @@
       },
       "output": {
         "$ref": "#/schemas/OpenBindingsInterface"
-      }
+      },
+      "tags": [
+        "authoring"
+      ]
     },
     "openbindings.ob.removeSource": {
       "description": "Remove a source reference and the bindings that reference it from an interface; operations are always preserved. Returns the modified interface.",
@@ -644,7 +741,10 @@
       },
       "output": {
         "$ref": "#/schemas/OpenBindingsInterface"
-      }
+      },
+      "tags": [
+        "sources"
+      ]
     },
     "openbindings.ob.renameOperation": {
       "description": "Rename an operation and update every reference to it across the interface — binding operation fields and binding keys following the <operation>.<source> convention. Returns the modified interface.",
@@ -653,7 +753,10 @@
       },
       "output": {
         "$ref": "#/schemas/OpenBindingsInterface"
-      }
+      },
+      "tags": [
+        "authoring"
+      ]
     },
     "openbindings.ob.reportCompatibility": {
       "description": "Report whether a candidate interface conforms to a target interface, as an ob-comparison-report/v1 document: paired operations with directional schema verdicts and findings, a summary verdict, coverage, and category counts. A report, not a binary verdict. The target rides the report's left side, the candidate its right.",
@@ -663,14 +766,21 @@
       },
       "output": {
         "$ref": "#/schemas/CompatibilityReport"
-      }
+      },
+      "tags": [
+        "inspection"
+      ]
     },
     "openbindings.ob.reportEnvironmentStatus": {
       "description": "Report a snapshot of the active OpenBindings environment (the .openbindings/ directory): whether it is local or global, its path, the number of delegates it holds, and the number of contexts in the user's context store (contexts are user-scoped, not per-environment).",
       "idempotent": true,
       "output": {
         "$ref": "#/schemas/EnvironmentStatus"
-      }
+      },
+      "tags": [
+        "inspection",
+        "environment"
+      ]
     },
     "openbindings.ob.reportInterfaceStatus": {
       "description": "Report an interface's status against its sources: per-source sync state (in-sync, tracked, what a pull would change) and the source-owned vs hand-authored breakdown of its operations and bindings. Read-only — distinct from pullSource (which re-derives and writes) and from compareInterfaces with fromSources (which reports raw differences).",
@@ -680,7 +790,10 @@
       },
       "output": {
         "$ref": "#/schemas/InterfaceStatus"
-      }
+      },
+      "tags": [
+        "inspection"
+      ]
     },
     "openbindings.ob.resolveDelegate": {
       "aliases": [
@@ -693,7 +806,10 @@
       },
       "output": {
         "$ref": "#/schemas/ResolveDelegateResult"
-      }
+      },
+      "tags": [
+        "delegates"
+      ]
     },
     "openbindings.ob.resolveDelegateForBindingSpec": {
       "description": "Report which delegate ob's routing would select for a format token, and the capabilities it offers for it — ob's format-narrowing diagnostic, layered on top of the operation-keyed resolveDelegate.",
@@ -703,7 +819,10 @@
       },
       "output": {
         "$ref": "#/schemas/ResolveDelegateForBindingSpecResult"
-      }
+      },
+      "tags": [
+        "delegates"
+      ]
     },
     "openbindings.ob.resolveInterface": {
       "description": "Resolve an OpenBindings interface from a URL or host. Performs well-known discovery, follows redirects, and synthesizes an OBI from a raw binding spec (e.g. an OpenAPI document) when the target is not already an OBI. Returns the interface and metadata about how it was resolved.",
@@ -713,7 +832,10 @@
       },
       "output": {
         "$ref": "#/schemas/ResolveInterfaceOutput"
-      }
+      },
+      "tags": [
+        "resolution"
+      ]
     },
     "openbindings.ob.setContext": {
       "aliases": [
@@ -723,7 +845,10 @@
       "idempotent": true,
       "input": {
         "$ref": "#/schemas/SetContextInput"
-      }
+      },
+      "tags": [
+        "context"
+      ]
     },
     "openbindings.ob.setDelegatePreference": {
       "aliases": [
@@ -736,7 +861,10 @@
       },
       "output": {
         "$ref": "#/schemas/DelegateSummary"
-      }
+      },
+      "tags": [
+        "delegates"
+      ]
     },
     "openbindings.ob.setMetadata": {
       "description": "Edit an interface's top-level metadata (name, version, description) and return the modified interface.",
@@ -745,7 +873,10 @@
       },
       "output": {
         "$ref": "#/schemas/OpenBindingsInterface"
-      }
+      },
+      "tags": [
+        "authoring"
+      ]
     },
     "openbindings.ob.setOperation": {
       "description": "Edit an existing operation's fields (description, idempotency, deprecation, schemas, tags) and return the modified interface. A source-owned operation requires own=true (detaches first).",
@@ -754,7 +885,10 @@
       },
       "output": {
         "$ref": "#/schemas/OpenBindingsInterface"
-      }
+      },
+      "tags": [
+        "authoring"
+      ]
     },
     "openbindings.ob.setOperationCodegenName": {
       "description": "Set (or clear) the symbol name 'ob codegen' emits for an operation, stored in the operation's x-ob.codegenName metadata, and return the modified interface. The operation key is unchanged; the override survives source pull and is stripped by purify.",
@@ -763,7 +897,11 @@
       },
       "output": {
         "$ref": "#/schemas/OpenBindingsInterface"
-      }
+      },
+      "tags": [
+        "authoring",
+        "codegen"
+      ]
     },
     "openbindings.ob.setOperationOutputSchema": {
       "description": "Elect an operation's real output schema (the non-detaching remedy for a floor-stamped synthesis), writing it into the operation's output and stamping an x-ob election marker, and return the modified interface. The marker survives source pull (re-applied onto each fresh derivation; a grown, non-floor-stamped source schema wins and displaces it) and is stripped by purify.",
@@ -772,7 +910,10 @@
       },
       "output": {
         "$ref": "#/schemas/OpenBindingsInterface"
-      }
+      },
+      "tags": [
+        "authoring"
+      ]
     },
     "openbindings.ob.synthesizeInterface": {
       "aliases": [
@@ -785,7 +926,10 @@
       },
       "output": {
         "$ref": "#/schemas/OpenBindingsInterface"
-      }
+      },
+      "tags": [
+        "resolution"
+      ]
     },
     "openbindings.ob.unbindOperation": {
       "description": "Remove one exact binding, or the binding identified by operation and source, without removing the operation; return the modified interface.",
@@ -794,7 +938,10 @@
       },
       "output": {
         "$ref": "#/schemas/OpenBindingsInterface"
-      }
+      },
+      "tags": [
+        "bindings"
+      ]
     },
     "openbindings.ob.unregisterDelegate": {
       "aliases": [
@@ -807,7 +954,10 @@
       },
       "output": {
         "type": "null"
-      }
+      },
+      "tags": [
+        "delegates"
+      ]
     },
     "openbindings.ob.validateInterface": {
       "description": "Validate an OpenBindings interface document against the specification. Reports whether it is valid, the declared spec version, and any problems. A document declaring a spec version newer than the tool supports is refused in every mode (OBI-T-04); strict mode additionally rejects unknown (non-x-) fields.",
@@ -817,7 +967,10 @@
       },
       "output": {
         "$ref": "#/schemas/ValidationReport"
-      }
+      },
+      "tags": [
+        "inspection"
+      ]
     }
   },
   "schemas": {

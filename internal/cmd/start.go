@@ -41,6 +41,7 @@ const DefaultServePort = 0x4F42
 func newStartCmd() *cobra.Command {
 	var (
 		port           int
+		strictPort     bool
 		allowedOrigins []string
 		tokenFlag      string
 		tokenFile      string
@@ -100,14 +101,19 @@ To expose this server's operations to an MCP agent, bridge it with
 				resolvedToken = os.Getenv("OB_START_TOKEN")
 			}
 
-			if !cmd.Flags().Changed("port") {
-				if envPort := os.Getenv("OB_START_PORT"); envPort != "" {
-					p, err := parsePort(envPort)
-					if err != nil {
-						return app.ExitResult{Code: 2, Message: fmt.Sprintf("invalid OB_START_PORT=%q: %v", envPort, err), ToStderr: true}
-					}
-					port = p
+			if cmd.Flags().Changed("port") {
+				// The flag gets the same validation as OB_START_PORT: an
+				// out-of-range value is a usage error up front, not ten
+				// futile bind attempts starting at a nonsense port.
+				if _, err := parsePort(strconv.Itoa(port)); err != nil {
+					return app.ExitResult{Code: 2, Message: fmt.Sprintf("invalid --port=%d: %v", port, err), ToStderr: true}
 				}
+			} else if envPort := os.Getenv("OB_START_PORT"); envPort != "" {
+				p, err := parsePort(envPort)
+				if err != nil {
+					return app.ExitResult{Code: 2, Message: fmt.Sprintf("invalid OB_START_PORT=%q: %v", envPort, err), ToStderr: true}
+				}
+				port = p
 			}
 
 			if len(allowedOrigins) == 0 {
@@ -126,6 +132,7 @@ To expose this server's operations to an MCP agent, bridge it with
 			var actualToken string
 			srv, err := server.New(server.Config{
 				Port:           port,
+				StrictPort:     strictPort,
 				AllowedOrigins: allowedOrigins,
 				Logger:         logger,
 				Token:          resolvedToken,
@@ -147,14 +154,16 @@ To expose this server's operations to an MCP agent, bridge it with
 						openErr = openURL(authenticatedURL)
 					}
 					printStartSummary(stderr, startSummary{
-						WorkbenchURL: displayURL,
-						InterfaceURL: workbenchBase + "/.well-known/openbindings",
-						HTTPURL:      ready.HTTPURL,
-						HTTPSURL:     ready.HTTPSURL,
-						TokenFile:    tokenFile,
-						Interactive:  interactive,
-						Verbose:      verbose,
-						Opened:       openBrowser && openErr == nil,
+						WorkbenchURL:  displayURL,
+						InterfaceURL:  workbenchBase + "/.well-known/openbindings",
+						HTTPURL:       ready.HTTPURL,
+						HTTPSURL:      ready.HTTPSURL,
+						TokenFile:     tokenFile,
+						Interactive:   interactive,
+						Verbose:       verbose,
+						Opened:        openBrowser && openErr == nil,
+						RequestedPort: ready.RequestedPort,
+						ActualPort:    ready.HTTPPort,
 					})
 					if openErr != nil {
 						fmt.Fprintf(stderr, "\nCould not open the browser: %v\nOpen %s instead.\n", openErr, authenticatedURL)
@@ -199,6 +208,7 @@ To expose this server's operations to an MCP agent, bridge it with
 	}
 
 	cmd.Flags().IntVarP(&port, "port", "p", DefaultServePort, `port to listen on (default 20290 = 0x4F42, ASCII "OB")`)
+	cmd.Flags().BoolVar(&strictPort, "strict-port", false, "fail instead of falling back to a nearby port when --port is busy")
 	cmd.Flags().StringArrayVar(&allowedOrigins, "allow-origin", nil, "allowed CORS origin (repeatable)")
 	cmd.Flags().StringVar(&tokenFlag, "token", "", "pre-shared session token (also: OB_START_TOKEN env var)")
 	cmd.Flags().StringVar(&tokenFile, "token-file", "", "write session token to file instead of stderr")
@@ -219,10 +229,23 @@ type startSummary struct {
 	Interactive  bool
 	Verbose      bool
 	Opened       bool
+	// RequestedPort/ActualPort announce a port fallback: when they differ,
+	// the requested port was busy and the server bound ActualPort instead.
+	RequestedPort int
+	ActualPort    int
+}
+
+// portFellBack reports whether the server bound a different port than the one
+// requested (both must be known; a zero RequestedPort means "any port").
+func (s startSummary) portFellBack() bool {
+	return s.RequestedPort != 0 && s.ActualPort != 0 && s.ActualPort != s.RequestedPort
 }
 
 func printStartSummary(w interface{ Write([]byte) (int, error) }, summary startSummary) {
 	if !summary.Interactive {
+		if summary.portFellBack() {
+			fmt.Fprintf(w, "Port %d was in use — serving on %d.\n", summary.RequestedPort, summary.ActualPort)
+		}
 		fmt.Fprintf(w, "ob start listening on %s\n", summary.HTTPURL)
 		if summary.HTTPSURL != "" {
 			fmt.Fprintf(w, "ob start TLS listening on %s\n", summary.HTTPSURL)
@@ -237,6 +260,10 @@ func printStartSummary(w interface{ Write([]byte) (int, error) }, summary startS
 	fmt.Fprintln(w)
 	fmt.Fprintln(w, "OpenBindings is ready")
 	fmt.Fprintln(w)
+	if summary.portFellBack() {
+		fmt.Fprintf(w, "  Port %d was in use — serving on %d.\n", summary.RequestedPort, summary.ActualPort)
+		fmt.Fprintln(w)
+	}
 	if summary.Opened {
 		fmt.Fprintf(w, "  Workbench  %s  (opened in your browser)\n", summary.WorkbenchURL)
 	} else {

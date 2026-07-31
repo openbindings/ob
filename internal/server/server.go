@@ -70,6 +70,10 @@ type Config struct {
 	// enabled. Keeping this separate from TLS prevents serving HTTPS from
 	// implicitly becoming a privileged system mutation.
 	TrustLocalCA bool
+	// StrictPort makes a busy requested HTTP port a hard error instead of
+	// falling back to a nearby free port. It applies to the primary HTTP
+	// listener only; the derived HTTPS listener keeps its best-effort probing.
+	StrictPort bool
 }
 
 // ReadyInfo identifies the listeners an ob start server successfully bound.
@@ -78,6 +82,12 @@ type Config struct {
 type ReadyInfo struct {
 	HTTPURL  string
 	HTTPSURL string
+	// RequestedPort is the port the caller asked for (Config.Port); HTTPPort
+	// is the port the HTTP listener actually bound. They differ when the
+	// requested port was busy and the server fell back to a nearby free port,
+	// which hosts must announce to the user.
+	RequestedPort int
+	HTTPPort      int
 }
 
 // Server is the ob start HTTP server.
@@ -163,9 +173,16 @@ func (s *Server) Handler() http.Handler {
 func (s *Server) ListenAndServe(ctx context.Context) error {
 	handler := s.buildMiddlewareChain(s.mux)
 
-	httpListener, httpPort, err := bindLocalhostPort(s.config.Port, 10)
+	attempts := 10
+	if s.config.StrictPort {
+		attempts = 1
+	}
+	httpListener, httpPort, err := bindLocalhostPort(s.config.Port, attempts)
 	if err != nil {
-		return fmt.Errorf("HTTP bind failed (tried 10 ports starting at %d): %w", s.config.Port, err)
+		if s.config.StrictPort {
+			return fmt.Errorf("port %d is unavailable and strict-port is set (no fallback): %w", s.config.Port, err)
+		}
+		return fmt.Errorf("HTTP bind failed (tried %d ports starting at %d): %w", attempts, s.config.Port, err)
 	}
 
 	httpSrv := &http.Server{
@@ -232,7 +249,11 @@ func (s *Server) ListenAndServe(ctx context.Context) error {
 		}()
 	}
 	if s.config.OnReady != nil {
-		ready := ReadyInfo{HTTPURL: fmt.Sprintf("http://127.0.0.1:%d", httpPort)}
+		ready := ReadyInfo{
+			HTTPURL:       fmt.Sprintf("http://127.0.0.1:%d", httpPort),
+			RequestedPort: s.config.Port,
+			HTTPPort:      httpPort,
+		}
 		if httpsSrv != nil {
 			ready.HTTPSURL = fmt.Sprintf("https://127.0.0.1:%d", httpsPort)
 		}
@@ -260,13 +281,18 @@ func (s *Server) ListenAndServe(ctx context.Context) error {
 }
 
 // bindLocalhostPort tries up to `attempts` consecutive ports starting at
-// `startPort`. Returns the listener, the port it bound to, or an error.
+// `startPort`. Returns the listener, the port it actually bound (read back
+// from the listener, so a startPort of 0 reports the kernel-assigned port),
+// or an error.
 func bindLocalhostPort(startPort, attempts int) (net.Listener, int, error) {
 	port := startPort
 	var lastErr error
 	for i := 0; i < attempts; i++ {
 		l, err := net.Listen("tcp", fmt.Sprintf("127.0.0.1:%d", port))
 		if err == nil {
+			if addr, ok := l.Addr().(*net.TCPAddr); ok {
+				return l, addr.Port, nil
+			}
 			return l, port, nil
 		}
 		lastErr = err

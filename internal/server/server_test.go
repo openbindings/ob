@@ -12,6 +12,7 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -843,4 +844,108 @@ func TestListenAndServe_SetsTimeouts(t *testing.T) {
 
 	cancel()
 	<-errCh
+}
+
+// TestListenAndServe_ReportsPortFallback pins the ReadyInfo contract for the
+// busy-port case: when the requested port cannot be bound and the server falls
+// back to a nearby free port, ReadyInfo must carry both the requested and the
+// actually bound port so interactive hosts can announce the substitution.
+func TestListenAndServe_ReportsPortFallback(t *testing.T) {
+	busy, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer busy.Close()
+	requested := busy.Addr().(*net.TCPAddr).Port
+
+	srv := mustNewServer(t, "tok")
+	srv.config.Port = requested
+	readyCh := make(chan ReadyInfo, 1)
+	srv.config.OnReady = func(ready ReadyInfo) { readyCh <- ready }
+
+	ctx, cancel := context.WithCancel(context.Background())
+	errCh := make(chan error, 1)
+	go func() { errCh <- srv.ListenAndServe(ctx) }()
+
+	select {
+	case ready := <-readyCh:
+		if ready.RequestedPort != requested {
+			t.Errorf("RequestedPort = %d, want %d", ready.RequestedPort, requested)
+		}
+		if ready.HTTPPort == 0 || ready.HTTPPort == requested {
+			t.Errorf("HTTPPort = %d, want a fallback port different from busy %d", ready.HTTPPort, requested)
+		}
+		if want := fmt.Sprintf("http://127.0.0.1:%d", ready.HTTPPort); ready.HTTPURL != want {
+			t.Errorf("HTTPURL = %q, want %q (the actually bound port)", ready.HTTPURL, want)
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("OnReady was not called within 2s")
+	}
+
+	cancel()
+	<-errCh
+}
+
+// TestListenAndServe_ReadyInfoCarriesActualPort covers the non-fallback case:
+// requested and bound ports agree, so hosts print no substitution notice.
+func TestListenAndServe_ReadyInfoCarriesActualPort(t *testing.T) {
+	// Reserve a free port, release it, then ask the server for it. (Not
+	// entirely race-free, but loopback ports freed this instant are not
+	// reused by other tests in this package.)
+	probe, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	requested := probe.Addr().(*net.TCPAddr).Port
+	probe.Close()
+
+	srv := mustNewServer(t, "tok")
+	srv.config.Port = requested
+	readyCh := make(chan ReadyInfo, 1)
+	srv.config.OnReady = func(ready ReadyInfo) { readyCh <- ready }
+
+	ctx, cancel := context.WithCancel(context.Background())
+	errCh := make(chan error, 1)
+	go func() { errCh <- srv.ListenAndServe(ctx) }()
+
+	select {
+	case ready := <-readyCh:
+		if ready.RequestedPort != requested || ready.HTTPPort != requested {
+			t.Errorf("ports = requested %d bound %d, want both %d", ready.RequestedPort, ready.HTTPPort, requested)
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("OnReady was not called within 2s")
+	}
+
+	cancel()
+	<-errCh
+}
+
+// TestListenAndServe_StrictPortRefusesFallback pins strict-port semantics: a
+// busy requested port is a hard error — no adjacent ports are probed and no
+// listener starts.
+func TestListenAndServe_StrictPortRefusesFallback(t *testing.T) {
+	busy, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer busy.Close()
+	requested := busy.Addr().(*net.TCPAddr).Port
+
+	srv := mustNewServer(t, "tok")
+	srv.config.Port = requested
+	srv.config.StrictPort = true
+	srv.config.OnReady = func(ReadyInfo) {
+		t.Error("OnReady must not fire when strict-port binding fails")
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+	err = srv.ListenAndServe(ctx)
+	if err == nil {
+		t.Fatal("expected a hard error for a busy port under strict-port")
+	}
+	if !strings.Contains(err.Error(), fmt.Sprintf("%d", requested)) {
+		t.Errorf("error should name the busy port %d: %v", requested, err)
+	}
 }

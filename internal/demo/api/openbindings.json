@@ -54,15 +54,29 @@
       "properties": {
         "drink": {
           "type": "string",
-          "description": "Name of the drink to order"
+          "description": "Name of the drink to order",
+          "examples": [
+            "Schema Latte"
+          ]
         },
         "size": {
           "type": "string",
-          "description": "Size: v1 (small), v2 (medium), or v3 (large)"
+          "description": "Size: v1 (small), v2 (medium), or v3 (large)",
+          "enum": [
+            "v1",
+            "v2",
+            "v3"
+          ],
+          "examples": [
+            "v2"
+          ]
         },
         "customer": {
           "type": "string",
-          "description": "Customer name for the order"
+          "description": "Customer name for the order",
+          "examples": [
+            "Alice"
+          ]
         }
       },
       "required": [
@@ -158,7 +172,10 @@
       "idempotent": true,
       "output": {
         "$ref": "#/schemas/MenuResponse"
-      }
+      },
+      "tags": [
+        "menu"
+      ]
     },
     "placeOrder": {
       "description": "Place a new coffee order.",
@@ -167,7 +184,10 @@
       },
       "output": {
         "$ref": "#/schemas/PlaceOrderOutput"
-      }
+      },
+      "tags": [
+        "orders"
+      ]
     },
     "getOrderStatus": {
       "description": "Check the current status of an order.",
@@ -186,7 +206,10 @@
       },
       "output": {
         "$ref": "#/schemas/GetOrderStatusOutput"
-      }
+      },
+      "tags": [
+        "orders"
+      ]
     },
     "cancelOrder": {
       "description": "Cancel a pending or preparing order.",
@@ -204,13 +227,20 @@
       },
       "output": {
         "$ref": "#/schemas/CancelOrderOutput"
-      }
+      },
+      "tags": [
+        "orders"
+      ]
     },
     "orderUpdates": {
       "description": "Real-time stream of order status changes (received, preparing, ready, picked_up, cancelled).",
       "output": {
         "$ref": "#/schemas/OrderUpdate"
-      }
+      },
+      "tags": [
+        "orders",
+        "realtime"
+      ]
     },
     "placeAndTrack": {
       "description": "Place a coffee order and track it in real time until it's ready. Combines placeOrder with the orderUpdates stream, filtering for the placed order's status changes. Returns when the order reaches 'ready' or 'picked_up'.",
@@ -219,38 +249,43 @@
       },
       "output": {
         "$ref": "#/schemas/OrderUpdate"
-      }
+      },
+      "tags": [
+        "orders",
+        "realtime",
+        "graph"
+      ]
     }
   },
   "sources": {
     "restApi": {
       "bindingSpec": "openbindings.openapi@1",
       "location": "http://localhost:8080/openapi.json",
-      "description": "REST API — the mobile ordering app calls this"
+      "description": "REST API \u2014 the mobile ordering app calls this"
     },
     "mcpServer": {
       "bindingSpec": "openbindings.mcp@1",
       "location": "http://localhost:8080/mcp",
-      "description": "MCP tools via Streamable HTTP — AI assistants use this"
+      "description": "MCP tools via Streamable HTTP \u2014 AI assistants use this"
     },
     "grpcServer": {
       "bindingSpec": "openbindings.grpc@1",
       "location": "grpc://localhost:9090",
-      "description": "gRPC service — backend microservices talk over this"
+      "description": "gRPC service \u2014 backend microservices talk over this"
     },
     "connectServer": {
       "bindingSpec": "openbindings.connect@1",
       "location": "http://localhost:8080",
-      "description": "Connect (Buf) — same protobuf service over HTTP/1.1 + JSON"
+      "description": "Connect (Buf) \u2014 same protobuf service over HTTP/1.1 + JSON"
     },
     "graphqlServer": {
       "bindingSpec": "openbindings.graphql@1",
       "location": "http://localhost:8080/graphql",
-      "description": "GraphQL API — flexible queries with field selection"
+      "description": "GraphQL API \u2014 flexible queries with field selection"
     },
     "placeAndTrackGraph": {
       "bindingSpec": "openbindings.operation-graph@1",
-      "description": "Operation graph — places an order and tracks it via a selected live update stream until ready",
+      "description": "Operation graph \u2014 places an order and tracks it via a selected live update stream until ready",
       "content": {
         "graphs": {
           "placeAndTrack": {

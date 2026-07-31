@@ -424,13 +424,21 @@ const maxSourceFetchBytes = 16 << 20
 
 // fetchSourceContent GETs a source artifact over HTTP(S), bounded and loud.
 func fetchSourceContent(url string) ([]byte, error) {
+	// SSRF guard: this fetch resolves a ref that may come from an untrusted
+	// document (status/pull/synthesize/merge on a caller-supplied OBI), so
+	// apply the same outbound policy /resolve does — block private,
+	// link-local, and cloud-metadata ranges. Without this, an embedded ref
+	// like http://169.254.169.254/... is a blind SSRF.
+	if err := ValidateOutboundURL(url); err != nil {
+		return nil, err
+	}
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 	if err != nil {
 		return nil, fmt.Errorf("fetch %q: %w", url, err)
 	}
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := GuardedHTTPClient(0).Do(req)
 	if err != nil {
 		return nil, fmt.Errorf("fetch %q: %w", url, err)
 	}

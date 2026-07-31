@@ -440,6 +440,7 @@ cmd "mcp" help="Serve an interface or raw artifact as an MCP server" {
 
 cmd "start" help="Start a local server exposing ob operations (HTTP, WebSocket)" {
   flag "-p --port <port>" help="Port to listen on (default: 20290 = 0x4F42, ASCII OB)"
+  flag "--strict-port" help="Fail instead of falling back to a nearby port when --port is busy"
   flag "--allow-origin <origin>" help="Allowed CORS origin (repeatable)" var=#true
   flag "--token <token>" help="Pre-shared session token (also: OB_START_TOKEN env var)"
   flag "--token-file <path>" help="Write session token to file instead of stderr"
