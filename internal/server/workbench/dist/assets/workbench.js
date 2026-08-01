@@ -1932,19 +1932,19 @@ ${l}`;if(t.setRangeText(u,n,t.selectionEnd,`end`),c){let e=n+1+l.length;t.setSel
       border-left: 0;
     }
   }
-`;T(Og,Ag);var zg=`ob-operation-tabs`,Bg=class extends w{#e=[];#t=null;#n=null;#r=null;#i=null;get tabs(){return this.#e}set tabs(e){let t=new Set,n=(e??[]).flatMap(e=>{let n=e.key?.trim();return!n||t.has(n)?[]:(t.add(n),[{key:n,...e.label?.trim()?{label:e.label.trim()}:{},...e.dirty?{dirty:!0}:{},...e.running?{running:!0}:{}}])});Vg(n,this.#e)||(this.#e=n,this.requestRender())}get activeKey(){return this.#t}set activeKey(e){let t=e?.trim()||null;t!==this.#t&&(this.#t=t,this.requestRender())}bind(e){let t=e.require(`.tab-list`);t.addEventListener(`click`,e=>{let t=e.target,n=t?.closest(`.tab-shell`)?.dataset.tabKey;if(n){if(t?.closest(`.close`)){e.stopPropagation(),this.emit(`ob-tab-close`,{key:n});return}t?.closest(`.tab-button`)&&this.emit(`ob-tab-activate`,{key:n})}}),t.addEventListener(`keydown`,e=>{let t=e.target?.closest(`.tab-shell`)?.dataset.tabKey;t&&this.#s(e,t)}),t.addEventListener(`dragstart`,e=>{let t=e.target?.closest(`.tab-shell`),n=t?.dataset.tabKey;!t||!n||(this.#n=n,t.classList.add(`dragging`),e.dataTransfer?.setData(`text/plain`,n),e.dataTransfer&&(e.dataTransfer.effectAllowed=`move`))}),t.addEventListener(`dragend`,()=>{this.#n=null;for(let e of t.querySelectorAll(`.tab-shell`))e.classList.remove(`dragging`,`drop-target`)}),t.addEventListener(`dragover`,e=>{let t=e.target?.closest(`.tab-shell`),n=t?.dataset.tabKey;!t||!n||!this.#n||this.#n===n||(e.preventDefault(),e.dataTransfer&&(e.dataTransfer.dropEffect=`move`),t.classList.add(`drop-target`))}),t.addEventListener(`dragleave`,e=>{e.target?.closest(`.tab-shell`)?.classList.remove(`drop-target`)}),t.addEventListener(`drop`,e=>{let t=e.target?.closest(`.tab-shell`),n=t?.dataset.tabKey;if(!t||!n)return;e.preventDefault(),t.classList.remove(`drop-target`);let r=this.#n||e.dataTransfer?.getData(`text/plain`)||``;this.#l(r,n)}),t.addEventListener(`wheel`,e=>{t.scrollWidth<=t.clientWidth||Math.abs(e.deltaX)>Math.abs(e.deltaY)||e.deltaY!==0&&(e.preventDefault(),t.scrollLeft+=e.deltaY)},{passive:!1}),t.addEventListener(`scroll`,()=>this.#a(),{passive:!0}),typeof ResizeObserver==`function`&&(this.#i=new ResizeObserver(()=>this.#a()),this.#i.observe(t)),e.require(`.menu-popover`).addEventListener(`click`,t=>{let n=t.target?.closest(`[data-action]`)?.dataset.action;n&&(e.find(`.menu`)?.removeAttribute(`open`),n===`move-left`?this.#d(-1):n===`move-right`?this.#d(1):n===`close-unselected`?this.emit(`ob-tabs-close-unselected`,{}):n===`close-all`&&this.emit(`ob-tabs-close-all`,{}))})}render(){let e=this.shell(Wg,O,Gg);if(!e)return;let t=e.require(`.tab-list`);e.require(`.empty`).hidden=this.#e.length>0;let n=this.#t!==null&&this.#e.some(e=>e.key===this.#t);x(t,this.#e,{key:e=>e.key,create:e=>Hg(e.key),update:(e,t)=>this.#o(e,t,n)}),e.require(`.menu`).hidden=this.#e.length===0,Ug(e,`[data-action="move-left"]`,!this.#u(-1)),Ug(e,`[data-action="move-right"]`,!this.#u(1)),Ug(e,`[data-action="close-unselected"]`,this.#e.length<2),this.#t!==this.#r&&(this.#r=this.#t,t.querySelector(`.tab-shell.active`)?.scrollIntoView?.({block:`nearest`,inline:`nearest`})),this.#a()}#a(){let e=this.shell(Wg,O,Gg),t=e?.find(`.tab-list`),n=e?.find(`.container`);if(!t||!n)return;let r=t.scrollWidth-t.clientWidth,i=t.scrollLeft>1,a=t.scrollLeft<r-1,o=i&&a?`both`:i?`start`:a?`end`:`none`;n.getAttribute(`data-overflow`)!==o&&n.setAttribute(`data-overflow`,o)}disconnectedCallback(){this.#i?.disconnect(),this.#i=null}#o(e,t,n){let r=t.key===this.#t,i=t.label||t.key;e.dataset.tabKey=t.key,e.classList.toggle(`active`,r),e.setAttribute(`part`,r?`tab active-tab`:`tab`);let a=e.querySelector(`.tab-button`);a&&(a.setAttribute(`aria-selected`,String(r)),a.tabIndex=r||!n&&this.#e[0]?.key===t.key?0:-1,a.title=i);let o=e.querySelector(`.label`);o&&S(o,i);let s=e.querySelector(`.status`);if(s){let e=t.running?`running`:t.dirty?`dirty`:``;if(s.hidden=!e,s.className=`status${e?` ${e}`:``}`,e){let t=e===`running`?`Invocation running`:`Unsaved changes`;s.setAttribute(`aria-label`,t),s.title=t}}let c=e.querySelector(`.close`);c&&(c.setAttribute(`aria-label`,`Close ${i}, Delete closes`),c.title=`Close ${i}`)}#s(e,t){let n=this.#e.map(e=>e.key),r=n.indexOf(t);if(r<0)return;if(e.altKey&&(e.key===`ArrowLeft`||e.key===`ArrowRight`)){e.preventDefault();let t=r+(e.key===`ArrowLeft`?-1:1);if(t<0||t>=n.length)return;let i=[...n];[i[r],i[t]]=[i[t],i[r]],this.emit(`ob-tab-reorder`,{keys:i});return}if(e.key===`Delete`){e.preventDefault(),this.emit(`ob-tab-close`,{key:t});return}if(e.key===`Enter`||e.key===` `){e.preventDefault(),this.emit(`ob-tab-activate`,{key:t});return}let i=r;if(e.key===`ArrowLeft`)i=(r-1+n.length)%n.length;else if(e.key===`ArrowRight`)i=(r+1)%n.length;else if(e.key===`Home`)i=0;else if(e.key===`End`)i=n.length-1;else return;e.preventDefault();let a=n[i];a&&this.#c(a)?.focus()}#c(e){for(let t of this.renderRoot?.querySelectorAll(`.tab-shell`)??[])if(t.dataset.tabKey===e)return t.querySelector(`.tab-button`);return null}#l(e,t){if(!e||e===t)return;let n=this.#e.map(e=>e.key),r=n.indexOf(e),i=n.indexOf(t);r<0||i<0||(n.splice(r,1),n.splice(i,0,e),this.emit(`ob-tab-reorder`,{keys:n}))}#u(e){if(!this.#t)return!1;let t=this.#e.findIndex(e=>e.key===this.#t),n=t+e;return t>=0&&n>=0&&n<this.#e.length}#d(e){if(!this.#t||!this.#u(e))return;let t=this.#e.map(e=>e.key),n=t.indexOf(this.#t),r=n+e;[t[n],t[r]]=[t[r],t[n]],this.emit(`ob-tab-reorder`,{keys:t})}};function Vg(e,t){return e.length===t.length&&e.every((e,n)=>{let r=t[n];return r!==void 0&&e.key===r.key&&e.label===r.label&&!!e.dirty==!!r.dirty&&!!e.running==!!r.running})}function Hg(e){let t=document.createElement(`div`);t.className=`tab-shell`,t.dataset.tabKey=e,t.draggable=!0;let n=document.createElement(`button`);n.type=`button`,n.className=`tab-button`,n.setAttribute(`role`,`tab`),n.dataset.focusKey=e;let r=document.createElement(`span`);r.className=`status`,r.setAttribute(`part`,`status`),r.hidden=!0;let i=document.createElement(`span`);i.className=`label`,n.append(r,i);let a=document.createElement(`button`);return a.type=`button`,a.className=`close`,a.setAttribute(`part`,`close`),a.textContent=`×`,a.tabIndex=-1,t.append(n,a),t}function Ug(e,t,n){let r=e.find(t);r&&(r.disabled=n)}var Wg=`
+`;T(Og,Ag);var zg=`ob-operation-tabs`,Bg=class extends w{#e=[];#t=null;#n=null;#r=null;#i=null;#a=()=>{};get tabs(){return this.#e}set tabs(e){let t=new Set,n=(e??[]).flatMap(e=>{let n=e.key?.trim();return!n||t.has(n)?[]:(t.add(n),[{key:n,...e.label?.trim()?{label:e.label.trim()}:{},...e.dirty?{dirty:!0}:{},...e.running?{running:!0}:{}}])});Vg(n,this.#e)||(this.#e=n,this.requestRender())}get activeKey(){return this.#t}set activeKey(e){let t=e?.trim()||null;t!==this.#t&&(this.#t=t,this.requestRender())}bind(e){let t=e.require(`.tab-list`);t.addEventListener(`click`,e=>{let t=e.target,n=t?.closest(`.tab-shell`)?.dataset.tabKey;if(n){if(t?.closest(`.close`)){e.stopPropagation(),this.emit(`ob-tab-close`,{key:n});return}t?.closest(`.tab-button`)&&this.emit(`ob-tab-activate`,{key:n})}}),t.addEventListener(`keydown`,e=>{let t=e.target?.closest(`.tab-shell`)?.dataset.tabKey;t&&this.#c(e,t)}),t.addEventListener(`dragstart`,e=>{let t=e.target?.closest(`.tab-shell`),n=t?.dataset.tabKey;!t||!n||(this.#n=n,t.classList.add(`dragging`),e.dataTransfer?.setData(`text/plain`,n),e.dataTransfer&&(e.dataTransfer.effectAllowed=`move`))}),t.addEventListener(`dragend`,()=>{this.#n=null;for(let e of t.querySelectorAll(`.tab-shell`))e.classList.remove(`dragging`,`drop-target`)}),t.addEventListener(`dragover`,e=>{let t=e.target?.closest(`.tab-shell`),n=t?.dataset.tabKey;!t||!n||!this.#n||this.#n===n||(e.preventDefault(),e.dataTransfer&&(e.dataTransfer.dropEffect=`move`),t.classList.add(`drop-target`))}),t.addEventListener(`dragleave`,e=>{e.target?.closest(`.tab-shell`)?.classList.remove(`drop-target`)}),t.addEventListener(`drop`,e=>{let t=e.target?.closest(`.tab-shell`),n=t?.dataset.tabKey;if(!t||!n)return;e.preventDefault(),t.classList.remove(`drop-target`);let r=this.#n||e.dataTransfer?.getData(`text/plain`)||``;this.#u(r,n)}),t.addEventListener(`wheel`,e=>{t.scrollWidth<=t.clientWidth||Math.abs(e.deltaX)>Math.abs(e.deltaY)||e.deltaY!==0&&(e.preventDefault(),t.scrollLeft+=e.deltaY)},{passive:!1}),t.addEventListener(`scroll`,()=>this.#o(),{passive:!0}),typeof ResizeObserver==`function`&&(this.#i=new ResizeObserver(()=>this.#o()),this.#i.observe(t));let n=e.require(`.menu-toggle`),r=e.require(`.menu-popover`),i=typeof r.togglePopover==`function`;i?(r.addEventListener(`beforetoggle`,e=>{let t=e.newState===`open`;if(n.setAttribute(`aria-expanded`,String(t)),!t)return;let i=n.getBoundingClientRect();r.style.top=`${i.bottom+4}px`,r.style.left=`${i.right}px`,r.style.transform=`translateX(-100%)`}),r.addEventListener(`toggle`,e=>{if(e.newState!==`open`)return;let t=n.getBoundingClientRect(),i=r.getBoundingClientRect(),a=t.bottom+4,o=a+i.height>window.innerHeight&&t.top-4-i.height>=0;r.style.top=o?`${t.top-4-i.height}px`:`${a}px`,r.style.left=`${Math.max(8,t.right-i.width)}px`,r.style.transform=`none`})):(r.removeAttribute(`popover`),r.classList.add(`fallback`),r.hidden=!0,n.addEventListener(`click`,()=>{r.hidden=!r.hidden,n.setAttribute(`aria-expanded`,String(!r.hidden))})),this.#a=()=>{i?r.hidePopover():(r.hidden=!0,n.setAttribute(`aria-expanded`,`false`))},r.addEventListener(`click`,e=>{let t=e.target?.closest(`[data-action]`)?.dataset.action;t&&(this.#a(),t===`move-left`?this.#f(-1):t===`move-right`?this.#f(1):t===`close-unselected`?this.emit(`ob-tabs-close-unselected`,{}):t===`close-all`&&this.emit(`ob-tabs-close-all`,{}))})}render(){let e=this.shell(Wg,O,Gg);if(!e)return;let t=e.require(`.tab-list`);e.require(`.empty`).hidden=this.#e.length>0;let n=this.#t!==null&&this.#e.some(e=>e.key===this.#t);x(t,this.#e,{key:e=>e.key,create:e=>Hg(e.key),update:(e,t)=>this.#s(e,t,n)}),e.require(`.menu`).hidden=this.#e.length===0,Ug(e,`[data-action="move-left"]`,!this.#d(-1)),Ug(e,`[data-action="move-right"]`,!this.#d(1)),Ug(e,`[data-action="close-unselected"]`,this.#e.length<2),this.#t!==this.#r&&(this.#r=this.#t,t.querySelector(`.tab-shell.active`)?.scrollIntoView?.({block:`nearest`,inline:`nearest`})),this.#o()}#o(){let e=this.shell(Wg,O,Gg),t=e?.find(`.tab-list`),n=e?.find(`.container`);if(!t||!n)return;let r=t.scrollWidth-t.clientWidth,i=t.scrollLeft>1,a=t.scrollLeft<r-1,o=i&&a?`both`:i?`start`:a?`end`:`none`;n.getAttribute(`data-overflow`)!==o&&n.setAttribute(`data-overflow`,o)}disconnectedCallback(){this.#i?.disconnect(),this.#i=null}#s(e,t,n){let r=t.key===this.#t,i=t.label||t.key;e.dataset.tabKey=t.key,e.classList.toggle(`active`,r),e.setAttribute(`part`,r?`tab active-tab`:`tab`);let a=e.querySelector(`.tab-button`);a&&(a.setAttribute(`aria-selected`,String(r)),a.tabIndex=r||!n&&this.#e[0]?.key===t.key?0:-1,a.title=i);let o=e.querySelector(`.label`);o&&S(o,i);let s=e.querySelector(`.status`);if(s){let e=t.running?`running`:t.dirty?`dirty`:``;if(s.hidden=!e,s.className=`status${e?` ${e}`:``}`,e){let t=e===`running`?`Invocation running`:`Unsaved changes`;s.setAttribute(`aria-label`,t),s.title=t}}let c=e.querySelector(`.close`);c&&(c.setAttribute(`aria-label`,`Close ${i}, Delete closes`),c.title=`Close ${i}`)}#c(e,t){let n=this.#e.map(e=>e.key),r=n.indexOf(t);if(r<0)return;if(e.altKey&&(e.key===`ArrowLeft`||e.key===`ArrowRight`)){e.preventDefault();let t=r+(e.key===`ArrowLeft`?-1:1);if(t<0||t>=n.length)return;let i=[...n];[i[r],i[t]]=[i[t],i[r]],this.emit(`ob-tab-reorder`,{keys:i});return}if(e.key===`Delete`){e.preventDefault(),this.emit(`ob-tab-close`,{key:t});return}if(e.key===`Enter`||e.key===` `){e.preventDefault(),this.emit(`ob-tab-activate`,{key:t});return}let i=r;if(e.key===`ArrowLeft`)i=(r-1+n.length)%n.length;else if(e.key===`ArrowRight`)i=(r+1)%n.length;else if(e.key===`Home`)i=0;else if(e.key===`End`)i=n.length-1;else return;e.preventDefault();let a=n[i];a&&this.#l(a)?.focus()}#l(e){for(let t of this.renderRoot?.querySelectorAll(`.tab-shell`)??[])if(t.dataset.tabKey===e)return t.querySelector(`.tab-button`);return null}#u(e,t){if(!e||e===t)return;let n=this.#e.map(e=>e.key),r=n.indexOf(e),i=n.indexOf(t);r<0||i<0||(n.splice(r,1),n.splice(i,0,e),this.emit(`ob-tab-reorder`,{keys:n}))}#d(e){if(!this.#t)return!1;let t=this.#e.findIndex(e=>e.key===this.#t),n=t+e;return t>=0&&n>=0&&n<this.#e.length}#f(e){if(!this.#t||!this.#d(e))return;let t=this.#e.map(e=>e.key),n=t.indexOf(this.#t),r=n+e;[t[n],t[r]]=[t[r],t[n]],this.emit(`ob-tab-reorder`,{keys:t})}};function Vg(e,t){return e.length===t.length&&e.every((e,n)=>{let r=t[n];return r!==void 0&&e.key===r.key&&e.label===r.label&&!!e.dirty==!!r.dirty&&!!e.running==!!r.running})}function Hg(e){let t=document.createElement(`div`);t.className=`tab-shell`,t.dataset.tabKey=e,t.draggable=!0;let n=document.createElement(`button`);n.type=`button`,n.className=`tab-button`,n.setAttribute(`role`,`tab`),n.dataset.focusKey=e;let r=document.createElement(`span`);r.className=`status`,r.setAttribute(`part`,`status`),r.hidden=!0;let i=document.createElement(`span`);i.className=`label`,n.append(r,i);let a=document.createElement(`button`);return a.type=`button`,a.className=`close`,a.setAttribute(`part`,`close`),a.textContent=`×`,a.tabIndex=-1,t.append(n,a),t}function Ug(e,t,n){let r=e.find(t);r&&(r.disabled=n)}var Wg=`
   <div class="container" part="container">
     <div class="tab-list" part="tab-list" role="tablist" aria-label="Open operations"></div>
     <p class="empty" part="empty">No operations open</p>
-    <details class="menu" part="menu">
-      <summary aria-label="Operation tab actions" title="Operation tab actions">•••</summary>
-      <div class="menu-popover">
+    <div class="menu" part="menu">
+      <button type="button" class="menu-toggle" popovertarget="tabs-menu-popover" aria-haspopup="menu" aria-expanded="false" aria-label="Operation tab actions" title="Operation tab actions">•••</button>
+      <div class="menu-popover" id="tabs-menu-popover" popover="auto">
         <button type="button" data-action="move-left">Move active tab left</button>
         <button type="button" data-action="move-right">Move active tab right</button>
         <button type="button" data-action="close-unselected">Close other tabs</button>
         <button type="button" data-action="close-all">Close all tabs</button>
       </div>
-    </details>
+    </div>
   </div>
 `,Gg=`
   :host {
@@ -2148,32 +2148,55 @@ ${l}`;if(t.setRangeText(u,n,t.selectionEnd,`end`),c){let e=n+1+l.length;t.setSel
     display: none;
   }
 
-  .menu > summary {
+  .menu-toggle {
     display: grid;
     width: 2.5rem;
     height: 100%;
     min-height: 2.25rem;
+    padding: 0;
     place-items: center;
-    list-style: none;
+    background: none;
+    border: 0;
     cursor: pointer;
   }
 
-  .menu > summary::-webkit-details-marker {
-    display: none;
+  .menu-popover {
+    width: 12rem;
+    padding: 0.3rem;
+    color: var(--_ob-color-text);
+    background: var(--_ob-color-background);
+    border: 1px solid var(--_ob-color-border);
+    border-radius: var(--_ob-radius);
+    box-shadow: var(--_ob-shadow);
   }
 
-  .menu-popover {
+  /*
+   * Top-layer mode. The UA centers open popovers (inset 0 + margin auto)
+   * and display:none's closed ones — clear the centering, let the toggle
+   * handler pin the box under the button, and only claim a display when
+   * actually open so the UA's closed state stays in charge.
+   */
+  .menu-popover[popover] {
+    position: fixed;
+    margin: 0;
+    inset: auto;
+  }
+
+  .menu-popover[popover]:popover-open {
+    display: grid;
+  }
+
+  /*
+   * Popover-less fallback: the pre-top-layer presentation, subject to
+   * ancestor clipping — degraded, never dead. Hidden toggling relies on the
+   * base [hidden] guard.
+   */
+  .menu-popover.fallback {
     position: absolute;
     top: calc(100% + 0.25rem);
     right: 0.25rem;
     z-index: 10;
     display: grid;
-    width: 12rem;
-    padding: 0.3rem;
-    background: var(--_ob-color-background);
-    border: 1px solid var(--_ob-color-border);
-    border-radius: var(--_ob-radius);
-    box-shadow: var(--_ob-shadow);
   }
 
   .menu button {
