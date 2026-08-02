@@ -62,28 +62,25 @@
         </div>
       </header>
 
-      <section class="target-bar" aria-labelledby="target-heading">
-        <div class="target-heading">
-          <p class="eyebrow">Target interface</p>
-          <h2 id="target-heading">Open a capability surface</h2>
+      <section class="document-bar" aria-labelledby="document-heading">
+        <div class="document-identity">
+          <p class="eyebrow">Document</p>
+          <div class="document-title-row">
+            <h2 id="document-heading">
+              <button id="document-name" type="button" title="Rename this document">
+                Untitled interface
+              </button>
+            </h2>
+            <span id="document-validity" class="badge neutral" role="status">—</span>
+            <span id="document-dirty" class="document-dirty" hidden>unsaved</span>
+          </div>
+          <p id="document-meta" class="document-meta" aria-live="polite"></p>
         </div>
-        <form id="target-form">
-          <label class="sr-only" for="target-url">
-            OpenBindings interface, API, or server URL
-          </label>
-          <input
-            id="target-url"
-            name="address"
-            type="text"
-            inputmode="url"
-            autocomplete="url"
-            spellcheck="false"
-            placeholder="Paste an OBI, API, or server URL"
-          />
-          <button id="resolve-target" class="primary" type="submit">
-            Connect
-          </button>
-          <button id="use-local-target" type="button">This ob</button>
+        <div class="document-verbs">
+          <button id="doc-new" type="button">New</button>
+          <button id="doc-open" class="primary" type="button">Open</button>
+          <button id="doc-add" type="button">Add</button>
+          <button id="doc-export" type="button">Export</button>
           <button
             id="connection-toggle"
             type="button"
@@ -92,7 +89,7 @@
           >
             Connection
           </button>
-        </form>
+        </div>
         <p id="bootstrap-message" role="status"></p>
         <p id="liveness-notice" class="liveness-notice" role="status" hidden>
           ob start is not responding. Leave this open — it reconnects
@@ -193,13 +190,6 @@
           </article>
         </div>
       </section>
-
-      <div class="current-target" aria-live="polite">
-        <span class="target-indicator" aria-hidden="true"></span>
-        <span>Connected to</span>
-        <strong id="current-target-label">This ob start instance</strong>
-        <span id="current-target-meta"></span>
-      </div>
 
       <aside id="requirement-banner" class="requirement-banner" hidden>
         <div>
@@ -315,6 +305,60 @@
         </div>
       </section>
     </main>
+
+    <dialog id="ingest-dialog" aria-labelledby="ingest-title">
+      <div class="ingest-body">
+        <p class="eyebrow">Document</p>
+        <h2 id="ingest-title">Open a document</h2>
+        <label for="open-url">From a URL — an OBI, a raw API artifact, or a server</label>
+        <div class="field-actions">
+          <input
+            id="open-url"
+            type="text"
+            inputmode="url"
+            autocomplete="url"
+            spellcheck="false"
+            placeholder="https://…"
+          />
+          <button id="ingest-url-submit" class="primary" type="button">Resolve</button>
+        </div>
+        <label for="open-paste">Or paste an OpenBindings interface (JSON)</label>
+        <textarea
+          id="open-paste"
+          rows="5"
+          spellcheck="false"
+          placeholder='{"name": …, "operations": …}'
+        ></textarea>
+        <div class="field-actions">
+          <button id="ingest-paste-submit" type="button">Use pasted interface</button>
+          <input id="open-file" type="file" accept=".json,.obi.json" />
+        </div>
+        <div id="ingest-open-extras">
+          <button id="open-this-ob" type="button">This ob start instance</button>
+          <div id="open-recents" class="open-recents"></div>
+        </div>
+        <div class="dialog-actions">
+          <button id="ingest-cancel" type="button">Cancel</button>
+        </div>
+      </div>
+    </dialog>
+
+    <dialog id="rename-dialog" aria-labelledby="rename-title">
+      <form id="rename-form">
+        <p class="eyebrow">Document</p>
+        <h2 id="rename-title">Document metadata</h2>
+        <label for="rename-name">Name</label>
+        <input id="rename-name" type="text" autocomplete="off" />
+        <label for="rename-version">Version</label>
+        <input id="rename-version" type="text" autocomplete="off" />
+        <label for="rename-description">Description</label>
+        <textarea id="rename-description" rows="3"></textarea>
+        <div class="dialog-actions">
+          <button id="rename-cancel" type="button">Cancel</button>
+          <button id="rename-save" class="primary" type="submit">Save</button>
+        </div>
+      </form>
+    </dialog>
 
     <dialog id="confirmation-dialog" aria-labelledby="confirmation-title">
       <form method="dialog">
