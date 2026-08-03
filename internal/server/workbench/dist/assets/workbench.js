@@ -570,30 +570,19 @@ $&`).replace(/(?:^|\n)([\t ].*)(?:([\n\t ]*)\n(?![\n\t ]))?/g,`$1$2`).replace(/\
     opacity: 0.5;
   }
 
+  /*
+   * Layout only. This class once styled a raw <textarea>; when the embedded
+   * ob-json-editor replaced it, the leftover declarations kept styling the
+   * HOST — and the inheritable ones (white-space: pre above all) leaked into
+   * the child's shadow tree, turning its template whitespace into layout and
+   * displacing the click target two lines from the visible text. The element
+   * owns its own typography, focus, and readonly presentation.
+   */
   .editor {
     width: 100%;
     min-width: 0;
     min-height: 0;
     padding: var(--_ob-space);
-    resize: none;
-    color: var(--_ob-color-text);
-    background: var(--_ob-color-background);
-    border: 0;
-    border-radius: 0;
-    outline: 0;
-    font-family: var(--_ob-font-mono);
-    font-size: 0.78rem;
-    line-height: 1.55;
-    tab-size: 2;
-    white-space: pre;
-  }
-
-  .editor:focus-visible {
-    box-shadow: inset var(--_ob-focus-ring);
-  }
-
-  .editor[readonly] {
-    color: var(--_ob-color-text-muted);
   }
 
   .status {
@@ -817,6 +806,19 @@ ${l}`;if(t.setRangeText(u,n,t.selectionEnd,`end`),c){let e=n+1+l.length;t.setSel
     border-radius: 0.2rem;
   }
 
+  .frame {
+    /*
+     * Inherited-white-space immunity: with white-space: pre arriving from a
+     * host or wrapper, the shell template's own whitespace text nodes become
+     * LAYOUT — two newlines and eight spaces displaced the transparent
+     * textarea (8ch, 2 line-heights) from the highlight layer, and every
+     * click placed the caret two lines from where the user aimed. Reset at
+     * the boundary; internal rules re-declare pre exactly where glyphs need
+     * it.
+     */
+    white-space: normal;
+  }
+
   .surface {
     position: relative;
     min-width: 0;
@@ -851,6 +853,10 @@ ${l}`;if(t.setRangeText(u,n,t.selectionEnd,`end`),c){let e=n+1+l.length;t.setSel
   }
 
   .surface textarea {
+    /* Block, not inline-block: an inline box participates in whatever text
+       flow surrounds it, so stray text nodes could offset it. A block box
+       starts at the content origin no matter what. */
+    display: block;
     position: relative;
     width: 100%;
     height: 100%;
