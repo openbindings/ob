@@ -202,7 +202,12 @@
       </aside>
 
       <section class="workbench-grid">
-        <ob-obi-explorer></ob-obi-explorer>
+        <!-- One rail, master-pane pattern: operations first, the document's
+             source artifacts beneath — no tab stands between them. -->
+        <div class="rail-column">
+          <ob-obi-explorer></ob-obi-explorer>
+          <ob-interface-sources></ob-interface-sources>
+        </div>
         <div
           id="rail-gutter"
           class="gutter gutter-vertical"
@@ -251,15 +256,6 @@
                 Document
               </button>
               <button
-                id="show-sources-pane"
-                type="button"
-                role="tab"
-                aria-selected="false"
-                aria-controls="sources-pane"
-              >
-                Artifacts
-              </button>
-              <button
                 id="show-graph-pane"
                 type="button"
                 role="tab"
@@ -273,9 +269,6 @@
           <div class="artifact-panels">
             <section id="document-pane" class="artifact-pane">
               <ob-obi-editor></ob-obi-editor>
-            </section>
-            <section id="sources-pane" class="artifact-pane" hidden>
-              <ob-interface-sources></ob-interface-sources>
             </section>
             <section id="graph-pane" class="artifact-pane graph-pane" hidden>
               <div class="graph-actions">
