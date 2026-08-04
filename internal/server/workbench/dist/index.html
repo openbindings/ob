@@ -42,12 +42,8 @@
                 Interface rail
               </label>
               <label>
-                <input id="show-detail" type="checkbox" checked />
-                Operation detail
-              </label>
-              <label>
-                <input id="show-invocation" type="checkbox" checked />
-                Invocation
+                <input id="show-operation" type="checkbox" checked />
+                Tab column
               </label>
               <label>
                 <input id="show-source" type="checkbox" checked />
@@ -203,10 +199,10 @@
 
       <section class="workbench-grid">
         <!-- One rail, master-pane pattern: operations first, the document's
-             source artifacts beneath — no tab stands between them. -->
+             source overview rows beneath (rev 16: both live in the explorer;
+             a source's detail is a workspace tab). -->
         <div class="rail-column">
           <ob-obi-explorer></ob-obi-explorer>
-          <ob-interface-sources></ob-interface-sources>
         </div>
         <div
           id="rail-gutter"
@@ -220,18 +216,43 @@
         ></div>
         <div class="operation-column">
           <ob-operation-tabs></ob-operation-tabs>
-          <ob-operation-detail></ob-operation-detail>
-          <div
-            id="detail-gutter"
-            class="gutter gutter-horizontal"
-            role="separator"
-            aria-label="Resize operation detail and invocation"
-            aria-orientation="horizontal"
-            aria-valuemin="20"
-            aria-valuemax="75"
-            tabindex="0"
-          ></div>
-          <div id="invocation-sessions" class="invocation-sessions"></div>
+          <!-- Tab content (rev 16): the detail scrolls above; invocation is a
+               sheet pinned to the bottom edge — resizable, collapsible, and
+               per-session. -->
+          <div id="tab-content" class="tab-content">
+            <div class="detail-region">
+              <ob-operation-detail></ob-operation-detail>
+              <!-- The source tab's content (rev 16); [hidden] flips between
+                   the two details by the active workspace item's kind. -->
+              <ob-source-detail hidden></ob-source-detail>
+            </div>
+            <div
+              id="sheet-gutter"
+              class="gutter gutter-horizontal"
+              role="separator"
+              aria-label="Resize the invocation sheet"
+              aria-orientation="horizontal"
+              aria-valuemin="5"
+              aria-valuemax="95"
+              tabindex="0"
+            ></div>
+            <section id="invocation-sheet" class="invocation-sheet" aria-label="Invocation sheet">
+              <div class="sheet-header">
+                <span class="sheet-title">Invocation</span>
+                <span id="sheet-status" class="sheet-status" role="status">Ready</span>
+                <button id="sheet-run" type="button" hidden>Run</button>
+                <button
+                  id="sheet-toggle"
+                  type="button"
+                  aria-expanded="true"
+                  title="Collapse the invocation sheet"
+                >
+                  Collapse
+                </button>
+              </div>
+              <div id="invocation-sessions" class="invocation-sessions"></div>
+            </section>
+          </div>
         </div>
         <div
           id="source-gutter"
