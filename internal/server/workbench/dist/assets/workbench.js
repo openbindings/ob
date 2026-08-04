@@ -487,7 +487,6 @@ $&`).replace(/(?:^|\n)([\t ].*)(?:([\n\t ]*)\n(?![\n\t ]))?/g,`$1$2`).replace(/\
         <header class="toolbar" part="toolbar">
           <div>
             <p class="eyebrow">Interface document</p>
-            <strong>Source</strong>
           </div>
           <div class="actions">
             <label>
@@ -503,7 +502,7 @@ $&`).replace(/(?:^|\n)([\t ].*)(?:([\n\t ]*)\n(?![\n\t ]))?/g,`$1$2`).replace(/\
         <ob-json-editor class="editor" part="editor"></ob-json-editor>
         <footer class="status" part="status" role="status" aria-live="polite"></footer>
       </section>`,this.#o=e.querySelector(`.editor`),this.#c=e.querySelector(`.format`),this.#l=e.querySelector(`.status`),this.#u=e.querySelector(`.reset`),this.#o?.addEventListener(`ob-json-input`,e=>{this.#e=e.detail.text,this.#s()}),this.#c?.addEventListener(`change`,()=>{let e=wh(this.#c?.value);e!==this.#n&&(this.#a.valid&&(this.#e=Ch(this.#a.value,e)),this.#n=e,this.#a=Sh(this.#e,e),this.#d(),this.#m())}),this.#u?.addEventListener(`click`,()=>{this.#r||this.#e===this.#t||(this.#e=this.#t,this.#a=Sh(this.#e,this.#n),this.#d(),this.#m(),this.#o?.focusEditor())}))}get value(){return this.#a.valid?this.#a.value:null}set value(e){this.#e=e?Ch(e,this.#n):``,this.#t=this.#e,this.#s.cancel(),this.#p(),this.requestRender()}get text(){return this.#e}set text(e){this.#e=e??``,this.#t=this.#e,this.#s.cancel(),this.#p(),this.requestRender()}get format(){return this.#n}set format(e){let t=wh(e);t!==this.#n&&(this.#a.valid&&(this.#e=Ch(this.#a.value,t),this.#t=this.#e),this.#n=t,this.#s.cancel(),this.#p(),this.requestRender())}get readOnly(){return this.#r}set readOnly(e){!!e!==this.#r&&(this.#r=!!e,this.requestRender())}render(){this.#d()}#d(){if(this.#o&&(this.#o.text=this.#e,this.#o.language=this.#n,this.#o.readOnly=this.#r,this.#o.errorLine=this.#a.valid?null:this.#i),this.#c&&(this.#c.value=this.#n,this.#c.disabled=this.#r),this.#u&&(this.#u.disabled=this.#r||this.#e===this.#t),this.#l){let e=this.#e!==this.#t;this.#l.dataset.state=this.#a.valid?`valid`:`invalid`,this.#l.textContent=this.#a.valid?e?`Valid OpenBindings interface · unsaved changes`:`Valid OpenBindings interface`:this.#a.error}}#f(){this.#p(),this.#m()}#p(){this.#a=Sh(this.#e,this.#n),this.#i=this.#a.valid?null:xh(this.#a.error,this.#e),this.#d()}#m(){let e={text:this.#e,format:this.#n,dirty:this.#e!==this.#t};this.#a.valid?this.emit(`ob-interface-edit`,{...e,valid:!0,value:this.#a.value}):this.emit(`ob-interface-edit`,{...e,valid:!1,error:this.#a.error})}};function xh(e,t){let n=/\bline (\d+)/i.exec(e);if(n?.[1])return Number(n[1]);let r=/position (\d+)/i.exec(e);if(r?.[1]){let e=Number(r[1]);return t.slice(0,e).split(`
-`).length}return null}function Sh(e,t){if(!e.trim())return{valid:!1,error:`Interface source is empty.`};try{if(t===`json`)return{valid:!0,value:fd(e)};let n=_h(e,{prettyErrors:!0,uniqueKeys:!0});return{valid:!0,value:fd(JSON.stringify(n))}}catch(e){return{valid:!1,error:pd(e)}}}function Ch(e,t){return t===`json`?`${JSON.stringify(e,null,2)}
+`).length}return null}function Sh(e,t){if(!e.trim())return{valid:!1,error:`The interface document is empty.`};try{if(t===`json`)return{valid:!0,value:fd(e)};let n=_h(e,{prettyErrors:!0,uniqueKeys:!0});return{valid:!0,value:fd(JSON.stringify(n))}}catch(e){return{valid:!1,error:pd(e)}}}function Ch(e,t){return t===`json`?`${JSON.stringify(e,null,2)}
 `:vh(e,{indent:2,lineWidth:0})}function wh(e){if(e===`json`||e===`yaml`)return e;throw TypeError(`format must be "json" or "yaml"`)}var Th=`
   :host {
     display: block;
@@ -631,7 +630,7 @@ $&`).replace(/(?:^|\n)([\t ].*)(?:([\n\t ]*)\n(?![\n\t ]))?/g,`$1$2`).replace(/\
   <div class="frame" part="frame">
     <div class="toolbar" part="toolbar">
       <div class="views" role="group" aria-label="Editor view">
-        <button class="view-source" type="button" aria-pressed="true">Source</button>
+        <button class="view-source" type="button" aria-pressed="true">Text</button>
         <button class="view-tree" type="button" aria-pressed="false">Tree</button>
       </div>
       <div class="tree-actions" hidden>
