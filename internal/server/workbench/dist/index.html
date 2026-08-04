@@ -29,29 +29,66 @@
           </div>
         </div>
         <div class="header-actions">
-          <span id="connection-status" class="status-pill" role="status">
+          <!-- The pill reports connection state (P5) and is the interim
+               entry to connection settings now the Connection button is gone
+               (rev 17 loss ledger, review/120). -->
+          <button
+            id="connection-status"
+            class="status-pill"
+            type="button"
+            aria-expanded="false"
+            aria-controls="connection-panel"
+            title="Connection and credentials"
+          >
             <span class="status-dot" aria-hidden="true"></span>
-            <span id="connection-status-text">Connecting…</span>
-          </span>
-          <details class="layout-menu">
-            <summary>Panels</summary>
-            <div class="layout-popover">
-              <p class="eyebrow">Workspace</p>
-              <label>
-                <input id="show-explorer" type="checkbox" checked />
-                Interface rail
-              </label>
-              <label>
-                <input id="show-operation" type="checkbox" checked />
-                Tab column
-              </label>
-              <label>
-                <input id="show-source" type="checkbox" checked />
-                Interface document
-              </label>
-              <button id="reset-layout" type="button">Reset layout</button>
-            </div>
-          </details>
+            <span id="connection-status-text" role="status">Connecting…</span>
+          </button>
+          <!-- VS Code-style panel toggles (rev 17): left rail and document
+               editor. The center tab column is the core space — no toggle. -->
+          <button
+            id="toggle-left-panel"
+            type="button"
+            aria-pressed="true"
+            aria-label="Hide the interface rail"
+            title="Hide the interface rail"
+          >
+            <!-- Lucide "panel-left". ISC-licensed, lucide.dev. -->
+            <svg
+              class="panel-icon"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              aria-hidden="true"
+            >
+              <rect width="18" height="18" x="3" y="3" rx="2" />
+              <path d="M9 3v18" />
+            </svg>
+          </button>
+          <button
+            id="toggle-right-panel"
+            type="button"
+            aria-pressed="true"
+            aria-label="Hide the interface document"
+            title="Hide the interface document"
+          >
+            <!-- Lucide "panel-right". ISC-licensed, lucide.dev. -->
+            <svg
+              class="panel-icon"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              aria-hidden="true"
+            >
+              <rect width="18" height="18" x="3" y="3" rx="2" />
+              <path d="M15 3v18" />
+            </svg>
+          </button>
           <button
             id="theme-toggle"
             type="button"
@@ -97,40 +134,16 @@
         </div>
       </header>
 
-      <section class="document-bar" aria-labelledby="document-heading">
-        <div class="document-identity">
-          <p class="eyebrow">Document</p>
-          <div class="document-title-row">
-            <h2 id="document-heading">
-              <button id="document-name" type="button" title="Rename this document">
-                Untitled interface
-              </button>
-            </h2>
-            <span id="document-validity" class="badge neutral" role="status">—</span>
-            <span id="document-dirty" class="document-dirty" hidden>unsaved</span>
-          </div>
-          <p id="document-meta" class="document-meta" aria-live="polite"></p>
-        </div>
-        <div class="document-verbs">
-          <button id="doc-new" type="button">New</button>
-          <button id="doc-open" class="primary" type="button">Open</button>
-          <button id="doc-add" type="button">Add</button>
-          <button id="doc-export" type="button">Export</button>
-          <button
-            id="connection-toggle"
-            type="button"
-            aria-expanded="false"
-            aria-controls="connection-panel"
-          >
-            Connection
-          </button>
-        </div>
+      <!-- App messages (rev 17): the document bar died; the message line and
+           liveness notice keep a slim full-width strip under the header so
+           they stay visible with either side panel hidden. -->
+      <div class="app-messages">
         <p id="bootstrap-message" role="status"></p>
         <p id="liveness-notice" class="liveness-notice" role="status" hidden>
           ob start is not responding. Leave this open — it reconnects
           automatically.
         </p>
-      </section>
+      </div>
 
       <section
         id="connection-panel"
@@ -237,10 +250,25 @@
       </aside>
 
       <section class="workbench-grid">
-        <!-- One rail, master-pane pattern: operations first, the document's
-             source overview rows beneath (rev 16: both live in the explorer;
-             a source's detail is a workspace tab). -->
+        <!-- One rail, master-pane pattern: the document's identity first
+             (rev 17: it hides with the rail; the breadcrumb carries
+             wayfinding), then operations, then the source overview rows
+             (rev 16: both live in the explorer; a source's detail is a
+             workspace tab). -->
         <div class="rail-column">
+          <section class="document-identity" aria-labelledby="document-heading">
+            <p class="eyebrow">Document</p>
+            <div class="document-title-row">
+              <h2 id="document-heading">
+                <button id="document-name" type="button" title="Rename this document">
+                  Untitled interface
+                </button>
+              </h2>
+              <span id="document-validity" class="badge neutral" role="status">—</span>
+              <span id="document-dirty" class="document-dirty" hidden>unsaved</span>
+            </div>
+            <p id="document-meta" class="document-meta" aria-live="polite"></p>
+          </section>
           <ob-obi-explorer></ob-obi-explorer>
         </div>
         <div
@@ -255,6 +283,15 @@
         ></div>
         <div class="operation-column">
           <ob-operation-tabs></ob-operation-tabs>
+          <!-- Wayfinding (rev 17): the document identity lives in the
+               hideable rail, so the core column names where you are —
+               "<document> › <tab>" with the item's kind as a muted suffix. -->
+          <div id="tab-breadcrumb" class="tab-breadcrumb" aria-label="Location">
+            <span id="crumb-document"></span>
+            <span class="crumb-separator" aria-hidden="true">›</span>
+            <span id="crumb-item"></span>
+            <span id="crumb-kind" class="crumb-kind"></span>
+          </div>
           <!-- Tab content (rev 16): the detail scrolls above; invocation is a
                sheet pinned to the bottom edge — resizable, collapsible, and
                per-session. -->
@@ -303,92 +340,14 @@
           aria-valuemax="720"
           tabindex="0"
         ></div>
+        <!-- The right panel is the editor (rev 17): the Graph pane died with
+             the per-document graph category error (rev 14.3 adjudication;
+             review/120 loss ledger), and one pane needs no switcher. -->
         <div class="source-column">
-          <div class="artifact-toolbar">
-            <div class="artifact-tabs" role="tablist" aria-label="Interface artifact views">
-              <button
-                id="show-document-pane"
-                type="button"
-                role="tab"
-                aria-selected="true"
-                aria-controls="document-pane"
-              >
-                Document
-              </button>
-              <button
-                id="show-graph-pane"
-                type="button"
-                role="tab"
-                aria-selected="false"
-                aria-controls="graph-pane"
-              >
-                Graph
-              </button>
-            </div>
-          </div>
-          <div class="artifact-panels">
-            <section id="document-pane" class="artifact-pane">
-              <ob-obi-editor></ob-obi-editor>
-            </section>
-            <section id="graph-pane" class="artifact-pane graph-pane" hidden>
-              <div class="graph-actions">
-                <span id="graph-status">Select an operation with an embedded operation-graph binding.</span>
-                <div>
-                  <button id="toggle-graph-edit" type="button" disabled>
-                    Edit graph
-                  </button>
-                  <button id="discard-graph-draft" type="button" hidden>
-                    Discard
-                  </button>
-                  <button id="apply-graph-draft" type="button" hidden>
-                    Apply graph
-                  </button>
-                </div>
-              </div>
-              <ob-operation-graph-viewer></ob-operation-graph-viewer>
-              <ob-operation-graph-editor hidden></ob-operation-graph-editor>
-            </section>
-          </div>
+          <ob-obi-editor></ob-obi-editor>
         </div>
       </section>
     </main>
-
-    <dialog id="ingest-dialog" aria-labelledby="ingest-title">
-      <div class="ingest-body">
-        <p class="eyebrow">Document</p>
-        <h2 id="ingest-title">Open a document</h2>
-        <label for="open-url">From a URL — an OBI, a raw API artifact, or a server</label>
-        <div class="field-actions">
-          <input
-            id="open-url"
-            type="text"
-            inputmode="url"
-            autocomplete="url"
-            spellcheck="false"
-            placeholder="https://…"
-          />
-          <button id="ingest-url-submit" class="primary" type="button">Resolve</button>
-        </div>
-        <label for="open-paste">Or paste an OpenBindings interface (JSON)</label>
-        <textarea
-          id="open-paste"
-          rows="5"
-          spellcheck="false"
-          placeholder='{"name": …, "operations": …}'
-        ></textarea>
-        <div class="field-actions">
-          <button id="ingest-paste-submit" type="button">Use pasted interface</button>
-          <input id="open-file" type="file" accept=".json,.obi.json" />
-        </div>
-        <div id="ingest-open-extras">
-          <button id="open-this-ob" type="button">This ob start instance</button>
-          <div id="open-recents" class="open-recents"></div>
-        </div>
-        <div class="dialog-actions">
-          <button id="ingest-cancel" type="button">Cancel</button>
-        </div>
-      </div>
-    </dialog>
 
     <dialog id="rename-dialog" aria-labelledby="rename-title">
       <form id="rename-form">
