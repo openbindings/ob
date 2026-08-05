@@ -850,7 +850,7 @@ $&`).replace(/(?:^|\n)([\t ].*)(?:([\n\t ]*)\n(?![\n\t ]))?/g,`$1$2`).replace(/\
   .tok-invalid {
     color: var(--_ob-editor-token-invalid);
   }
-`,GM=`ob-operation-detail`,KM=class extends ld{#e=null;#t=null;#n=null;static get observedAttributes(){return[`hide-schemas`]}attributeChangedCallback(e,t,n){e===`hide-schemas`&&(this.hideSchemas=n!==null)}get hideSchemas(){return this.hasAttribute(`hide-schemas`)}set hideSchemas(e){this.toggleAttribute(`hide-schemas`,!!e)}#r=!0;get obi(){return this.#e}set obi(e){e!==this.#e&&(this.#e=e,this.requestRender())}get operationKey(){return this.#t}set operationKey(e){e!==this.#t&&(this.#t=e,this.#n=null,this.#r=!0,this.requestRender())}get selectedBindingKey(){return this.#n}set selectedBindingKey(e){e!==this.#n&&(this.#n=e,this.requestRender())}render(){let e=this.shell(JM,fd,YM,WM);if(!e)return;let t=this.#e&&this.#t?this.#e.operations[this.#t]:void 0,n=e.require(`.empty`),r=e.require(`.content`);if(!this.#e||!this.#t||!t){n.hidden=!1,L(n,this.#e?`Select an operation to inspect its contract.`:`Assign an OBI document and operation key.`),r.hidden=!0;return}n.hidden=!0,r.hidden=!1,L(e.require(`h2`),this.#t);let i=[...t.idempotent===!0?[[`flag:idempotent`,`Idempotent`,``]]:[],...t.deprecated===!0?[[`flag:deprecated`,`Deprecated`,`danger`]]:[],...(t.tags??[]).map((e,t)=>[`tag:${t}`,e,``])];od(e.require(`.flags`),i,{key:([e])=>e,create:()=>document.createElement(`span`),update:(e,[,t,n])=>{L(e,t),e.className=n}});let a=e.require(`.description`);a.hidden=!t.description,L(a,t.description??``);let o=t.aliases??[];e.require(`.aliases`).hidden=o.length===0,od(e.require(`.alias-list`),o,{key:(e,t)=>`alias:${t}`,create:()=>document.createElement(`code`),update:(e,t)=>L(e,t)});let s=Object.entries(this.#e.bindings??{}).filter(([,e])=>e.operation===this.#t).sort(([e],[t])=>e.localeCompare(t));e.require(`.bindings`).hidden=s.length===0,this.#r&&(this.#r=!1,e.require(`.bindings details`).open=s.length<=2),L(e.require(`.bindings-count`),`Bindings \xB7 ${s.length}`);let c=this.#n!==null&&s.some(([e])=>e===this.#n);L(e.require(`.bindings-via`),c?` \xB7 via ${this.#n}`:``),od(e.require(`.binding-list`),s,{key:([e])=>e,create:()=>qM(),update:(e,[t,n])=>{let r=this.#e?.sources?.[n.source],i=t===this.#n;e.dataset.bindingKey=t,e.classList.toggle(`selected`,i),L(e.querySelector(`.binding-key`),t),L(e.querySelector(`.binding-family`),r?`${r.bindingSpec} \xB7 ${n.source}`:n.source)}});let l=Object.entries(t.examples??{}).sort(([e],[t])=>e.localeCompare(t));e.require(`.examples`).hidden=l.length===0,od(e.require(`.example-list`),l,{key:([e])=>e,create:()=>document.createElement(`article`),update:(e,[t,n])=>{let r=[],i=document.createElement(`h4`);if(i.textContent=t,r.push(i),n.description){let e=document.createElement(`p`);e.textContent=n.description,r.push(e)}for(let e of[`input`,`output`]){if(!Object.hasOwn(n,e))continue;let t=document.createElement(`span`);t.className=`example-direction`,t.textContent=e;let i=document.createElement(`pre`);UM(i,dd(n[e])),r.push(t,i)}e.replaceChildren(...r)}});let u=e.require(`.input-schema`);t.input===void 0?(L(u,`No input schema`),delete u.dataset.obCode):UM(u,dd(t.input));let d=e.require(`.output-schema`);t.output===void 0?(L(d,`No output schema`),delete d.dataset.obCode):UM(d,dd(t.output))}};function qM(){let e=document.createElement(`div`);e.className=`binding-row`,e.setAttribute(`part`,`binding`);let t=document.createElement(`span`);t.className=`binding-key`;let n=document.createElement(`span`);return n.className=`binding-family`,e.append(t,n),e}var JM=`
+`,GM=`ob-operation-detail`,KM=class extends ld{#e=null;#t=null;#n=null;static get observedAttributes(){return[`hide-schemas`]}attributeChangedCallback(e,t,n){e===`hide-schemas`&&(this.hideSchemas=n!==null)}get hideSchemas(){return this.hasAttribute(`hide-schemas`)}set hideSchemas(e){this.toggleAttribute(`hide-schemas`,!!e)}get obi(){return this.#e}set obi(e){e!==this.#e&&(this.#e=e,this.requestRender())}get operationKey(){return this.#t}set operationKey(e){e!==this.#t&&(this.#t=e,this.#n=null,this.requestRender())}get selectedBindingKey(){return this.#n}set selectedBindingKey(e){e!==this.#n&&(this.#n=e,this.requestRender())}render(){let e=this.shell(JM,fd,YM,WM);if(!e)return;let t=this.#e&&this.#t?this.#e.operations[this.#t]:void 0,n=e.require(`.empty`),r=e.require(`.content`);if(!this.#e||!this.#t||!t){n.hidden=!1,L(n,this.#e?`Select an operation to inspect its contract.`:`Assign an OBI document and operation key.`),r.hidden=!0;return}n.hidden=!0,r.hidden=!1,L(e.require(`h2`),this.#t);let i=[...t.idempotent===!0?[[`flag:idempotent`,`Idempotent`,``]]:[],...t.deprecated===!0?[[`flag:deprecated`,`Deprecated`,`danger`]]:[],...(t.tags??[]).map((e,t)=>[`tag:${t}`,e,``])];od(e.require(`.flags`),i,{key:([e])=>e,create:()=>document.createElement(`span`),update:(e,[,t,n])=>{L(e,t),e.className=n}});let a=e.require(`.description`);a.hidden=!t.description,L(a,t.description??``);let o=t.aliases??[];e.require(`.aliases`).hidden=o.length===0,od(e.require(`.alias-list`),o,{key:(e,t)=>`alias:${t}`,create:()=>document.createElement(`code`),update:(e,t)=>L(e,t)});let s=Object.entries(this.#e.bindings??{}).filter(([,e])=>e.operation===this.#t).sort(([e],[t])=>e.localeCompare(t));e.require(`.bindings`).hidden=s.length===0,L(e.require(`.bindings-count`),`Bindings \xB7 ${s.length}`);let c=this.#n!==null&&s.some(([e])=>e===this.#n);L(e.require(`.bindings-via`),c?` \xB7 via ${this.#n}`:``),od(e.require(`.binding-list`),s,{key:([e])=>e,create:()=>qM(),update:(e,[t,n])=>{let r=this.#e?.sources?.[n.source],i=t===this.#n;e.dataset.bindingKey=t,e.classList.toggle(`selected`,i),L(e.querySelector(`.binding-key`),t),L(e.querySelector(`.binding-family`),r?`${r.bindingSpec} \xB7 ${n.source}`:n.source)}});let l=Object.entries(t.examples??{}).sort(([e],[t])=>e.localeCompare(t));e.require(`.examples`).hidden=l.length===0,od(e.require(`.example-list`),l,{key:([e])=>e,create:()=>document.createElement(`article`),update:(e,[t,n])=>{let r=[],i=document.createElement(`h4`);if(i.textContent=t,r.push(i),n.description){let e=document.createElement(`p`);e.textContent=n.description,r.push(e)}for(let e of[`input`,`output`]){if(!Object.hasOwn(n,e))continue;let t=document.createElement(`span`);t.className=`example-direction`,t.textContent=e;let i=document.createElement(`pre`);UM(i,dd(n[e])),r.push(t,i)}e.replaceChildren(...r)}});let u=e.require(`.input-schema`);t.input===void 0?(L(u,`No input schema`),delete u.dataset.obCode):UM(u,dd(t.input));let d=e.require(`.output-schema`);t.output===void 0?(L(d,`No output schema`),delete d.dataset.obCode):UM(d,dd(t.output))}};function qM(){let e=document.createElement(`div`);e.className=`binding-row`,e.setAttribute(`part`,`binding`);let t=document.createElement(`span`);t.className=`binding-key`;let n=document.createElement(`span`);return n.className=`binding-family`,e.append(t,n),e}var JM=`
   <article class="container" part="container">
     <div class="empty" part="empty"></div>
     <div class="content">
@@ -867,10 +867,8 @@ $&`).replace(/(?:^|\n)([\t ].*)(?:([\n\t ]*)\n(?![\n\t ]))?/g,`$1$2`).replace(/\
         <div class="alias-list"></div>
       </section>
       <section class="bindings">
-        <details>
-          <summary part="bindings-summary"><span class="bindings-count"></span><span class="bindings-via"></span></summary>
-          <div class="binding-list" part="binding-list"></div>
-        </details>
+        <h3 part="bindings-heading"><span class="bindings-count"></span><span class="bindings-via"></span></h3>
+        <div class="binding-list" part="binding-list"></div>
       </section>
       <section class="examples" part="examples">
         <h3>Examples</h3>
@@ -960,16 +958,13 @@ $&`).replace(/(?:^|\n)([\t ].*)(?:([\n\t ]*)\n(?![\n\t ]))?/g,`$1$2`).replace(/\
     margin-top: calc(var(--_ob-space) * 1.5);
   }
 
-  .bindings summary {
+  .bindings h3 {
+    margin: 0 0 0.45rem;
     color: var(--_ob-color-text-muted);
     font-size: 0.72rem;
+    font-weight: 600;
     letter-spacing: 0.05em;
     text-transform: uppercase;
-    cursor: pointer;
-  }
-
-  .bindings details[open] summary {
-    margin-bottom: 0.45rem;
   }
 
   /* Binding keys are case-sensitive identifiers; keep them verbatim. */
