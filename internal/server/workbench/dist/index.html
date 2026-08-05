@@ -312,11 +312,38 @@
                per-session. -->
           <div id="tab-content" class="tab-content">
             <div class="detail-region">
-              <ob-operation-detail></ob-operation-detail>
+              <ob-operation-detail hide-schemas></ob-operation-detail>
               <!-- The source tab's content (rev 16); [hidden] flips between
                    the two details by the active workspace item's kind. -->
               <ob-source-detail hidden></ob-source-detail>
             </div>
+            <!-- The SCHEMAS strip (rev 17.12): the operation's declared
+                 contract in the SAME split geometry as the invocation
+                 below — input schema directly over input, output over
+                 output, one shared ratio. Collapsible like the invocation
+                 sheet; fixed anchors: title left, chevron far right. -->
+            <section
+              id="schemas-strip"
+              class="schemas-strip"
+              aria-label="Operation schemas"
+            >
+              <div class="sheet-header">
+                <span class="sheet-title">Schemas</span>
+                <span class="sheet-spacer" aria-hidden="true"></span>
+                <button
+                  id="schemas-toggle"
+                  type="button"
+                  aria-expanded="true"
+                  title="Collapse the schemas strip"
+                  aria-label="Collapse the schemas strip"
+                >
+                  <span class="disclosure-chevron" aria-hidden="true"></span>
+                </button>
+              </div>
+              <div id="schemas-content" class="schemas-content">
+                <ob-schema-split id="schema-split" flush></ob-schema-split>
+              </div>
+            </section>
             <div
               id="sheet-gutter"
               class="gutter gutter-horizontal"
