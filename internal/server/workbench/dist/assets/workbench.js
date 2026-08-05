@@ -325,7 +325,11 @@ $&`).replace(/(?:^|\n)([\t ].*)(?:([\n\t ]*)\n(?![\n\t ]))?/g,`$1$2`).replace(/\
 
   /* The editor is the pane: no padding band, no inner frame — the code
      surface runs edge to edge under the toolbar (rev 17.9). */
-  .editor::part(container) {
+  /* The embedded editor's own frame part is named "frame" — NOT "container"
+     (rev 17.11.1: three ::part(container) rules across the repo were silent
+     no-ops, which is why every editor kept a second border inside an
+     already-framed panel). */
+  .editor::part(frame) {
     height: 100%;
     border: 0;
     border-radius: 0;
@@ -1762,7 +1766,8 @@ $&`).replace(/(?:^|\n)([\t ].*)(?:([\n\t ]*)\n(?![\n\t ]))?/g,`$1$2`).replace(/\
     border-radius: 0;
   }
 
-  :host([flush]) .input-editor::part(container) {
+  /* json-editor's frame part is "frame", not "container" (rev 17.11.1). */
+  :host([flush]) .input-editor::part(frame) {
     height: 100%;
     border: 0;
     border-radius: 0;
@@ -2283,7 +2288,7 @@ $&`).replace(/(?:^|\n)([\t ].*)(?:([\n\t ]*)\n(?![\n\t ]))?/g,`$1$2`).replace(/\
     min-height: 0;
   }
 
-  .output-editor::part(container) {
+  .output-editor::part(frame) {
     height: 100%;
     border: 0;
     border-radius: 0;
