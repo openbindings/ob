@@ -1046,29 +1046,14 @@ $&`).replace(/(?:^|\n)([\t ].*)(?:([\n\t ]*)\n(?![\n\t ]))?/g,`$1$2`).replace(/\
   }
 
   /*
-   * Edges with scrolled-out tabs dissolve the strip's own content via a mask
-   * on the scroller — nothing is ever painted OVER a tab label (a painted
-   * gradient reads as a smudged fake shadow on light surfaces; dogfood
-   * report, rev 13.2). Masks composite alpha only, so the keyword color
-   * carries no visual color and the hint is theme-proof by construction.
-   * Driven by the data attribute rather than :hover so it holds at rest.
-   * The menu column sits outside the scroller, so the end fade clears it
-   * with no positioning special-case.
+   * Overflow is a CLEAN CUT (rev 17.11, dogfood: "I don't like this little
+   * fade bit on the scrollable tabs. Just have it get cut off. That's fine.
+   * Clean lines."). The edge mask that used to dissolve scrolled-out tabs is
+   * gone: a tab simply ends at the strip's edge, like every other clipped
+   * surface in the workbench. The data-overflow attribute survives as honest state — the
+   * overflow menu is the affordance that says there is more, and hosts and
+   * tests read the attribute — it just paints nothing.
    */
-  .container[data-overflow="start"] .tab-list {
-    -webkit-mask-image: linear-gradient(to right, transparent, black 1.5rem);
-    mask-image: linear-gradient(to right, transparent, black 1.5rem);
-  }
-
-  .container[data-overflow="end"] .tab-list {
-    -webkit-mask-image: linear-gradient(to right, black calc(100% - 1.5rem), transparent);
-    mask-image: linear-gradient(to right, black calc(100% - 1.5rem), transparent);
-  }
-
-  .container[data-overflow="both"] .tab-list {
-    -webkit-mask-image: linear-gradient(to right, transparent, black 1.5rem, black calc(100% - 1.5rem), transparent);
-    mask-image: linear-gradient(to right, transparent, black 1.5rem, black calc(100% - 1.5rem), transparent);
-  }
 
   .tab-list {
     display: flex;
