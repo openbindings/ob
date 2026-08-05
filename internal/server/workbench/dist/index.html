@@ -92,12 +92,13 @@
           <button
             id="theme-toggle"
             type="button"
-            aria-pressed="false"
-            aria-label="Switch to dark theme"
-            title="Switch to dark theme"
+            aria-label="Theme: system (follows the OS) — click for light"
+            title="Theme: system (follows the OS) — click for light"
           >
-            <!-- Lucide "moon" (shown in light mode: the action is dark) and
-                 "sun" (shown in dark mode). ISC-licensed, lucide.dev. -->
+            <!-- Tri-state (rev 17.9): the icon shows the CURRENT mode —
+                 lucide "sun" (light), "moon" (dark), "monitor" (system);
+                 clicks cycle light → dark → system. ISC-licensed,
+                 lucide.dev. -->
             <svg
               class="theme-icon icon-moon"
               viewBox="0 0 24 24"
@@ -129,6 +130,20 @@
               <path d="M20 12h2" />
               <path d="m6.34 17.66-1.41 1.41" />
               <path d="m19.07 4.93-1.41 1.41" />
+            </svg>
+            <svg
+              class="theme-icon icon-system"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              aria-hidden="true"
+            >
+              <rect width="20" height="14" x="2" y="3" rx="2" />
+              <line x1="8" x2="16" y1="21" y2="21" />
+              <line x1="12" x2="12" y1="17" y2="21" />
             </svg>
           </button>
         </div>
@@ -264,7 +279,9 @@
                   Untitled interface
                 </button>
               </h2>
-              <span id="document-validity" class="badge neutral" role="status">—</span>
+              <!-- Linter doctrine (rev 17.9): renders only when the server
+                   reports problems — validity itself is silent. -->
+              <span id="document-validity" class="badge neutral" role="status" hidden></span>
               <span id="document-dirty" class="document-dirty" hidden>unsaved</span>
             </div>
             <p id="document-meta" class="document-meta" aria-live="polite"></p>
