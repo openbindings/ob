@@ -327,7 +327,9 @@
                   aria-label="No invoker available"
                 ></span>
                 <span id="sheet-status" class="sheet-status"></span>
-                <button id="sheet-run" type="button" hidden>Run</button>
+                <!-- Permanent slot (rev 17.3): Run lives in the strip in BOTH
+                     states — disabled, never absent, never moving. -->
+                <button id="sheet-run" type="button">Run</button>
                 <button
                   id="sheet-toggle"
                   type="button"
