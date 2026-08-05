@@ -328,8 +328,28 @@
                 ></span>
                 <span id="sheet-status" class="sheet-status"></span>
                 <!-- Permanent slot (rev 17.3): Run lives in the strip in BOTH
-                     states — disabled, never absent, never moving. -->
-                <button id="sheet-run" type="button">Run</button>
+                     states — disabled, never absent, never moving. Icon-based
+                     (rev 17.6), matching the icon rails in the cockpit. -->
+                <button
+                  id="sheet-run"
+                  type="button"
+                  aria-label="Run"
+                  title="Run"
+                >
+                  <!-- Lucide "play". ISC-licensed, lucide.dev. -->
+                  <svg
+                    class="panel-icon"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="2"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    aria-hidden="true"
+                  >
+                    <polygon points="6 3 20 12 6 21 6 3" />
+                  </svg>
+                </button>
                 <button
                   id="sheet-toggle"
                   type="button"
