@@ -1718,25 +1718,36 @@ $&`).replace(/(?:^|\n)([\t ].*)(?:([\n\t ]*)\n(?![\n\t ]))?/g,`$1$2`).replace(/\
     overflow: hidden;
   }
 
-  /* Flush presentation (rev 17.7): the host owns the frame — the sheet's
-     border, background, and a definite height — so the card chrome would be
-     a second frame and a padding band of dead space. The cockpit hugs its
-     container; the min-height floors go too, because the granted height is
-     the truth and the editors scroll within themselves. */
+  /* Flush presentation (rev 17.7, tightened 17.8): the host owns the frame —
+     the sheet's border, background, and a definite height — so the element
+     draws NO chrome of its own. No padding band, no card borders, no boxed
+     panes: input left, output right, full bleed, separated only by the
+     resize gutter's hairline. The min-height floors go too, because the
+     granted height is the truth and the editors scroll within themselves. */
   :host([flush]) .container {
     min-height: 0;
-    padding: calc(var(--_ob-space) * 0.6);
+    padding: 0;
     background: transparent;
     border: 0;
     border-radius: 0;
   }
 
   :host([flush]) .workspace {
+    gap: 0;
     margin-top: 0;
   }
 
   :host([flush]) header {
-    margin-bottom: calc(var(--_ob-space) * 0.6);
+    padding: 0.3rem 0.5rem;
+  }
+
+  :host([flush]) .input-column,
+  :host([flush]) .output-column {
+    gap: 0;
+  }
+
+  :host([flush]) .tool-rail {
+    padding: 0.35rem 0.3rem;
   }
 
   :host([flush]) .workspace.split {
@@ -1748,6 +1759,41 @@ $&`).replace(/(?:^|\n)([\t ].*)(?:([\n\t ]*)\n(?![\n\t ]))?/g,`$1$2`).replace(/\
   :host([flush]) .workspace.split .output-view,
   :host([flush]) .workspace.split .input-empty {
     min-height: 0;
+  }
+
+  /* Panes are full-bleed fields, not boxed cards. */
+  :host([flush]) .output-view,
+  :host([flush]) .input-empty,
+  :host([flush]) .form-view {
+    border: 0;
+    border-radius: 0;
+  }
+
+  :host([flush]) .input-editor::part(container) {
+    height: 100%;
+    border: 0;
+    border-radius: 0;
+  }
+
+  :host([flush]) .error {
+    margin: 0.5rem;
+  }
+
+  /* The one divider: the gutter always draws its hairline in flush, and
+     widens to the grab affordance on interaction. */
+  :host([flush]) .layout-gutter {
+    width: 0.5rem;
+  }
+
+  :host([flush]) .layout-gutter-handle {
+    width: 1px;
+    background: var(--_ob-color-border);
+  }
+
+  :host([flush]) .layout-gutter:hover .layout-gutter-handle,
+  :host([flush]) .layout-gutter:focus-visible .layout-gutter-handle,
+  :host([flush]) .layout-gutter.dragging .layout-gutter-handle {
+    width: 3px;
   }
 
   :host([hide-identity]) header > .identity,
