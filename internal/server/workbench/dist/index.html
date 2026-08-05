@@ -313,11 +313,20 @@
             ></div>
             <section id="invocation-sheet" class="invocation-sheet" aria-label="Invocation sheet">
               <div class="sheet-header">
+                <!-- Fixed anchors (rev 17.2): the title + dot are pinned
+                     left, the chevron is pinned far right — NOTHING in this
+                     strip changes position across collapse states. The dot
+                     is the status (green ready, amber running, red not);
+                     run reports print in the flexible middle. -->
                 <span class="sheet-title">Invocation</span>
-                <!-- The strip's status only speaks for a COLLAPSED sheet —
-                     expanded, the workbench's own status is visible below
-                     and the strip stays silent (rev 17.1). -->
-                <span id="sheet-status" class="sheet-status" role="status" hidden>Ready</span>
+                <span
+                  id="sheet-dot"
+                  class="status-dot"
+                  data-state="failed"
+                  role="status"
+                  aria-label="No invoker available"
+                ></span>
+                <span id="sheet-status" class="sheet-status"></span>
                 <button id="sheet-run" type="button" hidden>Run</button>
                 <button
                   id="sheet-toggle"
@@ -326,31 +335,10 @@
                   title="Collapse the invocation sheet"
                   aria-label="Collapse the invocation sheet"
                 >
-                  <!-- Lucide chevrons: down = collapse, up = expand. -->
-                  <svg
-                    class="sheet-chevron chevron-down"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    stroke-width="2"
-                    stroke-linecap="round"
-                    stroke-linejoin="round"
-                    aria-hidden="true"
-                  >
-                    <path d="m6 9 6 6 6-6" />
-                  </svg>
-                  <svg
-                    class="sheet-chevron chevron-up"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    stroke-width="2"
-                    stroke-linecap="round"
-                    stroke-linejoin="round"
-                    aria-hidden="true"
-                  >
-                    <path d="m18 15-6-6-6 6" />
-                  </svg>
+                  <!-- The system disclosure chevron (ui-core construction):
+                     points down while expanded, up while collapsed — the
+                     direction the sheet's edge will travel. -->
+                  <span class="disclosure-chevron" aria-hidden="true"></span>
                 </button>
               </div>
               <div id="invocation-sessions" class="invocation-sessions"></div>
