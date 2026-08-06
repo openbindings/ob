@@ -949,3 +949,119 @@ func TestListenAndServe_StrictPortRefusesFallback(t *testing.T) {
 		t.Errorf("error should name the busy port %d: %v", requested, err)
 	}
 }
+
+// --- The cookie exchange (rev 17.19) ---
+
+func TestAuthMiddleware_BearerIssuesSessionCookie(t *testing.T) {
+	s := mustNewServer(t, "test-token-123")
+	rec := &callRecorder{}
+	handler := s.authMiddleware(rec.handler())
+
+	req := httptest.NewRequest("GET", "/describe", nil)
+	req.Header.Set("Authorization", "Bearer test-token-123")
+	w := httptest.NewRecorder()
+	handler.ServeHTTP(w, req)
+
+	cookies := w.Result().Cookies()
+	var session *http.Cookie
+	for _, c := range cookies {
+		if c.Name == SessionCookieName {
+			session = c
+		}
+	}
+	if session == nil {
+		t.Fatalf("bearer auth must issue the session cookie; got %v", cookies)
+	}
+	if session.Value != "test-token-123" {
+		t.Errorf("cookie value = %q, want the run token", session.Value)
+	}
+	if !session.HttpOnly || session.SameSite != http.SameSiteStrictMode || session.Path != "/" {
+		t.Errorf("cookie attributes wrong: HttpOnly=%v SameSite=%v Path=%q",
+			session.HttpOnly, session.SameSite, session.Path)
+	}
+}
+
+func TestAuthMiddleware_CookieAuthenticates(t *testing.T) {
+	s := mustNewServer(t, "test-token-123")
+	rec := &callRecorder{}
+	handler := s.authMiddleware(rec.handler())
+
+	req := httptest.NewRequest("GET", "/describe", nil)
+	req.AddCookie(&http.Cookie{Name: SessionCookieName, Value: "test-token-123"})
+	w := httptest.NewRecorder()
+	handler.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK || !rec.called {
+		t.Errorf("cookie auth: status = %d, called = %v; want 200, true", w.Code, rec.called)
+	}
+	// Cookie-only auth does not re-issue the cookie (nothing to exchange).
+	for _, c := range w.Result().Cookies() {
+		if c.Name == SessionCookieName {
+			t.Errorf("cookie-authed request should not re-set the cookie")
+		}
+	}
+}
+
+func TestAuthMiddleware_StaleCookieRejected(t *testing.T) {
+	// A cookie from a previous run (rotated token) is not a credential.
+	s := mustNewServer(t, "test-token-123")
+	rec := &callRecorder{}
+	handler := s.authMiddleware(rec.handler())
+
+	req := httptest.NewRequest("GET", "/describe", nil)
+	req.AddCookie(&http.Cookie{Name: SessionCookieName, Value: "previous-run-token"})
+	w := httptest.NewRecorder()
+	handler.ServeHTTP(w, req)
+
+	if w.Code != http.StatusUnauthorized || rec.called {
+		t.Errorf("stale cookie: status = %d, called = %v; want 401, false", w.Code, rec.called)
+	}
+}
+
+func TestSessionTokenRoute_RedeemsCookieForToken(t *testing.T) {
+	s := mustNewServer(t, "test-token-123")
+	s.RegisterSessionRoutes()
+
+	req := httptest.NewRequest("GET", "/session/token", nil)
+	req.Host = "localhost"
+	req.AddCookie(&http.Cookie{Name: SessionCookieName, Value: "test-token-123"})
+	w := httptest.NewRecorder()
+	s.Handler().ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200", w.Code)
+	}
+	if cc := w.Header().Get("Cache-Control"); cc != "no-store" {
+		t.Errorf("Cache-Control = %q, want no-store (the body is a secret)", cc)
+	}
+	var body map[string]string
+	if err := json.NewDecoder(w.Body).Decode(&body); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	if body["token"] != "test-token-123" {
+		t.Errorf("token = %q", body["token"])
+	}
+
+	// Without a cookie the window is EMPTY, not an error: probing for a
+	// cookie is the normal first-run case, and 204 keeps consoles quiet.
+	anon := httptest.NewRequest("GET", "/session/token", nil)
+	anon.Host = "localhost"
+	anonW := httptest.NewRecorder()
+	s.Handler().ServeHTTP(anonW, anon)
+	if anonW.Code != http.StatusNoContent {
+		t.Errorf("anonymous redemption: status = %d, want 204", anonW.Code)
+	}
+	if anonW.Body.Len() != 0 {
+		t.Errorf("anonymous redemption leaked a body: %q", anonW.Body.String())
+	}
+
+	// A stale cookie (rotated token) is the same empty window.
+	stale := httptest.NewRequest("GET", "/session/token", nil)
+	stale.Host = "localhost"
+	stale.AddCookie(&http.Cookie{Name: SessionCookieName, Value: "previous-run-token"})
+	staleW := httptest.NewRecorder()
+	s.Handler().ServeHTTP(staleW, stale)
+	if staleW.Code != http.StatusNoContent {
+		t.Errorf("stale redemption: status = %d, want 204", staleW.Code)
+	}
+}

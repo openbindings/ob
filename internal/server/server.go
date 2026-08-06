@@ -12,6 +12,7 @@ import (
 	"crypto/x509"
 	"crypto/x509/pkix"
 	"encoding/hex"
+	"encoding/json"
 	"encoding/pem"
 	"fmt"
 	"log/slog"
@@ -154,6 +155,13 @@ func (s *Server) IsValidToken(token string) bool {
 // Mux returns the underlying ServeMux for registering routes.
 func (s *Server) Mux() *http.ServeMux {
 	return s.mux
+}
+
+// RegisterSessionRoutes wires the auth-transport routes (the cookie
+// exchange's token redemption). These are serve-transport mechanics like
+// /healthz, not operations — the published command surface is unchanged.
+func (s *Server) RegisterSessionRoutes() {
+	s.mux.HandleFunc("GET /session/token", s.handleSessionToken)
 }
 
 // Handler returns the full middleware-wrapped handler chain.
@@ -449,9 +457,28 @@ func isLocalhostOrigin(origin string) bool {
 	return IsLoopbackHost(u.Hostname())
 }
 
-// authMiddleware requires a valid Bearer token on all requests except
-// public endpoints (the workbench root and assets, well-known, healthz, the
-// served openapi/asyncapi specs, and the OAuth authorize/token endpoints).
+// SessionCookieName carries the run token as an HttpOnly SameSite=Strict
+// cookie so a browser authenticated once (via the URL-fragment handoff)
+// stays authenticated for the lifetime of the server run — new tabs, browser
+// relaunches, history clicks — without the fragment. The cookie's value IS
+// the run token, so a restart that rotates the token invalidates every
+// outstanding cookie by construction; Max-Age only bounds how long dead
+// cookies linger. HttpOnly keeps scripts from reading it; SameSite=Strict
+// keeps other sites from sending it; the domain scoping keeps a
+// DNS-rebound host from ever receiving it.
+const SessionCookieName = "ob_start_session"
+
+// sessionCookieMaxAge bounds stale-cookie lingering, not authority: a
+// rotated token invalidates the cookie regardless of age.
+const sessionCookieMaxAge = 7 * 24 * time.Hour
+
+// authMiddleware requires a valid credential on all requests except public
+// endpoints (the workbench root and assets, well-known, healthz, the served
+// openapi/asyncapi specs, and the OAuth authorize/token endpoints). The
+// credential is the Bearer token, or equivalently the session cookie the
+// server itself issued (the cookie exchange, rev 17.19): a successful
+// bearer request re-issues the cookie so the browser's authority tracks the
+// run without the page ever re-handling the fragment.
 func (s *Server) authMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		path := r.URL.Path
@@ -464,6 +491,14 @@ func (s *Server) authMiddleware(next http.Handler) http.Handler {
 			return
 		}
 		if path == "/oauth/authorize" || path == "/oauth/token" {
+			next.ServeHTTP(w, r)
+			return
+		}
+		if path == "/session/token" {
+			// The redemption window authenticates itself (cookie-only) and
+			// answers 204 when there is nothing to redeem: an unauthed visit
+			// probing for a cookie is the NORMAL first-run case, not an
+			// error, and a 401 here would put noise in every such console.
 			next.ServeHTTP(w, r)
 			return
 		}
@@ -482,20 +517,61 @@ func (s *Server) authMiddleware(next http.Handler) http.Handler {
 			return
 		}
 
-		token, ok := bearerToken(r.Header.Get("Authorization"))
-		if !ok || !s.IsValidToken(token) {
-			s.logger.Warn("auth failure",
-				"method", r.Method,
-				"path", path,
-				"remote_addr", r.RemoteAddr,
-				"request_id", RequestIDFromContext(r.Context()),
-			)
-			writeServerError(w, http.StatusUnauthorized, "unauthorized", "a valid bearer token is required")
+		if token, ok := bearerToken(r.Header.Get("Authorization")); ok && s.IsValidToken(token) {
+			// The exchange: a bearer-authenticated request proves the page
+			// holds the fragment handoff, so the browser earns the durable
+			// form of the same authority.
+			s.setSessionCookie(w, r)
+			next.ServeHTTP(w, r)
 			return
 		}
 
-		next.ServeHTTP(w, r)
+		if cookie, err := r.Cookie(SessionCookieName); err == nil && s.IsValidToken(cookie.Value) {
+			next.ServeHTTP(w, r)
+			return
+		}
+
+		s.logger.Warn("auth failure",
+			"method", r.Method,
+			"path", path,
+			"remote_addr", r.RemoteAddr,
+			"request_id", RequestIDFromContext(r.Context()),
+		)
+		writeServerError(w, http.StatusUnauthorized, "unauthorized", "a valid bearer token is required")
 	})
+}
+
+func (s *Server) setSessionCookie(w http.ResponseWriter, r *http.Request) {
+	if cookie, err := r.Cookie(SessionCookieName); err == nil && cookie.Value == s.token {
+		return // Already current; re-setting every request is noise.
+	}
+	http.SetCookie(w, &http.Cookie{
+		Name:     SessionCookieName,
+		Value:    s.token,
+		Path:     "/",
+		MaxAge:   int(sessionCookieMaxAge / time.Second),
+		HttpOnly: true,
+		SameSite: http.SameSiteStrictMode,
+		Secure:   r.TLS != nil,
+	})
+}
+
+// handleSessionToken redeems the session cookie for the run token so the
+// page can present it as a bearer everywhere the existing plumbing expects
+// one (the invocation frames carry it as context for ob's self-referential
+// bindings). The route is middleware-exempt and authenticates itself,
+// cookie-only: a valid cookie answers with the very secret it encodes, and
+// anything else answers 204 — no cookie is the normal first-run state, not
+// an error, so it earns no error status and no console noise.
+func (s *Server) handleSessionToken(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Cache-Control", "no-store")
+	cookie, err := r.Cookie(SessionCookieName)
+	if err != nil || !s.IsValidToken(cookie.Value) {
+		w.WriteHeader(http.StatusNoContent)
+		return
+	}
+	w.Header().Set("Content-Type", "application/json; charset=utf-8")
+	_ = json.NewEncoder(w).Encode(map[string]string{"token": s.token})
 }
 
 func bearerToken(authorization string) (string, bool) {

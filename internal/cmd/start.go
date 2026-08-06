@@ -182,6 +182,7 @@ To expose this server's operations to an MCP agent, bridge it with
 			}
 
 			oauthSt := newOAuthStore()
+			srv.RegisterSessionRoutes()
 			registerRoutes(srv, logger, port, oauthSt)
 
 			ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
