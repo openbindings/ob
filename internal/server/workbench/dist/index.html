@@ -57,6 +57,33 @@
               <path d="M9 15h6" />
             </svg>
           </button>
+          <!-- Sessions (rev 17.18): the door back. Acquiring brings a
+               document IN; resuming goes BACK — different categories, so
+               a sibling door beside file-plus rather than a section inside
+               the acquire modal. -->
+          <button
+            id="sessions-open"
+            type="button"
+            aria-haspopup="dialog"
+            aria-label="Sessions"
+            title="Sessions"
+          >
+            <!-- Lucide "history". ISC-licensed, lucide.dev. -->
+            <svg
+              class="panel-icon"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              aria-hidden="true"
+            >
+              <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8" />
+              <path d="M3 3v5h5" />
+              <path d="M12 7v5l4 2" />
+            </svg>
+          </button>
           <!-- The pill reports connection state (P5) and is the interim
                entry to connection settings now the Connection button is gone
                (rev 17 loss ledger, review/120). -->
@@ -416,6 +443,7 @@
                   type="button"
                   aria-label="Run"
                   title="Run"
+                  disabled
                 >
                   <!-- Lucide "play". ISC-licensed, lucide.dev. -->
                   <svg
@@ -496,6 +524,47 @@
           </button>
         </div>
       </form>
+    </dialog>
+
+    <!-- Sessions (rev 17.18). The browser holds drafts: every session row
+         is a crash-safe autosaved working copy — files remain the only
+         durable act. Rows identify themselves by document name, version,
+         origin, and recency; there is no rename (adjudicated: too much).
+         Open loads into THIS tab (the one being left is autosaved, so
+         switching is lossless). A session held by another tab is chipped
+         and its Open greys — two tabs writing one record is the trample
+         the per-tab isolation exists to prevent — but Duplicate stays
+         live on every row: forking copies the record under a new id and
+         opens the copy here, trampling nothing. Delete goes through the
+         confirmation dialog because a session may be the only copy of
+         unexported work. -->
+    <dialog id="sessions-dialog" aria-labelledby="sessions-title">
+      <div class="dialog-heading">
+        <div>
+          <p class="eyebrow">Workbench</p>
+          <h2 id="sessions-title">Sessions</h2>
+        </div>
+        <button id="sessions-close" class="dialog-dismiss" type="button" aria-label="Close">
+          <!-- Lucide "x". ISC-licensed, lucide.dev. -->
+          <svg
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            aria-hidden="true"
+          >
+            <path d="M18 6 6 18" />
+            <path d="m6 6 12 12" />
+          </svg>
+        </button>
+      </div>
+      <div id="sessions-list" class="sessions-list"></div>
+      <p id="sessions-empty" class="sessions-empty" hidden>
+        No saved sessions yet. Sessions are saved automatically once you
+        change a document.
+      </p>
     </dialog>
 
     <!-- Acquisition (rev 17.16). Two fields' worth of question and two
