@@ -91,9 +91,8 @@
             id="connection-status"
             class="status-pill"
             type="button"
-            aria-expanded="false"
-            aria-controls="connection-panel"
-            title="Connection and credentials"
+            aria-haspopup="dialog"
+            title="Session credential"
           >
             <span class="status-dot" aria-hidden="true"></span>
             <span id="connection-status-text" role="status">Connecting…</span>
@@ -215,110 +214,6 @@
         </p>
       </div>
 
-      <section
-        id="connection-panel"
-        class="connection-panel"
-        aria-labelledby="connection-heading"
-        hidden
-      >
-        <header>
-          <div>
-            <p class="eyebrow">Advanced</p>
-            <h2 id="connection-heading">Connection and credentials</h2>
-          </div>
-          <button id="connection-close" type="button" aria-label="Close connection settings">
-            Done
-          </button>
-        </header>
-        <div class="connection-grid">
-          <article>
-            <div class="connection-card-heading">
-              <div>
-                <h3>This workbench</h3>
-                <p id="session-status">
-                  Checking the local <code>ob start</code> session…
-                </p>
-              </div>
-              <span id="session-badge" class="badge">Checking</span>
-            </div>
-            <p>
-              This credential authorizes the browser to use the local
-              workbench backend. It is never forwarded to a selected target.
-            </p>
-            <form id="token-form">
-              <label for="session-token">Replace session token</label>
-              <div class="field-actions">
-                <input
-                  id="session-token"
-                  name="token"
-                  type="password"
-                  autocomplete="off"
-                  placeholder="Paste a session token"
-                />
-                <button type="submit">Use token</button>
-                <button id="clear-session-token" type="button">Clear</button>
-              </div>
-            </form>
-          </article>
-
-          <article>
-            <div class="connection-card-heading">
-              <div>
-                <h3>Selected target</h3>
-                <p id="target-context-status">No target credentials configured.</p>
-              </div>
-              <span class="badge neutral">Optional</span>
-            </div>
-            <p>
-              Supply context only when the selected API requires it. These
-              values are held in this page and sent only with target
-              invocations.
-            </p>
-            <div id="target-requirements" class="target-requirements" hidden>
-              <p id="target-requirements-copy"></p>
-              <form id="requirement-form">
-                <label id="requirement-alternative-label" for="requirement-alternative">
-                  Authentication method
-                </label>
-                <select id="requirement-alternative"></select>
-                <div id="requirement-fields"></div>
-                <button id="apply-requirements" class="primary" type="submit">
-                  Apply credentials
-                </button>
-              </form>
-            </div>
-            <details class="raw-context">
-              <summary>Advanced JSON context</summary>
-              <form id="target-context-form">
-                <label for="target-context">Invocation context as JSON</label>
-                <textarea
-                  id="target-context"
-                  name="context"
-                  rows="4"
-                  autocomplete="off"
-                  spellcheck="false"
-                  placeholder='{"bearerToken":"target-api-token"}'
-                ></textarea>
-                <div class="field-actions">
-                  <button type="submit">Apply context</button>
-                  <button id="clear-target-context" type="button">Clear</button>
-                </div>
-              </form>
-            </details>
-          </article>
-        </div>
-      </section>
-
-      <aside id="requirement-banner" class="requirement-banner" hidden>
-        <div>
-          <strong id="requirement-banner-title">Target context needed</strong>
-          <span id="requirement-banner-copy"></span>
-        </div>
-        <button id="requirement-banner-action" type="button">
-          Add credentials
-        </button>
-      </aside>
-
       <section class="workbench-grid">
         <!-- One rail, master-pane pattern: the document's identity first
              (rev 17: it hides with the rail; the breadcrumb carries
@@ -337,6 +232,31 @@
               <!-- Linter doctrine (rev 17.9): renders only when the server
                    reports problems — validity itself is silent. -->
               <span id="document-validity" class="badge neutral" role="status" hidden></span>
+              <!-- Target context (rev 17.20): credentials for invoking THIS
+                   document's operations are document-scoped, so the standing
+                   door lives on the document, not in app chrome. Steady: it
+                   never appears or vanishes — context can always be set. -->
+              <button
+                id="context-open"
+                type="button"
+                aria-haspopup="dialog"
+                aria-label="Target credentials for this document"
+                title="Target credentials for this document"
+              >
+                <!-- Lucide "key-round". ISC-licensed, lucide.dev. -->
+                <svg
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  aria-hidden="true"
+                >
+                  <path d="M2.586 17.414A2 2 0 0 0 2 18.828V21a1 1 0 0 0 1 1h3a1 1 0 0 0 1-1v-1a1 1 0 0 1 1-1h1a1 1 0 0 0 1-1v-1a1 1 0 0 1 1-1h.172a2 2 0 0 0 1.414-.586l.814-.814a6.5 6.5 0 1 0-4-4z" />
+                  <circle cx="16.5" cy="7.5" r=".5" fill="currentColor" />
+                </svg>
+              </button>
             </div>
             <p id="document-meta" class="document-meta" aria-live="polite"></p>
           </section>
@@ -434,7 +354,12 @@
                   role="status"
                   aria-label="No invoker available"
                 ></span>
-                <span id="sheet-status" class="sheet-status"></span>
+                <!-- Status, and — when the status IS a missing credential —
+                     the shortcut to fixing it. The standing door is on the
+                     document block; this is the moment-of-need path, the
+                     same relationship reveal-on-navigation has with the
+                     rail. Inert unless there is something to open. -->
+                <button id="sheet-status" class="sheet-status" type="button"></button>
                 <!-- Permanent slot (rev 17.3): Run lives in the strip in BOTH
                      states — disabled, never absent, never moving. Icon-based
                      (rev 17.6), matching the icon rails in the cockpit. -->
@@ -524,6 +449,131 @@
           </button>
         </div>
       </form>
+    </dialog>
+
+    <!-- Session credential (rev 17.20). Demoted from half a full-width
+         panel to a dialog behind the pill: since the cookie exchange
+         (17.19) one `ob start --open` per run authorizes the whole
+         browser, so pasting a token is the fallback for a DIFFERENT
+         browser or a CI context — not the toll booth it used to look
+         like. The pill reports; this explains and repairs. -->
+    <dialog id="credential-dialog" aria-labelledby="credential-title">
+      <div class="dialog-heading">
+        <div>
+          <p class="eyebrow">This workbench</p>
+          <h2 id="credential-title">Session credential</h2>
+        </div>
+        <button id="credential-close" class="dialog-dismiss" type="button" aria-label="Close">
+          <!-- Lucide "x". ISC-licensed, lucide.dev. -->
+          <svg
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            aria-hidden="true"
+          >
+            <path d="M18 6 6 18" />
+            <path d="m6 6 12 12" />
+          </svg>
+        </button>
+      </div>
+      <form id="token-form">
+        <div class="credential-state">
+          <p id="session-status">
+            Checking the local <code>ob start</code> session…
+          </p>
+          <span id="session-badge" class="badge">Checking</span>
+        </div>
+        <p class="dialog-note">
+          This credential authorizes the browser to use the local workbench
+          backend. It is never forwarded to a selected target.
+        </p>
+        <label for="session-token">Replace session token</label>
+        <div class="field-actions">
+          <input
+            id="session-token"
+            name="token"
+            type="password"
+            autocomplete="off"
+            placeholder="Paste a session token"
+          />
+          <button type="submit">Use token</button>
+          <button id="clear-session-token" type="button">Clear</button>
+        </div>
+      </form>
+    </dialog>
+
+    <!-- Target credentials (rev 17.20). Context belongs to the DOCUMENT
+         whose operations it authorizes — it rides the workspace record and
+         survives a reload, which it never did while it lived in app chrome.
+         Opened standing from the document block, or at the moment of need
+         from the invocation strip's advisory and from a CONTEXT_REQUIRED
+         failure, which opens it directly rather than raising a banner. -->
+    <dialog id="context-dialog" aria-labelledby="context-title">
+      <div class="dialog-heading">
+        <div>
+          <p class="eyebrow">Selected target</p>
+          <h2 id="context-title">Target credentials</h2>
+        </div>
+        <button id="context-close" class="dialog-dismiss" type="button" aria-label="Close">
+          <!-- Lucide "x". ISC-licensed, lucide.dev. -->
+          <svg
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            aria-hidden="true"
+          >
+            <path d="M18 6 6 18" />
+            <path d="m6 6 12 12" />
+          </svg>
+        </button>
+      </div>
+      <div class="context-body">
+        <p id="target-context-status">No target credentials configured.</p>
+        <p class="dialog-note">
+          Supply context only when the selected API requires it. These values
+          are held in this browser with the session and sent only with target
+          invocations — never to <code>ob start</code> itself.
+        </p>
+        <!-- The typed path: rendered from the operation's declared
+             requirements when ob reports them. Silent otherwise. -->
+        <div id="target-requirements" class="target-requirements" hidden>
+          <p id="target-requirements-copy"></p>
+          <form id="requirement-form">
+            <label id="requirement-alternative-label" for="requirement-alternative">
+              Authentication method
+            </label>
+            <select id="requirement-alternative"></select>
+            <div id="requirement-fields"></div>
+            <button id="apply-requirements" class="primary" type="submit">
+              Apply credentials
+            </button>
+          </form>
+        </div>
+        <details class="raw-context">
+          <summary>Advanced JSON context</summary>
+          <form id="target-context-form">
+            <label for="target-context">Invocation context as JSON</label>
+            <textarea
+              id="target-context"
+              name="context"
+              rows="4"
+              autocomplete="off"
+              spellcheck="false"
+              placeholder='{"bearerToken":"target-api-token"}'
+            ></textarea>
+            <div class="field-actions">
+              <button type="submit">Apply context</button>
+              <button id="clear-target-context" type="button">Clear</button>
+            </div>
+          </form>
+        </details>
+      </div>
     </dialog>
 
     <!-- Sessions (rev 17.18). The browser holds drafts: every session row
