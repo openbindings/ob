@@ -29,6 +29,34 @@
           </div>
         </div>
         <div class="header-actions">
+          <!-- Acquisition (rev 17.16): the one door. Getting a document into
+               the workspace is an EPHEMERAL process, not document data — so
+               it is a modal, not a tab and not a panel. Tabs are subjects in
+               the document; this is a thing that happens to it. -->
+          <button
+            id="acquire-open"
+            type="button"
+            aria-haspopup="dialog"
+            aria-label="Add an interface"
+            title="Add an interface"
+          >
+            <!-- Lucide "file-plus". ISC-licensed, lucide.dev. -->
+            <svg
+              class="panel-icon"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              aria-hidden="true"
+            >
+              <path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z" />
+              <path d="M14 2v4a2 2 0 0 0 2 2h4" />
+              <path d="M12 18v-6" />
+              <path d="M9 15h6" />
+            </svg>
+          </button>
           <!-- The pill reports connection state (P5) and is the interim
                entry to connection settings now the Connection button is gone
                (rev 17 loss ledger, review/120). -->
@@ -466,6 +494,71 @@
           <button id="confirmation-accept" class="primary" value="confirm" type="submit">
             Confirm
           </button>
+        </div>
+      </form>
+    </dialog>
+
+    <!-- Acquisition (rev 17.16). Two fields' worth of question and two
+         verbs. Dismissal is an X at the top, not a footer button: in the
+         confirmation dialog Cancel IS an answer (the question is yes/no), but
+         here leaving does not answer "how should this be added" — it escapes
+         the question. Footers carry answers; chrome carries escape.
+
+         There is no preview and no per-operation review. Merge over the wire
+         is pure (handleMerge passes no TargetPath and hardcodes All:true) and
+         lands as one undoable editor edit, so undo is the escape hatch and a
+         review surface would be ceremony guarding an act that cannot hurt. -->
+    <dialog id="acquire-dialog" aria-labelledby="acquire-title">
+      <div class="dialog-heading">
+        <div>
+          <p class="eyebrow">Document</p>
+          <h2 id="acquire-title">Add an interface</h2>
+        </div>
+        <button id="acquire-close" class="dialog-dismiss" type="button" aria-label="Close">
+          <!-- Lucide "x". ISC-licensed, lucide.dev. -->
+          <svg
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            aria-hidden="true"
+          >
+            <path d="M18 6 6 18" />
+            <path d="m6 6 12 12" />
+          </svg>
+        </button>
+      </div>
+      <form id="acquire-form">
+        <!-- One label for both lanes: the field carries a chosen file's name
+             once picked, so "Address or host" would be a lie half the time. -->
+        <label for="acquire-locator">Address, host, or file</label>
+        <div class="field-actions">
+          <input
+            id="acquire-locator"
+            name="locator"
+            type="text"
+            autocomplete="off"
+            spellcheck="false"
+            placeholder="https://api.example.com"
+          />
+          <button id="acquire-browse" type="button">Choose file…</button>
+          <input
+            id="acquire-file"
+            type="file"
+            accept=".json,.yaml,.yml,.obi"
+            hidden
+          />
+        </div>
+        <!-- What the locator actually found. resolveInterface reports whether
+             it synthesized from a raw artifact and where it ended up; nothing
+             in the workbench has ever shown that. -->
+        <p id="acquire-found" class="acquire-found" role="status" hidden></p>
+        <p id="acquire-problem" class="acquire-problem" role="alert" hidden></p>
+        <div class="dialog-actions">
+          <button id="acquire-replace" type="button" disabled>Replace</button>
+          <button id="acquire-merge" type="button" disabled>Merge</button>
         </div>
       </form>
     </dialog>
