@@ -13,19 +13,39 @@ result objects. Every other binding is exposed as a generated tool.
 
 ## Admission and binding selection
 
-The bridge advertises a generated tool only when the operation can be routed
-honestly by the installed invokers:
+An operation is **excluded** only when it cannot be routed honestly by the
+installed invokers — i.e. invoking it would fail regardless of caller choice:
 
 - an operation with no binding is excluded;
-- a binding whose specification has no installed invoker is excluded;
-- a binding that references a missing source is excluded; and
-- several invocable bindings are excluded unless the caller supplies an
-  ordered binding selection.
+- an operation whose every binding uses a specification with no installed
+  invoker is excluded; and
+- an operation whose sole binding references a missing source is excluded.
 
-Use repeatable `--select-binding <binding-key>` to provide that selection. The
-order is copied to `context.configuration.selection`, using the same
-first-invocable rule as ordinary OpenBindings invocation. Exclusions are
-reported on stderr at startup. If no operation can be advertised, startup
+An operation with **several invocable bindings is advertised, not dropped.**
+OpenBindings deliberately leaves binding *selection* to the consuming
+application (core invariant 2); the bridge is that application, and it resolves
+the choice by a spec-loyal deference order — honor, then expose, then refuse
+loudly, never silently drop and never silently invent a default:
+
+1. **Honor** an explicit `context.configuration.selection` (repeatable
+   `--select-binding <binding-key>`), first-invocable wins — unchanged.
+2. **Honor** an author-declared `preference` (spec §5.3): when *every*
+   invocable binding of the operation declares one and there is a unique
+   maximum, that binding is auto-selected. (All-declared is required because
+   §5.3 states omission is not equivalent to zero, so a partial declaration
+   cannot be ranked soundly.) A well-authored multi-binding interface therefore
+   bridges with zero configuration.
+3. Otherwise the tool is advertised with an optional **`_binding`** argument
+   whose enum is the exact set of valid binding keys. A call that does not
+   resolve the choice returns a **loud, structured, pre-dispatch error**
+   (`ERR_BINDING_SELECTION_REQUIRED`, `details.bindings` listing the keys) — in
+   the MCP channel the client actually observes, not on stderr. The agent
+   recovers by re-calling with `_binding` set. An unknown `_binding` value
+   returns `ERR_UNKNOWN_BINDING` with the same list.
+
+`--select-binding` remains available for launch-time selection and startup
+diagnostics still log admission on stderr, but stderr is never the *only*
+place a refusal appears. If no operation can be advertised at all, startup
 fails instead of presenting an unusable server.
 
 This is structural readiness, not a promise that credentials are already

@@ -148,11 +148,15 @@ func RegisterInterfaceWithReport(
 	report := RegistrationReport{Entries: make([]RegistrationEntry, 0, len(opKeys))}
 	for _, opKey := range opKeys {
 		op := iface.Operations[opKey]
-		if reason := operationAdmissionReason(iface, opKey, invoker, baseContext); reason != "" {
+		// Spec-loyal binding selection (see selection.go): exclude only the
+		// genuinely unadvertisable; a multi-binding operation is advertised and
+		// its choice exposed in-band rather than silently dropped.
+		res := resolveOperationBinding(iface, opKey, invoker, baseContext)
+		if res.exclude {
 			report.Entries = append(report.Entries, RegistrationEntry{
 				Operation: opKey,
 				Status:    "excluded",
-				Reason:    reason,
+				Reason:    res.reason,
 			})
 			report.Excluded++
 			continue
@@ -180,7 +184,7 @@ func RegisterInterfaceWithReport(
 		case "prompts":
 			registerPrompt(srv, name, op, iface, opKey, binding, invoker, baseContext, opts)
 		default:
-			registerTool(srv, name, op, iface, opKey, binding, nativeMCP, invoker, baseContext, opts)
+			registerTool(srv, name, op, iface, opKey, binding, nativeMCP, invoker, baseContext, opts, res)
 		}
 		report.Entries = append(report.Entries, RegistrationEntry{
 			Operation: opKey,
@@ -191,88 +195,6 @@ func RegisterInterfaceWithReport(
 		report.Registered++
 	}
 	return report
-}
-
-func operationAdmissionReason(
-	iface *openbindings.Interface,
-	opKey string,
-	invoker *openbindings.OperationInvoker,
-	baseContext map[string]any,
-) string {
-	if invoker == nil {
-		return "no OpenBindings invoker is installed"
-	}
-	available := map[string]bool{}
-	for _, info := range invoker.BindingSpecs() {
-		available[info.BindingSpec] = true
-	}
-
-	// Match OperationInvoker's override exactly: the first listed binding for
-	// this operation whose existing source uses an installed binding spec wins.
-	// A selected missing source is not silently skipped; resolution would fail
-	// with ERR_UNKNOWN_SOURCE, so the bridge excludes it before advertising.
-	for _, key := range contextSelection(baseContext) {
-		binding, ok := iface.Bindings[key]
-		if !ok || binding.Operation != opKey {
-			continue
-		}
-		source, sourceOK := iface.Sources[binding.Source]
-		if !sourceOK {
-			return fmt.Sprintf("%s references missing source %s", key, binding.Source)
-		}
-		if available[source.BindingSpec] {
-			return ""
-		}
-	}
-
-	var (
-		candidates  []string
-		missing     map[string]string
-		unavailable map[string]string
-	)
-	missing = map[string]string{}
-	unavailable = map[string]string{}
-	for key, binding := range iface.Bindings {
-		if binding.Operation != opKey {
-			continue
-		}
-		source, ok := iface.Sources[binding.Source]
-		if !ok {
-			// OperationInvoker counts a missing-source binding during default
-			// selection, then reports the unknown source after selection.
-			candidates = append(candidates, key)
-			missing[key] = binding.Source
-			continue
-		}
-		if !available[source.BindingSpec] {
-			unavailable[key] = source.BindingSpec
-			continue
-		}
-		candidates = append(candidates, key)
-	}
-	if len(candidates) == 0 {
-		if len(unavailable) > 0 {
-			keys := make([]string, 0, len(unavailable))
-			for key := range unavailable {
-				keys = append(keys, key)
-			}
-			sort.Strings(keys)
-			needs := make([]string, 0, len(keys))
-			for _, key := range keys {
-				needs = append(needs, fmt.Sprintf("%s requires unavailable %s", key, unavailable[key]))
-			}
-			return strings.Join(needs, "; ")
-		}
-		return "operation has no binding"
-	}
-	if len(candidates) == 1 {
-		if source, bad := missing[candidates[0]]; bad {
-			return fmt.Sprintf("%s references missing source %s", candidates[0], source)
-		}
-		return ""
-	}
-	sort.Strings(candidates)
-	return fmt.Sprintf("binding selection required among %s; configure an ordered selection", strings.Join(candidates, ", "))
 }
 
 func contextSelection(ctx map[string]any) []string {
@@ -421,6 +343,7 @@ func registerTool(
 	invoker *openbindings.OperationInvoker,
 	baseContext map[string]any,
 	opts RegisterOptions,
+	res bindingResolution,
 ) {
 	projection := projectGenericTool(op, iface.Schemas)
 	descriptor := &mcp.Tool{
@@ -440,9 +363,43 @@ func registerTool(
 	if descriptor.InputSchema == nil {
 		descriptor.InputSchema = bundleInputSchema(op.Input, iface.Schemas)
 	}
+	// A multi-binding operation is advertised (not dropped); expose the choice
+	// in-band via an optional `_binding` argument.
+	if res.ambiguous {
+		descriptor.InputSchema = withBindingArg(descriptor.InputSchema, res.candidates)
+	}
 
 	srv.AddTool(descriptor, func(ctx context.Context, req *mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-		input, err := projection.decodeInput(req.Params.Arguments)
+		// Resolve the binding for THIS call, spec-loyally:
+		//   preselect  -> a loyal auto-choice (context sel / single / preference)
+		//   ambiguous  -> the caller's `_binding`, else a LOUD in-band refusal
+		rawArgs := req.Params.Arguments
+		var selection []string
+		if res.preselect != "" {
+			selection = []string{res.preselect}
+		} else if res.ambiguous {
+			choice, cleaned, xerr := extractBindingArg(rawArgs)
+			if xerr != nil {
+				return &mcp.CallToolResult{IsError: true, Content: []mcp.Content{&mcp.TextContent{Text: xerr.Error()}}}, nil
+			}
+			rawArgs = cleaned
+			if choice == "" {
+				return ambiguousBindingResult(res.candidates), nil
+			}
+			valid := false
+			for _, c := range res.candidates {
+				if c == choice {
+					valid = true
+					break
+				}
+			}
+			if !valid {
+				return invalidBindingResult(choice, res.candidates), nil
+			}
+			selection = []string{choice}
+		}
+
+		input, err := projection.decodeInput(rawArgs)
 		if err != nil {
 			return &mcp.CallToolResult{
 				IsError: true,
@@ -450,9 +407,10 @@ func registerTool(
 			}, nil
 		}
 
+		invokeCtx := contextWithSelection(baseContext, selection)
 		call := openbindings.Invoke(ctx, invoker, iface,
 			openbindings.NewOperationSignature[any, any](opKey),
-			openbindings.WithContext(mcpToolContext(baseContext, nativeMCP && req.Params.GetProgressToken() != nil)))
+			openbindings.WithContext(mcpToolContext(invokeCtx, nativeMCP && req.Params.GetProgressToken() != nil)))
 		var genericResult drainedOperation
 		var lastData any
 		var nativeFinal bool

@@ -10,6 +10,8 @@ import (
 	openbindings "github.com/openbindings/openbindings-go"
 )
 
+func preferenceValue(v float64) *float64 { return &v }
+
 func TestProjectGenericTool_ObjectInputStaysDirect(t *testing.T) {
 	op := openbindings.Operation{
 		Input: map[string]any{
@@ -213,8 +215,11 @@ func TestRegisterInterfaceWithReport_RefusesImplicitBindingSelection(t *testing.
 		nil,
 		RegisterOptions{},
 	)
-	if report.Registered != 0 || report.Excluded != 1 {
-		t.Fatalf("ambiguous operation was advertised: %#v", report)
+	// Spec-loyal projection: a multi-binding operation with no preference and no
+	// context selection is ADVERTISED (with an in-band `_binding` argument and a
+	// loud pre-dispatch refusal on unresolved calls), never silently dropped.
+	if report.Registered != 1 || report.Excluded != 0 {
+		t.Fatalf("ambiguous operation was not advertised: %#v", report)
 	}
 
 	report = RegisterInterfaceWithReport(
@@ -271,6 +276,9 @@ func TestRegisterInterfaceWithReport_MatchesInvokerWiringSelection(t *testing.T)
 			reason: "references missing source",
 		},
 		{
+			// Now advertised (ambiguous), not excluded: the caller selects a
+			// binding in-band via `_binding`; picking the broken alternative
+			// fails loudly at invocation, which is the correct outcome.
 			name: "missing source participates in ambiguity",
 			iface: &openbindings.Interface{
 				OpenBindings: "0.2.0",
@@ -283,7 +291,25 @@ func TestRegisterInterfaceWithReport_MatchesInvokerWiringSelection(t *testing.T)
 					"echo.missing": {Operation: "echo", Source: "missing"},
 				},
 			},
-			reason: "binding selection required",
+			registered: 1,
+		},
+		{
+			// §5.3: a fully-declared unique preference auto-selects, so a
+			// well-authored multi-binding operation bridges with zero config.
+			name: "unique preference winner auto-selects",
+			iface: &openbindings.Interface{
+				OpenBindings: "0.2.0",
+				Operations:   map[string]openbindings.Operation{"echo": {}},
+				Sources: map[string]openbindings.Source{
+					"a": {BindingSpec: "test.a", Location: "https://a.example"},
+					"b": {BindingSpec: "test.a", Location: "https://b.example"},
+				},
+				Bindings: map[string]openbindings.BindingEntry{
+					"echo.a": {Operation: "echo", Source: "a", Preference: preferenceValue(10)},
+					"echo.b": {Operation: "echo", Source: "b", Preference: preferenceValue(1)},
+				},
+			},
+			registered: 1,
 		},
 		{
 			name: "explicit valid selection bypasses malformed alternative",
