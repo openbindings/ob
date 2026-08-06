@@ -29,6 +29,11 @@
           </div>
         </div>
         <div class="header-actions">
+          <!-- Three categories, three groups (rev 17.20.1): what you are
+               working ON, how it is DISPLAYED, and ambient STATUS. The old
+               order interleaved them, which is why the row read as
+               arbitrary. -->
+          <div class="header-group" role="group" aria-label="Document">
           <!-- Acquisition (rev 17.16): the one door. Getting a document into
                the workspace is an EPHEMERAL process, not document data — so
                it is a modal, not a tab and not a panel. Tabs are subjects in
@@ -84,19 +89,8 @@
               <path d="M12 7v5l4 2" />
             </svg>
           </button>
-          <!-- The pill reports connection state (P5) and is the interim
-               entry to connection settings now the Connection button is gone
-               (rev 17 loss ledger, review/120). -->
-          <button
-            id="connection-status"
-            class="status-pill"
-            type="button"
-            aria-haspopup="dialog"
-            title="Session credential"
-          >
-            <span class="status-dot" aria-hidden="true"></span>
-            <span id="connection-status-text" role="status">Connecting…</span>
-          </button>
+          </div>
+          <div class="header-group" role="group" aria-label="View">
           <!-- VS Code-style panel toggles (rev 17): left rail and document
                editor. The center tab column is the core space — no toggle. -->
           <button
@@ -200,6 +194,21 @@
               <line x1="12" x2="12" y1="17" y2="21" />
             </svg>
           </button>
+          </div>
+          <!-- Status lives in the far-right corner — the system-tray
+               position (rev 17.20.1). It is the one control here that is not
+               an action you take but a state you glance at, so it sits at
+               the edge instead of splitting two related groups. -->
+          <button
+            id="connection-status"
+            class="status-pill"
+            type="button"
+            aria-haspopup="dialog"
+            title="Session credential"
+          >
+            <span class="status-dot" aria-hidden="true"></span>
+            <span id="connection-status-text" role="status">Connecting…</span>
+          </button>
         </div>
       </header>
 
@@ -208,6 +217,30 @@
            they stay visible with either side panel hidden. -->
       <div class="app-messages">
         <p id="bootstrap-message" role="status"></p>
+        <!-- Every notice is dismissable (rev 17.20.1). The strip used to
+             hold whatever it was last told, forever — a status line that
+             never clears becomes furniture, and eventually a lie. -->
+        <button
+          id="dismiss-message"
+          type="button"
+          aria-label="Dismiss this message"
+          title="Dismiss"
+          hidden
+        >
+          <!-- Lucide "x". ISC-licensed, lucide.dev. -->
+          <svg
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            aria-hidden="true"
+          >
+            <path d="M18 6 6 18" />
+            <path d="m6 6 12 12" />
+          </svg>
+        </button>
         <p id="liveness-notice" class="liveness-notice" role="status" hidden>
           ob start is not responding. Leave this open — it reconnects
           automatically.
@@ -491,16 +524,19 @@
           backend. It is never forwarded to a selected target.
         </p>
         <label for="session-token">Replace session token</label>
-        <div class="field-actions">
-          <input
-            id="session-token"
-            name="token"
-            type="password"
-            autocomplete="off"
-            placeholder="Paste a session token"
-          />
-          <button type="submit">Use token</button>
+        <input
+          id="session-token"
+          name="token"
+          type="password"
+          autocomplete="off"
+          placeholder="Paste a session token"
+        />
+        <!-- Verbs land in the standard dialog footer (rev 17.20.1) rather
+             than wrapping under the field: every other dialog in the app
+             ends the same way, right-aligned, primary last. -->
+        <div class="dialog-actions">
           <button id="clear-session-token" type="button">Clear</button>
+          <button type="submit" class="primary">Use token</button>
         </div>
       </form>
     </dialog>
@@ -567,9 +603,9 @@
               spellcheck="false"
               placeholder='{"bearerToken":"target-api-token"}'
             ></textarea>
-            <div class="field-actions">
-              <button type="submit">Apply context</button>
+            <div class="dialog-actions">
               <button id="clear-target-context" type="button">Clear</button>
+              <button type="submit" class="primary">Apply context</button>
             </div>
           </form>
         </details>
