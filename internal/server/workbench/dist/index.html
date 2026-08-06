@@ -21,13 +21,23 @@
   <body>
     <main>
       <header class="app-header">
-        <div class="brand">
+        <!-- The brand is a link out to the project (rev 17.20.3). It opens
+             in a new tab deliberately: this is a working session with live
+             invocation state, and a logo click should never cost you the
+             workspace you are standing in. -->
+        <a
+          class="brand"
+          href="https://openbindings.com"
+          target="_blank"
+          rel="noopener noreferrer"
+        >
           <div class="brand-mark" aria-hidden="true"></div>
           <div>
             <p class="eyebrow">OpenBindings</p>
             <h1>Workbench</h1>
           </div>
-        </div>
+          <span class="sr-only">openbindings.com (opens in a new tab)</span>
+        </a>
         <div class="header-actions">
           <!-- Three categories, three groups (rev 17.20.1): what you are
                working ON, how it is DISPLAYED, and ambient STATUS. The old
