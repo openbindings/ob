@@ -30,6 +30,8 @@ jobs:
       - uses: actions/checkout@v7
         with:
           repository: openbindings/spec
+          # Flip ref to main once the spec working line promotes.
+          ref: chore/icon-refresh
           path: spec
       - uses: actions/setup-go@v7
         with:
