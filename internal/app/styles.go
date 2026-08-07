@@ -40,8 +40,10 @@ type styles struct {
 }
 
 func initStyles() styles {
-	// Check if we should use color
-	// Respect NO_COLOR env var (https://no-color.org/)
+	// Terminal adapter for openbindings/design@ed8a409, color-theme revision 1.
+	// Human output uses native ANSI meaning; machine formats never pass through
+	// these styles. Respect NO_COLOR (https://no-color.org/) without weakening
+	// the text labels that carry the same meaning.
 	noColor := os.Getenv("NO_COLOR") != ""
 
 	if noColor {

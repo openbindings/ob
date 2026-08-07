@@ -4,6 +4,15 @@ The OpenBindings CLI (`ob`) creates, syncs, validates, and executes OpenBindings
 
 **Spec version:** implements OpenBindings 0.1. Run `ob info` to see the exact range this build supports.
 
+## Visual system
+
+Human-facing terminal output and embedded browser pages adapt the candidate
+official theme from [`openbindings/design`](https://github.com/openbindings/design)
+revision `ed8a409`. The terminal keeps native ANSI roles and respects
+`NO_COLOR`; JSON, YAML, quiet output, and files are machine contracts and never
+receive presentation styling. Consumer mappings cite the Design revision in
+their source so future theme changes can be reviewed and migrated explicitly.
+
 ## Install
 
 ```bash
