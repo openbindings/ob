@@ -11,6 +11,8 @@ import (
 //go:embed oauth_assets/openbindings-glyph.svg
 var oauthOpenBindingsGlyph string
 
+const oauthThemeDesignRevision = "openbindings/design@ed8a409"
+
 // oauthConsentView drives the HTML consent template (Glyph is trusted SVG from embed).
 type oauthConsentView struct {
 	ClientID string
@@ -39,20 +41,23 @@ var oauthPages = template.Must(template.New("oauth").Parse(`
 
 {{define "oauth-shared-css"}}
 <style>
+  /* Browser adapter for openbindings/design@ed8a409, color-theme revision 1. */
   :root {
-    --page-bg: #fafafa;
+    --page-bg: #ffffff;
     --color-bg: #ffffff;
     --color-surface: #ffffff;
     --color-text: #000000;
     --color-text-secondary: #666666;
-    --color-text-tertiary: #999999;
-    --color-border: #f0f0f0;
+    --color-text-tertiary: #737373;
+    --color-border: #ededed;
+    --color-border-strong: #8a8a8a;
     --color-fill: #f0f0f0;
-    --color-active: #000000;
-    --color-error: #dc2626;
+    --color-active: #111111;
+    --color-active-contrast: #ffffff;
+    --color-error: #b83b32;
     --radius-md: 8px;
     --radius-lg: 12px;
-    --focus-ring: color-mix(in srgb, var(--color-active) 55%, var(--color-border));
+    --focus-ring: #111111;
     --duration-fast: 0.12s;
   }
   @media (prefers-color-scheme: dark) {
@@ -65,8 +70,28 @@ var oauthPages = template.Must(template.New("oauth").Parse(`
       --color-text-tertiary: #8a8a8a;
       --color-fill: #171717;
       --color-border: #262626;
+      --color-border-strong: #737373;
       --color-active: #e5e5e5;
-      --color-error: #f87171;
+      --color-active-contrast: #0a0a0a;
+      --color-error: #ff9187;
+      --focus-ring: #e5e5e5;
+    }
+  }
+  @media (forced-colors: active) {
+    :root {
+      --page-bg: Canvas;
+      --color-bg: Canvas;
+      --color-surface: Canvas;
+      --color-text: CanvasText;
+      --color-text-secondary: GrayText;
+      --color-text-tertiary: GrayText;
+      --color-border: GrayText;
+      --color-border-strong: CanvasText;
+      --color-fill: ButtonFace;
+      --color-active: Highlight;
+      --color-active-contrast: HighlightText;
+      --color-error: CanvasText;
+      --focus-ring: Highlight;
     }
   }
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
@@ -170,14 +195,14 @@ var oauthPages = template.Must(template.New("oauth").Parse(`
   }
   .approve {
     background: var(--color-active);
-    color: var(--color-bg);
+    color: var(--color-active-contrast);
     border: 1px solid var(--color-active);
   }
   .approve:hover { opacity: 0.88; }
   .deny {
     background: transparent;
     color: var(--color-text-secondary);
-    border: 1px solid var(--color-border);
+    border: 1px solid var(--color-border-strong);
   }
   .deny:hover {
     background: var(--color-fill);
