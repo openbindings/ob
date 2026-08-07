@@ -6,6 +6,8 @@ import (
 	"github.com/charmbracelet/lipgloss"
 )
 
+const terminalFoundationsDesignRevision = "openbindings/design@3ef2505"
+
 // Styles defines the visual styles used across CLI output.
 // These are initialized once and respect terminal capabilities.
 var Styles = initStyles()
@@ -40,10 +42,12 @@ type styles struct {
 }
 
 func initStyles() styles {
-	// Terminal adapter for openbindings/design@ed8a409, color-theme revision 1.
-	// Human output uses native ANSI meaning; machine formats never pass through
-	// these styles. Respect NO_COLOR (https://no-color.org/) without weakening
-	// the text labels that carry the same meaning.
+	// Terminal adapter for openbindings/design@ed8a409, color-theme revision 1,
+	// and openbindings/design@3ef2505, foundations revision 1. The terminal
+	// profile deliberately leaves font, size, line height, spacing, and motion
+	// to the terminal. Human output uses native ANSI meaning; machine formats
+	// never pass through these styles. Respect NO_COLOR (https://no-color.org/)
+	// without weakening the text labels that carry the same meaning.
 	noColor := os.Getenv("NO_COLOR") != ""
 
 	if noColor {
@@ -62,13 +66,13 @@ func initStyles() styles {
 
 	return styles{
 		Header:  lipgloss.NewStyle().Bold(true),
-		Key:     lipgloss.NewStyle().Foreground(lipgloss.Color("6")),  // Cyan
-		Dim:     lipgloss.NewStyle().Foreground(lipgloss.Color("8")),  // Gray
-		Success: lipgloss.NewStyle().Foreground(lipgloss.Color("2")),  // Green
-		Warning: lipgloss.NewStyle().Foreground(lipgloss.Color("3")),  // Yellow
-		Error:   lipgloss.NewStyle().Foreground(lipgloss.Color("1")),  // Red
-		Added:   lipgloss.NewStyle().Foreground(lipgloss.Color("2")),  // Green
-		Removed: lipgloss.NewStyle().Foreground(lipgloss.Color("1")),  // Red
-		Bullet:  lipgloss.NewStyle().Foreground(lipgloss.Color("8")),  // Gray
+		Key:     lipgloss.NewStyle().Foreground(lipgloss.Color("6")), // Cyan
+		Dim:     lipgloss.NewStyle().Foreground(lipgloss.Color("8")), // Gray
+		Success: lipgloss.NewStyle().Foreground(lipgloss.Color("2")), // Green
+		Warning: lipgloss.NewStyle().Foreground(lipgloss.Color("3")), // Yellow
+		Error:   lipgloss.NewStyle().Foreground(lipgloss.Color("1")), // Red
+		Added:   lipgloss.NewStyle().Foreground(lipgloss.Color("2")), // Green
+		Removed: lipgloss.NewStyle().Foreground(lipgloss.Color("1")), // Red
+		Bullet:  lipgloss.NewStyle().Foreground(lipgloss.Color("8")), // Gray
 	}
 }
