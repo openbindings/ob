@@ -39,7 +39,10 @@ replace github.com/openbindings/openbindings-go => ` + mustAbs(t, "../../../open
 	}
 	tidy := exec.Command("go", "mod", "tidy")
 	tidy.Dir = dir
-	tidy.Env = append(os.Environ(), "GOWORK=off", "GOFLAGS=-mod=mod", "GOPROXY=off", "GOSUMDB=off")
+	// Resolve the generated consumer's complete module graph before proving
+	// that the resulting source builds without network access. A fresh module
+	// cache does not necessarily contain superseded transitive go.mod files.
+	tidy.Env = append(os.Environ(), "GOWORK=off", "GOFLAGS=-mod=mod", "GOSUMDB=off")
 	if out, err := tidy.CombinedOutput(); err != nil {
 		t.Fatalf("go mod tidy: %v\n%s", err, out)
 	}
