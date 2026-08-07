@@ -12,6 +12,7 @@ import (
 var oauthOpenBindingsGlyph string
 
 const oauthThemeDesignRevision = "openbindings/design@ed8a409"
+const oauthFoundationsDesignRevision = "openbindings/design@3ef2505"
 
 // oauthConsentView drives the HTML consent template (Glyph is trusted SVG from embed).
 type oauthConsentView struct {
@@ -41,7 +42,10 @@ var oauthPages = template.Must(template.New("oauth").Parse(`
 
 {{define "oauth-shared-css"}}
 <style>
-  /* Browser adapter for openbindings/design@ed8a409, color-theme revision 1. */
+  /* Browser adapters for openbindings/design: color-theme revision 1 at
+     ed8a409 and foundations revision 1 at 3ef2505. The reference radius,
+     type, and tempo values already fit this compact security flow; its
+     glyph-and-name composition remains local rather than a canonical lockup. */
   :root {
     --page-bg: #ffffff;
     --color-bg: #ffffff;
@@ -76,6 +80,9 @@ var oauthPages = template.Must(template.New("oauth").Parse(`
       --color-error: #ff9187;
       --focus-ring: #e5e5e5;
     }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    :root { --duration-fast: 0.01ms; }
   }
   @media (forced-colors: active) {
     :root {

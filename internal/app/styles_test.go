@@ -7,6 +7,9 @@ import (
 )
 
 func TestStylesMapDesignRolesToNativeANSI(t *testing.T) {
+	if terminalFoundationsDesignRevision != "openbindings/design@3ef2505" {
+		t.Fatalf("unexpected Design foundations revision %q", terminalFoundationsDesignRevision)
+	}
 	t.Setenv("NO_COLOR", "")
 	s := initStyles()
 
