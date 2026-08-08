@@ -10,8 +10,9 @@ is a protocol adapter for an abstract operation; it does not claim that the
 source was MCP. The exact generic contract is documented in
 [Generic OBI-to-MCP projection](mcp-generic-projection.md).
 
-For an untransformed binding governed by exact identifier
-`openbindings.mcp@1`, the bridge preserves the native MCP family:
+For an untransformed binding governed by legacy exact identifier
+`openbindings.mcp@1`, the bridge preserves the native MCP family for
+compatibility:
 
 - `tools/<name>` becomes the same named tool;
 - `resources/<uri>` becomes the same static resource;
@@ -38,11 +39,18 @@ fields carried by the OBI operation and binding.
 
 ## The fidelity boundary
 
-The target is equivalence for the subset represented by
-`openbindings.mcp@1`, not a clone of every MCP server feature. Revision 1
+The target in this compatibility lane is equivalence for the subset represented
+by `openbindings.mcp@1`, not a clone of every MCP server feature. Revision 1
 intentionally excludes required-task tools, resource subscriptions, sampling,
 elicitation, roots, and log streams. These do not silently disappear: they are
 outside the binding's represented surface.
+
+The latest `openbindings.mcp@2` takes the ordinary lane instead. It binds only
+tools with declared `outputSchema`, emits their conforming `structuredContent`
+as the application value, and keeps MCP result and transport facts out of the
+ordinary operation boundary. This bridge therefore exposes revision-2
+operations as ordinary generated tools; it does not reconstruct a native MCP
+result envelope that the OBI intentionally does not contain.
 
 Resource-template reads need special care. MCP gives the downstream bridge an
 expanded URI, while the OpenBindings operation takes RFC 6570 variables, and

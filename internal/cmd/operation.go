@@ -106,6 +106,7 @@ func newOperationInvokeCmd() *cobra.Command {
 	var bindingKey string
 	var inputArg string
 	var verbose bool
+	var diagnostics bool
 	var decode string
 	var okExits string
 	var routes []string
@@ -151,6 +152,8 @@ stdin) — so credentials never sit on ob's own argv.
 
 Use -v/--verbose to emit the binding key, duration, and any displaced
 output-schema overrides on stderr.
+Use --diagnostics to expose selected-binding, protocol-native, and
+implementation evidence. Ordinary outputs and errors remain protocol blind.
 
 Examples:
   ob op invoke interface.json listPets --input '{"limit":10}'
@@ -236,17 +239,23 @@ Examples:
 
 			start := time.Now()
 			if jsonEnvelope {
-				return renderInvokeJSON(os.Stdout, run)
+				return renderInvokeJSON(os.Stdout, run, diagnostics)
+			}
+			if diagnostics {
+				renderDiagnosticValue(os.Stderr, map[string]any{"bindingKey": run.BindingKey})
 			}
 
 			enc := json.NewEncoder(os.Stdout)
 			hadError := false
 			for ev := range run.Events {
 				if ev.Terminal {
-					continue // metadata marker (surfaced only in -F json)
+					if diagnostics && len(ev.Metadata) > 0 {
+						renderDiagnosticValue(os.Stderr, map[string]any{"trailing": metadataObject(ev.Metadata)})
+					}
+					continue
 				}
 				if ev.Error != nil {
-					renderInvokeError(os.Stderr, ev.Error)
+					renderInvokeError(os.Stderr, ev.Error, diagnostics)
 					hadError = true
 					continue
 				}
@@ -273,27 +282,28 @@ Examples:
 	cmd.Flags().StringVar(&decode, "decode", "", "output decode lane: json|text|none")
 	cmd.Flags().StringVar(&okExits, "ok-exit", "", "exit codes classified as success, comma-separated (e.g. 0,1)")
 	cmd.Flags().StringArrayVar(&routes, "route", nil, "field routing: field=argv|stdin|stdin-dash|file (repeatable)")
+	cmd.Flags().BoolVar(&diagnostics, "diagnostics", false, "include expert binding and implementation diagnostics")
 	cmd.Flags().StringVar(&configurationArg, "configuration", "", "binding-spec configuration object as JSON, @file, or - for stdin")
 
 	return cmd
 }
 
-// renderInvokeJSON drains the invocation and prints the machine-lane
-// envelope on stdout: success is ONE terminal object
-// {"outputs":[...],"metadata":{...}} (the metadata block carries the SDK
-// trailer stamps and exec's x-exit-code — how a data-face consumer reads a
-// diff-class/grep-class verdict); an error is the InvocationError envelope
-// {"code","message","details"}. Human-facing warnings stay on stderr.
-func renderInvokeJSON(w io.Writer, run *app.ConfiguredInvocation) error {
+// renderInvokeJSON drains the invocation into one protocol-blind machine
+// envelope. Prior outputs remain present when completion is unsuccessful.
+// Selected-binding and native evidence appear only when diagnostics were
+// explicitly requested.
+func renderInvokeJSON(w io.Writer, run *app.ConfiguredInvocation, includeDiagnostics bool) error {
 	outputs := []any{}
-	metadata := map[string]any{}
-	if run.BindingKey != "" {
-		metadata["binding"] = run.BindingKey
-	}
-	if run.DisplacedWarning != "" {
-		metadata["x-ob-displaced-elections"] = run.DisplacedWarning
-		if len(run.DisplacedDetail) > 0 {
-			metadata["x-ob-displaced-detail"] = run.DisplacedDetail
+	diagnostics := map[string]any{}
+	if includeDiagnostics {
+		if run.BindingKey != "" {
+			diagnostics["bindingKey"] = run.BindingKey
+		}
+		if run.DisplacedWarning != "" {
+			diagnostics["displacedElections"] = map[string]any{
+				"message": run.DisplacedWarning,
+				"details": run.DisplacedDetail,
+			}
 		}
 	}
 
@@ -301,22 +311,27 @@ func renderInvokeJSON(w io.Writer, run *app.ConfiguredInvocation) error {
 	enc.SetIndent("", "  ")
 	for ev := range run.Events {
 		if ev.Terminal {
-			for k, vals := range ev.Metadata {
-				if len(vals) == 1 {
-					metadata[k] = vals[0]
-				} else {
-					metadata[k] = vals
-				}
+			if includeDiagnostics && len(ev.Metadata) > 0 {
+				diagnostics["trailing"] = metadataObject(ev.Metadata)
 			}
 			continue
 		}
 		if ev.Error != nil {
-			envelope := map[string]any{
+			errorValue := map[string]any{
 				"code":    ev.Error.Code,
 				"message": ev.Error.Message,
 			}
 			if ev.Error.Details != nil {
-				envelope["details"] = ev.Error.Details
+				errorValue["details"] = ev.Error.Details
+			}
+			envelope := map[string]any{"outputs": outputs, "error": errorValue}
+			if includeDiagnostics {
+				if ev.Error.Diagnostics != nil {
+					diagnostics["failure"] = ev.Error.Diagnostics
+				}
+				if len(diagnostics) > 0 {
+					envelope["diagnostics"] = diagnostics
+				}
 			}
 			_ = enc.Encode(envelope)
 			return app.ExitResult{Code: 1}
@@ -324,7 +339,11 @@ func renderInvokeJSON(w io.Writer, run *app.ConfiguredInvocation) error {
 		outputs = append(outputs, ev.Output)
 	}
 
-	if err := enc.Encode(map[string]any{"outputs": outputs, "metadata": metadata}); err != nil {
+	envelope := map[string]any{"outputs": outputs}
+	if includeDiagnostics && len(diagnostics) > 0 {
+		envelope["diagnostics"] = diagnostics
+	}
+	if err := enc.Encode(envelope); err != nil {
 		return app.ExitResult{Code: 1, Message: fmt.Sprintf("write error: %v", err), ToStderr: true}
 	}
 	return nil
@@ -334,7 +353,7 @@ func renderInvokeJSON(w io.Writer, run *app.ConfiguredInvocation) error {
 // message, any actionable details, and — for CONTEXT_REQUIRED — the full
 // challenge plus a copy-pasteable remedy, so the auth loop closes from the
 // error itself instead of from the docs.
-func renderInvokeError(w io.Writer, ierr *openbindings.InvocationError) {
+func renderInvokeError(w io.Writer, ierr *openbindings.InvocationError, includeDiagnostics bool) {
 	fmt.Fprintf(w, "error: %s\n", ierr.Message)
 	if details := openbindings.ContextRequiredFrom(ierr); details != nil {
 		fmt.Fprintln(w, app.RenderContextRequirements(details))
@@ -346,6 +365,28 @@ func renderInvokeError(w io.Writer, ierr *openbindings.InvocationError) {
 	if d := renderErrorDetails(ierr.Details); d != "" {
 		fmt.Fprintf(w, "  %s\n", d)
 	}
+	if includeDiagnostics && ierr.Diagnostics != nil {
+		renderDiagnosticValue(w, map[string]any{"failure": ierr.Diagnostics})
+	}
+}
+
+func metadataObject(md openbindings.Metadata) map[string]any {
+	value := make(map[string]any, len(md))
+	for key, values := range md {
+		if len(values) == 1 {
+			value[key] = values[0]
+		} else {
+			value[key] = values
+		}
+	}
+	return value
+}
+
+func renderDiagnosticValue(w io.Writer, value any) {
+	fmt.Fprint(w, "diagnostics: ")
+	enc := json.NewEncoder(w)
+	enc.SetEscapeHTML(false)
+	_ = enc.Encode(value)
 }
 
 // contextSetHint maps the challenge's first requirement to the ob context

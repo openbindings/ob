@@ -61,77 +61,47 @@ type OperationInvocationInput struct {
 }
 
 // WireError is the InvocationError wire shape carried by a terminal error
-// frame. For code CONTEXT_REQUIRED, Details is a ContextRequiredDetails.
-// Category is required by both invoker contracts (InvocationError requires
-// ["code","message","category"]); WireErrorFrom always populates it, so no
-// emission site can produce a category-less error frame.
+// frame. Details is reserved for portable interface-owned code data (for
+// example CONTEXT_REQUIRED); Diagnostics is the explicit optional lane for
+// binding-native or implementation evidence.
 type WireError struct {
-	Code     string `json:"code"`
-	Message  string `json:"message"`
-	Category string `json:"category"`
-	Effects  string `json:"effects,omitempty"`
-	Details  any    `json:"details,omitempty"`
+	Code        string `json:"code"`
+	Message     string `json:"message"`
+	Details     any    `json:"details,omitempty"`
+	Diagnostics any    `json:"diagnostics,omitempty"`
 }
 
 // WireErrorFrom converts an SDK terminal error to its wire shape.
 func WireErrorFrom(err *openbindings.InvocationError) *WireError {
 	if err == nil {
 		return &WireError{
-			Code:     openbindings.ErrCodeRuntime,
-			Message:  "unknown error",
-			Category: string(openbindings.CategoryPermanent),
+			Code:    openbindings.ErrCodeRuntime,
+			Message: "unknown error",
 		}
 	}
 	return &WireError{
-		Code:     err.Code,
-		Message:  err.Message,
-		Category: wireCategory(err),
-		Effects:  string(err.Effects),
-		Details:  err.Details,
+		Code:        err.Code,
+		Message:     err.Message,
+		Details:     err.Details,
+		Diagnostics: err.Diagnostics,
 	}
-}
-
-// wireCategory resolves the required category member for the wire: the error's
-// own classification when the emission site set one, otherwise the SDK's
-// canonical code→category map, reached through InvocationError.MarshalJSON —
-// the SDK chokepoint that guarantees a category on every serialized error —
-// so this package never duplicates (and cannot drift from) that map. A code
-// even the SDK cannot place classifies as the contracts' unclassified
-// fallback, "permanent".
-func wireCategory(err *openbindings.InvocationError) string {
-	if err.Category != "" {
-		return string(err.Category)
-	}
-	var probe struct {
-		Category string `json:"category"`
-	}
-	if b, mErr := json.Marshal(openbindings.InvocationError{Code: err.Code}); mErr == nil {
-		_ = json.Unmarshal(b, &probe)
-	}
-	if probe.Category == "" {
-		return string(openbindings.CategoryPermanent)
-	}
-	return probe.Category
 }
 
 // InvocationError converts the wire shape back to the SDK terminal error.
 // CONTEXT_REQUIRED details cross as a generic map; ContextRequiredFrom decodes
-// them back into the typed shape on demand. A missing category (an older peer)
-// is left empty for the SDK's own classification to derive from the code.
+// them back into the typed shape on demand.
 func (e *WireError) InvocationError() *openbindings.InvocationError {
 	if e == nil {
 		return &openbindings.InvocationError{
-			Code:     openbindings.ErrCodeRuntime,
-			Message:  "unknown error",
-			Category: openbindings.CategoryPermanent,
+			Code:    openbindings.ErrCodeRuntime,
+			Message: "unknown error",
 		}
 	}
 	return &openbindings.InvocationError{
-		Code:     e.Code,
-		Message:  e.Message,
-		Category: openbindings.Category(e.Category),
-		Effects:  openbindings.Effects(e.Effects),
-		Details:  e.Details,
+		Code:        e.Code,
+		Message:     e.Message,
+		Details:     e.Details,
+		Diagnostics: e.Diagnostics,
 	}
 }
 

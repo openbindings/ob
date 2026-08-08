@@ -13,6 +13,7 @@ import (
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 	openbindings "github.com/openbindings/openbindings-go"
+	mcpbinding "github.com/openbindings/openbindings-go/formats/mcp"
 )
 
 // DefaultToolDeadline bounds a single bridged tool/resource/prompt call when
@@ -610,16 +611,12 @@ func remarshal(value any, target any) error {
 }
 
 func mcpErrorResult(ierr *openbindings.InvocationError) *mcp.CallToolResult {
-	details, ok := ierr.Details.(map[string]any)
-	if !ok {
-		return nil
-	}
-	value, ok := details["mcpResult"]
-	if !ok {
+	evidence, ok := mcpbinding.FailureEvidenceFrom(ierr)
+	if !ok || evidence.Result == nil {
 		return nil
 	}
 	result := &mcp.CallToolResult{}
-	if remarshal(value, result) != nil {
+	if remarshal(evidence.Result, result) != nil {
 		return nil
 	}
 	return result

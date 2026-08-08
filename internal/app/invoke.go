@@ -315,18 +315,16 @@ func isHostPort(s string) bool {
 // terminal error. The SDK's invocation handle yields bare output values and a
 // separate terminal error; ob's internal consumers (serve, mcpbridge,
 // operation, TUI) work over a channel of these, so this type bridges the two.
-// Status is best-effort (derived from an HTTP error's Details when present);
-// DurationMs is filled by the caller.
+// DurationMs is filled by the caller. Status is an app-local process result;
+// binding-native status is never compiled into it.
 type InvocationOutput struct {
 	Output     any                           `json:"output,omitempty"`
 	Error      *openbindings.InvocationError `json:"error,omitempty"`
 	Status     int                           `json:"status,omitempty"`
 	DurationMs int64                         `json:"durationMs,omitempty"`
-	// Terminal marks the final metadata-only event a clean stream emits:
-	// nil Output and Error, carrying the invocation's trailing Metadata
-	// (the provenance stamps the format-conventions record recommends —
-	// x-ob-decode/-classify/-route — and exec's x-exit-code). Forwarders
-	// pass it through untouched; output consumers skip it.
+	// Terminal marks a final diagnostics-only event: nil Output and Error,
+	// carrying the invocation's trailing native/implementation evidence.
+	// Ordinary consumers skip it; an explicit diagnostic renderer may expose it.
 	Terminal bool                  `json:"-"`
 	Metadata openbindings.Metadata `json:"-"`
 }
@@ -491,11 +489,10 @@ func driveBinding(
 			for {
 				v, err := out.Read(ctx)
 				if errors.Is(err, io.EOF) {
-					// Clean end: surface the invocation's trailer (the
-					// provenance stamps, exec's x-exit-code) as a terminal
-					// metadata marker so the data face's -F json envelope
-					// can carry the verdict block.
-					if md := call.Trailer(); len(md) > 0 {
+					// Clean end: retain the invocation trailer as an internal
+					// diagnostic marker. Ordinary operation output renderers
+					// omit it unless the caller explicitly requests diagnostics.
+					if md := call.Diagnostics().Trailer(); len(md) > 0 {
 						select {
 						case ch <- InvocationOutput{Terminal: true, Metadata: md}:
 						case <-ctx.Done():
@@ -570,22 +567,10 @@ func driveBinding(
 	return ch
 }
 
-// statusFromError extracts an HTTP status from a terminal error's Details
-// (HTTP-based format invokers carry {"status": N}); returns 0 when absent.
+// statusFromError deliberately does not compile binding-native status into the
+// app's ordinary result. InvocationError already carries structural failure;
+// native status, when retained, belongs to its explicit Diagnostics lane.
 func statusFromError(err *openbindings.InvocationError) int {
-	if err == nil {
-		return 0
-	}
-	d, ok := err.Details.(map[string]any)
-	if !ok {
-		return 0
-	}
-	switch s := d["status"].(type) {
-	case int:
-		return s
-	case float64:
-		return int(s)
-	}
 	return 0
 }
 
@@ -609,9 +594,8 @@ func InvokeOBIOperation(ctx context.Context, obiPath string, opKey string, bindi
 	if err != nil {
 		return nil, "", err
 	}
-	// The terminal metadata marker is a data-face affordance
-	// (InvokeOBIOperationConfigured + renderInvokeJSON); legacy callers of
-	// this back-compat entry see only outputs and errors.
+	// The terminal diagnostics marker is an expert affordance; legacy callers
+	// of this back-compat entry see only outputs and errors.
 	return withoutTerminalMarkers(run.Events), run.BindingKey, nil
 }
 
@@ -794,13 +778,10 @@ func applyT08(src <-chan InvocationOutput, schema openbindings.JSONSchema, schem
 		defer close(out)
 		for ev := range src {
 			if ev.Terminal {
-				// Assumption warning (the format-conventions record
-				// recommends warning when an assumption lane decoded into
-				// a contract): ob drives the binding layer (the SDK
-				// operation layer's warning point is bypassed), so the
-				// warning is appended here — keyed on the format's own
-				// decode stamp, riding the terminal metadata into the
-				// envelope. Only an assumption lane can trigger it.
+				// Assumption warnings remain expert diagnostics. ob drives
+				// the binding layer (bypassing the SDK operation layer's
+				// warning point), so it appends the warning to the retained
+				// terminal marker for explicit diagnostic consumers.
 				stamp := ""
 				if v := ev.Metadata["x-ob-decode"]; len(v) > 0 {
 					stamp = v[0]
@@ -834,37 +815,36 @@ func applyT08(src <-chan InvocationOutput, schema openbindings.JSONSchema, schem
 	return out
 }
 
-// t08Failure builds the stop-and-return terminal for a nonconformant
-// output. The offending payload (truncated) and the decode lane ride the
-// error — the failure moment is exactly when the user needs to see what
-// the service actually returned, and without a window here the only
-// recourse is abandoning ob for curl (which gRPC/Connect/MCP bindings do
-// not have).
+// t08Failure builds the stop-and-return terminal for a nonconformant output.
+// The portable details describe the schema failure. Selected-binding,
+// decode-lane, content-type, and offending-value evidence are explicitly
+// diagnostic so ordinary operation behavior remains protocol blind.
 func t08Failure(ev InvocationOutput, verr error, schema openbindings.JSONSchema, bindingKey string) *openbindings.InvocationError {
-	msg := fmt.Sprintf("output validation failed for %q: %v", bindingKey, verr)
+	msg := fmt.Sprintf("operation output validation failed: %v", verr)
 	if openbindings.FloorStamped(schema) {
 		msg += " — the synthesized schema still declares the floor's string; elect the real output schema (`ob operation output-schema`)"
 	}
-	details := map[string]any{}
+	diagnosticDetails := map[string]any{"bindingKey": bindingKey}
 	if stamp := firstMetaValue(ev.Metadata, "x-ob-decode"); stamp != "" {
-		details["decodedBy"] = stamp
+		diagnosticDetails["decodedBy"] = stamp
 	}
 	if ct := firstMetaValue(ev.Metadata, "Content-Type"); ct != "" {
-		details["contentType"] = ct
+		diagnosticDetails["contentType"] = ct
 	}
 	if snippet := payloadSnippet(ev.Output); snippet != "" {
-		details["received"] = snippet
-		msg += "\nreceived: " + snippet
+		diagnosticDetails["received"] = snippet
 	}
-	// The wire lane sits below the operation boundary where T-08 attaches:
-	// point at it, with the exact binding already selected, so a drifted
-	// service stays READABLE while it stays nonconformant.
-	msg += fmt.Sprintf("\nto see what the service actually returned: ob binding invoke <obi> %s", bindingKey)
-	ie := &openbindings.InvocationError{Code: openbindings.ErrCodeValidationFailed, Message: msg}
-	if len(details) > 0 {
-		ie.Details = details
+	diagnosticDetails["inspectionCommand"] = fmt.Sprintf("ob binding invoke <obi> %s", bindingKey)
+	return &openbindings.InvocationError{
+		Code:    openbindings.ErrCodeValidationFailed,
+		Message: msg,
+		Details: openbindings.ValidationFailureDetails{Failures: []openbindings.ValidationFailure{{
+			Path: "", Message: verr.Error(),
+		}}},
+		Diagnostics: map[string]any{"ob": map[string]any{
+			"outputValidation": diagnosticDetails,
+		}},
 	}
-	return ie
 }
 
 func firstMetaValue(md openbindings.Metadata, key string) string {

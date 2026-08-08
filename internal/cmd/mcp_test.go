@@ -165,7 +165,7 @@ func TestMCPRoundTrip_Differential(t *testing.T) {
 	defer cancel()
 	iface, err := mcpbinding.NewSynthesizer().SynthesizeInterface(ctx, &openbindings.SynthesizeInput{
 		Sources: []openbindings.SynthesizeSource{{
-			BindingSpec: mcpbinding.BindingSpec,
+			BindingSpec: mcpbinding.LegacyBindingSpec,
 			Location:    originHTTP.URL,
 			Embed:       true,
 		}},
@@ -566,6 +566,7 @@ func TestMCPCommand_BridgesInterfaceToTools(t *testing.T) {
 func TestMCPGenericProjection_BindingFamilyNeutral(t *testing.T) {
 	families := []string{
 		"openbindings.openapi@1",
+		"openbindings.graphql@2",
 		"openbindings.graphql@1",
 		"openbindings.grpc@1",
 		"openbindings.connect@1",

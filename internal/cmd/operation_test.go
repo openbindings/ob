@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"github.com/openbindings/ob/internal/app"
+	openbindings "github.com/openbindings/openbindings-go"
 )
 
 func TestOperationUnbind_ExactBindingKey(t *testing.T) {
@@ -62,10 +63,9 @@ func TestOperationUnbind_ExactBindingKey(t *testing.T) {
 	}
 }
 
-// The §4.5.6 machine envelope must carry the displaced-elections warning:
-// a machine consumer is never blind to a displaced standing election (the
-// §7 carriage pin, invocation-configuration round 5).
-func TestRenderInvokeJSON_CarriesDisplacedElections(t *testing.T) {
+// Selected-binding and implementation evidence is available only through the
+// caller's explicit diagnostic escape hatch.
+func TestRenderInvokeJSON_ExplicitDiagnosticsCarryDisplacedElections(t *testing.T) {
 	ch := make(chan app.InvocationOutput, 2)
 	ch <- app.InvocationOutput{Output: map[string]any{"ok": true}}
 	ch <- app.InvocationOutput{Terminal: true}
@@ -77,12 +77,12 @@ func TestRenderInvokeJSON_CarriesDisplacedElections(t *testing.T) {
 		Events:           ch,
 	}
 	var buf bytes.Buffer
-	if err := renderInvokeJSON(&buf, run); err != nil {
+	if err := renderInvokeJSON(&buf, run, true); err != nil {
 		t.Fatalf("render: %v", err)
 	}
 	var envelope struct {
-		Outputs  []any          `json:"outputs"`
-		Metadata map[string]any `json:"metadata"`
+		Outputs     []any          `json:"outputs"`
+		Diagnostics map[string]any `json:"diagnostics"`
 	}
 	if err := json.Unmarshal(buf.Bytes(), &envelope); err != nil {
 		t.Fatalf("envelope is not JSON: %v\n%s", err, buf.String())
@@ -90,12 +90,48 @@ func TestRenderInvokeJSON_CarriesDisplacedElections(t *testing.T) {
 	if len(envelope.Outputs) != 1 {
 		t.Errorf("expected one output in the envelope, got %v", envelope.Outputs)
 	}
-	warning, _ := envelope.Metadata["x-ob-displaced-elections"].(string)
+	displaced, _ := envelope.Diagnostics["displacedElections"].(map[string]any)
+	warning, _ := displaced["message"].(string)
 	if !strings.Contains(warning, "ext") {
-		t.Errorf("metadata must carry the attributed displacement warning, got %#v", envelope.Metadata)
+		t.Errorf("diagnostics must carry the attributed displacement warning, got %#v", envelope.Diagnostics)
 	}
-	if _, ok := envelope.Metadata["x-ob-displaced-detail"]; !ok {
-		t.Error("metadata must carry the displaced-elections detail")
+	if _, ok := displaced["details"]; !ok {
+		t.Error("diagnostics must carry the displaced-elections detail")
+	}
+}
+
+func TestRenderInvokeJSON_DefaultIsProtocolBlindAndPreservesPartialOutputs(t *testing.T) {
+	ch := make(chan app.InvocationOutput, 3)
+	ch <- app.InvocationOutput{Output: map[string]any{"partial": true}}
+	ch <- app.InvocationOutput{Error: &openbindings.InvocationError{
+		Code:        openbindings.ErrCodeExecutionFailed,
+		Message:     "operation completed unsuccessfully",
+		Diagnostics: map[string]any{"httpResponse": map[string]any{"status": 500}},
+	}}
+	close(ch)
+	run := &app.ConfiguredInvocation{BindingKey: "op.openapi", Events: ch}
+	var buf bytes.Buffer
+	err := renderInvokeJSON(&buf, run, false)
+	if exit, ok := err.(app.ExitResult); !ok || exit.Code != 1 {
+		t.Fatalf("render error = %#v", err)
+	}
+	var envelope map[string]any
+	if err := json.Unmarshal(buf.Bytes(), &envelope); err != nil {
+		t.Fatalf("envelope is not JSON: %v\n%s", err, buf.String())
+	}
+	outputs, _ := envelope["outputs"].([]any)
+	if len(outputs) != 1 {
+		t.Fatalf("partial outputs were lost: %#v", envelope)
+	}
+	if _, present := envelope["diagnostics"]; present {
+		t.Fatalf("native diagnostics leaked by default: %#v", envelope)
+	}
+	if _, present := envelope["metadata"]; present {
+		t.Fatalf("legacy metadata leaked by default: %#v", envelope)
+	}
+	errorValue, _ := envelope["error"].(map[string]any)
+	if errorValue["code"] != openbindings.ErrCodeExecutionFailed {
+		t.Fatalf("abstract unsuccessful completion missing: %#v", envelope)
 	}
 }
 

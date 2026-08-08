@@ -138,7 +138,7 @@ inside an operation graph. You never write protocol-specific code.
 
 When the governing binding specification exposes interpretation points, pass
 their named values with `--configuration` (inline JSON, `@file`, or stdin).
-For example, `openbindings.graphql@1` requires the exact executable document:
+For example, `openbindings.graphql@2` requires the exact executable document:
 
 ```bash
 ob operation invoke interface.json --binding getMenu.graphql \
@@ -404,7 +404,7 @@ ob source pull interface.json -o dist/interface.json --pure # publish clean
 
 | Command | Description |
 |---------|-------------|
-| `ob operation invoke <obi> [operation]` | Invoke by operation (sole candidate or ordered `--select-binding`) or directly by `--binding`; `--configuration` supplies named binding-spec interpretation points |
+| `ob operation invoke <obi> [operation]` | Invoke by operation (sole candidate or ordered `--select-binding`) or directly by `--binding`; `--configuration` supplies named interpretation points; `--diagnostics` explicitly exposes selected-binding/native evidence |
 | `ob operation list <obi>` | List operations |
 | `ob operation add <obi> <name>` | Add a hand-authored operation |
 | `ob operation set <obi> <operation>` | Edit an operation's fields |
@@ -573,7 +573,7 @@ Missing runtime context surfaces as a terminal `error` with code `CONTEXT_REQUIR
 
 ### `ob mcp` — Model Context Protocol bridge
 
-`ob mcp` exposes one OBI or supported raw artifact locator as an MCP server. AI agents (Claude Desktop, Cursor, etc.) connect and call the interface through native binding invocations. Ordinary OBI operations become tools whose names are the operation keys sanitized to the MCP/LLM charset (`[A-Za-z0-9_-]`, ≤64) — e.g. `openbindings.ob.describe` becomes `openbindings_ob_describe`, while `createCharge` is unchanged. Untransformed bindings governed by exact identifier `openbindings.mcp@1` keep their original MCP family and identity: tools, static resources, resource templates, and prompts remain those primitives rather than being flattened into generated tools.
+`ob mcp` exposes one OBI or supported raw artifact locator as an MCP server. AI agents (Claude Desktop, Cursor, etc.) connect and call the interface through native binding invocations. Ordinary OBI operations become tools whose names are the operation keys sanitized to the MCP/LLM charset (`[A-Za-z0-9_-]`, ≤64) — e.g. `openbindings.ob.describe` becomes `openbindings_ob_describe`, while `createCharge` is unchanged. That ordinary protocol-blind lane includes `openbindings.mcp@2`: its eligible tools expose only their declared application input/output contract. Untransformed bindings governed by legacy exact identifier `openbindings.mcp@1` keep their original MCP family and identity for compatibility: tools, static resources, resource templates, and prompts remain those primitives rather than being flattened into generated tools.
 
 ```bash
 ob mcp https://api.example.com           # stdio transport (for Claude Desktop, Cursor)

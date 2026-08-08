@@ -119,7 +119,7 @@ func TestOutputFrameRoundTrip(t *testing.T) {
 		{
 			name:  "error",
 			frame: Error(&openbindings.InvocationError{Code: "ERR_RUNTIME", Message: "boom"}),
-			want:  `{"kind":"error","error":{"code":"ERR_RUNTIME","message":"boom","category":"permanent"}}`,
+			want:  `{"kind":"error","error":{"code":"ERR_RUNTIME","message":"boom"}}`,
 		},
 	}
 	for _, tc := range cases {
@@ -143,7 +143,7 @@ func TestOutputFrameRoundTrip(t *testing.T) {
 }
 
 func TestErrorFramePreservesBindingNativeFailureEvidence(t *testing.T) {
-	details := map[string]any{
+	diagnostics := map[string]any{
 		"status": 504,
 		"httpResponse": map[string]any{
 			"status": 504,
@@ -162,10 +162,9 @@ func TestErrorFramePreservesBindingNativeFailureEvidence(t *testing.T) {
 		},
 	}
 	frame := Error(&openbindings.InvocationError{
-		Code:    openbindings.ErrCodeTimeout,
-		Message: "HTTP 504 Gateway Timeout",
-		Effects: openbindings.EffectsPossible,
-		Details: details,
+		Code:        openbindings.ErrCodeExecutionFailed,
+		Message:     "HTTP 504 Gateway Timeout",
+		Diagnostics: diagnostics,
 	})
 
 	wire, err := json.Marshal(frame)
@@ -177,77 +176,40 @@ func TestErrorFramePreservesBindingNativeFailureEvidence(t *testing.T) {
 		t.Fatal(err)
 	}
 	got := back.Error.InvocationError()
-	if got.Effects != openbindings.EffectsPossible {
-		t.Fatalf("effects = %q, want %q", got.Effects, openbindings.EffectsPossible)
+	if got.Details != nil {
+		t.Fatalf("binding-native evidence leaked into portable details: %#v", got.Details)
 	}
-	gotJSON, err := json.Marshal(got.Details)
+	gotJSON, err := json.Marshal(got.Diagnostics)
 	if err != nil {
 		t.Fatal(err)
 	}
-	wantJSON, err := json.Marshal(details)
+	wantJSON, err := json.Marshal(diagnostics)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if string(gotJSON) != string(wantJSON) {
-		t.Fatalf("details after frame round trip = %s, want %s", gotJSON, wantJSON)
+		t.Fatalf("diagnostics after frame round trip = %s, want %s", gotJSON, wantJSON)
 	}
 }
 
-// TestErrorFrameCarriesCategory pins the invoker contracts' requirement that
-// InvocationError carries ["code","message","category"]: every emitted error
-// frame must serialize a non-empty category from the closed enum, whether the
-// emission site classified the error or left a bare code for the canonical
-// code→category map to resolve.
-func TestErrorFrameCarriesCategory(t *testing.T) {
-	enum := map[string]bool{
-		"context": true, "auth": true, "cancelled": true, "transient": true,
-		"service": true, "validation": true, "protocol": true, "permanent": true,
+func TestErrorFrameUsesMinimalStructuralWireShape(t *testing.T) {
+	b, err := json.Marshal(Error(&openbindings.InvocationError{Code: "ERR_RUNTIME", Message: "boom"}))
+	if err != nil {
+		t.Fatal(err)
 	}
-	cases := []struct {
-		name string
-		err  *openbindings.InvocationError
-		want string
-	}{
-		{"derived from bare code", &openbindings.InvocationError{Code: "ERR_RUNTIME", Message: "boom"}, "permanent"},
-		{"derived protocol code", &openbindings.InvocationError{Code: "ERR_PROTOCOL", Message: "bad frame"}, "protocol"},
-		{"classified by SDK constructor", openbindings.NewContextRequiredError("need auth", &openbindings.ContextRequiredDetails{Target: "api.example.com"}), "context"},
-		{"explicit category preserved", &openbindings.InvocationError{Code: "HTTP_503", Message: "busy", Category: openbindings.CategoryTransient}, "transient"},
-		{"unknown code falls back", &openbindings.InvocationError{Code: "ERR_TOTALLY_MADE_UP", Message: "?"}, "permanent"},
-		{"nil terminal error", nil, "permanent"},
+	var frame map[string]any
+	if err := json.Unmarshal(b, &frame); err != nil {
+		t.Fatal(err)
 	}
-	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
-			b, err := json.Marshal(Error(tc.err))
-			if err != nil {
-				t.Fatal(err)
-			}
-			var frame struct {
-				Kind  string `json:"kind"`
-				Error struct {
-					Category string `json:"category"`
-				} `json:"error"`
-			}
-			if err := json.Unmarshal(b, &frame); err != nil {
-				t.Fatal(err)
-			}
-			if frame.Error.Category == "" {
-				t.Fatalf("error frame carries no category: %s", b)
-			}
-			if !enum[frame.Error.Category] {
-				t.Fatalf("category %q is not in the contract enum: %s", frame.Error.Category, b)
-			}
-			if frame.Error.Category != tc.want {
-				t.Errorf("category = %q, want %q", frame.Error.Category, tc.want)
-			}
-			// The category survives the wire round trip back into the SDK type.
-			var back OutputFrame
-			if err := json.Unmarshal(b, &back); err != nil {
-				t.Fatal(err)
-			}
-			if got := string(back.Error.InvocationError().Category); got != tc.want {
-				t.Errorf("round-tripped category = %q, want %q", got, tc.want)
-			}
-		})
+	errorValue, _ := frame["error"].(map[string]any)
+	if errorValue["code"] != "ERR_RUNTIME" || errorValue["message"] != "boom" {
+		t.Fatalf("structural error fields changed: %s", b)
+	}
+	if _, present := errorValue["category"]; present {
+		t.Fatalf("closed category leaked onto wire: %s", b)
+	}
+	if _, present := errorValue["effects"]; present {
+		t.Fatalf("retry effects leaked onto wire: %s", b)
 	}
 }
 

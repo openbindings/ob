@@ -299,6 +299,7 @@ cmd "operation" help="Manage and invoke operations on an OBI" subcommand_require
     }
     flag "--ok-exit <codes>" help="Exit codes classified as success, comma-separated (e.g. 0,1)"
     flag "--route <field=channel>" help="Field routing: field=argv|stdin|stdin-dash|file (repeatable)" var=#true
+    flag "--diagnostics" help="Include expert binding and implementation diagnostics"
     flag "-v --verbose" help="Show binding key, duration, and any displaced output-schema overrides on stderr"
     arg "<obi>" help="OBI locator (file path, URL, exec: reference, or - for stdin)"
     arg "[operation]" help="Operation key to invoke"

@@ -15,8 +15,8 @@ import (
 )
 
 // The wire lane reads what the contract lane correctly refuses: a drifted
-// service fails OBI-T-08 under `operation invoke` (with a copy-pasteable
-// pointer carrying the selected binding key), while `binding invoke
+// service fails OBI-T-08 under `operation invoke`; explicit diagnostics carry
+// a copy-pasteable pointer with the selected binding key, while `binding invoke
 // <obi> <binding-key>` returns the source's own value — post-decode,
 // pre-outputTransform, unvalidated, because the wire lane sits below the operation boundary (no T-07/T-08 subject)
 // below the contract boundary.
@@ -42,11 +42,11 @@ func TestBindingInvoke_WireLaneReadsWhatT08Refuses(t *testing.T) {
 		t.Fatalf("synthesize: %v", err)
 	}
 
-	// Contract lane: T-08 refuses (streamed to stderr) and points at the
-	// wire lane with the exact binding key it selected.
+	// Contract lane: T-08 refuses. The explicit diagnostics request points at
+	// the wire lane with the exact binding key it selected.
 	stderr := captureStderr(t, func() {
 		root := NewRoot()
-		root.SetArgs([]string{"operation", "invoke", obiPath, "listOrders"})
+		root.SetArgs([]string{"operation", "invoke", obiPath, "listOrders", "--diagnostics"})
 		err := root.Execute()
 		if er, ok := err.(app.ExitResult); !ok || er.Code == 0 {
 			t.Errorf("contract lane must refuse the drifted output, got %v", err)

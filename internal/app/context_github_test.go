@@ -323,8 +323,8 @@ func TestContextGitHub_NoCredentialsFails(t *testing.T) {
 	if result.Error == nil {
 		t.Fatal("expected error without credentials")
 	}
-	if result.Status != 401 {
-		t.Errorf("expected 401 status, got %d", result.Status)
+	if result.Status != 1 {
+		t.Errorf("expected structural failure status 1, got %d", result.Status)
 	}
 }
 

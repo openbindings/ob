@@ -139,7 +139,7 @@
         },
         "InvocationError": {
             "type": "object",
-            "description": "Structured error carried by an `error` output frame. Indicates terminal failure of the invocation. Codes named by a normative rule of either invoker contract — binding-invoker or its operation-invoker peer — (CONTEXT_REQUIRED, ERR_PROTOCOL, ERR_TRANSPORT_CLOSED, ERR_CANCELLED, ERR_VALIDATION_FAILED, ERR_BINDING_NOT_FOUND, ERR_BINDING_SELECTION_REQUIRED) are normative where named; other codes are recommended conventions (see the binding-invoker README's registry), and consumers SHOULD handle unknown codes gracefully.",
+            "description": "Minimal unsuccessful-completion record carried by an `error` output frame. The frame kind is the portable failure signal. Only codes named by a rule of this interface or its operation-invoker peer have portable semantics; other strings are open extension or implementation identifiers.",
             "properties": {
                 "code": {
                     "type": "string",
@@ -147,40 +147,20 @@
                 },
                 "message": {
                     "type": "string",
-                    "description": "Human-readable description."
+                    "description": "Human-readable, protocol-independent description. It may preserve application-authored failure prose identified by governing binding rules; raw native status lines, frame facts, process results, and other protocol evidence belong in diagnostics instead."
                 },
                 "details": {
-                    "description": "Optional structured details specific to the error code. For code CONTEXT_REQUIRED, `details` is a ContextRequiredDetails object."
+                    "description": "Optional portable structured data defined by an interface-owned code, or an opaque JSON failure value that the governing binding rules identify as application-authored. For CONTEXT_REQUIRED, this is a ContextRequiredDetails object. Application failure values retain only their author's meaning; raw statuses, headers, trailers, envelopes, bytes, and implementation evidence do not belong here merely because a binding observed them."
                 },
-                "category": {
-                    "type": "string",
-                    "description": "The normative classification axis consumers branch on. One of a fixed, closed set; a consumer that meets an unknown value treats it as `permanent`. `context` is the resolve-and-retry hinge (CONTEXT_REQUIRED); `auth` means supplied credentials were rejected; `cancelled` means the caller ended the invocation; `transient` is a lower-layer condition that may clear on its own; `service` means the target was reached and returned an error of its own; `validation` means a value or the schema graph failed the validation claim; `protocol` means the frame or invocation contract was violated; `permanent` is terminal.",
-                    "enum": [
-                        "context",
-                        "auth",
-                        "cancelled",
-                        "transient",
-                        "service",
-                        "validation",
-                        "protocol",
-                        "permanent"
-                    ]
-                },
-                "effects": {
-                    "type": "string",
-                    "description": "Side-effect possibility gating safe retry, present where retry is in question (categories `transient` and `service`). `none`: the call's side effects provably did not take hold — safe to retry. `possible`: the call may have taken effect — not safe to auto-retry a non-idempotent operation. `definite`: the call took effect. Absent means treat as `possible`.",
-                    "enum": [
-                        "none",
-                        "possible",
-                        "definite"
-                    ]
+                "diagnostics": {
+                    "description": "Optional expert diagnostic evidence specific to the selected binding or implementation. It may reveal protocol identity and native representations and MUST NOT be required for correct ordinary invocation behavior."
                 }
             },
             "required": [
                 "code",
-                "message",
-                "category"
-            ]
+                "message"
+            ],
+            "additionalProperties": false
         },
         "BindingInvocationInput": {
             "type": "object",

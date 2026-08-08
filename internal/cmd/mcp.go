@@ -43,9 +43,10 @@ operations as MCP tools, resources, and prompts. Agents (Cursor, Claude
 Desktop, etc.) connect and interact with the underlying service through
 OpenBindings. Ordinary operation tool names are full operation keys sanitized
 to the MCP charset (openbindings.ob.describe → openbindings_ob_describe).
-Untransformed openbindings.mcp@1 bindings preserve their original MCP
-primitive family, identifier, descriptor when pinned, and complete result.
-Generic operations return the complete OpenBindings output sequence as
+Openbindings.mcp@2 bindings use the generic, protocol-blind tool projection.
+Legacy untransformed openbindings.mcp@1 bindings preserve their original MCP
+primitive family, identifier, descriptor when pinned, and complete result for
+compatibility. Generic operations return the complete OpenBindings output sequence as
 structured content {"outputs":[...]}; inputs without an explicit object schema
 use the optional, reversible tool argument envelope {"input":...}.
 
