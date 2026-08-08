@@ -27,7 +27,7 @@ func NewRoot() *cobra.Command {
 
 	root := &cobra.Command{
 		Use:           "ob",
-		Short:         "openbindings: one interface · limitless bindings",
+		Short:         "openbindings: One interface. Any binding.",
 		SilenceErrors: true,
 		SilenceUsage:  true,
 		RunE: func(cmd *cobra.Command, args []string) error {
