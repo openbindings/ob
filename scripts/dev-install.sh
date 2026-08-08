@@ -8,8 +8,9 @@ set -euo pipefail
 #   bash ob/scripts/dev-install.sh
 #
 # Options:
-#   OB_BIN_DIR=...   Where to link the executables (default: ~/.local/bin)
-#   OB_OUT=...       Where to place the built ob binary (default: <repo>/cli/bin/ob)
+#   OB_BIN_DIR=...        Where to link the executables (default: ~/.local/bin)
+#   OB_OUT=...            Where to place the built ob binary (default: <repo>/cli/bin/ob)
+#   OB_SKIP_WORKBENCH=1   Skip rebuilding the embedded workbench assets
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 CLI_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
@@ -53,6 +54,23 @@ echo ""
 
 mkdir -p "$(dirname "$OUT")"
 mkdir -p "$BIN_DIR"
+
+# Rebuild the embedded workbench assets so `go build` doesn't bake in a stale
+# dist. The elements workspace owns the source; its build writes into
+# ob/internal/server/workbench/dist (see that directory's README).
+ELEMENTS_DIR="$REPO_ROOT/elements"
+if [ "${OB_SKIP_WORKBENCH:-}" = "1" ]; then
+  echo "Skipping workbench assets (OB_SKIP_WORKBENCH=1)."
+elif [ ! -d "$ELEMENTS_DIR" ]; then
+  echo "warning: elements workspace not found at $ELEMENTS_DIR;"
+  echo "         using existing embedded workbench dist (may be stale)."
+elif ! command -v pnpm >/dev/null 2>&1; then
+  echo "warning: pnpm not found; using existing embedded workbench dist (may be stale)."
+  echo "         Install pnpm or run: pnpm --dir \"$ELEMENTS_DIR\" build:workbench"
+else
+  echo "Building workbench assets..."
+  pnpm --dir "$ELEMENTS_DIR" build:workbench
+fi
 
 echo "Building..."
 (cd "$CLI_DIR" && go build -o "$OUT" ./cmd/ob)
