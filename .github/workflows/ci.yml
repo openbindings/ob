@@ -2,7 +2,7 @@ name: CI
 
 on:
   push:
-    branches: [main, "experiment/**"]
+    branches: [main, "release/**"]
   pull_request:
 
 jobs:
@@ -19,19 +19,19 @@ jobs:
       # sibling checkout plus a CI-local go.work with version-less replaces
       # resolves them, exactly the way the local-dev go.work does. Release
       # builds (release.yml) see no go.work and resolve tagged versions.
-      # Flip ref to main once the SDK's experiment line promotes.
+      # Flip ref to main once the 0.2 release line promotes.
       - uses: actions/checkout@v7
         with:
           repository: openbindings/openbindings-go
-          ref: experiment/obi-first
+          ref: release/0.2
           path: openbindings-go
       # The conformance corpora (transforms, binding-specs) are normative and
       # live in the spec repo; without this checkout the gates skip silently.
       - uses: actions/checkout@v7
         with:
           repository: openbindings/spec
-          # Flip ref to main once the spec working line promotes.
-          ref: chore/icon-refresh
+          # Flip ref to main once the 0.2 release line promotes.
+          ref: release/0.2
           path: spec
       - uses: actions/setup-go@v7
         with:
