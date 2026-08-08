@@ -15,6 +15,22 @@ version-aligned project primer as Markdown. The same canonical primer is
 published at [openbindings.com/agents](https://openbindings.com/agents) and
 linked first from the site's `llms.txt`.
 
+## Visual system
+
+Human-facing terminal output and embedded browser pages adapt the stable
+official theme from [`openbindings/design`](https://github.com/openbindings/design)
+revision `ed8a409`. They also adopt the behavioral boundary from foundations
+revision 1 at `3ef2505` without treating its optional visual references as a
+closed style guide.
+
+The authorization page keeps its compact local typography and composition and
+now collapses transitions when reduced motion is requested. The CLI uses the
+terminal expression profile: font, metrics, spacing, and motion remain
+terminal-native; ANSI roles respect `NO_COLOR`. JSON, YAML, quiet output, and
+files are machine contracts and never receive presentation styling. Consumer
+mappings cite their Design revisions so future changes can be reviewed and
+migrated explicitly.
+
 ## Install
 
 After the 0.2 release, these install the implementation documented here:

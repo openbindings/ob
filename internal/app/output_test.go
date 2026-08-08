@@ -46,3 +46,21 @@ func TestFormatOutput_YAML_SerializesXOBAsObject(t *testing.T) {
 		t.Error("YAML should contain x-ob contents (ref, resolve) as proper keys")
 	}
 }
+
+func TestMachineFormatsNeverContainTerminalStyling(t *testing.T) {
+	value := map[string]any{
+		"status": "ok",
+		"key":    "getMenu",
+	}
+	for _, format := range []OutputFormat{OutputFormatJSON, OutputFormatYAML} {
+		t.Run(string(format), func(t *testing.T) {
+			b, err := FormatOutput(value, format)
+			if err != nil {
+				t.Fatalf("FormatOutput: %v", err)
+			}
+			if strings.Contains(string(b), "\x1b[") {
+				t.Fatalf("%s machine output contains an ANSI escape: %q", format, b)
+			}
+		})
+	}
+}

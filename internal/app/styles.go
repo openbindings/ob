@@ -6,6 +6,8 @@ import (
 	"github.com/charmbracelet/lipgloss"
 )
 
+const terminalFoundationsDesignRevision = "openbindings/design@3ef2505"
+
 // Styles defines the visual styles used across CLI output.
 // These are initialized once and respect terminal capabilities.
 var Styles = initStyles()
@@ -40,8 +42,12 @@ type styles struct {
 }
 
 func initStyles() styles {
-	// Check if we should use color
-	// Respect NO_COLOR env var (https://no-color.org/)
+	// Terminal adapter for openbindings/design@ed8a409, color-theme revision 1,
+	// and openbindings/design@3ef2505, foundations revision 1. The terminal
+	// profile deliberately leaves font, size, line height, spacing, and motion
+	// to the terminal. Human output uses native ANSI meaning; machine formats
+	// never pass through these styles. Respect NO_COLOR (https://no-color.org/)
+	// without weakening the text labels that carry the same meaning.
 	noColor := os.Getenv("NO_COLOR") != ""
 
 	if noColor {
