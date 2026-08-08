@@ -30,10 +30,20 @@ import (
 //     the bridge may act on without inventing policy. (All-declared is required
 //     because "omission states no preference and is not equivalent to zero"
 //     — §5.3 — so a partial declaration cannot be ranked soundly.)
-//  4. Otherwise ADVERTISE the operation anyway and EXPOSE the choice in-band:
-//     the tool gains an optional `_binding` argument, and a call that does not
-//     resolve the choice returns a loud, structured error listing the exact
-//     valid binding keys. The agent can recover without leaving the protocol.
+//  4. Otherwise ADVERTISE the operation anyway and refuse the call loudly:
+//     a call that does not resolve the choice returns a structured error
+//     listing the exact valid binding keys, so the agent recovers without
+//     leaving the protocol.
+//
+// EXPOSE ALWAYS. Whenever an operation has more than one candidate, the tool
+// carries the optional `_binding` argument enumerating them — including when
+// steps 1-3 produced a preselect, in which case the description names the
+// binding the caller will otherwise get. Honoring an author signal must not
+// cost the caller the ability to choose against it: §5.3 calls `preference` a
+// preference, and the core deliberately defines no selection algorithm, so a
+// bridge that acted on it *and* hid the alternatives would have promoted a
+// signal into a mandate. An explicit `_binding` therefore always outranks the
+// preselect.
 //
 // Genuinely unadvertisable operations (no invoker, no invocable binding, a
 // binding whose source is missing/unavailable) are still excluded, exactly as
@@ -48,8 +58,13 @@ type bindingResolution struct {
 	exclude    bool     // genuinely unadvertisable
 	reason     string   // exclusion reason (only when exclude)
 	preselect  string   // a loyal, unambiguous choice the bridge may make
-	ambiguous  bool     // advertise + refuse loudly in-band; caller picks via _binding
-	candidates []string // sorted invocable binding keys (when ambiguous)
+	ambiguous  bool     // no loyal choice available; refuse loudly in-band
+	candidates []string // sorted invocable binding keys; populated whenever the
+	// operation is advertised, INCLUDING when preselect is
+	// set, so a caller can always see and override the
+	// choice made on its behalf (`preference` is a signal
+	// the spec defines no algorithm for — honoring it must
+	// not silently become binding).
 }
 
 func resolveOperationBinding(
@@ -66,22 +81,10 @@ func resolveOperationBinding(
 		available[info.BindingSpec] = true
 	}
 
-	// (1) Explicit context selection wins, matching OperationInvoker's override:
-	// the first listed binding for this operation on an installed spec.
-	for _, key := range contextSelection(baseContext) {
-		binding, ok := iface.Bindings[key]
-		if !ok || binding.Operation != opKey {
-			continue
-		}
-		source, sourceOK := iface.Sources[binding.Source]
-		if !sourceOK {
-			return bindingResolution{exclude: true, reason: fmt.Sprintf("%s references missing source %s", key, binding.Source)}
-		}
-		if available[source.BindingSpec] {
-			return bindingResolution{preselect: key}
-		}
-	}
-
+	// The candidate set is computed BEFORE any choice is made, so that every
+	// resolution — including one the bridge resolves on the caller's behalf —
+	// can still advertise the full set. Honoring a declaration must not
+	// destroy the caller's ability to see and override it.
 	var candidates []string
 	missing := map[string]string{}
 	unavailable := map[string]string{}
@@ -120,17 +123,39 @@ func resolveOperationBinding(
 
 	sort.Strings(candidates)
 
+	// (1) Explicit context selection wins, matching OperationInvoker's override:
+	// the first listed binding for this operation on an installed spec.
+	for _, key := range contextSelection(baseContext) {
+		binding, ok := iface.Bindings[key]
+		if !ok || binding.Operation != opKey {
+			continue
+		}
+		source, sourceOK := iface.Sources[binding.Source]
+		if !sourceOK {
+			// Do NOT exclude. The caller named this binding explicitly; a
+			// dangling source is a defect in the DOCUMENT, and hiding the
+			// operation would report it only on stderr — the precise quiet
+			// refusal this file exists to eliminate. Proceed, and let the
+			// invoker surface ERR_UNKNOWN_SOURCE loudly at call time, which
+			// is what the SDK's own selection override deliberately does.
+			return bindingResolution{preselect: key, candidates: candidates}
+		}
+		if available[source.BindingSpec] {
+			return bindingResolution{preselect: key, candidates: candidates}
+		}
+	}
+
 	// (2) A single invocable binding is not a choice.
 	if len(candidates) == 1 {
 		if source, bad := missing[candidates[0]]; bad {
 			return bindingResolution{exclude: true, reason: fmt.Sprintf("%s references missing source %s", candidates[0], source)}
 		}
-		return bindingResolution{preselect: candidates[0]}
+		return bindingResolution{preselect: candidates[0], candidates: candidates}
 	}
 
 	// (3) Honor a fully-declared, unique author preference.
 	if winner, ok := uniquePreferenceWinner(iface, candidates, missing); ok {
-		return bindingResolution{preselect: winner}
+		return bindingResolution{preselect: winner, candidates: candidates}
 	}
 
 	// (4) Advertise anyway and refuse loudly in-band.
@@ -218,7 +243,12 @@ func extractBindingArg(raw json.RawMessage) (choice string, cleaned json.RawMess
 // withBindingArg advertises the `_binding` selection member on a multi-binding
 // tool's (object) input schema, so an MCP client can discover and supply the
 // choice in-band. Non-object schemas are returned unchanged.
-func withBindingArg(schema any, candidates []string) any {
+//
+// preselect, when non-empty, is the binding this bridge will use if the caller
+// omits the argument. It is stated in the description rather than left implicit:
+// a caller that cannot see which binding it is about to dispatch over cannot
+// meaningfully decide whether to override it.
+func withBindingArg(schema any, candidates []string, preselect string) any {
 	root, ok := schema.(map[string]any)
 	if !ok {
 		return schema
@@ -237,10 +267,18 @@ func withBindingArg(schema any, candidates []string) any {
 	for i, c := range candidates {
 		enum[i] = c
 	}
+	description := "This operation is realized over multiple bindings; select one by its key. " +
+		"Omitting it returns an error listing the valid keys."
+	if preselect != "" {
+		description = fmt.Sprintf(
+			"This operation is realized over multiple bindings; select one by its key. "+
+				"Omitting it dispatches over %q, chosen from the interface's own declarations.",
+			preselect)
+	}
 	props[bindingSelectionArg] = map[string]any{
 		"type":        "string",
 		"enum":        enum,
-		"description": "This operation is realized over multiple bindings; select one by its key. Omit only if a default is configured.",
+		"description": description,
 	}
 	clone["properties"] = props
 	return clone

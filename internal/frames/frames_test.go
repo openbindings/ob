@@ -142,6 +142,57 @@ func TestOutputFrameRoundTrip(t *testing.T) {
 	}
 }
 
+func TestErrorFramePreservesBindingNativeFailureEvidence(t *testing.T) {
+	details := map[string]any{
+		"status": 504,
+		"httpResponse": map[string]any{
+			"status": 504,
+			"headers": map[string]any{
+				"content-type": []string{"text/plain"},
+			},
+			"body": map[string]any{
+				"base64":     "Z2F0ZXdheSB0aW1lb3V0",
+				"byteLength": 15,
+			},
+		},
+		"openapi": map[string]any{
+			"declared":       true,
+			"responseKey":    "504",
+			"governingMedia": "text/plain",
+		},
+	}
+	frame := Error(&openbindings.InvocationError{
+		Code:    openbindings.ErrCodeTimeout,
+		Message: "HTTP 504 Gateway Timeout",
+		Effects: openbindings.EffectsPossible,
+		Details: details,
+	})
+
+	wire, err := json.Marshal(frame)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var back OutputFrame
+	if err := json.Unmarshal(wire, &back); err != nil {
+		t.Fatal(err)
+	}
+	got := back.Error.InvocationError()
+	if got.Effects != openbindings.EffectsPossible {
+		t.Fatalf("effects = %q, want %q", got.Effects, openbindings.EffectsPossible)
+	}
+	gotJSON, err := json.Marshal(got.Details)
+	if err != nil {
+		t.Fatal(err)
+	}
+	wantJSON, err := json.Marshal(details)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(gotJSON) != string(wantJSON) {
+		t.Fatalf("details after frame round trip = %s, want %s", gotJSON, wantJSON)
+	}
+}
+
 // TestErrorFrameCarriesCategory pins the invoker contracts' requirement that
 // InvocationError carries ["code","message","category"]: every emitted error
 // frame must serialize a non-empty category from the closed enum, whether the

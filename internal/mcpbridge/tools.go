@@ -363,40 +363,48 @@ func registerTool(
 	if descriptor.InputSchema == nil {
 		descriptor.InputSchema = bundleInputSchema(op.Input, iface.Schemas)
 	}
-	// A multi-binding operation is advertised (not dropped); expose the choice
-	// in-band via an optional `_binding` argument.
-	if res.ambiguous {
-		descriptor.InputSchema = withBindingArg(descriptor.InputSchema, res.candidates)
+	// An operation realized over several bindings is advertised (never dropped)
+	// and ALWAYS exposes the choice in-band via an optional `_binding` argument
+	// — including when the bridge has a loyal preselect. Honor AND expose: the
+	// spec calls `preference` a signal and defines no selection algorithm, so
+	// acting on it must never remove the caller's ability to choose otherwise.
+	if len(res.candidates) > 1 {
+		descriptor.InputSchema = withBindingArg(descriptor.InputSchema, res.candidates, res.preselect)
 	}
 
 	srv.AddTool(descriptor, func(ctx context.Context, req *mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-		// Resolve the binding for THIS call, spec-loyally:
-		//   preselect  -> a loyal auto-choice (context sel / single / preference)
-		//   ambiguous  -> the caller's `_binding`, else a LOUD in-band refusal
+		// Resolve the binding for THIS call, spec-loyally, caller first:
+		//   explicit `_binding` -> always wins (validated against candidates)
+		//   preselect           -> a loyal auto-choice (context sel / single / preference)
+		//   neither             -> a LOUD in-band refusal naming the valid keys
 		rawArgs := req.Params.Arguments
 		var selection []string
-		if res.preselect != "" {
-			selection = []string{res.preselect}
-		} else if res.ambiguous {
+		if len(res.candidates) > 1 {
 			choice, cleaned, xerr := extractBindingArg(rawArgs)
 			if xerr != nil {
 				return &mcp.CallToolResult{IsError: true, Content: []mcp.Content{&mcp.TextContent{Text: xerr.Error()}}}, nil
 			}
 			rawArgs = cleaned
-			if choice == "" {
+			switch {
+			case choice != "":
+				valid := false
+				for _, c := range res.candidates {
+					if c == choice {
+						valid = true
+						break
+					}
+				}
+				if !valid {
+					return invalidBindingResult(choice, res.candidates), nil
+				}
+				selection = []string{choice}
+			case res.preselect != "":
+				selection = []string{res.preselect}
+			default:
 				return ambiguousBindingResult(res.candidates), nil
 			}
-			valid := false
-			for _, c := range res.candidates {
-				if c == choice {
-					valid = true
-					break
-				}
-			}
-			if !valid {
-				return invalidBindingResult(choice, res.candidates), nil
-			}
-			selection = []string{choice}
+		} else if res.preselect != "" {
+			selection = []string{res.preselect}
 		}
 
 		input, err := projection.decodeInput(rawArgs)

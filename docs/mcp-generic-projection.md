@@ -35,13 +35,26 @@ loudly, never silently drop and never silently invent a default:
    §5.3 states omission is not equivalent to zero, so a partial declaration
    cannot be ranked soundly.) A well-authored multi-binding interface therefore
    bridges with zero configuration.
-3. Otherwise the tool is advertised with an optional **`_binding`** argument
-   whose enum is the exact set of valid binding keys. A call that does not
-   resolve the choice returns a **loud, structured, pre-dispatch error**
-   (`ERR_BINDING_SELECTION_REQUIRED`, `details.bindings` listing the keys) — in
-   the MCP channel the client actually observes, not on stderr. The agent
-   recovers by re-calling with `_binding` set. An unknown `_binding` value
-   returns `ERR_UNKNOWN_BINDING` with the same list.
+3. Otherwise the call is **refused loudly**: a **structured, pre-dispatch
+   error** (`ERR_BINDING_SELECTION_REQUIRED`, `details.bindings` listing the
+   keys) in the MCP channel the client actually observes, not on stderr. The
+   agent recovers by re-calling with `_binding` set. An unknown `_binding`
+   value returns `ERR_UNKNOWN_BINDING` with the same list.
+
+**Honor *and* expose — not honor *or* expose.** Whenever an operation has more
+than one candidate binding, its tool carries the optional **`_binding`**
+argument enumerating the exact valid keys — *including* when steps 1–2 produced
+an automatic choice. In that case the argument's description names the binding
+the caller gets by omission, and an explicit `_binding` always outranks the
+automatic choice.
+
+This is a fidelity requirement, not a convenience. §5.3 calls `preference` a
+*preference*, and the core specification deliberately defines no selection
+algorithm. A bridge that acted on that signal while concealing the alternatives
+would quietly promote an author's signal into a mandate the author never
+declared, and would leave a caller unable to see which of several protocols it
+is about to dispatch over. Acting on a declaration is loyal; foreclosing the
+choice is not.
 
 `--select-binding` remains available for launch-time selection and startup
 diagnostics still log admission on stderr, but stderr is never the *only*

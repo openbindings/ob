@@ -69,6 +69,7 @@ type WireError struct {
 	Code     string `json:"code"`
 	Message  string `json:"message"`
 	Category string `json:"category"`
+	Effects  string `json:"effects,omitempty"`
 	Details  any    `json:"details,omitempty"`
 }
 
@@ -81,7 +82,13 @@ func WireErrorFrom(err *openbindings.InvocationError) *WireError {
 			Category: string(openbindings.CategoryPermanent),
 		}
 	}
-	return &WireError{Code: err.Code, Message: err.Message, Category: wireCategory(err), Details: err.Details}
+	return &WireError{
+		Code:     err.Code,
+		Message:  err.Message,
+		Category: wireCategory(err),
+		Effects:  string(err.Effects),
+		Details:  err.Details,
+	}
 }
 
 // wireCategory resolves the required category member for the wire: the error's
@@ -123,6 +130,7 @@ func (e *WireError) InvocationError() *openbindings.InvocationError {
 		Code:     e.Code,
 		Message:  e.Message,
 		Category: openbindings.Category(e.Category),
+		Effects:  openbindings.Effects(e.Effects),
 		Details:  e.Details,
 	}
 }

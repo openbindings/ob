@@ -297,13 +297,11 @@
               },
               "place": {
                 "type": "operation",
-                "operation": "placeOrder",
-                "onError": "out"
+                "operation": "placeOrder"
               },
               "subscribe": {
                 "type": "operation",
-                "operation": "orderUpdates",
-                "onError": "out"
+                "operation": "orderUpdates"
               },
               "combined": {
                 "type": "combine"

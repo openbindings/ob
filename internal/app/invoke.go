@@ -12,6 +12,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"sort"
 	"strings"
 	"sync"
 	"time"
@@ -255,23 +256,29 @@ func selectBindingForOp(opKey string, iface *openbindings.Interface, ordered []s
 
 	var selectedKey string
 	var selected *openbindings.BindingEntry
-	count := 0
+	candidates := make([]string, 0, len(iface.Bindings))
 	for key, binding := range iface.Bindings {
 		if binding.Operation != opKey || !invocable(binding) {
 			continue
 		}
-		count++
+		candidates = append(candidates, key)
 		copy := binding
 		selectedKey, selected = key, &copy
 	}
-	switch count {
+	sort.Strings(candidates)
+	switch len(candidates) {
 	case 0:
 		return "", nil, fmt.Errorf("%w: %s", openbindings.ErrBindingNotFound, opKey)
 	case 1:
 		return selectedKey, selected, nil
 	default:
-		return "", nil, fmt.Errorf("%w: operation %q has %d invocable bindings; choose one with --binding or --select-binding",
-			openbindings.ErrBindingSelectionRequired, opKey, count)
+		// Name the exact candidates, not merely how many. A refusal that makes
+		// the caller re-derive the valid set is a refusal withholding its own
+		// remedy, and the MCP bridge already lists them (details.bindings) —
+		// the two surfaces must not disagree about the same artifact.
+		// Resolution policy is unchanged: several candidates still refuse.
+		return "", nil, fmt.Errorf("%w: operation %q has %d invocable bindings (%s); choose one with --binding or --select-binding",
+			openbindings.ErrBindingSelectionRequired, opKey, len(candidates), strings.Join(candidates, ", "))
 	}
 }
 
