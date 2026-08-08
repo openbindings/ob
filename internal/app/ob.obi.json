@@ -345,7 +345,7 @@
       "x-ob": {}
     }
   },
-  "description": "Portable interfaces, flexible bindings – the ob command-line tool",
+  "description": "Create, inspect, and invoke OpenBindings interfaces with the ob command-line tool.",
   "roles": {
     "openbindings.binding-executor": "https://openbindings.org/spec/interfaces/openbindings.binding-executor/0.1.json",
     "openbindings.context-store": "https://openbindings.org/spec/interfaces/openbindings.context-store/0.1.json",
