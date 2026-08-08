@@ -27,10 +27,53 @@ jobs:
         if: steps.check.outputs.skip != 'true'
         with:
           fetch-depth: 0
+      - uses: actions/checkout@v7
+        if: steps.check.outputs.skip != 'true'
+        with:
+          repository: openbindings/spec
+          path: spec
       - uses: actions/setup-go@v7
         if: steps.check.outputs.skip != 'true'
         with:
           go-version-file: go.mod
+      - name: Verify annotated SemVer tag
+        if: steps.check.outputs.skip != 'true'
+        run: |
+          if ! printf '%s\n' "${{ github.ref_name }}" | grep -Eq '^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(-[0-9A-Za-z.-]+)?(\+[0-9A-Za-z.-]+)?$'; then
+            echo "::error::release tag must be exact SemVer in vX.Y.Z form"
+            exit 1
+          fi
+          if [ "$(git cat-file -t "${{ github.ref_name }}")" != "tag" ]; then
+            echo "::error::release tags must be annotated"
+            exit 1
+          fi
+      - name: Verify tagged SDK dependencies resolve without the workspace
+        if: steps.check.outputs.skip != 'true'
+        run: go list -m all
+        env:
+          GOWORK: "off"
+      - name: Build and vet
+        if: steps.check.outputs.skip != 'true'
+        run: |
+          go build ./...
+          go vet ./...
+        env:
+          GOWORK: "off"
+      - name: Run race and conformance tests
+        if: steps.check.outputs.skip != 'true'
+        run: go test -race -short ./...
+        env:
+          GOWORK: "off"
+          OB_SPEC_CORPUS: ${{ github.workspace }}/spec/conformance
+          OB_CORPUS_REQUIRED: "1"
+      - name: Run exec-lane and cross-surface conformance tests
+        if: steps.check.outputs.skip != 'true'
+        run: go test -race -run 'TestWireConformance_ExecLane|TestCrossSurfaceConformance|TestDemoSmoke_PrintedCommands' ./internal/cmd/
+        env:
+          GOWORK: "off"
+          OB_SPEC_CORPUS: ${{ github.workspace }}/spec/conformance
+          OB_CORPUS_REQUIRED: "1"
+          OB_TEST_NO_CREDENTIAL_STORE: "1"
       - uses: goreleaser/goreleaser-action@v7
         if: steps.check.outputs.skip != 'true'
         with:
