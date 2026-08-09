@@ -98,11 +98,11 @@ the human-oriented source flags.
 Examples:
   ob source add my.obi.json openapi.json
   ob source add my.obi.json ./api.yaml --key restApi
-  ob source add my.obi.json openbindings.openapi@1:./api.yaml
+  ob source add my.obi.json openbindings.openapi@2:./api.yaml
   ob source add my.obi.json openapi.json --delegate ob
-  ob source add my.obi.json 'openbindings.openapi@1:https://example.com/openapi.json?embed'
-  ob source add my.obi.json openbindings.openapi@1:./api.yaml --uri https://cdn.example.com/api.yaml
-  ob source add --input '{"interface":{"openbindings":"0.2.0","operations":{}},"source":{"bindingSpec":"openbindings.openapi@1","content":{"openapi":"3.1.0","info":{"title":"Example","version":"1"},"paths":{}}}}'`,
+  ob source add my.obi.json 'openbindings.openapi@2:https://example.com/openapi.json?embed'
+  ob source add my.obi.json openbindings.openapi@2:./api.yaml --uri https://cdn.example.com/api.yaml
+  ob source add --input '{"interface":{"openbindings":"0.2.0","operations":{}},"source":{"bindingSpec":"openbindings.openapi@2","content":{"openapi":"3.1.0","info":{"title":"Example","version":"1"},"paths":{}}}}'`,
 		Args: cobra.MaximumNArgs(2),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if inputJSON != "" {

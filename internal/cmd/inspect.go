@@ -26,7 +26,7 @@ inspect-capable delegate performs for formats ob does not natively support.
 Source format: [format:]path[?option...]  (same form as "ob source add")
 
 Pass '-' as the path to read the artifact from stdin (e.g.
-openbindings.openapi@1:-).
+openbindings.openapi@2:-).
 
 Machine callers pass the operation's wire input wholesale instead:
 --input takes an InspectSourceInput as a JSON string (exclusive with the
@@ -36,8 +36,8 @@ Examples:
   ob inspect openapi.json
   ob inspect openbindings.usage@1:./cli.kdl
   ob inspect https://api.example.com/openapi.json
-  curl -s https://api.example.com/openapi.json | ob inspect openbindings.openapi@1:-
-  ob inspect --input '{"source":{"bindingSpec":"openbindings.openapi@1","location":"api.yaml"}}'`,
+  curl -s https://api.example.com/openapi.json | ob inspect openbindings.openapi@2:-
+  ob inspect --input '{"source":{"bindingSpec":"openbindings.openapi@2","location":"api.yaml"}}'`,
 		Args: cobra.MaximumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			var source *openbindings.Source

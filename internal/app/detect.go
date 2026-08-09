@@ -38,14 +38,24 @@ func DetectSourceCandidates(location string) ([]DelegateClaim, error) {
 	}
 
 	var claims []DelegateClaim
+	// A built-in may retain older exact identifiers for compatibility. Its
+	// advertised order is its default preference (current before legacy), so
+	// auto-detection keeps the first successful revision in one family while
+	// explicit identifiers remain exact everywhere else.
+	claimedFamilies := map[string]bool{}
 	for _, fi := range DefaultSynthesizer().BindingSpecs() {
+		family := SpecFamily(fi.BindingSpec)
+		if claimedFamilies[family] {
+			continue
+		}
 		if claim, ok := probeFormatClaim(openbindings.SynthesizeSource{BindingSpec: fi.BindingSpec, Location: location}); ok {
 			claims = append(claims, claim)
+			claimedFamilies[family] = true
 		}
 	}
 
 	if len(claims) == 0 {
-		return nil, fmt.Errorf("could not detect the format of %q; specify it explicitly (e.g. openbindings.openapi@1:%s)", location, location)
+		return nil, fmt.Errorf("could not detect the format of %q; specify it explicitly (e.g. openbindings.openapi@2:%s)", location, location)
 	}
 
 	return claims, nil
@@ -59,18 +69,26 @@ func DetectSourceCandidates(location string) ([]DelegateClaim, error) {
 // rejects the bytes are non-claims.
 func detectCandidatesFromBytes(data []byte) ([]DelegateClaim, error) {
 	var claims []DelegateClaim
+	// See DetectSourceCandidates: one automatic claim per binding family;
+	// callers can still request any advertised legacy identifier explicitly.
+	claimedFamilies := map[string]bool{}
 	for _, fi := range DefaultSynthesizer().BindingSpecs() {
+		family := SpecFamily(fi.BindingSpec)
+		if claimedFamilies[family] {
+			continue
+		}
 		content, err := ParseContentForEmbed(data, fi.BindingSpec)
 		if err != nil {
 			continue
 		}
 		if claim, ok := probeFormatClaim(openbindings.SynthesizeSource{BindingSpec: fi.BindingSpec, Content: content}); ok {
 			claims = append(claims, claim)
+			claimedFamilies[family] = true
 		}
 	}
 
 	if len(claims) == 0 {
-		return nil, fmt.Errorf("could not detect the format of the stdin artifact; specify it explicitly (e.g. openbindings.openapi@1:-)")
+		return nil, fmt.Errorf("could not detect the format of the stdin artifact; specify it explicitly (e.g. openbindings.openapi@2:-)")
 	}
 
 	return claims, nil

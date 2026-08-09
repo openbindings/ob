@@ -18,6 +18,13 @@ ship as part of 0.2.0.
 
 ### Changed
 
+- **OpenAPI auto-detection now selects current `openbindings.openapi@2`.**
+  The CLI keeps exact revision-1 invocation and synthesis compatibility, but
+  an unspecified brownfield OpenAPI artifact no longer becomes ambiguous when
+  both revisions are installed. The current revision preserves same-named
+  path/query/header/body application inputs through a protocol-blind
+  synthesized contract and binding-private transform.
+
 - **`ob start` no longer modifies system trust or accepts arbitrary HTTPS
   origins by default.** The zero-configuration server is loopback HTTP only.
   `--tls` adds HTTPS without installing trust, while `--trust-local-ca`

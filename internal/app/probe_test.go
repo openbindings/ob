@@ -4,6 +4,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	openapibinding "github.com/openbindings/openbindings-go/formats/openapi"
 )
 
 func TestProbeOBI_SynthesizeFromOpenAPI(t *testing.T) {
@@ -27,7 +29,7 @@ func TestResolveInterfaceDetailed_LocalRawArtifactRetainsCoverage(t *testing.T) 
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !resolved.Synthesized || resolved.SourceBindingSpec != "openbindings.openapi@1" {
+	if !resolved.Synthesized || resolved.SourceBindingSpec != openapibinding.BindingSpecV2 {
 		t.Fatalf("raw artifact was not identified as synthesized OpenAPI: %#v", resolved)
 	}
 	if resolved.Coverage == nil {
