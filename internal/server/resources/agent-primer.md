@@ -52,7 +52,8 @@ arbitrary protocol operations are semantically equivalent.
 ## The conceptual stack
 
 ```text
-upstream artifact or live protocol surface
+binding-governed source domain
+(external artifact or protocol, binding-defined artifact, or live surface)
                  │
                  │ synthesis or inspection
                  │ governed by a binding specification
@@ -63,7 +64,7 @@ upstream artifact or live protocol surface
                  │ resolution and invocation
                  │ governed by the same binding specification
                  ▼
-          concrete protocol interaction
+          governed concrete interaction
 ```
 
 The binding specification is the semantic hinge in both directions. A
@@ -73,8 +74,8 @@ tools need not share code, but they must agree on the binding specification's
 meaning.
 
 This is not a serialization round trip. Synthesis does not copy an entire
-upstream artifact into a new universal protocol, and invocation does not
-reconstruct the original server. The fidelity target is that every represented
+source domain into a new universal protocol, and invocation does not reconstruct
+the original service or runtime. The fidelity target is that every represented
 binding identifies the intended target and can be acted upon with the
 interaction semantics, value boundary, and success classification its binding
 specification defines. Synthesis coverage is a separate question: a tool must
@@ -323,16 +324,34 @@ claim.
 
 1. Read the exact binding specification and every incorporated authority it
    pins.
-2. Implement observable behavior from those authorities, not from another
-   SDK's internal architecture.
-3. Keep upstream-permitted alternatives as permitted sets unless effective
+2. Follow the [implementation-layering
+   guidance](binding-specs/README.md#implementation-layering): keep general
+   OpenBindings processing in the SDK, binding-specific translation at the
+   adapter boundary, and domain-native behavior beneath it where that domain
+   exists independently.
+3. Treat thinness as a limit on semantic authority, not code size. A binding
+   implementation may contain substantial machinery without taking ownership
+   of core behavior or inventing source semantics.
+4. For an external artifact or protocol, prefer well-tested domain-native
+   parsers and runtimes when they meet the specification. Keep domain-only code
+   independent of OpenBindings types and separately testable where practical.
+   For a binding-defined domain such as Operation Graph, or an artifactless live
+   surface, do not force artificial standalone reuse; isolate generic SDK
+   behavior from behavior the binding specification itself owns.
+5. Treat every chosen library as an implementation detail. Implement observable
+   behavior from the governing authorities, not from a library's defaults or
+   another SDK's internal architecture; supplement or replace a library when it
+   cannot preserve required behavior.
+6. Keep upstream-permitted alternatives as permitted sets unless effective
    configuration selects one.
-4. Expose required interpretation points without prescribing how applications
+7. Expose required interpretation points without prescribing how applications
    store or obtain their choices.
-5. Produce actionable, pre-dispatch errors for unsupported or ambiguous cases.
-6. Run the shared source fixtures, processor scenarios, synthesis scenarios,
-   and adversarial cases. Go and TypeScript implementations should agree at
-   the OpenBindings boundary while remaining idiomatic internally.
+8. Produce actionable, pre-dispatch errors for unsupported or ambiguous cases.
+9. Run domain-native differential tests below the adapter and protocol-blind
+   OpenBindings tests above it, alongside the shared source fixtures, processor
+   scenarios, synthesis scenarios, and adversarial cases. Go and TypeScript
+   implementations should agree at the OpenBindings boundary while remaining
+   idiomatic internally.
 
 ### Authoring or reviewing a binding specification
 
