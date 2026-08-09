@@ -33,7 +33,7 @@ cmd "describe" help="Show ob identity and metadata" {
   flag "-F --format <format>" help="Output format: json|yaml|text"
 }
 
-cmd "context" help="Manage binding context (credentials, headers, environment)" subcommand_required=true {
+cmd "context" help="Manage binding context (credentials, headers, environment)" subcommand_required=#true {
   alias "ctx" "contexts"
   cmd "list" help="List all contexts" {
     alias "ls"
@@ -65,7 +65,7 @@ cmd "context" help="Manage binding context (credentials, headers, environment)" 
   }
 }
 
-cmd "delegate" help="Manage delegates" subcommand_required=true {
+cmd "delegate" help="Manage delegates" subcommand_required=#true {
   alias "delegates"
   cmd "register" help="Register a delegate" {
     alias "add"
@@ -127,7 +127,7 @@ cmd "new" help="Create an empty OpenBindings interface document" {
   arg "<path>" help="Path for the new OBI file (- writes the document to stdout)"
 }
 
-cmd "meta" help="Manage interface-level metadata" subcommand_required=true {
+cmd "meta" help="Manage interface-level metadata" subcommand_required=#true {
   cmd "set" help="Edit interface metadata (name, version, description)" {
     flag "--name <name>" help="Set the interface name"
     flag "--version <version>" help="Set the interface version"
@@ -156,7 +156,7 @@ cmd "synthesize" help="Synthesize an interface from binding sources" {
   arg "[source]..." help="Binding sources as [format:]path[?options] (none: empty interface; path - reads the artifact from stdin)"
 }
 
-cmd "source" help="Manage source references on an OBI" subcommand_required=true {
+cmd "source" help="Manage source references on an OBI" subcommand_required=#true {
   alias "src" "sources"
   cmd "add" help="Register a source reference on an OBI" {
     flag "--input <json>" help="AddSourceInput as a JSON string (machine lane; exclusive with positional arguments and source flags)"
@@ -193,7 +193,7 @@ cmd "source" help="Manage source references on an OBI" subcommand_required=true 
   }
 }
 
-cmd "operation" help="Manage and invoke operations on an OBI" subcommand_required=true {
+cmd "operation" help="Manage and invoke operations on an OBI" subcommand_required=#true {
   alias "op" "operations"
   cmd "add" help="Add a new operation to an OBI" {
     flag "--description <desc>" help="Operation description"
@@ -207,7 +207,7 @@ cmd "operation" help="Manage and invoke operations on an OBI" subcommand_require
     arg "<obi-path>" help="Path to the OBI file (- reads stdin and writes the modified document to stdout)"
     arg "<key>" help="Key for the new operation"
   }
-  cmd "alias" help="Manage an operation's correspondence aliases" subcommand_required=true {
+  cmd "alias" help="Manage an operation's correspondence aliases" subcommand_required=#true {
     alias "aliases"
     cmd "add" help="Add correspondence alias(es) to an operation" {
       flag "-o --output <path>" help="Write output to file"
@@ -338,7 +338,7 @@ cmd "operation" help="Manage and invoke operations on an OBI" subcommand_require
   }
 }
 
-cmd "binding" help="Low-level binding operations" subcommand_required=true {
+cmd "binding" help="Low-level binding operations" subcommand_required=#true {
   cmd "invoke" help="Invoke a binding directly, below the operation layer" {
     flag "--input <json>" help="Binding input value (with positional args), or a BindingInvocationInput envelope (machine lane)"
     arg "[obi-path]" help="OBI document to resolve the binding from"
