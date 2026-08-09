@@ -428,14 +428,44 @@ func TestInvokeOBIOperation_InvalidInputNeverReachesWire(t *testing.T) {
 			"createOrder": map[string]any{
 				"input": map[string]any{
 					"type":       "object",
-					"properties": map[string]any{"quantity": map[string]any{"type": "integer"}},
+					"properties": map[string]any{"quantity": map[string]any{"$ref": "#/operations/createOrder/input/$defs/Quantity"}},
+					"$defs":      map[string]any{"Quantity": map[string]any{"type": "integer"}},
+				},
+				"output": map[string]any{
+					"type":       "object",
+					"properties": map[string]any{"ok": map[string]any{"$ref": "#/operations/createOrder/output/$defs/Success"}},
+					"$defs":      map[string]any{"Success": map[string]any{"type": "boolean"}},
 				},
 			},
 		},
 		"sources": map[string]any{
 			"api": map[string]any{
 				"bindingSpec": "openbindings.openapi@1",
-				"content":     map[string]any{"openapi": "3.0.3", "info": map[string]any{"title": "t", "version": "1"}, "servers": []any{map[string]any{"url": srv.URL}}, "paths": map[string]any{"/orders": map[string]any{"post": map[string]any{"operationId": "createOrder", "responses": map[string]any{"200": map[string]any{"description": "ok"}}}}}},
+				"content": map[string]any{
+					"openapi": "3.0.3",
+					"info":    map[string]any{"title": "t", "version": "1"},
+					"servers": []any{map[string]any{"url": srv.URL}},
+					"paths": map[string]any{
+						"/orders": map[string]any{
+							"post": map[string]any{
+								"operationId": "createOrder",
+								"responses": map[string]any{
+									"200": map[string]any{
+										"description": "ok",
+										"content": map[string]any{
+											"application/json": map[string]any{
+												"schema": map[string]any{
+													"type":       "object",
+													"properties": map[string]any{"ok": map[string]any{"type": "boolean"}},
+												},
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
 			},
 		},
 		"bindings": map[string]any{
@@ -459,7 +489,10 @@ func TestInvokeOBIOperation_InvalidInputNeverReachesWire(t *testing.T) {
 	if err != nil {
 		t.Fatalf("valid input refused: %v", err)
 	}
-	for range events {
+	for event := range events {
+		if event.Error != nil {
+			t.Fatalf("document-root output schema refused valid response: %v", event.Error)
+		}
 	}
 	if got := requests.Load(); got != 1 {
 		t.Errorf("valid input should dispatch exactly once, got %d", got)

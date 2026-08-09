@@ -678,7 +678,7 @@ func invokeOnInterface(ctx context.Context, iface *openbindings.Interface, opKey
 	// schema describes the caller's shape, the transform's result is the
 	// binding's business.
 	if inSchema := iface.Operations[opCanonical].Input; inSchema != nil && input != nil {
-		if verr := openbindings.ValidateAgainstSchema(input, inSchema, iface.Schemas); verr != nil {
+		if verr := openbindings.ValidateOperationInput(input, iface, opCanonical); verr != nil {
 			return nil, fmt.Errorf("input validation failed for %q: %w", resolved.bindingKey, verr)
 		}
 	}
@@ -718,7 +718,7 @@ func invokeOnInterface(ctx context.Context, iface *openbindings.Interface, opKey
 			Location: chosen.location(),
 			OBI:      &delegates.ResolvedOBI{Interface: *delegateIface},
 		}, lowLevel)
-		run.Events = applyT08(unaryChannel(iface, resolved, out), outputSchema, iface.Schemas, resolved.bindingKey)
+		run.Events = applyT08(unaryChannel(iface, resolved, out), iface, opCanonical, outputSchema, resolved.bindingKey)
 		return run, nil
 	}
 
@@ -730,7 +730,7 @@ func invokeOnInterface(ctx context.Context, iface *openbindings.Interface, opKey
 	if BuiltinSupportsFormat(es.BindingSpec) {
 		src, sErr := SubscribeOperationWithContext(ctx, lowLevel)
 		if sErr == nil {
-			run.Events = applyT08(transformEventStream(src, iface, resolved), outputSchema, iface.Schemas, resolved.bindingKey)
+			run.Events = applyT08(transformEventStream(src, iface, resolved), iface, opCanonical, outputSchema, resolved.bindingKey)
 			return run, nil
 		}
 	}
@@ -738,7 +738,7 @@ func invokeOnInterface(ctx context.Context, iface *openbindings.Interface, opKey
 	// Unary fallback (in-process builtin, or a self-delegate non-streaming path).
 	out := InvokeOperationWithContext(ctx, lowLevel)
 	out.BindingKey = resolved.bindingKey
-	run.Events = applyT08(unaryChannel(iface, resolved, out), outputSchema, iface.Schemas, resolved.bindingKey)
+	run.Events = applyT08(unaryChannel(iface, resolved, out), iface, opCanonical, outputSchema, resolved.bindingKey)
 	return run, nil
 }
 
@@ -772,7 +772,7 @@ func unaryChannel(iface *openbindings.Interface, resolved *resolvedBinding, resu
 // the contract-decided election teaching when the schema is floor-stamped
 // (the derived contract still declares the floor; the remedy is the schema
 // election, not the decode).
-func applyT08(src <-chan InvocationOutput, schema openbindings.JSONSchema, schemas map[string]openbindings.JSONSchema, bindingKey string) <-chan InvocationOutput {
+func applyT08(src <-chan InvocationOutput, iface *openbindings.Interface, operationName string, schema openbindings.JSONSchema, bindingKey string) <-chan InvocationOutput {
 	out := make(chan InvocationOutput)
 	go func() {
 		defer close(out)
@@ -805,7 +805,7 @@ func applyT08(src <-chan InvocationOutput, schema openbindings.JSONSchema, schem
 				out <- ev
 				continue
 			}
-			if verr := openbindings.ValidateAgainstSchema(ev.Output, schema, schemas); verr != nil {
+			if verr := openbindings.ValidateOperationOutput(ev.Output, iface, operationName); verr != nil {
 				out <- InvocationOutput{Error: t08Failure(ev, verr, schema, bindingKey)}
 				return
 			}

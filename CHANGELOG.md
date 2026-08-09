@@ -418,6 +418,12 @@ ship as part of 0.2.0.
 
 ### Fixed
 
+- **Direct binding invocation now validates operation values with the OBI
+  document retained as the schema reference root.** The CLI's pre-dispatch
+  input gate and per-output gate therefore accept synthesized recursive
+  operation-local `$defs` and other legal document-root references exactly as
+  the SDK operation layer does, without exposing binding-protocol details.
+
 - **Delegate frame-endpoint resolution had drifted from the asyncapi
   binding spec.** The retired hand-rolled copy (see Changed: the SDK's
   asyncapi seam now owns the resolution) ignored a channel's declared
