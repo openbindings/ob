@@ -18,15 +18,13 @@ ship as part of 0.2.0.
 
 ### Changed
 
-- **OpenAPI auto-detection now selects current `openbindings.openapi@6`.**
-  Declaration-complex exact JSON request bodies remain one protocol-neutral
-  application value through the synthesized private route; exact revision 5
-  remains available for compatibility. Core is unchanged.
-  The CLI keeps exact revisions 4, 3, 2, and 1 for invocation and synthesis
-  compatibility, but an unspecified brownfield OpenAPI artifact selects the
-  dynamic-object carriage revision. Explicitly dynamic bodies remain one
-  protocol-neutral application object while the binding keeps their concrete
-  form, multipart, or JSON routing private.
+- **OpenAPI auto-detection now selects current `openbindings.openapi@7`.**
+  Exact schema-omitted OAS 3.0 non-JSON request and response representations
+  cross the protocol-independent boundary as canonical Base64. The CLI keeps
+  exact revisions 6, 5, 4, 3, 2, and 1 for invocation and synthesis
+  compatibility. Declaration-complex JSON and explicitly dynamic object
+  bodies retain their protocol-neutral operation shapes and binding-private
+  routing. Core is unchanged.
 
 - **`ob start` no longer modifies system trust or accepts arbitrary HTTPS
   origins by default.** The zero-configuration server is loopback HTTP only.
