@@ -3604,7 +3604,7 @@
   },
   "sources": {
     "asyncapi": {
-      "bindingSpec": "openbindings.asyncapi@1",
+      "bindingSpec": "openbindings.asyncapi@2",
       "location": "http://127.0.0.1:20290/asyncapi.yaml"
     },
     "openapi": {

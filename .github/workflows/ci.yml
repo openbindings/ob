@@ -25,6 +25,11 @@ jobs:
           repository: openbindings/openbindings-go
           ref: release/0.2
           path: openbindings-go
+      - uses: actions/checkout@v7
+        with:
+          repository: openbindings/openapi-client
+          ref: main
+          path: openapi-client
       # The conformance corpora (transforms, binding-specs) are normative and
       # live in the spec repo; without this checkout the gates skip silently.
       - uses: actions/checkout@v7
@@ -44,6 +49,7 @@ jobs:
             rel="../openbindings-go${mod#github.com/openbindings/openbindings-go}"
             go work edit -replace "$mod=$rel"
           done
+          go work edit -replace "github.com/openbindings/openapi-client/go=../openapi-client/go"
           go work edit -json
       - run: go build ./...
       - run: go vet ./...

@@ -42,7 +42,7 @@ A source names the binding specification that governs its artifact via its `bind
 | Format | `bindingSpec` identifier | `ref` shape |
 |--------|--------------------------|-------------|
 | OpenAPI | `openbindings.openapi@1` | JSON Pointer to the operation object: `#/paths/~1users~1{id}/get` |
-| AsyncAPI | `openbindings.asyncapi@1` | JSON Pointer: `#/operations/sendMessage` |
+| AsyncAPI | `openbindings.asyncapi@2` | JSON Pointer: `#/operations/sendMessage` |
 | gRPC | `openbindings.grpc@1` | `<fully-qualified-service>/<method>` |
 | Connect | `openbindings.connect@1` | `<fully-qualified-service>/<method>` |
 | MCP | `openbindings.mcp@2` (latest) | `tools/<name>` for tools declaring `outputSchema` |

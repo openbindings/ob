@@ -201,7 +201,7 @@ const maxFrameBytes = 2 << 20 // 2 MiB
 // resolveFrameEndpoint fetches the delegate's AsyncAPI document and derives
 // the ws(s) URL of the operation the ref names. Everything AsyncAPI —
 // document parsing, the ref grammar (ASYNC-D-03), and the pinned
-// server-selection and address rules (openbindings.asyncapi@1 §9.2,
+// server-selection and address rules (openbindings.asyncapi@2 §9.2,
 // ASYNC-P-04) — lives behind the SDK's format seam
 // (asyncapi.ParseDocument / Document.ResolveEndpoint), never re-derived
 // here. What stays on this side is ob's own: fetching the document (the
