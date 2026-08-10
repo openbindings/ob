@@ -18,7 +18,7 @@ ship as part of 0.2.0.
 
 ### Changed
 
-- **OpenAPI auto-detection now selects current `openbindings.openapi@3`.**
+- **OpenAPI auto-detection now selects current `openbindings.openapi@4`.**
   The CLI keeps exact revision-2 and revision-1 invocation and synthesis
   compatibility, but an unspecified brownfield OpenAPI artifact selects the
   media-faithful revision. It adds raw request-byte carriage and configured
