@@ -36,7 +36,7 @@ binding-invoker interface.
 Examples:
   ob binding invoke orders.obi.json listOrders.api
   ob binding invoke orders.obi.json listOrders.api --input '{"limit": 10}'
-  ob binding invoke --input '{"source":{"bindingSpec":"openbindings.openapi@2",...},"ref":"#/paths/~1orders/get"}'`,
+  ob binding invoke --input '{"source":{"bindingSpec":"openbindings.openapi@3",...},"ref":"#/paths/~1orders/get"}'`,
 		Args: func(cmd *cobra.Command, args []string) error {
 			if len(args) != 0 && len(args) != 2 {
 				return fmt.Errorf("accepts an OBI path and a binding key, or no arguments with a machine-lane --input envelope")

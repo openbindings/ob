@@ -16,7 +16,7 @@ func TestDetectSourceFormatPrefersCurrentBindingRevision(t *testing.T) {
 	if err != nil {
 		t.Fatalf("detect OpenAPI source: %v", err)
 	}
-	if got != openapibinding.BindingSpecV2 {
-		t.Fatalf("detected binding specification = %q, want current revision %q", got, openapibinding.BindingSpecV2)
+	if got != openapibinding.BindingSpec {
+		t.Fatalf("detected binding specification = %q, want current revision %q", got, openapibinding.BindingSpec)
 	}
 }
