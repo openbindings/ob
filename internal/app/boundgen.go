@@ -459,7 +459,7 @@ func GenerateBoundServe(contractPath, openapiPath, existingServePath, servedBase
 		"getContext":    `{ "url": key }`,
 		"setContext":    `{ "url": key, "payload": value }`,
 		"removeContext": `{ "url": key }`,
-		// Revision 5 keeps this explicitly dynamic object as one application
+		// Revision 6 retains this explicitly dynamic object as one application
 		// value. The public ob contract already uses the object itself as the
 		// operation input, so adapt it to the synthesized source-facing field
 		// before the binding-private route tuple is produced.
@@ -476,7 +476,7 @@ func GenerateBoundServe(contractPath, openapiPath, existingServePath, servedBase
 			continue
 		}
 		// Begin with the artifact synthesizer's complete binding contract. In
-		// particular, revision-5 dynamic bodies require its binding-private
+		// particular, revision-6 whole-value bodies require its binding-private
 		// route transform; rebuilding only operation/source/ref would silently
 		// discard the information needed for faithful invocation.
 		be := b

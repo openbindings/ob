@@ -8,7 +8,7 @@ import (
 
 func TestRemapBindingKeysPreservesSynthesizedBindingContract(t *testing.T) {
 	preference := 2.0
-	inputTransform := &openbindings.TransformOrRef{Inline: `[{"$openbindings":"openbindings.openapi@5","value":$,"parameters":[],"body":{"whole":"payload"}}]`}
+	inputTransform := &openbindings.TransformOrRef{Inline: `[{"$openbindings":"openbindings.openapi@6","value":$,"parameters":[],"body":{"whole":"payload"}}]`}
 	outputTransform := &openbindings.TransformOrRef{Inline: `result`}
 	original := openbindings.BindingEntry{
 		Operation:       "putThing",

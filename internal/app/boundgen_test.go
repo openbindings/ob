@@ -80,7 +80,7 @@ func TestGenerateBoundServe_BindsServedSurface(t *testing.T) {
 		}
 	}
 	// Hand-tuned transforms survive the short-name → contract-key rekey, and
-	// revision-5 dynamic bodies retain the synthesizer's private route tuple.
+	// revision-6 whole-value bodies retain the synthesizer's private route tuple.
 	for _, short := range []string{"getContext", "setContext", "removeContext", "purifyInterface"} {
 		if b := serve.Bindings["openbindings.ob."+short+".openapi"]; b.InputTransform == nil {
 			t.Errorf("expected %s.openapi path/body inputTransform", short)
@@ -95,7 +95,7 @@ func TestGenerateBoundServe_BindsServedSurface(t *testing.T) {
 			short: "purifyInterface",
 			input: map[string]any{"name": "example"},
 			want: []any{map[string]any{
-				"$openbindings": "openbindings.openapi@5",
+				"$openbindings": "openbindings.openapi@6",
 				"value":         map[string]any{"payload": map[string]any{"name": "example"}},
 				"parameters":    []any{},
 				"body":          map[string]any{"whole": "payload"},
@@ -105,7 +105,7 @@ func TestGenerateBoundServe_BindsServedSurface(t *testing.T) {
 			short: "setContext",
 			input: map[string]any{"key": "https://example.test", "value": map[string]any{"metadata": map[string]any{"tenant": "a"}}},
 			want: []any{map[string]any{
-				"$openbindings": "openbindings.openapi@5",
+				"$openbindings": "openbindings.openapi@6",
 				"value": map[string]any{
 					"url":     "https://example.test",
 					"payload": map[string]any{"metadata": map[string]any{"tenant": "a"}},

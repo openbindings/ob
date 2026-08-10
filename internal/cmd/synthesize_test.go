@@ -349,8 +349,8 @@ func TestSynthesizeStdinSource_DetectsFormat(t *testing.T) {
 	if _, ok := doc.Operations["listThings"]; !ok {
 		t.Errorf("expected operation listThings, got %v", keysOf(doc.Operations))
 	}
-	if src, ok := doc.Sources["openapi"]; !ok || src.BindingSpec != "openbindings.openapi@5" {
-		t.Errorf("expected a detected openbindings.openapi@5 source under key %q, got %v", "openapi", doc.Sources)
+	if src, ok := doc.Sources["openapi"]; !ok || src.BindingSpec != "openbindings.openapi@6" {
+		t.Errorf("expected a detected openbindings.openapi@6 source under key %q, got %v", "openapi", doc.Sources)
 	}
 }
 

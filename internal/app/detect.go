@@ -55,7 +55,7 @@ func DetectSourceCandidates(location string) ([]DelegateClaim, error) {
 	}
 
 	if len(claims) == 0 {
-		return nil, fmt.Errorf("could not detect the format of %q; specify it explicitly (e.g. openbindings.openapi@5:%s)", location, location)
+		return nil, fmt.Errorf("could not detect the format of %q; specify it explicitly (e.g. openbindings.openapi@6:%s)", location, location)
 	}
 
 	return claims, nil
@@ -88,7 +88,7 @@ func detectCandidatesFromBytes(data []byte) ([]DelegateClaim, error) {
 	}
 
 	if len(claims) == 0 {
-		return nil, fmt.Errorf("could not detect the format of the stdin artifact; specify it explicitly (e.g. openbindings.openapi@5:-)")
+		return nil, fmt.Errorf("could not detect the format of the stdin artifact; specify it explicitly (e.g. openbindings.openapi@6:-)")
 	}
 
 	return claims, nil

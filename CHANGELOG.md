@@ -18,7 +18,10 @@ ship as part of 0.2.0.
 
 ### Changed
 
-- **OpenAPI auto-detection now selects current `openbindings.openapi@5`.**
+- **OpenAPI auto-detection now selects current `openbindings.openapi@6`.**
+  Declaration-complex exact JSON request bodies remain one protocol-neutral
+  application value through the synthesized private route; exact revision 5
+  remains available for compatibility. Core is unchanged.
   The CLI keeps exact revisions 4, 3, 2, and 1 for invocation and synthesis
   compatibility, but an unspecified brownfield OpenAPI artifact selects the
   dynamic-object carriage revision. Explicitly dynamic bodies remain one
