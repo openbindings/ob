@@ -138,6 +138,7 @@
       "source": "openapi"
     },
     "openbindings.ob.purifyInterface.openapi": {
+      "inputTransform": "[{\"$openbindings\":\"openbindings.openapi@5\",\"value\":({ \"payload\": $$ }),\"parameters\":[],\"body\":{\"whole\":\"payload\"}}]",
       "operation": "openbindings.ob.purifyInterface",
       "ref": "#/paths/~1interfaces~1purify/post",
       "source": "openapi"
@@ -204,7 +205,7 @@
       "source": "openapi"
     },
     "openbindings.ob.setContext.openapi": {
-      "inputTransform": "$merge([{ \"url\": key }, value])",
+      "inputTransform": "[{\"$openbindings\":\"openbindings.openapi@5\",\"value\":({ \"url\": key, \"payload\": value }),\"parameters\":[{\"in\":\"path\",\"name\":\"url\",\"field\":\"url\"}],\"body\":{\"whole\":\"payload\"}}]",
       "operation": "openbindings.ob.setContext",
       "ref": "#/paths/~1contexts~1{url}/put",
       "source": "openapi"
@@ -3607,7 +3608,7 @@
       "location": "http://127.0.0.1:20290/asyncapi.yaml"
     },
     "openapi": {
-      "bindingSpec": "openbindings.openapi@4",
+      "bindingSpec": "openbindings.openapi@5",
       "location": "http://127.0.0.1:20290/openapi.yaml"
     }
   },

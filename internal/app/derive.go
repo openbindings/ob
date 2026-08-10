@@ -163,11 +163,11 @@ func remapBindingKeys(bindings map[string]openbindings.BindingEntry, sourceKey s
 	out := make(map[string]openbindings.BindingEntry, len(bindings))
 	for _, b := range bindings {
 		key := b.Operation + "." + sourceKey
-		out[key] = openbindings.BindingEntry{
-			Operation: b.Operation,
-			Source:    sourceKey,
-			Ref:       b.Ref,
-		}
+		// Remapping changes only the local source identity. Binding-private
+		// transforms and the rest of the synthesized binding contract are
+		// required for faithful invocation and must survive derivation.
+		b.Source = sourceKey
+		out[key] = b
 	}
 	return out
 }

@@ -18,11 +18,12 @@ ship as part of 0.2.0.
 
 ### Changed
 
-- **OpenAPI auto-detection now selects current `openbindings.openapi@4`.**
-  The CLI keeps exact revision-2 and revision-1 invocation and synthesis
+- **OpenAPI auto-detection now selects current `openbindings.openapi@5`.**
+  The CLI keeps exact revisions 4, 3, 2, and 1 for invocation and synthesis
   compatibility, but an unspecified brownfield OpenAPI artifact selects the
-  media-faithful revision. It adds raw request-byte carriage and configured
-  media-range choices while keeping the synthesized contract protocol-blind.
+  dynamic-object carriage revision. Explicitly dynamic bodies remain one
+  protocol-neutral application object while the binding keeps their concrete
+  form, multipart, or JSON routing private.
 
 - **`ob start` no longer modifies system trust or accepts arbitrary HTTPS
   origins by default.** The zero-configuration server is loopback HTTP only.
@@ -416,6 +417,14 @@ ship as part of 0.2.0.
 - `ob --version` prints the CLI version and its supported spec range.
 
 ### Fixed
+
+- **Source derivation now preserves the synthesizer's complete binding
+  contract.** Remapping a synthesized binding to a local source key no longer
+  discards its input/output transforms, preference, or descriptive fields.
+  Bound server generation composes its contract adaptation with the OpenAPI
+  revision-5 private route transform, so dynamic document and context objects
+  remain protocol-neutral at the public operation boundary and still reach
+  the native request body faithfully.
 
 - **Direct binding invocation now validates operation values with the OBI
   document retained as the schema reference root.** The CLI's pre-dispatch

@@ -3,8 +3,38 @@ package app
 import (
 	"testing"
 
-	"github.com/openbindings/openbindings-go"
+	openbindings "github.com/openbindings/openbindings-go"
 )
+
+func TestRemapBindingKeysPreservesSynthesizedBindingContract(t *testing.T) {
+	preference := 2.0
+	inputTransform := &openbindings.TransformOrRef{Inline: `[{"$openbindings":"openbindings.openapi@5","value":$,"parameters":[],"body":{"whole":"payload"}}]`}
+	outputTransform := &openbindings.TransformOrRef{Inline: `result`}
+	original := openbindings.BindingEntry{
+		Operation:       "putThing",
+		Source:          "openapi",
+		Ref:             "#/paths/~1things/put",
+		Preference:      &preference,
+		Description:     "preserve me",
+		Deprecated:      true,
+		InputTransform:  inputTransform,
+		OutputTransform: outputTransform,
+	}
+
+	got := remapBindingKeys(map[string]openbindings.BindingEntry{"putThing.openapi": original}, "service")
+	remapped, ok := got["putThing.service"]
+	if !ok {
+		t.Fatalf("remapped binding missing: %#v", got)
+	}
+	if remapped.Source != "service" || remapped.Operation != original.Operation || remapped.Ref != original.Ref {
+		t.Fatalf("binding identity was not remapped narrowly: %#v", remapped)
+	}
+	if remapped.InputTransform != inputTransform || remapped.OutputTransform != outputTransform ||
+		remapped.Preference != original.Preference || remapped.Description != original.Description ||
+		remapped.Deprecated != original.Deprecated {
+		t.Fatalf("binding contract was discarded during remap: %#v", remapped)
+	}
+}
 
 func TestDetectCrossSourceDrift_NoDrift(t *testing.T) {
 	// Two sources produce the same operation with identical schemas.

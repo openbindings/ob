@@ -79,10 +79,53 @@ func TestGenerateBoundServe_BindsServedSurface(t *testing.T) {
 			t.Errorf("did not expect an mcp binding, got %q", bk)
 		}
 	}
-	// Hand-tuned transforms survive the short-name → contract-key rekey.
-	for _, short := range []string{"getContext", "setContext", "removeContext"} {
+	// Hand-tuned transforms survive the short-name → contract-key rekey, and
+	// revision-5 dynamic bodies retain the synthesizer's private route tuple.
+	for _, short := range []string{"getContext", "setContext", "removeContext", "purifyInterface"} {
 		if b := serve.Bindings["openbindings.ob."+short+".openapi"]; b.InputTransform == nil {
 			t.Errorf("expected %s.openapi path/body inputTransform", short)
+		}
+	}
+	dynamicCases := []struct {
+		short string
+		input any
+		want  any
+	}{
+		{
+			short: "purifyInterface",
+			input: map[string]any{"name": "example"},
+			want: []any{map[string]any{
+				"$openbindings": "openbindings.openapi@5",
+				"value":         map[string]any{"payload": map[string]any{"name": "example"}},
+				"parameters":    []any{},
+				"body":          map[string]any{"whole": "payload"},
+			}},
+		},
+		{
+			short: "setContext",
+			input: map[string]any{"key": "https://example.test", "value": map[string]any{"metadata": map[string]any{"tenant": "a"}}},
+			want: []any{map[string]any{
+				"$openbindings": "openbindings.openapi@5",
+				"value": map[string]any{
+					"url":     "https://example.test",
+					"payload": map[string]any{"metadata": map[string]any{"tenant": "a"}},
+				},
+				"parameters": []any{map[string]any{"in": "path", "name": "url", "field": "url"}},
+				"body":       map[string]any{"whole": "payload"},
+			}},
+		},
+	}
+	for _, tc := range dynamicCases {
+		binding := serve.Bindings["openbindings.ob."+tc.short+".openapi"]
+		got, transformErr := ApplyTransform(serve.Transforms, binding.InputTransform, tc.input)
+		if transformErr != nil {
+			t.Errorf("%s composed transform: %v", tc.short, transformErr)
+			continue
+		}
+		gotJSON, _ := json.Marshal(got)
+		wantJSON, _ := json.Marshal(tc.want)
+		if string(gotJSON) != string(wantJSON) {
+			t.Errorf("%s composed transform\n got: %s\nwant: %s", tc.short, gotJSON, wantJSON)
 		}
 	}
 	// The served OBI points at this server's own live spec endpoints via absolute

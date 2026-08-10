@@ -69,7 +69,7 @@ ob source add interface.json ./openapi.json  # register the spec as a source
 ob source pull interface.json                # derive operations + bindings from it
 ```
 
-`ob source add` accepts a bare path (`./openapi.json`) and auto-detects the current binding revision, or an explicit binding-spec identifier (`openbindings.openapi@4:./openapi.json`). `ob source pull` reads the source, extracts operations and schemas, and writes the operations and their bindings back into the OBI.
+`ob source add` accepts a bare path (`./openapi.json`) and auto-detects the current binding revision, or an explicit binding-spec identifier (`openbindings.openapi@5:./openapi.json`). `ob source pull` reads the source, extracts operations and schemas, and writes the operations and their bindings back into the OBI.
 
 For a one-shot derivation (no ongoing sync), `ob synthesize` collapses the three steps into one:
 
@@ -102,7 +102,7 @@ ob status interface.json
 myservice 1.0.0  (openbindings 0.2.0)
 
 Sources (2)
-  openapi           openbindings.openapi@4   ./openapi.json       out of sync (synced 3d ago, ob 0.2.0)
+  openapi           openbindings.openapi@5   ./openapi.json       out of sync (synced 3d ago, ob 0.2.0)
     ↳ operations to add: deletePet
     ↳ bindings to add: deletePet.openapi
   cli               openbindings.usage@1     ./cli.usage.kdl      in sync (synced 3d ago, ob 0.2.0)
@@ -334,8 +334,8 @@ How a source is stored in the OBI follows from what you point at; `--resolve` ov
 A local file artifact embeds directly in the OBI: the document is conformant (a relative path can never be, per OBI-D-05) and works from anywhere — registry, stdin, a colleague's clone. The local path is recorded in x-ob metadata as the pull path `ob source pull` refreshes from:
 
 ```bash
-ob source add interface.json openbindings.openapi@4:./api.yaml          # embeds by default
-ob source add interface.json 'openbindings.openapi@4:https://example.com/api.yaml?embed'  # fetch and pin a remote artifact
+ob source add interface.json openbindings.openapi@5:./api.yaml          # embeds by default
+ob source add interface.json 'openbindings.openapi@5:https://example.com/api.yaml?embed'  # fetch and pin a remote artifact
 ```
 
 JSON/YAML formats embed as native objects. Text formats (KDL, protobuf source) embed as strings and must be self-contained (a `.proto` with imports refuses). Binary artifacts cannot be embedded.
@@ -345,13 +345,13 @@ JSON/YAML formats embed as native objects. Text formats (KDL, protobuf source) e
 Stores a URI or format-defined address (a gRPC `host:port`, an MCP endpoint) in the spec `location` field:
 
 ```bash
-ob source add interface.json openbindings.openapi@4:https://example.com/api.yaml
+ob source add interface.json openbindings.openapi@5:https://example.com/api.yaml
 ```
 
 To keep a local working file but publish a pointer, pair `--resolve location` with `--uri`:
 
 ```bash
-ob source add interface.json openbindings.openapi@4:./api.yaml --resolve location --uri https://cdn.example.com/api.yaml
+ob source add interface.json openbindings.openapi@5:./api.yaml --resolve location --uri https://cdn.example.com/api.yaml
 ```
 
 ## Drift Detection and Pull
@@ -547,7 +547,7 @@ curl -X POST http://localhost:20290/bindings/prepare \
   -H "Authorization: Bearer $TOKEN" \
   -H "Content-Type: application/json" \
   -d '{
-    "source": { "bindingSpec": "openbindings.openapi@4", "location": "https://api.example.com/openapi.json" },
+    "source": { "bindingSpec": "openbindings.openapi@5", "location": "https://api.example.com/openapi.json" },
     "ref":    "#/paths/~1users/get"
   }'
 ```

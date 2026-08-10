@@ -445,16 +445,25 @@ func GenerateBoundServe(contractPath, openapiPath, existingServePath, servedBase
 			old, ok = existing.Bindings[short+"."+source]
 		}
 		if ok {
-			be.InputTransform = old.InputTransform
-			be.OutputTransform = old.OutputTransform
+			if be.InputTransform == nil {
+				be.InputTransform = old.InputTransform
+			}
+			if be.OutputTransform == nil {
+				be.OutputTransform = old.OutputTransform
+			}
 		}
 	}
 
 	// HTTP (openapi) bindings — ref derived from openapi.yaml.
 	pathInputTransforms := map[string]string{
 		"getContext":    `{ "url": key }`,
-		"setContext":    `$merge([{ "url": key }, value])`,
+		"setContext":    `{ "url": key, "payload": value }`,
 		"removeContext": `{ "url": key }`,
+		// Revision 5 keeps this explicitly dynamic object as one application
+		// value. The public ob contract already uses the object itself as the
+		// operation input, so adapt it to the synthesized source-facing field
+		// before the binding-private route tuple is produced.
+		"purifyInterface": `{ "payload": $$ }`,
 		// The HTTP artifact wraps the conditional OperationInvocationInput so
 		// the OpenAPI revision-1 flattened model has one declaration-defined
 		// surface. This transform preserves the public operation's direct
@@ -466,11 +475,21 @@ func GenerateBoundServe(contractPath, openapiPath, existingServePath, servedBase
 		if !include(opKey) {
 			continue
 		}
-		be := openbindings.BindingEntry{Operation: opKey, Source: "openapi", Ref: b.Ref}
-		carry(opKey, b.Operation, "openapi", &be)
+		// Begin with the artifact synthesizer's complete binding contract. In
+		// particular, revision-5 dynamic bodies require its binding-private
+		// route transform; rebuilding only operation/source/ref would silently
+		// discard the information needed for faithful invocation.
+		be := b
+		be.Operation = opKey
+		be.Source = "openapi"
 		if expression := pathInputTransforms[b.Operation]; expression != "" {
-			be.InputTransform = &openbindings.TransformOrRef{Inline: expression}
+			composed, composeErr := composeSourceInputTransform(expression, be.InputTransform)
+			if composeErr != nil {
+				return nil, fmt.Errorf("compose %s OpenAPI input transform: %w", b.Operation, composeErr)
+			}
+			be.InputTransform = composed
 		}
+		carry(opKey, b.Operation, "openapi", &be)
 		bound.Bindings[opKey+".openapi"] = be
 	}
 
@@ -485,6 +504,27 @@ func GenerateBoundServe(contractPath, openapiPath, existingServePath, servedBase
 	}
 
 	return bound, nil
+}
+
+// composeSourceInputTransform applies a contract-to-source adaptation before
+// an artifact synthesizer's binding-private input transform. Current OpenAPI
+// route transforms are inline JSONata constructors whose value member is the
+// source-facing application object. Keeping the composition here lets the
+// bound ob contract retain its own protocol-neutral operation schemas without
+// reimplementing the binding specification's route descriptor.
+func composeSourceInputTransform(adaptation string, sourceTransform *openbindings.TransformOrRef) (*openbindings.TransformOrRef, error) {
+	if sourceTransform == nil {
+		return &openbindings.TransformOrRef{Inline: adaptation}, nil
+	}
+	if sourceTransform.IsRef() {
+		return nil, fmt.Errorf("cannot compose a referenced source transform")
+	}
+	const valueSlot = `"value":$`
+	if strings.Count(sourceTransform.Inline, valueSlot) != 1 {
+		return nil, fmt.Errorf("source transform does not contain one canonical value slot")
+	}
+	inline := strings.Replace(sourceTransform.Inline, valueSlot, `"value":(`+adaptation+`)`, 1)
+	return &openbindings.TransformOrRef{Inline: inline}, nil
 }
 
 // routesByShort routes document-valued POST-transform fields off argv:
