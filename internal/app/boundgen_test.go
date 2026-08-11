@@ -95,7 +95,7 @@ func TestGenerateBoundServe_BindsServedSurface(t *testing.T) {
 			short: "purifyInterface",
 			input: map[string]any{"name": "example"},
 			want: []any{map[string]any{
-				"$openbindings": "openbindings.openapi@7",
+				"$openbindings": "openbindings.openapi@1",
 				"value":         map[string]any{"payload": map[string]any{"name": "example"}},
 				"parameters":    []any{},
 				"body":          map[string]any{"whole": "payload"},
@@ -105,7 +105,7 @@ func TestGenerateBoundServe_BindsServedSurface(t *testing.T) {
 			short: "setContext",
 			input: map[string]any{"key": "https://example.test", "value": map[string]any{"metadata": map[string]any{"tenant": "a"}}},
 			want: []any{map[string]any{
-				"$openbindings": "openbindings.openapi@7",
+				"$openbindings": "openbindings.openapi@1",
 				"value": map[string]any{
 					"url":     "https://example.test",
 					"payload": map[string]any{"metadata": map[string]any{"tenant": "a"}},

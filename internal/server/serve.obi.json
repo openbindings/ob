@@ -138,7 +138,7 @@
       "source": "openapi"
     },
     "openbindings.ob.purifyInterface.openapi": {
-      "inputTransform": "[{\"$openbindings\":\"openbindings.openapi@7\",\"value\":({ \"payload\": $$ }),\"parameters\":[],\"body\":{\"whole\":\"payload\"}}]",
+      "inputTransform": "[{\"$openbindings\":\"openbindings.openapi@1\",\"value\":({ \"payload\": $$ }),\"parameters\":[],\"body\":{\"whole\":\"payload\"}}]",
       "operation": "openbindings.ob.purifyInterface",
       "ref": "#/paths/~1interfaces~1purify/post",
       "source": "openapi"
@@ -205,7 +205,7 @@
       "source": "openapi"
     },
     "openbindings.ob.setContext.openapi": {
-      "inputTransform": "[{\"$openbindings\":\"openbindings.openapi@7\",\"value\":({ \"url\": key, \"payload\": value }),\"parameters\":[{\"in\":\"path\",\"name\":\"url\",\"field\":\"url\"}],\"body\":{\"whole\":\"payload\"}}]",
+      "inputTransform": "[{\"$openbindings\":\"openbindings.openapi@1\",\"value\":({ \"url\": key, \"payload\": value }),\"parameters\":[{\"in\":\"path\",\"name\":\"url\",\"field\":\"url\"}],\"body\":{\"whole\":\"payload\"}}]",
       "operation": "openbindings.ob.setContext",
       "ref": "#/paths/~1contexts~1{url}/put",
       "source": "openapi"
@@ -3604,11 +3604,11 @@
   },
   "sources": {
     "asyncapi": {
-      "bindingSpec": "openbindings.asyncapi@2",
+      "bindingSpec": "openbindings.asyncapi@1",
       "location": "http://127.0.0.1:20290/asyncapi.yaml"
     },
     "openapi": {
-      "bindingSpec": "openbindings.openapi@7",
+      "bindingSpec": "openbindings.openapi@1",
       "location": "http://127.0.0.1:20290/openapi.yaml"
     }
   },

@@ -36,7 +36,6 @@ func TestIsDraftBindingSpec(t *testing.T) {
 	cases := map[string]bool{
 		"graphql":                true,
 		"future-binding@^1.0.0":  true,
-		"openbindings.graphql@2": false,
 		"openbindings.graphql@1": false,
 		"openbindings.openapi@1": false,
 		"openbindings.grpc@1":    false,

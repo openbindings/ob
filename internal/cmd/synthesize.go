@@ -32,7 +32,7 @@ Sources use the same syntax as 'ob inspect' and 'ob source add':
 description=, and embed.
 
 Pass '-' as the path to read the artifact from stdin (e.g.
-openbindings.openapi@7:-). A stdin artifact is content, not a location:
+openbindings.openapi@1:-). A stdin artifact is content, not a location:
 it embeds in the document exactly like a wire-supplied content source,
 with no pull path recorded (outputLocation= still sets the spec-level
 location, as on every lane). At most one source may read from stdin.
@@ -57,8 +57,8 @@ Examples:
   ob synthesize openapi.json -o api.obi.json
   ob synthesize openbindings.usage@1:./cli.kdl?name=cli --name "Acme CLI"
   ob synthesize api.yaml?embed --name "Acme API" --version 1.0.0
-  curl -s https://api.example.com/openapi.json | ob synthesize openbindings.openapi@7:- -o api.obi.json
-  ob synthesize --input '{"sources":[{"bindingSpec":"openbindings.openapi@7","location":"api.yaml"}]}'`,
+  curl -s https://api.example.com/openapi.json | ob synthesize openbindings.openapi@1:- -o api.obi.json
+  ob synthesize --input '{"sources":[{"bindingSpec":"openbindings.openapi@1","location":"api.yaml"}]}'`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			var input app.SynthesizeInterfaceInput
 

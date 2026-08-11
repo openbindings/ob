@@ -202,7 +202,7 @@ OpenBindings provides:
   generation, bridging, and comparison;
 - a place for shape transforms without absorbing protocol mechanics into the
   operation contract; and
-- decentralized extension through independently published binding
+- decentralized extension through independently governed binding
   specifications and shared interfaces.
 
 OpenBindings does not by itself provide:
@@ -446,8 +446,9 @@ layers should silently take authority from another.
 - [JSON Schema](openbindings.schema.json): structural validation.
 - [Binding-specification guide](binding-specs/README.md): doctrine,
   completeness, authoring, and release-quality review.
-- The exact published binding specification named by `bindingSpec`: concrete
-  source and interaction meaning.
+- The exact binding specification named by `bindingSpec`—a mutable candidate
+  before publication or an immutable revision after it: concrete source and
+  interaction meaning.
 - [Conformance corpus](conformance/README.md): portable evidence and test
   organization.
 - [Published interfaces](https://openbindings.com/interfaces): optional

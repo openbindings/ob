@@ -69,7 +69,7 @@ ob source add interface.json ./openapi.json  # register the spec as a source
 ob source pull interface.json                # derive operations + bindings from it
 ```
 
-`ob source add` accepts a bare path (`./openapi.json`) and auto-detects the current binding revision, or an explicit binding-spec identifier (`openbindings.openapi@7:./openapi.json`). `ob source pull` reads the source, extracts operations and schemas, and writes the operations and their bindings back into the OBI.
+`ob source add` accepts a bare path (`./openapi.json`) and auto-detects the current binding revision, or an explicit binding-spec identifier (`openbindings.openapi@1:./openapi.json`). `ob source pull` reads the source, extracts operations and schemas, and writes the operations and their bindings back into the OBI.
 
 For a one-shot derivation (no ongoing sync), `ob synthesize` collapses the three steps into one:
 
@@ -102,7 +102,7 @@ ob status interface.json
 myservice 1.0.0  (openbindings 0.2.0)
 
 Sources (2)
-  openapi           openbindings.openapi@7   ./openapi.json       out of sync (synced 3d ago, ob 0.2.0)
+  openapi           openbindings.openapi@1   ./openapi.json       out of sync (synced 3d ago, ob 0.2.0)
     ↳ operations to add: deletePet
     ↳ bindings to add: deletePet.openapi
   cli               openbindings.usage@1     ./cli.usage.kdl      in sync (synced 3d ago, ob 0.2.0)
@@ -138,7 +138,7 @@ inside an operation graph. You never write protocol-specific code.
 
 When the governing binding specification exposes interpretation points, pass
 their named values with `--configuration` (inline JSON, `@file`, or stdin).
-For example, `openbindings.graphql@2` requires the exact executable document:
+For example, `openbindings.graphql@1` requires the exact executable document:
 
 ```bash
 ob operation invoke interface.json --binding getMenu.graphql \
@@ -334,8 +334,8 @@ How a source is stored in the OBI follows from what you point at; `--resolve` ov
 A local file artifact embeds directly in the OBI: the document is conformant (a relative path can never be, per OBI-D-05) and works from anywhere — registry, stdin, a colleague's clone. The local path is recorded in x-ob metadata as the pull path `ob source pull` refreshes from:
 
 ```bash
-ob source add interface.json openbindings.openapi@7:./api.yaml          # embeds by default
-ob source add interface.json 'openbindings.openapi@7:https://example.com/api.yaml?embed'  # fetch and pin a remote artifact
+ob source add interface.json openbindings.openapi@1:./api.yaml          # embeds by default
+ob source add interface.json 'openbindings.openapi@1:https://example.com/api.yaml?embed'  # fetch and pin a remote artifact
 ```
 
 JSON/YAML formats embed as native objects. Text formats (KDL, protobuf source) embed as strings and must be self-contained (a `.proto` with imports refuses). Binary artifacts cannot be embedded.
@@ -345,13 +345,13 @@ JSON/YAML formats embed as native objects. Text formats (KDL, protobuf source) e
 Stores a URI or format-defined address (a gRPC `host:port`, an MCP endpoint) in the spec `location` field:
 
 ```bash
-ob source add interface.json openbindings.openapi@7:https://example.com/api.yaml
+ob source add interface.json openbindings.openapi@1:https://example.com/api.yaml
 ```
 
 To keep a local working file but publish a pointer, pair `--resolve location` with `--uri`:
 
 ```bash
-ob source add interface.json openbindings.openapi@7:./api.yaml --resolve location --uri https://cdn.example.com/api.yaml
+ob source add interface.json openbindings.openapi@1:./api.yaml --resolve location --uri https://cdn.example.com/api.yaml
 ```
 
 ## Drift Detection and Pull
@@ -547,14 +547,14 @@ curl -X POST http://localhost:20290/bindings/prepare \
   -H "Authorization: Bearer $TOKEN" \
   -H "Content-Type: application/json" \
   -d '{
-    "source": { "bindingSpec": "openbindings.openapi@7", "location": "https://api.example.com/openapi.json" },
+    "source": { "bindingSpec": "openbindings.openapi@1", "location": "https://api.example.com/openapi.json" },
     "ref":    "#/paths/~1users/get"
   }'
 ```
 
 #### Invocation (WebSocket frame protocols)
 
-`GET /bindings/invoke` and `GET /operations/invoke` upgrade to WebSockets speaking the binding- and operation-invoker frame protocols. Each connection carries one invocation, with one shape for unary, server-streaming, client-streaming, and bidirectional operations. The operation-level `open` payload carries an inline interface plus exactly one of `operation` or `binding`; the rest of the lifecycle is identical. The complete protocols are described by [`internal/server/asyncapi.yaml`](https://github.com/openbindings/ob/blob/main/internal/server/asyncapi.yaml). That artifact is transport documentation; its reply-bearing WebSocket `receive` operations are intentionally outside `openbindings.asyncapi@2` revision 2, so generic revision-2 AsyncAPI invokers refuse rather than silently discarding the reply stream.
+`GET /bindings/invoke` and `GET /operations/invoke` upgrade to WebSockets speaking the binding- and operation-invoker frame protocols. Each connection carries one invocation, with one shape for unary, server-streaming, client-streaming, and bidirectional operations. The operation-level `open` payload carries an inline interface plus exactly one of `operation` or `binding`; the rest of the lifecycle is identical. The complete protocols are described by [`internal/server/asyncapi.yaml`](https://github.com/openbindings/ob/blob/main/internal/server/asyncapi.yaml). That artifact is transport documentation. The unreleased first `openbindings.asyncapi@1` candidate preserves its request/reply intent abstractly; concrete invocation requires a protocol driver that implements the declared WebSocket request/reply session. A built-in driver that cannot do so refuses before establishment rather than discarding the reply stream.
 
 1. Client opens a WebSocket to `ws://host/bindings/invoke` (or `wss://` when
    the explicitly enabled TLS listener is in use), presenting the
@@ -573,7 +573,7 @@ Missing runtime context surfaces as a terminal `error` with code `CONTEXT_REQUIR
 
 ### `ob mcp` — Model Context Protocol bridge
 
-`ob mcp` exposes one OBI or supported raw artifact locator as an MCP server. AI agents (Claude Desktop, Cursor, etc.) connect and call the interface through native binding invocations. Ordinary OBI operations become tools whose names are the operation keys sanitized to the MCP/LLM charset (`[A-Za-z0-9_-]`, ≤64) — e.g. `openbindings.ob.describe` becomes `openbindings_ob_describe`, while `createCharge` is unchanged. That ordinary protocol-blind lane includes `openbindings.mcp@2`: its eligible tools expose only their declared application input/output contract. Untransformed bindings governed by legacy exact identifier `openbindings.mcp@1` keep their original MCP family and identity for compatibility: tools, static resources, resource templates, and prompts remain those primitives rather than being flattened into generated tools.
+`ob mcp` exposes one OBI or supported raw artifact locator as an MCP server. AI agents (Claude Desktop, Cursor, etc.) connect and call the interface through native binding invocations. Ordinary OBI operations become tools whose names are the operation keys sanitized to the MCP/LLM charset (`[A-Za-z0-9_-]`, ≤64) — e.g. `openbindings.ob.describe` becomes `openbindings_ob_describe`, while `createCharge` is unchanged. That ordinary protocol-blind lane includes `openbindings.mcp@1`: its eligible tools expose only their declared application input/output contract. Untransformed bindings governed by legacy exact identifier `openbindings.mcp@1` keep their original MCP family and identity for compatibility: tools, static resources, resource templates, and prompts remain those primitives rather than being flattened into generated tools.
 
 ```bash
 ob mcp https://api.example.com           # stdio transport (for Claude Desktop, Cursor)

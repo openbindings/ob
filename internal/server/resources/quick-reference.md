@@ -37,18 +37,17 @@ An OpenBindings Interface (OBI) is a JSON document that defines operations and b
 
 ## Binding Specifications
 
-A source names the binding specification that governs its artifact via its `bindingSpec` field. Project-published specifications are identified as `openbindings.<name>@<rev>`, where `<rev>` is an integer revision of the specification (artifact and dialect versions self-identify in the artifact, never in the identifier).
+A source names the binding specification that governs its artifact via its `bindingSpec` field. Project specifications use `openbindings.<name>@<rev>`, where `<rev>` is an integer revision of the specification (artifact and dialect versions self-identify in the artifact, never in the identifier). Every current family document is an unreleased first `@1` candidate; none has been published.
 
 | Format | `bindingSpec` identifier | `ref` shape |
 |--------|--------------------------|-------------|
 | OpenAPI | `openbindings.openapi@1` | JSON Pointer to the operation object: `#/paths/~1users~1{id}/get` |
-| AsyncAPI | `openbindings.asyncapi@2` | JSON Pointer: `#/operations/sendMessage` |
+| AsyncAPI | `openbindings.asyncapi@1` | JSON Pointer: `#/operations/sendMessage` |
 | gRPC | `openbindings.grpc@1` | `<fully-qualified-service>/<method>` |
 | Connect | `openbindings.connect@1` | `<fully-qualified-service>/<method>` |
-| MCP | `openbindings.mcp@2` (latest) | `tools/<name>` for tools declaring `outputSchema` |
-| MCP | `openbindings.mcp@1` (compatibility) | `<entity>/<remainder>`, entity ∈ `tools`/`resources`/`prompts` |
+| MCP | `openbindings.mcp@1` | `tools/<name>` for tools declaring `outputSchema` |
 | usage (CLI) | `openbindings.usage@1` | space-separated command path (absent `ref` = root) |
-| GraphQL | `openbindings.graphql@2` (latest) | `query/<field>` or `mutation/<field>` |
+| GraphQL | `openbindings.graphql@1` (latest) | `query/<field>` or `mutation/<field>` |
 | GraphQL | `openbindings.graphql@1` (compatibility) | `query/<field>`, `mutation/<field>`, or `subscription/<field>` |
 | Operation Graph | `openbindings.operation-graph@1` | JSON Pointer to a graph definition |
 

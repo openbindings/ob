@@ -18,8 +18,9 @@ func NewMCPHandler(store *Store) http.Handler {
 	type emptyArgs struct{}
 
 	mcp.AddTool(server, &mcp.Tool{
-		Name:        "getMenu",
-		Description: "Get the OpenBlendings menu with drinks, sizes, and prices",
+		Name:         "getMenu",
+		Description:  "Get the OpenBlendings menu with drinks, sizes, and prices",
+		OutputSchema: map[string]any{"type": "object"},
 	}, func(ctx context.Context, req *mcp.CallToolRequest, args emptyArgs) (*mcp.CallToolResult, any, error) {
 		return jsonResult(GetMenu()), nil, nil
 	})
@@ -30,8 +31,9 @@ func NewMCPHandler(store *Store) http.Handler {
 		Customer string `json:"customer" jsonschema:"Customer name for the order"`
 	}
 	mcp.AddTool(server, &mcp.Tool{
-		Name:        "placeOrder",
-		Description: "Place a coffee order at Blend",
+		Name:         "placeOrder",
+		Description:  "Place a coffee order at Blend",
+		OutputSchema: map[string]any{"type": "object"},
 	}, func(ctx context.Context, req *mcp.CallToolRequest, args placeOrderArgs) (*mcp.CallToolResult, any, error) {
 		output, err := PlaceOrder(store, PlaceOrderInput{
 			Drink:    args.Drink,
@@ -51,8 +53,9 @@ func NewMCPHandler(store *Store) http.Handler {
 		OrderID string `json:"orderId" jsonschema:"The order ID to check"`
 	}
 	mcp.AddTool(server, &mcp.Tool{
-		Name:        "getOrderStatus",
-		Description: "Check the status of an order",
+		Name:         "getOrderStatus",
+		Description:  "Check the status of an order",
+		OutputSchema: map[string]any{"type": "object"},
 	}, func(ctx context.Context, req *mcp.CallToolRequest, args getOrderStatusArgs) (*mcp.CallToolResult, any, error) {
 		output, err := GetOrderStatus(store, args.OrderID)
 		if err != nil {
@@ -68,8 +71,9 @@ func NewMCPHandler(store *Store) http.Handler {
 		OrderID string `json:"orderId" jsonschema:"The order ID to cancel"`
 	}
 	mcp.AddTool(server, &mcp.Tool{
-		Name:        "cancelOrder",
-		Description: "Cancel a pending or preparing order",
+		Name:         "cancelOrder",
+		Description:  "Cancel a pending or preparing order",
+		OutputSchema: map[string]any{"type": "object"},
 	}, func(ctx context.Context, req *mcp.CallToolRequest, args cancelOrderArgs) (*mcp.CallToolResult, any, error) {
 		output, err := CancelOrder(store, args.OrderID)
 		if err != nil {

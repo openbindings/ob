@@ -42,7 +42,7 @@ resolve.
 
 Examples:
   ob delegate resolve-binding-spec openbindings.usage@1
-  ob delegate resolve-binding-spec openbindings.openapi@7 -o result.json`,
+  ob delegate resolve-binding-spec openbindings.openapi@1 -o result.json`,
 		Args: cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			result, err := app.ResolveDelegateForBindingSpec(args[0])

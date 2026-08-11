@@ -446,13 +446,16 @@ func registerTool(
 
 		if nativeMCP {
 			if !nativeFinal {
-				return nil, fmt.Errorf("MCP binding %q emitted %d final results; exactly one CallToolResult is required", binding.ref, len(genericResult.Outputs))
+				return nil, fmt.Errorf("MCP binding %q emitted %d final application values; exactly one is required", binding.ref, len(genericResult.Outputs))
 			}
-			result := &mcp.CallToolResult{}
-			if err := remarshal(lastData, result); err != nil {
-				return nil, fmt.Errorf("MCP binding %q returned an invalid CallToolResult: %w", binding.ref, err)
+			data, err := json.Marshal(lastData)
+			if err != nil {
+				return nil, fmt.Errorf("MCP binding %q returned an application value that cannot be encoded: %w", binding.ref, err)
 			}
-			return result, nil
+			return &mcp.CallToolResult{
+				Content:           []mcp.Content{&mcp.TextContent{Text: string(data)}},
+				StructuredContent: lastData,
+			}, nil
 		}
 		return genericToolResult(genericResult), nil
 	})

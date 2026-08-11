@@ -9,7 +9,7 @@ OpenBindings input/output values.
 This contract is intentionally separate from the legacy
 [MCP-origin round-trip lane](mcp-round-trip.md). An exact, untransformed
 `openbindings.mcp@1` binding can preserve native MCP primitive families and
-result objects for compatibility. The latest `openbindings.mcp@2` is already
+result objects for compatibility. The latest `openbindings.mcp@1` is already
 an application-level operation contract, so it uses this generic projection,
 as does every non-MCP binding.
 

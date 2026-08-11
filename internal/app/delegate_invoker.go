@@ -79,8 +79,8 @@ func DelegateBindingInvoker(resolved delegates.Resolved) (openbindings.BindingIn
 			}
 		case strings.HasPrefix(source.BindingSpec, "openbindings.usage"):
 			// Wrapper-era registration (the retired openbindings.usage@0.x
-			// WRAPPER format — distinct from the published openbindings.usage@1
-			// bare-artifact spec matched exactly above): loud migration, never
+			// WRAPPER format — distinct from the unreleased openbindings.usage@1
+			// bare-artifact candidate matched exactly above): loud migration, never
 			// silent non-matching — the delegate must be re-registered so its
 			// pinned OBI carries the source the current dispatch speaks.
 			return nil, fmt.Errorf("delegate %q was registered under the retired openbindings.usage wrapper format; re-register it (`ob delegate register %s`) to refresh its pinned interface", resolved.Delegate, resolved.Location)
@@ -201,7 +201,7 @@ const maxFrameBytes = 2 << 20 // 2 MiB
 // resolveFrameEndpoint fetches the delegate's AsyncAPI document and derives
 // the ws(s) URL of the operation the ref names. Everything AsyncAPI —
 // document parsing, the ref grammar (ASYNC-D-03), and the pinned
-// server-selection and address rules (openbindings.asyncapi@2 §9.2,
+// server-selection and address rules (openbindings.asyncapi@1 §9.2,
 // ASYNC-P-04) — lives behind the SDK's format seam
 // (asyncapi.ParseDocument / Document.ResolveEndpoint), never re-derived
 // here. What stays on this side is ob's own: fetching the document (the

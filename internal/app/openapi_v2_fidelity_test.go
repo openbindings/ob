@@ -13,7 +13,7 @@ import (
 	openapibinding "github.com/openbindings/openbindings-go/formats/openapi"
 )
 
-func TestOpenAPIV2CollisionSurvivesOBTransformRuntime(t *testing.T) {
+func TestOpenAPICandidateCollisionSurvivesOBTransformRuntime(t *testing.T) {
 	type observedRequest struct {
 		pathID  string
 		queryID string
@@ -54,7 +54,7 @@ func TestOpenAPIV2CollisionSurvivesOBTransformRuntime(t *testing.T) {
 	synthesis, err := openapibinding.NewSynthesizer().SynthesizeInterfaceWithCoverage(
 		context.Background(),
 		&openbindings.SynthesizeInput{Sources: []openbindings.SynthesizeSource{{
-			BindingSpec: openapibinding.BindingSpecV2,
+			BindingSpec: openapibinding.BindingSpec,
 			Content:     openbindings.TextContent(artifact),
 		}}},
 	)

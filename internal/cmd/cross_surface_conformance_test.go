@@ -159,14 +159,14 @@ func TestCrossSurfaceConformance(t *testing.T) {
 			}},
 		}},
 		{name: "inspect embedded GraphQL source", short: "inspectSource", input: map[string]any{"source": map[string]any{
-			"bindingSpec": "openbindings.graphql@2",
+			"bindingSpec": "openbindings.graphql@1",
 			"location":    "https://graphql.example.test/query",
 			"content":     graphQLSource,
 		}}},
 		{name: "synthesize embedded GraphQL source", short: "synthesizeInterface", input: map[string]any{
 			"name": "GraphQL surface synthesis",
 			"sources": []any{map[string]any{
-				"bindingSpec": "openbindings.graphql@2",
+				"bindingSpec": "openbindings.graphql@1",
 				"name":        "graphql",
 				"location":    "https://graphql.example.test/query",
 				"content":     graphQLSource,

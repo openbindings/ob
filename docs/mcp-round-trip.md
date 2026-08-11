@@ -39,16 +39,16 @@ fields carried by the OBI operation and binding.
 
 ## The fidelity boundary
 
-The target in this compatibility lane is equivalence for the subset represented
-by `openbindings.mcp@1`, not a clone of every MCP server feature. Revision 1
+The target is equivalence for the subset represented by the unreleased first
+`openbindings.mcp@1` candidate, not a clone of every MCP server feature. It
 intentionally excludes required-task tools, resource subscriptions, sampling,
 elicitation, roots, and log streams. These do not silently disappear: they are
 outside the binding's represented surface.
 
-The latest `openbindings.mcp@2` takes the ordinary lane instead. It binds only
+The candidate binds only
 tools with declared `outputSchema`, emits their conforming `structuredContent`
 as the application value, and keeps MCP result and transport facts out of the
-ordinary operation boundary. This bridge therefore exposes revision-2
+ordinary operation boundary. This bridge therefore exposes those
 operations as ordinary generated tools; it does not reconstruct a native MCP
 result envelope that the OBI intentionally does not contain.
 

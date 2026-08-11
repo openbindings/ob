@@ -165,7 +165,7 @@ func TestMCPRoundTrip_Differential(t *testing.T) {
 	defer cancel()
 	iface, err := mcpbinding.NewSynthesizer().SynthesizeInterface(ctx, &openbindings.SynthesizeInput{
 		Sources: []openbindings.SynthesizeSource{{
-			BindingSpec: mcpbinding.LegacyBindingSpec,
+			BindingSpec: mcpbinding.BindingSpec,
 			Location:    originHTTP.URL,
 			Embed:       true,
 		}},
@@ -173,8 +173,8 @@ func TestMCPRoundTrip_Differential(t *testing.T) {
 	if err != nil {
 		t.Fatalf("synthesize origin: %v", err)
 	}
-	if got := len(iface.Operations); got != 7 {
-		t.Fatalf("synthesized operations = %d, want 7", got)
+	if got := len(iface.Operations); got != 1 {
+		t.Fatalf("synthesized operations = %d, want only the structured-output tool", got)
 	}
 
 	mcpInvoker := mcpbinding.NewInvoker(
@@ -184,8 +184,8 @@ func TestMCPRoundTrip_Differential(t *testing.T) {
 	defer mcpInvoker.Close()
 	roundTripInvoker := openbindings.NewOperationInvoker(mcpInvoker)
 	bridged := gomcp.NewServer(&gomcp.Implementation{Name: "round-trip-bridge", Version: "test"}, nil)
-	if got := mcpbridge.RegisterInterface(bridged, iface, roundTripInvoker, nil, mcpbridge.RegisterOptions{}); got != 7 {
-		t.Fatalf("registered primitives = %d, want 7", got)
+	if got := mcpbridge.RegisterInterface(bridged, iface, roundTripInvoker, nil, mcpbridge.RegisterOptions{}); got != 1 {
+		t.Fatalf("registered primitives = %d, want 1", got)
 	}
 	bridgeHTTP := httptest.NewServer(gomcp.NewStreamableHTTPHandler(
 		func(*http.Request) *gomcp.Server { return bridged },
@@ -216,7 +216,7 @@ func TestMCPRoundTrip_Differential(t *testing.T) {
 	if err != nil {
 		t.Fatalf("bridge list tools: %v", err)
 	}
-	if len(originalTools.Tools) != 4 || len(bridgedTools.Tools) != 4 {
+	if len(originalTools.Tools) != 4 || len(bridgedTools.Tools) != 1 {
 		t.Fatalf("tool counts origin=%d bridge=%d", len(originalTools.Tools), len(bridgedTools.Tools))
 	}
 	originalWeather := toolByName(t, originalTools.Tools, "weather.lookup")
@@ -232,79 +232,16 @@ func TestMCPRoundTrip_Differential(t *testing.T) {
 	}
 	assertMCPJSONEqual(t, "tool descriptor", originalWeather, bridgedWeather)
 
-	originalResources, _ := originalSession.ListResources(ctx, nil)
+	originalResult := mustCallTool(t, ctx, originalSession, "weather.lookup", map[string]any{"city": "Paris"})
+	bridgedResult := mustCallTool(t, ctx, bridgedSession, "weather.lookup", map[string]any{"city": "Paris"})
+	assertMCPJSONEqual(t, "structured application result", originalResult.StructuredContent, bridgedResult.StructuredContent)
+
 	bridgedResources, _ := bridgedSession.ListResources(ctx, nil)
-	originalTemplates, _ := originalSession.ListResourceTemplates(ctx, nil)
 	bridgedTemplates, _ := bridgedSession.ListResourceTemplates(ctx, nil)
-	originalPrompts, _ := originalSession.ListPrompts(ctx, nil)
 	bridgedPrompts, _ := bridgedSession.ListPrompts(ctx, nil)
-	if len(originalResources.Resources) != len(bridgedResources.Resources) ||
-		len(originalTemplates.ResourceTemplates) != len(bridgedTemplates.ResourceTemplates) ||
-		len(originalPrompts.Prompts) != len(bridgedPrompts.Prompts) {
-		t.Fatalf("primitive-family counts changed: resources %d/%d templates %d/%d prompts %d/%d",
-			len(originalResources.Resources), len(bridgedResources.Resources),
-			len(originalTemplates.ResourceTemplates), len(bridgedTemplates.ResourceTemplates),
-			len(originalPrompts.Prompts), len(bridgedPrompts.Prompts))
-	}
-	assertMCPJSONEqual(t, "resource descriptors", originalResources.Resources, bridgedResources.Resources)
-	assertMCPJSONEqual(t, "resource-template descriptors", originalTemplates.ResourceTemplates, bridgedTemplates.ResourceTemplates)
-	assertMCPJSONEqual(t, "prompt descriptors", originalPrompts.Prompts, bridgedPrompts.Prompts)
-
-	assertMCPJSONEqual(t, "tool result",
-		mustCallTool(t, ctx, originalSession, "weather.lookup", map[string]any{"city": "Paris"}),
-		mustCallTool(t, ctx, bridgedSession, "weather.lookup", map[string]any{"city": "Paris"}))
-	assertMCPJSONEqual(t, "tool application error",
-		mustCallTool(t, ctx, originalSession, "always.fails", map[string]any{}),
-		mustCallTool(t, ctx, bridgedSession, "always.fails", map[string]any{}))
-
-	originalProgressResult := mustCallToolWithProgress(t, ctx, originalSession, "with.progress", "origin-progress")
-	bridgedProgressResult := mustCallToolWithProgress(t, ctx, bridgedSession, "with.progress", "bridge-progress")
-	assertMCPJSONEqual(t, "progress tool result", originalProgressResult, bridgedProgressResult)
-	if !<-upstreamProgressSolicitations {
-		t.Fatal("origin call did not solicit progress")
-	}
-	if !<-upstreamProgressSolicitations {
-		t.Fatal("bridged call did not solicit progress upstream")
-	}
-	assertMCPJSONEqual(t, "progress notification",
-		mustReceiveProgress(t, originalProgress),
-		mustReceiveProgress(t, bridgedProgress))
-	assertMCPJSONEqual(t, "static resource result",
-		mustReadResource(t, ctx, originalSession, "app://status"),
-		mustReadResource(t, ctx, bridgedSession, "app://status"))
-	assertMCPJSONEqual(t, "template resource result",
-		mustReadResource(t, ctx, originalSession, "app://users/42"),
-		mustReadResource(t, ctx, bridgedSession, "app://users/42"))
-	assertMCPJSONEqual(t, "prompt result",
-		mustGetPrompt(t, ctx, originalSession, "greet", map[string]string{"name": "Ada"}),
-		mustGetPrompt(t, ctx, bridgedSession, "greet", map[string]string{"name": "Ada"}))
-
-	cancelCtx, cancelCall := context.WithCancel(ctx)
-	cancelled := make(chan error, 1)
-	go func() {
-		_, err := bridgedSession.CallTool(cancelCtx, &gomcp.CallToolParams{
-			Name: "wait.cancel", Arguments: map[string]any{},
-		})
-		cancelled <- err
-	}()
-	select {
-	case <-upstreamCancellationStarted:
-	case <-time.After(2 * time.Second):
-		t.Fatal("bridged cancellation tool never reached the upstream server")
-	}
-	cancelCall()
-	select {
-	case <-upstreamCancellationObserved:
-	case <-time.After(2 * time.Second):
-		t.Fatal("downstream cancellation did not reach the upstream MCP tool")
-	}
-	select {
-	case err := <-cancelled:
-		if err == nil {
-			t.Fatal("cancelled bridged tool call returned success")
-		}
-	case <-time.After(2 * time.Second):
-		t.Fatal("cancelled bridged tool call did not terminate")
+	if len(bridgedResources.Resources) != 0 || len(bridgedTemplates.ResourceTemplates) != 0 || len(bridgedPrompts.Prompts) != 0 {
+		t.Fatalf("the first candidate must not invent excluded primitive families: resources=%d templates=%d prompts=%d",
+			len(bridgedResources.Resources), len(bridgedTemplates.ResourceTemplates), len(bridgedPrompts.Prompts))
 	}
 }
 
@@ -566,7 +503,7 @@ func TestMCPCommand_BridgesInterfaceToTools(t *testing.T) {
 func TestMCPGenericProjection_BindingFamilyNeutral(t *testing.T) {
 	families := []string{
 		"openbindings.openapi@1",
-		"openbindings.graphql@2",
+		"openbindings.graphql@1",
 		"openbindings.graphql@1",
 		"openbindings.grpc@1",
 		"openbindings.connect@1",

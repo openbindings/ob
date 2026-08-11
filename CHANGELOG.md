@@ -18,7 +18,7 @@ ship as part of 0.2.0.
 
 ### Changed
 
-- **OpenAPI auto-detection now selects current `openbindings.openapi@7`.**
+- **OpenAPI auto-detection now selects current `openbindings.openapi@1`.**
   Exact schema-omitted OAS 3.0 non-JSON request and response representations
   cross the protocol-independent boundary as canonical Base64. The CLI keeps
   exact revisions 6, 5, 4, 3, 2, and 1 for invocation and synthesis

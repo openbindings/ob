@@ -463,28 +463,24 @@
       "operation": "getMenu",
       "source": "graphqlServer",
       "ref": "query/getMenu",
-      "outputTransform": "data.getMenu",
       "preference": 1
     },
     "placeOrder.graphqlServer": {
       "operation": "placeOrder",
       "source": "graphqlServer",
       "ref": "mutation/placeOrder",
-      "outputTransform": "data.placeOrder",
       "preference": 1
     },
     "getOrderStatus.graphqlServer": {
       "operation": "getOrderStatus",
       "source": "graphqlServer",
       "ref": "mutation/getOrderStatus",
-      "outputTransform": "data.getOrderStatus",
       "preference": 1
     },
     "cancelOrder.graphqlServer": {
       "operation": "cancelOrder",
       "source": "graphqlServer",
       "ref": "mutation/cancelOrder",
-      "outputTransform": "data.cancelOrder",
       "preference": 1
     },
     "orderUpdates.grpcServer": {
@@ -492,13 +488,6 @@
       "source": "grpcServer",
       "ref": "blend.CoffeeShop/OrderUpdates",
       "preference": 10
-    },
-    "orderUpdates.graphqlServer": {
-      "operation": "orderUpdates",
-      "source": "graphqlServer",
-      "ref": "subscription/orderUpdates",
-      "outputTransform": "data.orderUpdates",
-      "preference": 1
     },
     "placeAndTrack.graph": {
       "operation": "placeAndTrack",
