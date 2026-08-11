@@ -39,6 +39,14 @@ An OpenBindings Interface (OBI) is a JSON document that defines operations and b
 
 A source names the binding specification that governs its artifact via its `bindingSpec` field. Project specifications use `openbindings.<name>@<rev>`, where `<rev>` is an integer revision of the specification (artifact and dialect versions self-identify in the artifact, never in the identifier). Every current family document is an unreleased first `@1` candidate; none has been published.
 
+The binding specification is sovereign: another artifact or protocol authority
+applies only where the specification incorporates it. A specification may
+instead narrow, extend, override, or define the governed domain itself. An
+implementation may complete a silent case locally, but that completion is
+implementation-defined rather than portable meaning under the identifier. The
+`openbindings.*` candidates choose close upstream deference and must close such
+gaps before publication.
+
 | Format | `bindingSpec` identifier | `ref` shape |
 |--------|--------------------------|-------------|
 | OpenAPI | `openbindings.openapi@1` | JSON Pointer to the operation object: `#/paths/~1users~1{id}/get` |

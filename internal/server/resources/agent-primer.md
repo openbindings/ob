@@ -70,8 +70,9 @@ binding-governed source domain
 The binding specification is the semantic hinge in both directions. A
 synthesizer uses it to project source targets into operations and bindings. An
 invoker uses it to resolve those bindings and perform interactions. The two
-tools need not share code, but they must agree on the binding specification's
-meaning.
+tools need not share code, but a portable claim requires them to agree wherever
+the binding specification defines meaning. They may complete a silent case
+differently only as disclosed implementation behavior.
 
 This is not a serialization round trip. Synthesis does not copy an entire
 source domain into a new universal protocol, and invocation does not reconstruct
@@ -124,10 +125,21 @@ composition of `content` and `location`, `ref` syntax and resolution, target
 identity, interaction mechanics, operation-boundary correspondence, and
 success classification.
 
-A binding specification may incorporate an upstream artifact or protocol,
-define its own artifact and interaction model, or admit an artifactless source
-mode. It should add only the semantics needed to make that family actionable
-through OpenBindings.
+A binding specification is sovereign over the sources that name it. It may
+incorporate an upstream artifact or protocol on stated terms, subset, extend,
+or override it, use it only as a representation, define its own artifact and
+interaction model, or admit an artifactless source mode. No upstream authority
+governs automatically. The OpenBindings project's brownfield specifications
+choose close upstream deference and add only the semantics needed to make each
+family faithfully actionable because that produces the most reusable result;
+Core does not require every publisher to make that choice.
+
+An incomplete binding specification may still exist, be named by a conformant
+OBI, and have useful implementations. An implementation may complete a silent
+case locally, but that completion is implementation-defined rather than
+portable meaning under the identifier. Material divergence between
+implementations is evidence for the specification community to tighten a later
+revision, define a permitted set, or expose a named interpretation choice.
 
 Project-published identifiers use integer revisions such as
 `openbindings.openapi@1`. That revision identifies the binding specification,
@@ -166,9 +178,10 @@ doctrine merely because both reference SDKs currently make that choice.
 Likewise, do not weaken a specification to match incomplete code; record and
 fix the implementation gap.
 
-## Binding-specification doctrine
+## Project binding-specification doctrine
 
-When adapting an existing artifact or protocol, apply this deference order:
+When authoring or implementing an OpenBindings project specification for an
+existing artifact or protocol, apply this chosen deference order:
 
 1. **Incorporate** what the artifact or protocol defines.
 2. **Preserve alternatives** when it permits several valid choices.
@@ -180,15 +193,20 @@ When adapting an existing artifact or protocol, apply this deference order:
    remains meaningful.
 
 The shorthand is **incorporate → preserve → configure → refuse → default**.
-“Refuse rather than invent” is the governing correction. A loud, pre-dispatch
-refusal is better than silently losing information, identifying distinct
-artifact values as one value, or approximating an interaction the artifact did
-not declare.
+It is project fidelity policy, not a Core limit on binding-specification
+authority. **Defer before defining; never guess privately** is the governing
+correction. An explicit specification-owned convention can close a gap; a
+loud, pre-dispatch refusal is better when no responsible reusable convention
+exists. An implementation-only completion may work locally but remains
+non-portable and must not be attributed to the identifier.
 
 Completeness does not require every upstream behavior to be supported. It
-requires a definite answer for every part of the binding boundary: an
+requires a definite portable answer for every part of the binding boundary: an
 incorporated rule, a rule defined by the binding specification, a named
-configuration point, or an explicit exclusion. See the
+configuration point, or an explicit exclusion. A silent answer does not stop
+the specification from existing or being implemented; it means the
+specification has not met the OBI-B-02 completeness floor for that boundary.
+See the
 [binding-specification guide](binding-specs/README.md) for the full
 completeness test and authoring template.
 
@@ -329,9 +347,9 @@ claim.
    OpenBindings processing in the SDK, binding-specific translation at the
    adapter boundary, and domain-native behavior beneath it where that domain
    exists independently.
-3. Treat thinness as a limit on semantic authority, not code size. A binding
-   implementation may contain substantial machinery without taking ownership
-   of core behavior or inventing source semantics.
+3. Treat thinness as a project design goal for the specification's chosen
+   authority, not a limit on code size. A binding implementation may contain
+   substantial machinery without taking ownership of core behavior.
 4. For an external artifact or protocol, prefer well-tested domain-native
    parsers and runtimes when they meet the specification. Keep domain-only code
    independent of OpenBindings types and separately testable where practical.
@@ -347,7 +365,11 @@ claim.
 7. Expose required interpretation points without prescribing how applications
    store or obtain their choices.
 8. Produce actionable, pre-dispatch errors for unsupported or ambiguous cases.
-9. Run domain-native differential tests below the adapter and protocol-blind
+9. If the specification is silent where action still requires a choice,
+   document the implementation's completion as implementation-defined. Do not
+   attribute it to the identifier or claim cross-implementation fidelity for
+   that semantic cell.
+10. Run domain-native differential tests below the adapter and protocol-blind
    OpenBindings tests above it, alongside the shared source fixtures, processor
    scenarios, synthesis scenarios, and adversarial cases. Go and TypeScript
    implementations should agree at the OpenBindings boundary while remaining
@@ -359,8 +381,10 @@ Start from the [binding-specification guide](binding-specs/README.md), not from
 one implementation. Define the authority pins and all source, address,
 composition, reference, target, interaction, value-boundary, and success
 semantics. Apply the deference order to every observable choice. Keep the work
-as an unpublished candidate if those boundaries cannot yet support an
-exemplary, implementable contract.
+as an unpublished candidate if those boundaries cannot yet support the
+exemplary, portable contract required for an `openbindings.*` publication.
+Third-party specifications may mature through implementation-defined gaps, but
+their documentation and support claims should identify that portability limit.
 
 ### Bridging an OBI to MCP
 
