@@ -175,11 +175,8 @@ func TestGenericToolResultPreservesCardinalityAndPartialFailure(t *testing.T) {
 
 	result := genericToolResult(drainedOperation{
 		Outputs: []any{map[string]any{"n": 1}, nil},
-		Error: &openbindings.InvocationError{
-			Code:    openbindings.ErrCodeResponseError,
-			Message: "stream failed",
-			Details: map[string]any{"offset": 2},
-		},
+		Error: openbindings.NewInvocationErrorWithData(
+			openbindings.ErrCodeResponseError, map[string]any{"offset": 2}),
 	})
 	if !result.IsError {
 		t.Fatal("terminal operation error was not surfaced")
@@ -189,7 +186,7 @@ func TestGenericToolResultPreservesCardinalityAndPartialFailure(t *testing.T) {
 		t.Fatalf("output sequence changed: %#v", envelope)
 	}
 	failure := envelope["error"].(map[string]any)
-	if failure["code"] != openbindings.ErrCodeResponseError || failure["details"] == nil {
+	if failure["code"] != openbindings.ErrCodeResponseError || failure["data"] == nil {
 		t.Fatalf("error detail changed: %#v", failure)
 	}
 }

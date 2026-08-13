@@ -147,7 +147,7 @@ func (i *registrationTestInvoker) BindingSpecs() []openbindings.BindingSpecInfo 
 
 func (i *registrationTestInvoker) InvokeBinding(ctx context.Context, _ *openbindings.BindingInvocationArgs) openbindings.Invocation[any, any] {
 	inv := openbindings.NewInvocationImpl[any, any](ctx)
-	inv.FireError(&openbindings.InvocationError{Code: openbindings.ErrCodeRuntime, Message: "registration-only test invoker"})
+	inv.FireError(openbindings.NewInvocationError(openbindings.ErrCodeRuntime))
 	return inv
 }
 
@@ -456,13 +456,8 @@ func TestDrainOperation_UnboundedStreamHitsDeadline(t *testing.T) {
 	if drained.Error == nil {
 		t.Fatalf("unbounded stream must terminate with a refusal, got outputs %v", drained.Outputs)
 	}
-	if drained.Error.Code != openbindings.ErrCodeTimeout {
-		t.Errorf("want ERR_TIMEOUT, got %s", drained.Error.Code)
-	}
-	for _, want := range []string{"request-scoped", "subscription-style", "event(s) collected"} {
-		if !strings.Contains(drained.Error.Message, want) {
-			t.Errorf("refusal must mention %q, got: %s", want, drained.Error.Message)
-		}
+	if drained.Error.Code != openbindings.ErrCodeCancelled {
+		t.Errorf("want ERR_CANCELLED, got %s", drained.Error.Code)
 	}
 	if len(drained.Outputs) == 0 {
 		t.Error("already-emitted outputs must survive the terminal timeout")

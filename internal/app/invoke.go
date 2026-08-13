@@ -322,11 +322,6 @@ type InvocationOutput struct {
 	Error      *openbindings.InvocationError `json:"error,omitempty"`
 	Status     int                           `json:"status,omitempty"`
 	DurationMs int64                         `json:"durationMs,omitempty"`
-	// Terminal marks a final diagnostics-only event: nil Output and Error,
-	// carrying the invocation's trailing native/implementation evidence.
-	// Ordinary consumers skip it; an explicit diagnostic renderer may expose it.
-	Terminal bool                  `json:"-"`
-	Metadata openbindings.Metadata `json:"-"`
 }
 
 // maxBindingContextRounds caps CONTEXT_REQUIRED resolve-and-retry rounds for
@@ -433,12 +428,7 @@ func (g *delegateProvisionGuard) vetTarget(asserted string) (provision bool, ref
 		return false, nil
 	}
 	if openbindings.NormalizeEndpoint(asserted) != g.authoritativeTarget {
-		return false, &openbindings.InvocationError{
-			Code: openbindings.ErrCodePermissionDenied,
-			Message: fmt.Sprintf(
-				"refusing to provision credentials to delegate: it asserted context target %q, but the source ob is invoking (%s) authoritatively addresses %q — a misreporting invoker must not name one host's target to obtain another host's stored credentials (binding-invoker confused-deputy defense)",
-				asserted, g.sourceLabel, g.authoritativeTarget),
-		}
+		return false, openbindings.NewInvocationError(errCodeDelegateTargetRefused)
 	}
 	return true, nil
 }
@@ -489,15 +479,6 @@ func driveBinding(
 			for {
 				v, err := out.Read(ctx)
 				if errors.Is(err, io.EOF) {
-					// Clean end: retain the invocation trailer as an internal
-					// diagnostic marker. Ordinary operation output renderers
-					// omit it unless the caller explicitly requests diagnostics.
-					if md := call.Diagnostics().Trailer(); len(md) > 0 {
-						select {
-						case ch <- InvocationOutput{Terminal: true, Metadata: md}:
-						case <-ctx.Done():
-						}
-					}
 					return
 				}
 				if err != nil {
@@ -569,7 +550,7 @@ func driveBinding(
 
 // statusFromError deliberately does not compile binding-native status into the
 // app's ordinary result. InvocationError already carries structural failure;
-// native status, when retained, belongs to its explicit Diagnostics lane.
+// native status remains below the OpenBindings abstraction boundary.
 func statusFromError(err *openbindings.InvocationError) int {
 	return 0
 }
@@ -594,26 +575,7 @@ func InvokeOBIOperation(ctx context.Context, obiPath string, opKey string, bindi
 	if err != nil {
 		return nil, "", err
 	}
-	// The terminal diagnostics marker is an expert affordance; legacy callers
-	// of this back-compat entry see only outputs and errors.
-	return withoutTerminalMarkers(run.Events), run.BindingKey, nil
-}
-
-// withoutTerminalMarkers strips the terminal metadata marker from an event
-// stream so consumers that treat every event as an output (or an error)
-// never observe a nil-output marker.
-func withoutTerminalMarkers(src <-chan InvocationOutput) <-chan InvocationOutput {
-	out := make(chan InvocationOutput)
-	go func() {
-		defer close(out)
-		for ev := range src {
-			if ev.Terminal {
-				continue
-			}
-			out <- ev
-		}
-	}()
-	return out
+	return run.Events, run.BindingKey, nil
 }
 
 // ConfiguredInvocation is the data face's invocation result: the event
@@ -756,7 +718,11 @@ func unaryChannel(iface *openbindings.Interface, resolved *resolvedBinding, resu
 	}
 	ch := make(chan InvocationOutput, 1)
 	if result.Error != nil {
-		ch <- InvocationOutput{Error: &openbindings.InvocationError{Code: result.Error.Code, Message: result.Error.Message}, Status: result.Status}
+		invocationError := openbindings.NewInvocationError(result.Error.Code)
+		if result.Error.DataPresent {
+			invocationError = openbindings.NewInvocationErrorWithData(result.Error.Code, result.Error.Data)
+		}
+		ch <- InvocationOutput{Error: invocationError, Status: result.Status}
 	} else {
 		ch <- InvocationOutput{Output: result.Output, Status: result.Status}
 	}
@@ -777,26 +743,6 @@ func applyT08(src <-chan InvocationOutput, iface *openbindings.Interface, operat
 	go func() {
 		defer close(out)
 		for ev := range src {
-			if ev.Terminal {
-				// Assumption warnings remain expert diagnostics. ob drives
-				// the binding layer (bypassing the SDK operation layer's
-				// warning point), so it appends the warning to the retained
-				// terminal marker for explicit diagnostic consumers.
-				stamp := ""
-				if v := ev.Metadata["x-ob-decode"]; len(v) > 0 {
-					stamp = v[0]
-				}
-				if w := openbindings.AssumptionWarning(stamp, schema); w != "" {
-					md := make(openbindings.Metadata, len(ev.Metadata)+1)
-					for k, v := range ev.Metadata {
-						md[k] = v
-					}
-					md["x-ob-warning"] = append(md["x-ob-warning"], w)
-					ev.Metadata = md
-				}
-				out <- ev
-				continue
-			}
 			if ev.Error != nil {
 				out <- ev
 				continue
@@ -816,59 +762,10 @@ func applyT08(src <-chan InvocationOutput, iface *openbindings.Interface, operat
 }
 
 // t08Failure builds the stop-and-return terminal for a nonconformant output.
-// The portable details describe the schema failure. Selected-binding,
-// decode-lane, content-type, and offending-value evidence are explicitly
-// diagnostic so ordinary operation behavior remains protocol blind.
+// Validation is local SDK behavior, so its implementation evidence does not
+// become application-authored invocation data.
 func t08Failure(ev InvocationOutput, verr error, schema openbindings.JSONSchema, bindingKey string) *openbindings.InvocationError {
-	msg := fmt.Sprintf("operation output validation failed: %v", verr)
-	if openbindings.FloorStamped(schema) {
-		msg += " — the synthesized schema still declares the floor's string; elect the real output schema (`ob operation output-schema`)"
-	}
-	diagnosticDetails := map[string]any{"bindingKey": bindingKey}
-	if stamp := firstMetaValue(ev.Metadata, "x-ob-decode"); stamp != "" {
-		diagnosticDetails["decodedBy"] = stamp
-	}
-	if ct := firstMetaValue(ev.Metadata, "Content-Type"); ct != "" {
-		diagnosticDetails["contentType"] = ct
-	}
-	if snippet := payloadSnippet(ev.Output); snippet != "" {
-		diagnosticDetails["received"] = snippet
-	}
-	diagnosticDetails["inspectionCommand"] = fmt.Sprintf("ob binding invoke <obi> %s", bindingKey)
-	return &openbindings.InvocationError{
-		Code:    openbindings.ErrCodeValidationFailed,
-		Message: msg,
-		Details: openbindings.ValidationFailureDetails{Failures: []openbindings.ValidationFailure{{
-			Path: "", Message: verr.Error(),
-		}}},
-		Diagnostics: map[string]any{"ob": map[string]any{
-			"outputValidation": diagnosticDetails,
-		}},
-	}
-}
-
-func firstMetaValue(md openbindings.Metadata, key string) string {
-	if vs := md[key]; len(vs) > 0 {
-		return vs[0]
-	}
-	return ""
-}
-
-// payloadSnippet renders an output value for diagnostics, truncated so a
-// large payload cannot flood the terminal.
-func payloadSnippet(v any) string {
-	if v == nil {
-		return "null"
-	}
-	data, err := json.Marshal(v)
-	if err != nil {
-		return fmt.Sprintf("%.512v", v)
-	}
-	const maxLen = 2048
-	if len(data) > maxLen {
-		return fmt.Sprintf("%s… (%d bytes total)", data[:maxLen], len(data))
-	}
-	return string(data)
+	return openbindings.NewInvocationError(openbindings.ErrCodeValidationFailed)
 }
 
 // PrepareOperation is the operation-level preflight: it resolves an operation
@@ -1011,15 +908,14 @@ func transformEventStream(src <-chan InvocationOutput, iface *openbindings.Inter
 	go func() {
 		defer close(out)
 		for ev := range src {
-			if ev.Terminal || ev.Error != nil || ev.Output == nil {
+			if ev.Error != nil || ev.Output == nil {
 				out <- ev
 				continue
 			}
 			transformed, err := ApplyTransform(iface.Transforms, resolved.binding.OutputTransform, ev.Output)
 			if err != nil {
 				out <- InvocationOutput{Error: &openbindings.InvocationError{
-					Code:    "output_transform_error",
-					Message: fmt.Sprintf("output transform failed: %v", err),
+					Code: "output_transform_error",
 				}}
 				continue
 			}
@@ -1217,9 +1113,6 @@ func reduceUnaryInvocation(events <-chan InvocationOutput) InvocationResult {
 	var last *InvocationOutput
 	for ev := range events {
 		ev := ev
-		if ev.Terminal {
-			continue // metadata-only marker; not an output
-		}
 		last = &ev
 	}
 	if last == nil {
@@ -1233,7 +1126,12 @@ func reduceUnaryInvocation(events <-chan InvocationOutput) InvocationResult {
 		return InvocationResult{
 			Status:     status,
 			DurationMs: last.DurationMs,
-			Error:      last.Error,
+			Error: &Error{
+				Code:        last.Error.Code,
+				Message:     last.Error.Code,
+				Data:        last.Error.Data,
+				DataPresent: last.Error.HasData(),
+			},
 		}
 	}
 	return InvocationResult{

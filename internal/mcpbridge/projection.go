@@ -142,12 +142,9 @@ func genericToolResult(result drainedOperation) *mcp.CallToolResult {
 		"outputs": outputs,
 	}
 	if result.Error != nil {
-		failure := map[string]any{
-			"code":    result.Error.Code,
-			"message": result.Error.Message,
-		}
-		if result.Error.Details != nil {
-			failure["details"] = result.Error.Details
+		failure := map[string]any{"code": result.Error.Code}
+		if result.Error.HasData() {
+			failure["data"] = result.Error.Data
 		}
 		envelope["error"] = failure
 	}

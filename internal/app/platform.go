@@ -16,8 +16,9 @@ import (
 // binding raises CONTEXT_REQUIRED, the resolver derives a store key from the
 // challenge's target and first consults the CLI context store under it; if the
 // stored context can't satisfy the challenge, it prompts for the missing
-// credentials (the first satisfiable alternative), persists them under the
-// key, and returns the resolved context scoped to the challenge
+// credentials (the first satisfiable alternative), persists only values whose
+// requirements explicitly permit reuse under the key, and returns the
+// resolved context scoped to the challenge
 // (ScopeContext: only fields named by the satisfied alternative).
 // It declines (returns nil) when no prompt is possible (e.g. not a TTY), so the
 // challenge surfaces to the caller unchanged.
@@ -35,8 +36,10 @@ func CLIContextResolver() openbindings.ContextResolver {
 		if key != "" {
 			stored, _ = store.Get(ctx, key)
 		}
-		if stored != nil && openbindings.ContextSatisfies(stored, details) {
-			return openbindings.ScopeContext(stored, details), nil
+		if stored != nil {
+			if reusable := durableDetails(details); reusable != nil && openbindings.ContextSatisfies(stored, reusable) {
+				return openbindings.ScopeContext(stored, reusable), nil
+			}
 		}
 
 		// 2. Interactively resolve the first satisfiable alternative.
@@ -64,8 +67,8 @@ func CLIContextResolver() openbindings.ContextResolver {
 	}
 }
 
-// requirementField maps a requirement family to the context field it
-// populates (mirrors promptForAlternative and the SDK's field mapping).
+// requirementField maps an unnamed requirement family to the context field
+// populated by promptForAlternative.
 var requirementField = map[string]string{
 	"auth.bearer": "bearerToken",
 	"auth.apiKey": "apiKey",
@@ -73,20 +76,60 @@ var requirementField = map[string]string{
 	"auth.oauth2": "accessToken",
 }
 
-// durableSubset returns a copy of candidate with the fields contributed by
-// non-durable requirements of alt removed, so only persistable context is
-// stored. A requirement is durable unless it explicitly sets Durable=false.
+// durableSubset positively projects only values contributed by requirements
+// that explicitly permit reuse. Starting empty prevents unrelated stored or
+// interactive fields from entering persistence by accident.
 func durableSubset(alt openbindings.ContextAlternative, candidate map[string]any) map[string]any {
-	out := make(map[string]any, len(candidate))
-	for k, v := range candidate {
-		out[k] = v
-	}
+	out := map[string]any{}
 	for _, req := range alt.Requirements {
-		if req.Durable != nil && !*req.Durable {
-			if field, ok := requirementField[req.Type]; ok {
-				delete(out, field)
+		if req.Durable == nil || !*req.Durable {
+			continue
+		}
+		if req.Name != "" && strings.HasPrefix(req.Type, "auth.") {
+			credentials, _ := candidate["credentials"].(map[string]any)
+			value, present := credentials[req.Name]
+			if !present {
+				continue
+			}
+			scoped, _ := out["credentials"].(map[string]any)
+			if scoped == nil {
+				scoped = map[string]any{}
+				out["credentials"] = scoped
+			}
+			scoped[req.Name] = value
+			continue
+		}
+		if field, ok := requirementField[req.Type]; ok {
+			if value, present := candidate[field]; present {
+				out[field] = value
 			}
 		}
+	}
+	return out
+}
+
+// durableDetails retains only complete alternatives whose every requirement
+// explicitly permits persistence and reuse. An AND-set is indivisible: a
+// store may not partially satisfy one by dropping its non-durable members.
+func durableDetails(details *openbindings.ContextRequiredDetails) *openbindings.ContextRequiredDetails {
+	if details == nil {
+		return nil
+	}
+	out := &openbindings.ContextRequiredDetails{Target: details.Target}
+	for _, alt := range details.Alternatives {
+		whollyDurable := len(alt.Requirements) > 0
+		for _, req := range alt.Requirements {
+			if req.Durable == nil || !*req.Durable {
+				whollyDurable = false
+				break
+			}
+		}
+		if whollyDurable {
+			out.Alternatives = append(out.Alternatives, alt)
+		}
+	}
+	if len(out.Alternatives) == 0 {
+		return nil
 	}
 	return out
 }
@@ -103,13 +146,13 @@ func promptForAlternative(ctx context.Context, alt openbindings.ContextAlternati
 			if err != nil || v == "" {
 				return false
 			}
-			into["bearerToken"] = v
+			setPromptedCredential(into, req, "bearerToken", v)
 		case "auth.apiKey":
 			v, err := cliPrompt(ctx, promptLabel(req, "API key"), &openbindings.PromptOptions{Secret: true})
 			if err != nil || v == "" {
 				return false
 			}
-			into["apiKey"] = v
+			setPromptedCredential(into, req, "apiKey", v)
 		case "auth.basic":
 			u, err := cliPrompt(ctx, promptLabel(req, "Username"), nil)
 			if err != nil || u == "" {
@@ -119,19 +162,37 @@ func promptForAlternative(ctx context.Context, alt openbindings.ContextAlternati
 			if err != nil {
 				return false
 			}
-			into["basic"] = map[string]any{"username": u, "password": p}
+			setPromptedCredential(into, req, "basic", map[string]any{"username": u, "password": p})
 		case "auth.oauth2":
 			v, err := cliPrompt(ctx, promptLabel(req, "OAuth access token"), &openbindings.PromptOptions{Secret: true})
 			if err != nil || v == "" {
 				return false
 			}
-			into["accessToken"] = v
+			value := any(v)
+			if req.Name != "" {
+				value = map[string]any{"accessToken": v}
+			}
+			setPromptedCredential(into, req, "accessToken", value)
 		default:
 			// Unknown requirement family — can't prompt for it.
 			return false
 		}
 	}
 	return true
+}
+
+func setPromptedCredential(into map[string]any, req openbindings.ContextRequirement, field string, value any) {
+	if req.Name == "" {
+		into[field] = value
+		return
+	}
+	existing, _ := into["credentials"].(map[string]any)
+	credentials := make(map[string]any, len(existing)+1)
+	for name, stored := range existing {
+		credentials[name] = stored
+	}
+	credentials[req.Name] = value
+	into["credentials"] = credentials
 }
 
 func promptLabel(req openbindings.ContextRequirement, fallback string) string {

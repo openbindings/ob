@@ -63,55 +63,39 @@ func TestOperationUnbind_ExactBindingKey(t *testing.T) {
 	}
 }
 
-// Selected-binding and implementation evidence is available only through the
-// caller's explicit diagnostic escape hatch.
-func TestRenderInvokeJSON_ExplicitDiagnosticsCarryDisplacedElections(t *testing.T) {
-	ch := make(chan app.InvocationOutput, 2)
+func TestRenderInvokeJSON_SuccessEnvelopeIsMinimal(t *testing.T) {
+	ch := make(chan app.InvocationOutput, 1)
 	ch <- app.InvocationOutput{Output: map[string]any{"ok": true}}
-	ch <- app.InvocationOutput{Terminal: true}
 	close(ch)
 	run := &app.ConfiguredInvocation{
-		BindingKey:       "op.usage",
-		DisplacedWarning: `2 internal-table election(s) for "op" do not reach delegate "ext"; its own handling governs the binding hop`,
-		DisplacedDetail:  []string{"decode=json", "ok-exit=0,1"},
-		Events:           ch,
+		BindingKey: "op.usage",
+		Events:     ch,
 	}
 	var buf bytes.Buffer
-	if err := renderInvokeJSON(&buf, run, true); err != nil {
+	if err := renderInvokeJSON(&buf, run); err != nil {
 		t.Fatalf("render: %v", err)
 	}
-	var envelope struct {
-		Outputs     []any          `json:"outputs"`
-		Diagnostics map[string]any `json:"diagnostics"`
-	}
+	var envelope map[string]any
 	if err := json.Unmarshal(buf.Bytes(), &envelope); err != nil {
 		t.Fatalf("envelope is not JSON: %v\n%s", err, buf.String())
 	}
-	if len(envelope.Outputs) != 1 {
-		t.Errorf("expected one output in the envelope, got %v", envelope.Outputs)
+	if outputs, _ := envelope["outputs"].([]any); len(outputs) != 1 {
+		t.Errorf("expected one output in the envelope, got %v", envelope)
 	}
-	displaced, _ := envelope.Diagnostics["displacedElections"].(map[string]any)
-	warning, _ := displaced["message"].(string)
-	if !strings.Contains(warning, "ext") {
-		t.Errorf("diagnostics must carry the attributed displacement warning, got %#v", envelope.Diagnostics)
-	}
-	if _, ok := displaced["details"]; !ok {
-		t.Error("diagnostics must carry the displaced-elections detail")
+	if len(envelope) != 1 {
+		t.Fatalf("aggregate success envelope leaked non-invocation fields: %#v", envelope)
 	}
 }
 
 func TestRenderInvokeJSON_DefaultIsProtocolBlindAndPreservesPartialOutputs(t *testing.T) {
 	ch := make(chan app.InvocationOutput, 3)
 	ch <- app.InvocationOutput{Output: map[string]any{"partial": true}}
-	ch <- app.InvocationOutput{Error: &openbindings.InvocationError{
-		Code:        openbindings.ErrCodeExecutionFailed,
-		Message:     "operation completed unsuccessfully",
-		Diagnostics: map[string]any{"httpResponse": map[string]any{"status": 500}},
-	}}
+	ch <- app.InvocationOutput{Error: openbindings.NewInvocationErrorWithData(
+		openbindings.ErrCodeExecutionFailed, map[string]any{"reason": "declined"})}
 	close(ch)
 	run := &app.ConfiguredInvocation{BindingKey: "op.openapi", Events: ch}
 	var buf bytes.Buffer
-	err := renderInvokeJSON(&buf, run, false)
+	err := renderInvokeJSON(&buf, run)
 	if exit, ok := err.(app.ExitResult); !ok || exit.Code != 1 {
 		t.Fatalf("render error = %#v", err)
 	}
@@ -132,6 +116,9 @@ func TestRenderInvokeJSON_DefaultIsProtocolBlindAndPreservesPartialOutputs(t *te
 	errorValue, _ := envelope["error"].(map[string]any)
 	if errorValue["code"] != openbindings.ErrCodeExecutionFailed {
 		t.Fatalf("abstract unsuccessful completion missing: %#v", envelope)
+	}
+	if data, _ := errorValue["data"].(map[string]any); data["reason"] != "declined" {
+		t.Fatalf("application-authored failure data changed: %#v", envelope)
 	}
 }
 

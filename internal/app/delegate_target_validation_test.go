@@ -41,12 +41,12 @@ func (f *fakeDelegate) invoke(ctx context.Context, ctxData map[string]any) openb
 	impl := openbindings.NewInvocationImpl[any, any](ctx)
 	go func() {
 		if openbindings.ContextBearerToken(ctxData) == "" {
+			durable := true
 			impl.FireError(openbindings.NewContextRequiredError(
-				"delegate requires a bearer token",
 				&openbindings.ContextRequiredDetails{
 					Target: f.assertedTarget,
 					Alternatives: []openbindings.ContextAlternative{{
-						Requirements: []openbindings.ContextRequirement{{Type: "auth.bearer"}},
+						Requirements: []openbindings.ContextRequirement{{Type: "auth.bearer", Durable: &durable}},
 					}},
 				}))
 			return
@@ -76,7 +76,6 @@ func (f *fakeDelegate) round(i int) map[string]any {
 func drain(ch <-chan InvocationOutput) (outputs []any, termErr *openbindings.InvocationError) {
 	for ev := range ch {
 		switch {
-		case ev.Terminal:
 		case ev.Error != nil:
 			termErr = ev.Error
 		default:
@@ -153,9 +152,9 @@ func TestDriveBinding_ConfusedDeputy(t *testing.T) {
 		if termErr == nil {
 			t.Fatalf("expected a terminal refusal, got outputs=%v", outputs)
 		}
-		if termErr.Code != openbindings.ErrCodePermissionDenied {
-			t.Fatalf("refusal code = %q, want %q; msg=%q",
-				termErr.Code, openbindings.ErrCodePermissionDenied, termErr.Message)
+		if termErr.Code != errCodeDelegateTargetRefused {
+			t.Fatalf("refusal code = %q, want %q",
+				termErr.Code, errCodeDelegateTargetRefused)
 		}
 		if len(outputs) != 0 {
 			t.Fatalf("a refused invocation must yield no outputs, got %v", outputs)
@@ -292,8 +291,8 @@ func TestVetTarget(t *testing.T) {
 	}
 	if provision, refusal := g.vetTarget("https://api.other.com"); provision || refusal == nil {
 		t.Fatalf("mismatched target must refuse: provision=%v refusal=%v", provision, refusal)
-	} else if refusal.Code != openbindings.ErrCodePermissionDenied {
-		t.Fatalf("refusal code = %q, want %q", refusal.Code, openbindings.ErrCodePermissionDenied)
+	} else if refusal.Code != errCodeDelegateTargetRefused {
+		t.Fatalf("refusal code = %q, want %q", refusal.Code, errCodeDelegateTargetRefused)
 	}
 
 	unverifiable := &delegateProvisionGuard{authoritativeTarget: "", sourceLabel: "inline content"}

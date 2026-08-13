@@ -206,6 +206,11 @@ When a binding needs context it doesn't have, invocation stops before any side e
 
 Then retry the invocation. `--from-curl` imports credentials from a working curl command; `--header`, `--cookie`, `--env`, and `--meta` cover the non-credential fields. The same store backs the HTTP surface (`/contexts`, with `POST /bindings/prepare` reporting requirements proactively) and everything routed through delegates.
 
+Stored context is consulted only for an alternative whose every requirement
+explicitly permits reuse with `durable: true`; omission means one-shot. A
+freshly resolved one-shot value applies only to that exact invocation attempt
+and is never persisted or made ambient to another operation.
+
 #### Headless / CI
 
 By default credentials live in the OS keychain, which is unreachable in CI, containers, and sandboxes (a keychain write there fails, and `ob` tells you the escape hatch below rather than dying opaquely). Set `OB_CREDENTIALS_FILE` to an explicit path to store credentials in a JSON file instead:
@@ -404,7 +409,7 @@ ob source pull interface.json -o dist/interface.json --pure # publish clean
 
 | Command | Description |
 |---------|-------------|
-| `ob operation invoke <obi> [operation]` | Invoke by operation (sole candidate or ordered `--select-binding`) or directly by `--binding`; `--configuration` supplies named interpretation points; `--diagnostics` explicitly exposes selected-binding/native evidence |
+| `ob operation invoke <obi> [operation]` | Invoke by operation (sole candidate or ordered `--select-binding`) or directly by `--binding`; `--configuration` supplies named interpretation points |
 | `ob operation list <obi>` | List operations |
 | `ob operation add <obi> <name>` | Add a hand-authored operation |
 | `ob operation set <obi> <operation>` | Edit an operation's fields |
@@ -567,9 +572,9 @@ curl -X POST http://localhost:20290/bindings/prepare \
    protocol. Tokens in URL query parameters are rejected so credentials do not
    leak into logs or copied links.
 2. Client streams input frames: exactly one `{"kind": "open", "input": {source, ref, context?}}` first, then zero or more `{"kind": "input", "value": …}`, then one `{"kind": "close"}`.
-3. Server streams output frames: zero or more `{"kind": "output", "value": …}`, an `{"kind": "input_closed"}` once the binding stops accepting input (later `input` frames are ignored; the invocation continues), and exactly one terminal frame — `{"kind": "complete"}` or `{"kind": "error", "error": {code, message, details?}}` — after which the connection closes.
+3. Server streams output frames: zero or more `{"kind": "output", "value": …}`, an `{"kind": "input_closed"}` once the binding stops accepting input (later `input` frames are ignored; the invocation continues), and exactly one terminal frame — `{"kind": "complete"}` or `{"kind": "error", "error": {code, data?}}` — after which the connection closes.
 
-Missing runtime context surfaces as a terminal `error` with code `CONTEXT_REQUIRED` whose `details` enumerate the requirements, before any output and any side effect; resolve them (typically via `/contexts`) and retry. `POST /bindings/prepare` reports the same requirements proactively when they are statically knowable.
+Missing runtime context surfaces as a terminal `error` with code `CONTEXT_REQUIRED` whose `data` enumerates the requirements, before any output and any side effect; resolve it (typically via `/contexts`) and retry. `POST /bindings/prepare` reports the same requirements proactively when they are statically knowable.
 
 ### `ob mcp` — Model Context Protocol bridge
 
@@ -602,8 +607,8 @@ returns the complete ordered OpenBindings output
 sequence as structured content and identical JSON text:
 `{"outputs": [...]}`. This preserves zero, one, many, and explicit-null
 outputs without inferring cardinality from the binding family. Terminal errors
-retain their OpenBindings code, message, details, and any outputs emitted
-before failure. Operations with no usable binding, unresolved binding
+retain their OpenBindings code, optional application-authored data, and any
+outputs emitted before failure. Operations with no usable binding, unresolved binding
 ambiguity, or broken source wiring are reported and not advertised.
 
 When a raw source is synthesized, the bridge reports synthesis coverage.

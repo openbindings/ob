@@ -387,7 +387,7 @@ func invokeCLIContractOperation(
 	var outputs []any
 	for event := range events {
 		if event.Error != nil {
-			t.Fatalf("%s CLI error: %s: %s", operation, event.Error.Code, event.Error.Message)
+			t.Fatalf("%s CLI error: %s", operation, event.Error.Code)
 		}
 		validateContractOutput(t, cli, operation, event.Output)
 		outputs = append(outputs, event.Output)

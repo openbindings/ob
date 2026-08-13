@@ -289,15 +289,10 @@ func withBindingArg(schema any, candidates []string, preselect string) any {
 // the choice. It names the exact valid keys so the agent can recover by
 // re-calling with `_binding`.
 func ambiguousBindingResult(candidates []string) *mcp.CallToolResult {
-	msg := fmt.Sprintf(
-		"binding selection required: this operation is realized over multiple bindings (%s); re-call with %q set to one of them.",
-		strings.Join(candidates, ", "), bindingSelectionArg,
-	)
 	env := map[string]any{
 		"error": map[string]any{
-			"code":    "ERR_BINDING_SELECTION_REQUIRED",
-			"message": msg,
-			"details": map[string]any{"bindings": candidates},
+			"code": "ERR_BINDING_SELECTION_REQUIRED",
+			"data": map[string]any{"bindings": candidates},
 		},
 	}
 	data, _ := json.Marshal(env)
@@ -309,13 +304,10 @@ func ambiguousBindingResult(candidates []string) *mcp.CallToolResult {
 }
 
 func invalidBindingResult(choice string, candidates []string) *mcp.CallToolResult {
-	msg := fmt.Sprintf("%q is not a valid binding for this operation; choose one of: %s",
-		choice, strings.Join(candidates, ", "))
 	env := map[string]any{
 		"error": map[string]any{
-			"code":    "ERR_UNKNOWN_BINDING",
-			"message": msg,
-			"details": map[string]any{"bindings": candidates},
+			"code": "ERR_UNKNOWN_BINDING",
+			"data": map[string]any{"binding": choice, "bindings": candidates},
 		},
 	}
 	data, _ := json.Marshal(env)

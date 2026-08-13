@@ -38,7 +38,7 @@ loudly, never silently drop and never silently invent a default:
    cannot be ranked soundly.) A well-authored multi-binding interface therefore
    bridges with zero configuration.
 3. Otherwise the call is **refused loudly**: a **structured, pre-dispatch
-   error** (`ERR_BINDING_SELECTION_REQUIRED`, `details.bindings` listing the
+   error** (`ERR_BINDING_SELECTION_REQUIRED`, `data.bindings` listing the
    keys) in the MCP channel the client actually observes, not on stderr. The
    agent recovers by re-calling with `_binding` set. An unknown `_binding`
    value returns `ERR_UNKNOWN_BINDING` with the same list.
@@ -59,8 +59,8 @@ is about to dispatch over. Acting on a declaration is loyal; foreclosing the
 choice is not.
 
 `--select-binding` remains available for launch-time selection and startup
-diagnostics still log admission on stderr, but stderr is never the *only*
-place a refusal appears. If no operation can be advertised at all, startup
+logs still report admission on stderr, but stderr is never the *only* place a
+refusal appears. If no operation can be advertised at all, startup
 fails instead of presenting an unusable server.
 
 This is structural readiness, not a promise that credentials are already
@@ -124,14 +124,13 @@ discarded:
   "outputs": [{"partial": true}],
   "error": {
     "code": "ERR_RESPONSE_ERROR",
-    "message": "upstream stream failed",
-    "details": {"offset": 1}
+    "data": {"offset": 1}
   }
 }
 ```
 
-The MCP result is marked as an error, and the OpenBindings error code, message,
-and details are preserved. An invocation that does not complete before
+The MCP result is marked as an error, and the OpenBindings error code and
+optional application-authored data are preserved. An invocation that does not complete before
 `--tool-timeout` is cancelled and returns the same error form with any partial
 outputs. This makes terminating server streams usable while refusing to
 pretend an unbounded subscription can complete as a request-scoped MCP tool.

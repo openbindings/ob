@@ -188,7 +188,7 @@ components:
             type: object
         BindingContext:
             additionalProperties: true
-            description: 'Opaque context supplied by value for one binding invocation. The contract neither requires nor exposes a context store; callers may assemble this object from per-call values, durable state, a credential broker, or any other source before invocation. Well-known credential fields: ''bearerToken'' (string), ''apiKey'' (string), ''apiKeys'' (object mapping a requirement''s ''name'' to its key), ''basic'' (object with ''username'' and ''password''), and ''accessToken'' / ''refreshToken'' / ''expiresAt'' for OAuth. Well-known transport fields: ''headers'' / ''cookies'' / ''environment'' (objects with string values) and ''metadata'' (object with arbitrary values). Well-known configuration field: ''configuration'' (object), keyed by configuration-point name and interpreted by the specification that defines each point. Implementations and callers MAY add fields for session state, consent, or other runtime data; consumers SHOULD ignore fields they do not recognize unless the governing binding specification says otherwise. Credential fields are secret, and any other field may also be secret according to its requirement family, binding specification, or application policy.'
+            description: 'Opaque context supplied by value for one binding invocation. The contract neither requires nor exposes a context store; callers may assemble this object from per-call values, durable state, a credential broker, or any other source before invocation. The general named-credential field is ''credentials'': an object keyed by a requirement''s nonempty ''name''. For auth.bearer and auth.apiKey its named value is a string; for auth.basic it is an object with username and password; for auth.oauth2 it is an object whose accessToken is the applying credential and whose refreshToken, expiresAt, and clientSecret are optional lifecycle values. Unnamed or unambiguous single-scheme conveniences remain ''bearerToken'', ''apiKey'', ''basic'', and ''accessToken'' / ''refreshToken'' / ''expiresAt''; the historical ''apiKeys'' named map remains accepted for auth.apiKey. Well-known transport fields: ''headers'' / ''cookies'' / ''environment'' (objects with string values) and ''metadata'' (object with arbitrary values). Well-known configuration field: ''configuration'' (object), keyed by configuration-point name and interpreted by the specification that defines each point. A config.value requirement''s relative JSON Pointer path addresses within configuration[point]; an empty path addresses the entire point. The operation-invoker contract defines configuration.selection as an ordered array of binding-key strings. Implementations and callers MAY add fields for session state, consent, or other runtime data; consumers SHOULD ignore fields they do not recognize unless the governing binding specification says otherwise. Every value in credentials and the single-scheme credential fields is secret, and any other field may also be secret according to its requirement family, binding specification, or application policy.'
             type: object
         BindingInvocationInput:
             additionalProperties: false
@@ -603,11 +603,13 @@ components:
                 - key
             type: object
         ContextRequiredDetails:
-            description: 'The `details` payload of an InvocationError whose `code` is CONTEXT_REQUIRED, and the return shape of this contract''s preflight operation. Enumerates the context the invoker needs before it can proceed. `alternatives` are disjunctive: satisfying ANY one suffices. The `requirements` within a single alternative are conjunctive: ALL must be satisfied. This OR-of-AND shape captures real authentication semantics such as ''OAuth2 OR (apiKey AND clientCert)'', which a flat list cannot. A challenge is a scope, not a hint: a caller that resolves it MUST provision only the context needed for one selected alternative and MUST NOT disclose unrelated credentials. The interface supplies context by value and exposes no context-store access.'
+            additionalProperties: false
+            description: 'The `data` value of an InvocationError whose `code` is CONTEXT_REQUIRED, and the return shape of this contract''s preflight operation. Enumerates the context the invoker needs before it can proceed. `alternatives` are disjunctive: satisfying ANY one suffices. The `requirements` within a single alternative are conjunctive: ALL must be satisfied. This OR-of-AND shape captures real authentication semantics such as ''OAuth2 OR (apiKey AND clientCert)'', which a flat list cannot. A challenge is a scope, not a hint: a caller that resolves it MUST provision only the context needed for one selected alternative and MUST NOT disclose unrelated credentials. The interface supplies context by value and exposes no context-store access.'
             properties:
                 alternatives:
                     description: Disjunctive set of ways to satisfy the requirement. A resolving caller selects one alternative whose every requirement it can resolve and provisions only the context needed for that alternative, never unrelated credentials.
                     items:
+                        additionalProperties: false
                         properties:
                             requirements:
                                 description: 'Conjunctive set: every requirement in this alternative must be resolved for the alternative to be satisfied.'
@@ -621,7 +623,7 @@ components:
                     minItems: 1
                     type: array
                 target:
-                    description: Opaque identifier for the concrete destination or context scope the invoker is about to use. A runtime MAY use it to scope resolution or reuse and MAY compare it with independently derived source information before releasing secrets. Interpretation, verification, normalization, hierarchy, key derivation, and persistence policy are outside this contract.
+                    description: Opaque identifier for the concrete destination or context scope asserted by the invoker. A runtime MAY use it to scope resolution or reuse. Before releasing a reusable secret on an assertion from outside its trust boundary, a resolver MUST validate that assertion against independently derived information; an in-process resolver MAY deliberately include its co-located invoker in the trust boundary. Interpretation, normalization, hierarchy, key derivation, and persistence policy are otherwise outside this contract.
                     type: string
             required:
                 - target
@@ -629,7 +631,7 @@ components:
             type: object
         ContextRequirement:
             additionalProperties: true
-            description: 'One prerequisite that must be satisfied before a binding can be invoked. `type` names the requirement family; the remaining fields are type-specific. The well-known `auth.*` family resolves into BindingContext credential fields: `auth.bearer` produces ''bearerToken'', `auth.apiKey` produces ''apiKey'' (or a scheme-keyed entry in ''apiKeys'' when the requirement carries a `name`), `auth.basic` produces ''basic'', and `auth.oauth2` produces ''accessToken'' (carrying flow fields such as ''grantType'', ''authorizeUrl'', ''tokenUrl'', and ''scopes''). The `config.value` family carries a configuration value a binding needs but the artifact does not supply: it carries ''point'' and ''key'' (and optional ''choices'') and resolves into the ''configuration'' context field under ''point''. Other families (e.g. ''approval.user'', ''account.link'') resolve into their own context fields. Resolution architecture and value secrecy beyond the always-secret credential fields are determined by the requirement family, governing binding specification, and caller.'
+            description: 'One prerequisite that must be satisfied before a binding can be invoked. `type` names the requirement family; the remaining fields are type-specific. A named well-known `auth.*` requirement resolves at BindingContext.credentials[name]: a string for `auth.bearer` and `auth.apiKey`, a username/password object for `auth.basic`, or an OAuth object beginning with accessToken for `auth.oauth2`. Unnamed or unambiguous single-scheme requirements use the corresponding bearerToken, apiKey, basic, or flat OAuth conveniences; historical apiKeys[name] remains accepted for `auth.apiKey`. OAuth requirements may carry flow fields such as grantType, authorizeUrl, tokenUrl, and scopes. The `config.value` family carries a configuration value a binding needs but the artifact does not supply: it carries ''point'' and a relative JSON Pointer ''path'' (plus optional ''choices'') and resolves within BindingContext.configuration. Other families (e.g. ''approval.user'', ''account.link'') resolve into their own context fields. Resolution architecture and value secrecy beyond the always-secret credential fields are determined by the requirement family, governing binding specification, and caller.'
             properties:
                 choices:
                     description: 'config.value only: values declared by the source artifact, suitable for rendering as a picker. Whether an off-list value is valid is defined by the governing binding specification: a closed artifact enum is enforced; an advisory list remains advisory.'
@@ -640,19 +642,23 @@ components:
                     description: Human-readable description shown to a user or operator during resolution (e.g. an approval prompt message).
                     type: string
                 durable:
-                    description: Whether resolved context for this requirement MAY be persisted and reused for later invocations (true), or MUST be satisfied freshly and MUST NOT be persisted or reused (false). Defaults to true. This permission does not require persistence or prescribe a store, key, or reuse policy.
+                    default: false
+                    description: Whether resolved context for this requirement MAY be persisted and reused for later invocations (true), or MUST be satisfied freshly and MUST NOT be persisted or reused (false). Defaults to false. This permission does not require persistence or prescribe a store, key, or reuse policy.
                     type: boolean
-                key:
-                    description: 'config.value only: the specific value needed within ''point'' — a server-variable name, or ''address'' for a whole channel address.'
-                    type: string
                 name:
-                    description: The scheme name as the source artifact declares it (e.g. an OpenAPI securitySchemes key). Distinguishes two requirements of the same type within one alternative — two ANDed API keys are otherwise indistinguishable — and keys scheme-scoped credential lookup (see BindingContext's 'apiKeys').
+                    description: The scheme name as the source artifact declares it (e.g. an OpenAPI securitySchemes key). Distinguishes multiple requirements of the same family and keys scheme-scoped lookup in BindingContext.credentials.
+                    minLength: 1
+                    type: string
+                path:
+                    description: 'config.value only: RFC 6901 JSON Pointer relative to configuration[point]. The empty pointer addresses the whole point; ''/variables/region'' addresses a nested member; ''/value'' addresses a member literally named value.'
+                    pattern: ^(|/(?:[^~]|~[01])*(?:/(?:[^~]|~[01])*)*)$
                     type: string
                 point:
-                    description: 'config.value only: the binding-specification configuration point the value belongs to (''server'', ''address'', a family''s decode point, …). The resolved value is carried in the ''configuration'' context field under this point; the value''s shape there is the invoker''s own (configuration carriage is implementation surface, not contract).'
+                    description: 'config.value only: the binding-specification configuration point the value belongs to (''server'', ''address'', a family''s decode point, …).'
                     type: string
                 type:
                     description: Requirement type identifier, e.g. 'auth.bearer', 'auth.oauth2', 'auth.basic', 'auth.apiKey', 'approval.user', 'config.value'. An unrecognized type is unsatisfiable by a runtime that has no way to satisfy it. An invoker may surface an artifact-defined scheme as an extension requirement only when it knows how the resulting context will be applied faithfully; an invoker that cannot represent or apply a prerequisite refuses before dispatch rather than emitting a satisfiable-looking challenge or attempting the interaction without it.
+                    minLength: 1
                     type: string
             required:
                 - type
@@ -933,21 +939,16 @@ components:
             type: object
         InvocationError:
             additionalProperties: false
-            description: Minimal unsuccessful-completion record carried by an `error` output frame. The frame kind is the portable failure signal. Only codes named by a rule of an invoker interface have portable semantics; other strings are open extension or implementation identifiers.
+            description: Minimal unsuccessful-completion record carried by an `error` output frame. The frame kind is the portable failure signal. Only codes named by a rule of this interface, its operation-invoker peer, or the governing binding specification have portable semantics; other strings are open extension or implementation identifiers. Codes defined by either invocation interface are reserved to their defined meanings and MUST NOT be redefined by a binding or implementation. Other governed codes SHOULD use collision-resistant identifiers. ERR_EXECUTION_FAILED is the generic fallback when no more specific governed meaning exists; it means only that the interaction completed unsuccessfully, and carries no protocol category, blame, retryability, side-effect, authentication, authorization, or availability semantics.
             properties:
                 code:
-                    description: Machine-readable error code (e.g., ERR_CANCELLED, ERR_VALIDATION_FAILED, ERR_PROTOCOL, CONTEXT_REQUIRED).
+                    description: Machine-readable error code. This interface owns CONTEXT_REQUIRED, ERR_CANCELLED, ERR_FRAME_PROTOCOL, ERR_TRANSPORT_CLOSED, and ERR_EXECUTION_FAILED.
+                    minLength: 1
                     type: string
-                details:
-                    description: Optional portable structured data defined by an interface-owned code, or an opaque JSON failure value that the governing binding rules identify as application-authored. For CONTEXT_REQUIRED, this is a ContextRequiredDetails object. Application failure values retain only their author's meaning; raw statuses, headers, trailers, envelopes, bytes, and implementation evidence do not belong here merely because a binding observed them.
-                diagnostics:
-                    description: Optional expert diagnostic evidence specific to the selected binding or implementation. It may reveal protocol identity and native representations and MUST NOT be required for correct ordinary invocation behavior.
-                message:
-                    description: Human-readable, protocol-independent description. It may preserve application-authored failure prose identified by governing binding rules; raw native status lines, frame facts, process results, and other protocol evidence belong in diagnostics instead.
-                    type: string
+                data:
+                    description: 'Optional portable JSON data associated with the unsuccessful completion. A rule defining `code` may define its structure and semantics; otherwise, the governing binding specification may use it to preserve an opaque application-authored failure value. For CONTEXT_REQUIRED, this is a ContextRequiredDetails object. Presence is significant: an absent member means no portable associated value, while an explicit null is a present JSON null value. Statuses, headers, trailers, envelopes, raw debugging bytes, exception prose, stacks, and implementation evidence do not belong here unless they are themselves application data under an explicit governing rule.'
             required:
                 - code
-                - message
             type: object
         ListBindingsInput:
             additionalProperties: false

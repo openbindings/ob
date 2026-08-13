@@ -203,7 +203,7 @@ func serveBindingFrameStream(ctx context.Context, cancel context.CancelFunc, con
 	writer := &frameWriter{conn: conn}
 
 	// Rule 1: the first frame must be `open`; anything else (including a
-	// frame that fails strict decoding) is a terminal ERR_PROTOCOL and no
+	// frame that fails strict decoding) is a terminal ERR_FRAME_PROTOCOL and no
 	// further input is processed.
 	first, err := readInputFrame(ctx, conn)
 	if err != nil {
@@ -212,15 +212,14 @@ func serveBindingFrameStream(ctx context.Context, cancel context.CancelFunc, con
 	var open frames.InputFrame
 	if uerr := json.Unmarshal(first, &open); uerr != nil {
 		_ = writer.write(ctx, frames.Error(&openbindings.InvocationError{
-			Code: openbindings.ErrCodeProtocol, Message: uerr.Error(),
+			Code: openbindings.ErrCodeFrameProtocol,
 		}))
 		conn.Close(websocket.StatusNormalClosure, "")
 		return
 	}
 	if open.Kind != frames.KindOpen {
 		_ = writer.write(ctx, frames.Error(&openbindings.InvocationError{
-			Code:    openbindings.ErrCodeProtocol,
-			Message: "first frame must be open, got " + open.Kind,
+			Code: openbindings.ErrCodeFrameProtocol,
 		}))
 		conn.Close(websocket.StatusNormalClosure, "")
 		return
@@ -250,14 +249,14 @@ func serveOperationFrameStream(ctx context.Context, cancel context.CancelFunc, c
 	var open frames.OperationInputFrame
 	if uerr := json.Unmarshal(first, &open); uerr != nil {
 		_ = writer.write(ctx, frames.Error(&openbindings.InvocationError{
-			Code: openbindings.ErrCodeProtocol, Message: uerr.Error(),
+			Code: openbindings.ErrCodeFrameProtocol,
 		}))
 		conn.Close(websocket.StatusNormalClosure, "")
 		return
 	}
 	if open.Kind != frames.KindOpen {
 		_ = writer.write(ctx, frames.Error(&openbindings.InvocationError{
-			Code: openbindings.ErrCodeProtocol, Message: "first frame must be open, got " + open.Kind,
+			Code: openbindings.ErrCodeFrameProtocol,
 		}))
 		conn.Close(websocket.StatusNormalClosure, "")
 		return
@@ -362,7 +361,7 @@ func readInputFrames(
 ) {
 	violation := func(reason string) {
 		select {
-		case protoErr <- &openbindings.InvocationError{Code: openbindings.ErrCodeProtocol, Message: reason}:
+		case protoErr <- &openbindings.InvocationError{Code: openbindings.ErrCodeFrameProtocol}:
 		default:
 		}
 		inv.Cancel()

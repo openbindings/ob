@@ -20,9 +20,8 @@ import (
 // TestWireConformance_ErrorFramesMatchServedInvokerSchema asserts that every
 // terminal error frame ob start emits satisfies the served invoker contract:
 // the frame validates against the served OBI's OperationInvokerOutputFrame and
-// BindingInvokerOutputFrame schemas, whose InvocationError requires only the
-// structural code/message pair. Portable interface-owned details and explicit
-// diagnostics may be present, but closed categories and retry effects may not.
+// BindingInvokerOutputFrame schemas, whose InvocationError requires only its
+// binding-owned code and optionally carries application-authored data.
 func TestWireConformance_ErrorFramesMatchServedInvokerSchema(t *testing.T) {
 	var served openbindings.Interface
 	if err := json.Unmarshal(server.ServeOBI(), &served); err != nil {
@@ -34,10 +33,10 @@ func TestWireConformance_ErrorFramesMatchServedInvokerSchema(t *testing.T) {
 		err  *openbindings.InvocationError
 	}{
 		// The bare literals the serve routes write on protocol violations.
-		{"bare runtime literal", &openbindings.InvocationError{Code: openbindings.ErrCodeRuntime, Message: "boom"}},
-		{"bare protocol literal", &openbindings.InvocationError{Code: openbindings.ErrCodeProtocol, Message: "unexpected frame"}},
-		// The portable interface-owned detail path the workbench branches on.
-		{"context required", openbindings.NewContextRequiredError("need auth", &openbindings.ContextRequiredDetails{Target: "api.example.com"})},
+		{"bare runtime literal", openbindings.NewInvocationError(openbindings.ErrCodeRuntime)},
+		{"bare protocol literal", openbindings.NewInvocationError(openbindings.ErrCodeFrameProtocol)},
+		// The portable interface-owned data path the workbench branches on.
+		{"context required", openbindings.NewContextRequiredError(&openbindings.ContextRequiredDetails{Target: "api.example.com"})},
 		{"nil terminal error", nil},
 	}
 	for _, schemaName := range []string{"OperationInvokerOutputFrame", "BindingInvokerOutputFrame"} {
@@ -375,7 +374,7 @@ func TestWireConformance_ExecLane(t *testing.T) {
 		got := 0
 		for ev := range ch {
 			if ev.Error != nil {
-				t.Fatalf("invocation error: %s: %s", ev.Error.Code, ev.Error.Message)
+				t.Fatalf("invocation error: %s", ev.Error.Code)
 			}
 			// The conformance judgment: the output must satisfy the
 			// operation's output schema (OBI-T-08 semantics).

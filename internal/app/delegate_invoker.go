@@ -22,6 +22,14 @@ import (
 	"github.com/openbindings/openbindings-go/formats/usage"
 )
 
+// Delegate-local codes describe this implementation's trust and connection
+// mechanics. They are intentionally not exported as a cross-binding SDK
+// taxonomy.
+const (
+	errCodeDelegateTargetRefused = "ERR_DELEGATE_TARGET_REFUSED"
+	errCodeDelegateAuthRequired  = "ERR_DELEGATE_AUTH_REQUIRED"
+)
+
 // Delegate-backed binding invocation. A resolved delegate's OBI declares how
 // its invokeBinding operation is reachable; ob exposes that as a normal
 // openbindings.BindingInvoker:
@@ -163,8 +171,7 @@ func (d *delegateFrameInvoker) dial(ctx context.Context) (*websocket.Conn, *open
 	endpoint, err := resolveFrameEndpoint(ctx, d.docURL, d.ref)
 	if err != nil {
 		return nil, &openbindings.InvocationError{
-			Code:    openbindings.ErrCodeSourceConfigError,
-			Message: fmt.Sprintf("delegate %q: %v", d.delegate, err),
+			Code: openbindings.ErrCodeSourceConfigError,
 		}
 	}
 
@@ -179,15 +186,12 @@ func (d *delegateFrameInvoker) dial(ctx context.Context) (*websocket.Conn, *open
 	conn, resp, dialErr := websocket.Dial(ctx, endpoint, &websocket.DialOptions{HTTPHeader: header})
 	if dialErr != nil {
 		if resp != nil && (resp.StatusCode == http.StatusUnauthorized || resp.StatusCode == http.StatusForbidden) {
-			host := openbindings.NormalizeEndpoint(endpoint)
 			return nil, &openbindings.InvocationError{
-				Code:    openbindings.ErrCodeAuthRequired,
-				Message: fmt.Sprintf("delegate %q rejected the stored credentials (HTTP %d); store its token with `ob context set %s`", d.delegate, resp.StatusCode, host),
+				Code: errCodeDelegateAuthRequired,
 			}
 		}
 		return nil, &openbindings.InvocationError{
-			Code:    openbindings.ErrCodeConnectFailed,
-			Message: fmt.Sprintf("delegate %q: dialing %s: %v", d.delegate, endpoint, dialErr),
+			Code: openbindings.ErrCodeConnectFailed,
 		}
 	}
 	conn.SetReadLimit(maxFrameBytes)
@@ -304,9 +308,7 @@ func delegateExecInvoker(delegate string) *openbindings.OperationInvoker {
 		var v any
 		if err := json.Unmarshal(raw.Body, &v); err != nil {
 			return nil, &openbindings.InvocationError{
-				Code:    openbindings.ErrCodeResponseError,
-				Message: fmt.Sprintf("delegate %q: binding-invoker machine lane must emit JSON, got: %v", delegate, err),
-				Details: map[string]any{"stdout": string(raw.Body)},
+				Code: openbindings.ErrCodeResponseError,
 			}
 		}
 		return v, nil
@@ -351,8 +353,7 @@ func (d *delegateCLIInvoker) InvokeBinding(ctx context.Context, args *openbindin
 			transformed, tErr := ApplyTransform(d.iface.Transforms, d.binding.InputTransform, payload)
 			if tErr != nil {
 				impl.FireError(&openbindings.InvocationError{
-					Code:    openbindings.ErrCodeTransformError,
-					Message: fmt.Sprintf("delegate %q: input transform failed: %v", d.delegate, tErr),
+					Code: openbindings.ErrCodeTransformError,
 				})
 				return
 			}
@@ -362,8 +363,7 @@ func (d *delegateCLIInvoker) InvokeBinding(ctx context.Context, args *openbindin
 		es, esErr := resolveSourceLocation(d.source)
 		if esErr != nil {
 			impl.FireError(&openbindings.InvocationError{
-				Code:    openbindings.ErrCodeSourceConfigError,
-				Message: esErr.Error(),
+				Code: openbindings.ErrCodeSourceConfigError,
 			})
 			return
 		}

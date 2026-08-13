@@ -150,7 +150,7 @@ func TestContextGitHub_OperationInvokerDriven(t *testing.T) {
 	var lastData any
 	for ev := range ch {
 		if ev.Error != nil {
-			t.Fatalf("InvokeOBIOperation stream error: %s (code: %s)", ev.Error.Message, ev.Error.Code)
+			t.Fatalf("InvokeOBIOperation stream error: %s", ev.Error.Code)
 		}
 		lastData = ev.Output
 	}

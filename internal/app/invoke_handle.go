@@ -23,14 +23,10 @@ import (
 // never prompts.
 func InvokeBindingHandle(ctx context.Context, input InvocationInput) openbindings.Invocation[any, any] {
 	if input.Source.BindingSpec == "" {
-		return openbindings.NewErroredInvocation[any, any](&Error{
-			Code: openbindings.ErrCodeValidationFailed, Message: "source.bindingSpec is required",
-		})
+		return openbindings.NewErroredInvocation[any, any](openbindings.NewInvocationError(openbindings.ErrCodeValidationFailed))
 	}
 	if input.Ref == "" {
-		return openbindings.NewErroredInvocation[any, any](&Error{
-			Code: openbindings.ErrCodeValidationFailed, Message: "ref is required",
-		})
+		return openbindings.NewErroredInvocation[any, any](openbindings.NewInvocationError(openbindings.ErrCodeValidationFailed))
 	}
 
 	bindCtx := input.Context
@@ -56,10 +52,7 @@ func InvokeBindingHandle(ctx context.Context, input InvocationInput) openbinding
 
 	delegateInvoker, err := resolveDelegateInvoker(input.Source.BindingSpec)
 	if err != nil {
-		return openbindings.NewErroredInvocation[any, any](&Error{
-			Code:    openbindings.ErrCodeBindingNotFound,
-			Message: err.Error(),
-		})
+		return openbindings.NewErroredInvocation[any, any](openbindings.NewInvocationError(openbindings.ErrCodeBindingNotFound))
 	}
 	return delegateInvoker.InvokeBinding(ctx, args)
 }
@@ -80,13 +73,12 @@ type OperationHandleInput struct {
 func InvokeOperationHandle(ctx context.Context, input OperationHandleInput) openbindings.Invocation[any, any] {
 	if input.Interface == nil {
 		return openbindings.NewErroredInvocation[any, any](&openbindings.InvocationError{
-			Code: openbindings.ErrCodeValidationFailed, Message: "interface is required",
+			Code: openbindings.ErrCodeValidationFailed,
 		})
 	}
 	if (input.Operation == "") == (input.Binding == "") {
 		return openbindings.NewErroredInvocation[any, any](&openbindings.InvocationError{
-			Code:    openbindings.ErrCodeValidationFailed,
-			Message: "exactly one of operation or binding is required",
+			Code: openbindings.ErrCodeValidationFailed,
 		})
 	}
 
@@ -99,8 +91,7 @@ func InvokeOperationHandle(ctx context.Context, input OperationHandleInput) open
 		binding, ok := input.Interface.Bindings[input.Binding]
 		if !ok {
 			return openbindings.NewErroredInvocation[any, any](&openbindings.InvocationError{
-				Code:    openbindings.ErrCodeBindingNotFound,
-				Message: fmt.Sprintf("binding %q is not defined on this interface", input.Binding),
+				Code: openbindings.ErrCodeBindingNotFound,
 			})
 		}
 		operation = binding.Operation

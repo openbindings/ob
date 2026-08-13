@@ -8,7 +8,7 @@
 //
 // Both directions decode strictly: frame variants declare
 // additionalProperties: false, so unknown properties are a protocol violation
-// (rule 7) and surface as ERR_PROTOCOL. The server and the delegate client
+// (rule 7) and surface as ERR_FRAME_PROTOCOL. The server and the delegate client
 // share these types so the two sides cannot drift.
 package frames
 
@@ -60,53 +60,79 @@ type OperationInvocationInput struct {
 	Context   map[string]any          `json:"context,omitempty"`
 }
 
-// WireError is the InvocationError wire shape carried by a terminal error
-// frame. Details is reserved for portable interface-owned code data (for
-// example CONTEXT_REQUIRED); Diagnostics is the explicit optional lane for
-// binding-native or implementation evidence.
+// WireError is the minimal InvocationError wire shape carried by a terminal
+// error frame. dataPresent preserves the Core distinction between an absent
+// data member and an explicitly authored JSON null.
 type WireError struct {
 	Code        string `json:"code"`
-	Message     string `json:"message"`
-	Details     any    `json:"details,omitempty"`
-	Diagnostics any    `json:"diagnostics,omitempty"`
+	Data        any    `json:"-"`
+	dataPresent bool
+}
+
+func (e WireError) MarshalJSON() ([]byte, error) {
+	if e.dataPresent {
+		return json.Marshal(struct {
+			Code string `json:"code"`
+			Data any    `json:"data"`
+		}{Code: e.Code, Data: e.Data})
+	}
+	return json.Marshal(struct {
+		Code string `json:"code"`
+	}{Code: e.Code})
+}
+
+func (e *WireError) UnmarshalJSON(raw []byte) error {
+	var fields map[string]json.RawMessage
+	if err := json.Unmarshal(raw, &fields); err != nil || fields == nil {
+		return fmt.Errorf("InvocationError must be an object")
+	}
+	for key := range fields {
+		if key != "code" && key != "data" {
+			return fmt.Errorf("unknown InvocationError property %q", key)
+		}
+	}
+	codeRaw, ok := fields["code"]
+	if !ok || json.Unmarshal(codeRaw, &e.Code) != nil || e.Code == "" {
+		return fmt.Errorf("InvocationError.code must be a non-empty string")
+	}
+	e.Data = nil
+	e.dataPresent = false
+	if dataRaw, ok := fields["data"]; ok {
+		if err := json.Unmarshal(dataRaw, &e.Data); err != nil {
+			return fmt.Errorf("InvocationError.data: %w", err)
+		}
+		e.dataPresent = true
+	}
+	return nil
 }
 
 // WireErrorFrom converts an SDK terminal error to its wire shape.
 func WireErrorFrom(err *openbindings.InvocationError) *WireError {
 	if err == nil {
-		return &WireError{
-			Code:    openbindings.ErrCodeRuntime,
-			Message: "unknown error",
-		}
+		return &WireError{Code: openbindings.ErrCodeRuntime}
 	}
 	return &WireError{
 		Code:        err.Code,
-		Message:     err.Message,
-		Details:     err.Details,
-		Diagnostics: err.Diagnostics,
+		Data:        err.Data,
+		dataPresent: err.HasData(),
 	}
 }
 
 // InvocationError converts the wire shape back to the SDK terminal error.
-// CONTEXT_REQUIRED details cross as a generic map; ContextRequiredFrom decodes
+// CONTEXT_REQUIRED data crosses as a generic map; ContextRequiredFrom decodes
 // them back into the typed shape on demand.
 func (e *WireError) InvocationError() *openbindings.InvocationError {
 	if e == nil {
-		return &openbindings.InvocationError{
-			Code:    openbindings.ErrCodeRuntime,
-			Message: "unknown error",
-		}
+		return openbindings.NewInvocationError(openbindings.ErrCodeRuntime)
 	}
-	return &openbindings.InvocationError{
-		Code:        e.Code,
-		Message:     e.Message,
-		Details:     e.Details,
-		Diagnostics: e.Diagnostics,
+	if e.dataPresent {
+		return openbindings.NewInvocationErrorWithData(e.Code, e.Data)
 	}
+	return openbindings.NewInvocationError(e.Code)
 }
 
 // ProtocolError reports a frame that violates the protocol (rule 1, 2, or 7).
-// Carriers map it to a terminal ERR_PROTOCOL.
+// Carriers map it to a terminal ERR_FRAME_PROTOCOL.
 type ProtocolError struct{ Reason string }
 
 func (e *ProtocolError) Error() string { return e.Reason }
@@ -435,8 +461,8 @@ func (f *OutputFrame) UnmarshalJSON(b []byte) error {
 		if err := json.Unmarshal(fields["error"], &wireErr); err != nil {
 			return protocolErrorf("error frame: invalid error: %v", err)
 		}
-		if wireErr.Code == "" || wireErr.Message == "" {
-			return protocolErrorf("error frame: error.code and error.message are required")
+		if wireErr.Code == "" {
+			return protocolErrorf("error frame: error.code is required")
 		}
 		*f = OutputFrame{Kind: kind, Error: &wireErr}
 	default:

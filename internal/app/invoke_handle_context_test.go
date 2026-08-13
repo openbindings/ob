@@ -17,8 +17,7 @@ func (p storedContextPreparer) BindingSpecs() []openbindings.BindingSpecInfo {
 
 func (p storedContextPreparer) InvokeBinding(context.Context, *openbindings.BindingInvocationArgs) openbindings.Invocation[any, any] {
 	return openbindings.NewErroredInvocation[any, any](&openbindings.InvocationError{
-		Code:    openbindings.ErrCodeRuntime,
-		Message: "not used by this test",
+		Code: openbindings.ErrCodeRuntime,
 	})
 }
 

@@ -52,7 +52,7 @@ func testDialer(ts *httptest.Server) Dialer {
 		wsURL := strings.Replace(ts.URL, "http://", "ws://", 1)
 		conn, _, err := websocket.Dial(ctx, wsURL, nil)
 		if err != nil {
-			return nil, &openbindings.InvocationError{Code: openbindings.ErrCodeConnectFailed, Message: err.Error()}
+			return nil, openbindings.NewInvocationError(openbindings.ErrCodeConnectFailed)
 		}
 		return conn, nil
 	}
@@ -149,9 +149,9 @@ func TestInvoke_TransportClosedSynthesized(t *testing.T) {
 	}
 }
 
-func TestInvoke_ErrorFrameDetailsPassThrough(t *testing.T) {
-	// A terminal error frame (CONTEXT_REQUIRED with details) surfaces as the
-	// handle's terminal error with the typed details recoverable.
+func TestInvoke_ErrorFrameDataPassThrough(t *testing.T) {
+	// A terminal error frame (CONTEXT_REQUIRED with data) surfaces as the
+	// handle's terminal error with the typed data recoverable.
 	details := &openbindings.ContextRequiredDetails{
 		Target: "api.example.com",
 		Alternatives: []openbindings.ContextAlternative{
@@ -160,7 +160,7 @@ func TestInvoke_ErrorFrameDetailsPassThrough(t *testing.T) {
 	}
 	ts := frameServer(t, func(ctx context.Context, conn *websocket.Conn, in <-chan InputFrame) {
 		<-in // open
-		mustWrite(t, ctx, conn, Error(openbindings.NewContextRequiredError("need auth", details)))
+		mustWrite(t, ctx, conn, Error(openbindings.NewContextRequiredError(details)))
 	})
 
 	ctx := t.Context()
@@ -190,15 +190,15 @@ func TestInvoke_MalformedOutputFrameIsProtocolError(t *testing.T) {
 
 	_, err := inv.Outputs().Read(ctx)
 	ie := openbindings.AsInvocationError(err)
-	if ie == nil || ie.Code != openbindings.ErrCodeProtocol {
-		t.Fatalf("expected ERR_PROTOCOL, got %v", err)
+	if ie == nil || ie.Code != openbindings.ErrCodeFrameProtocol {
+		t.Fatalf("expected ERR_FRAME_PROTOCOL, got %v", err)
 	}
 }
 
 func TestInvoke_DialFailureIsTerminal(t *testing.T) {
 	ctx := t.Context()
 	dial := func(ctx context.Context) (*websocket.Conn, *openbindings.InvocationError) {
-		return nil, &openbindings.InvocationError{Code: openbindings.ErrCodeConnectFailed, Message: "nope"}
+		return nil, openbindings.NewInvocationError(openbindings.ErrCodeConnectFailed)
 	}
 	inv := Invoke(ctx, dial, testInput())
 	_, err := inv.Outputs().Read(ctx)

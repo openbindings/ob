@@ -187,7 +187,7 @@ type contextRequiredInvoker struct {
 func (m *contextRequiredInvoker) BindingSpecs() []openbindings.BindingSpecInfo { return m.formats }
 func (m *contextRequiredInvoker) InvokeBinding(ctx context.Context, _ *openbindings.BindingInvocationArgs) openbindings.Invocation[any, any] {
 	inv := openbindings.NewInvocationImpl[any, any](ctx)
-	inv.FireError(openbindings.NewContextRequiredError("credentials required", m.details))
+	inv.FireError(openbindings.NewContextRequiredError(m.details))
 	return inv
 }
 
@@ -1016,7 +1016,7 @@ func TestServeBindingInvoke_NonUpgradeGETRejected(t *testing.T) {
 }
 
 func TestServeBindingInvoke_WS_FirstFrameNotOpen(t *testing.T) {
-	// Rule 1: any first frame other than `open` is a terminal ERR_PROTOCOL.
+	// Rule 1: any first frame other than `open` is a terminal ERR_FRAME_PROTOCOL.
 	ts := testEnv(t)
 	defer ts.Close()
 
@@ -1029,8 +1029,8 @@ func TestServeBindingInvoke_WS_FirstFrameNotOpen(t *testing.T) {
 	if frame.Kind != "error" {
 		t.Fatalf("expected terminal error frame, got kind=%q", frame.Kind)
 	}
-	if frame.Error["code"] != "ERR_PROTOCOL" {
-		t.Errorf("error code = %v, want ERR_PROTOCOL", frame.Error["code"])
+	if frame.Error["code"] != "ERR_FRAME_PROTOCOL" {
+		t.Errorf("error code = %v, want ERR_FRAME_PROTOCOL", frame.Error["code"])
 	}
 }
 
@@ -1058,8 +1058,8 @@ func TestServeBindingInvoke_WS_SecondOpenRejected(t *testing.T) {
 	if terminal.Kind != "error" {
 		t.Fatalf("expected terminal error frame, got %q", terminal.Kind)
 	}
-	if terminal.Error["code"] != "ERR_PROTOCOL" {
-		t.Errorf("error code = %v, want ERR_PROTOCOL", terminal.Error["code"])
+	if terminal.Error["code"] != "ERR_FRAME_PROTOCOL" {
+		t.Errorf("error code = %v, want ERR_FRAME_PROTOCOL", terminal.Error["code"])
 	}
 }
 
@@ -1145,7 +1145,7 @@ func TestServeBindingInvoke_WS_LateInputAfterInputClosedIgnored(t *testing.T) {
 
 func TestServeBindingInvoke_WS_UnknownFramePropertyRejected(t *testing.T) {
 	// Rule 7: frame variants declare additionalProperties: false; unknown
-	// properties are a terminal ERR_PROTOCOL.
+	// properties are a terminal ERR_FRAME_PROTOCOL.
 	release := make(chan struct{})
 	defer close(release)
 	mock := &gatedUnaryInvoker{
@@ -1168,8 +1168,8 @@ func TestServeBindingInvoke_WS_UnknownFramePropertyRejected(t *testing.T) {
 	if terminal.Kind != "error" {
 		t.Fatalf("expected terminal error frame, got %q", terminal.Kind)
 	}
-	if terminal.Error["code"] != "ERR_PROTOCOL" {
-		t.Errorf("error code = %v, want ERR_PROTOCOL", terminal.Error["code"])
+	if terminal.Error["code"] != "ERR_FRAME_PROTOCOL" {
+		t.Errorf("error code = %v, want ERR_FRAME_PROTOCOL", terminal.Error["code"])
 	}
 }
 
@@ -1192,8 +1192,8 @@ func TestServeBindingInvoke_WS_UnknownOpenPropertyRejected(t *testing.T) {
 	})
 
 	frame := readFrame(t, ctx, conn)
-	if frame.Kind != "error" || frame.Error["code"] != "ERR_PROTOCOL" {
-		t.Fatalf("expected terminal ERR_PROTOCOL, got kind=%q error=%v", frame.Kind, frame.Error)
+	if frame.Kind != "error" || frame.Error["code"] != "ERR_FRAME_PROTOCOL" {
+		t.Fatalf("expected terminal ERR_FRAME_PROTOCOL, got kind=%q error=%v", frame.Kind, frame.Error)
 	}
 }
 
@@ -1227,9 +1227,9 @@ func TestServeBindingInvoke_WS_ContextRequiredPassthrough(t *testing.T) {
 	if terminal.Kind != "error" || terminal.Error["code"] != "CONTEXT_REQUIRED" {
 		t.Fatalf("expected terminal CONTEXT_REQUIRED, got kind=%q error=%v", terminal.Kind, terminal.Error)
 	}
-	details, ok := terminal.Error["details"].(map[string]any)
+	details, ok := terminal.Error["data"].(map[string]any)
 	if !ok {
-		t.Fatalf("expected details object, got %#v", terminal.Error["details"])
+		t.Fatalf("expected data object, got %#v", terminal.Error["data"])
 	}
 	if details["target"] != "api.example.com" {
 		t.Errorf("details.target = %v, want api.example.com", details["target"])
@@ -1279,19 +1279,11 @@ func TestServeBindingInvoke_WS_StreamE2E(t *testing.T) {
 func TestServeBindingInvoke_WS_StreamThenError(t *testing.T) {
 	// Outputs are outputs, errors are errors: a stream that emits values and
 	// then hits a terminal error surfaces the values as `output` frames
-	// followed by a single terminal `error` frame carrying structured details.
+	// followed by a single terminal code-only `error` frame.
 	mockInvoker := &errorStreamInvoker{
 		formats: []openbindings.BindingSpecInfo{{BindingSpec: "mock-stream@1.0"}},
 		outputs: []any{map[string]any{"count": 2}},
-		err: &openbindings.InvocationError{
-			Code:    "ERR_VALIDATION_FAILED",
-			Message: `openbindings: output validation failed for "abilityList.api": ...`,
-			Details: openbindings.ValidationFailureDetails{
-				Failures: []openbindings.ValidationFailure{
-					{Path: "/next", Message: `expected type "string", got null`},
-				},
-			},
-		},
+		err:     openbindings.NewInvocationError("ERR_VALIDATION_FAILED"),
 	}
 	cleanup := app.OverrideInvokerForTest(
 		openbindings.NewOperationInvoker(mockInvoker),
@@ -1319,16 +1311,8 @@ func TestServeBindingInvoke_WS_StreamThenError(t *testing.T) {
 	if terminal.Error["code"] != "ERR_VALIDATION_FAILED" {
 		t.Fatalf("error frame missing or wrong code: %#v", terminal.Error)
 	}
-	details, ok := terminal.Error["details"].(map[string]any)
-	if !ok {
-		t.Fatalf("expected error.details object, got %#v", terminal.Error["details"])
-	}
-	failures, ok := details["failures"].([]any)
-	if !ok || len(failures) == 0 {
-		t.Fatalf("expected details.failures non-empty array, got %#v", details["failures"])
-	}
-	if first := failures[0].(map[string]any); first["path"] != "/next" {
-		t.Errorf("failures[0].path = %#v, want /next", first["path"])
+	if _, present := terminal.Error["data"]; present {
+		t.Fatalf("SDK-local validation evidence crossed as abstract data: %#v", terminal.Error)
 	}
 }
 
@@ -1524,7 +1508,7 @@ func TestServeBindingInvoke_FrameRoundTripViaClient(t *testing.T) {
 		header.Set("Authorization", "Bearer test-token")
 		conn, _, err := websocket.Dial(ctx, wsURL, &websocket.DialOptions{HTTPHeader: header})
 		if err != nil {
-			return nil, &openbindings.InvocationError{Code: openbindings.ErrCodeConnectFailed, Message: err.Error()}
+			return nil, openbindings.NewInvocationError(openbindings.ErrCodeConnectFailed)
 		}
 		return conn, nil
 	}

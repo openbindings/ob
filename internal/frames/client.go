@@ -74,7 +74,7 @@ func writePump(ctx context.Context, conn *websocket.Conn, impl *openbindings.Inv
 
 // readPump consumes output frames until the terminal frame, synthesizing
 // ERR_TRANSPORT_CLOSED when the transport closes without one (rule 5) and
-// ERR_PROTOCOL when a frame fails strict decoding (rule 7, consumer side).
+// ERR_FRAME_PROTOCOL when a frame fails strict decoding (rule 7, consumer side).
 func readPump(ctx context.Context, conn *websocket.Conn, impl *openbindings.InvocationImpl[any, any]) {
 	for {
 		_, data, err := conn.Read(ctx)
@@ -82,16 +82,14 @@ func readPump(ctx context.Context, conn *websocket.Conn, impl *openbindings.Invo
 			// FireError is a no-op once terminal, so closures caused by our
 			// own teardown (after complete/error/Cancel) don't overwrite.
 			impl.FireError(&openbindings.InvocationError{
-				Code:    openbindings.ErrCodeTransportClosed,
-				Message: "transport closed before a terminal frame: " + err.Error(),
+				Code: openbindings.ErrCodeTransportClosed,
 			})
 			return
 		}
 		var frame OutputFrame
 		if err := json.Unmarshal(data, &frame); err != nil {
 			impl.FireError(&openbindings.InvocationError{
-				Code:    openbindings.ErrCodeProtocol,
-				Message: "invalid output frame: " + err.Error(),
+				Code: openbindings.ErrCodeFrameProtocol,
 			})
 			return
 		}

@@ -118,8 +118,8 @@ func TestOutputFrameRoundTrip(t *testing.T) {
 		{"complete", Complete(), `{"kind":"complete"}`},
 		{
 			name:  "error",
-			frame: Error(&openbindings.InvocationError{Code: "ERR_RUNTIME", Message: "boom"}),
-			want:  `{"kind":"error","error":{"code":"ERR_RUNTIME","message":"boom"}}`,
+			frame: Error(openbindings.NewInvocationError("ERR_RUNTIME")),
+			want:  `{"kind":"error","error":{"code":"ERR_RUNTIME"}}`,
 		},
 	}
 	for _, tc := range cases {
@@ -142,58 +142,39 @@ func TestOutputFrameRoundTrip(t *testing.T) {
 	}
 }
 
-func TestErrorFramePreservesBindingNativeFailureEvidence(t *testing.T) {
-	diagnostics := map[string]any{
-		"status": 504,
-		"httpResponse": map[string]any{
-			"status": 504,
-			"headers": map[string]any{
-				"content-type": []string{"text/plain"},
-			},
-			"body": map[string]any{
-				"base64":     "Z2F0ZXdheSB0aW1lb3V0",
-				"byteLength": 15,
-			},
-		},
-		"openapi": map[string]any{
-			"declared":       true,
-			"responseKey":    "504",
-			"governingMedia": "text/plain",
-		},
-	}
-	frame := Error(&openbindings.InvocationError{
-		Code:        openbindings.ErrCodeExecutionFailed,
-		Message:     "HTTP 504 Gateway Timeout",
-		Diagnostics: diagnostics,
-	})
-
-	wire, err := json.Marshal(frame)
-	if err != nil {
-		t.Fatal(err)
-	}
-	var back OutputFrame
-	if err := json.Unmarshal(wire, &back); err != nil {
-		t.Fatal(err)
-	}
-	got := back.Error.InvocationError()
-	if got.Details != nil {
-		t.Fatalf("binding-native evidence leaked into portable details: %#v", got.Details)
-	}
-	gotJSON, err := json.Marshal(got.Diagnostics)
-	if err != nil {
-		t.Fatal(err)
-	}
-	wantJSON, err := json.Marshal(diagnostics)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if string(gotJSON) != string(wantJSON) {
-		t.Fatalf("diagnostics after frame round trip = %s, want %s", gotJSON, wantJSON)
+func TestErrorFramePreservesDataPresenceAndValue(t *testing.T) {
+	for _, tc := range []struct {
+		name string
+		err  *openbindings.InvocationError
+	}{
+		{name: "absent", err: openbindings.NewInvocationError(openbindings.ErrCodeExecutionFailed)},
+		{name: "explicit null", err: openbindings.NewInvocationErrorWithData(openbindings.ErrCodeExecutionFailed, nil)},
+		{name: "object", err: openbindings.NewInvocationErrorWithData(openbindings.ErrCodeExecutionFailed, map[string]any{"reason": "missing"})},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			wire, err := json.Marshal(Error(tc.err))
+			if err != nil {
+				t.Fatal(err)
+			}
+			var back OutputFrame
+			if err := json.Unmarshal(wire, &back); err != nil {
+				t.Fatal(err)
+			}
+			got := back.Error.InvocationError()
+			if got.HasData() != tc.err.HasData() {
+				t.Fatalf("data presence = %v, want %v (%s)", got.HasData(), tc.err.HasData(), wire)
+			}
+			gotJSON, _ := json.Marshal(got.Data)
+			wantJSON, _ := json.Marshal(tc.err.Data)
+			if string(gotJSON) != string(wantJSON) {
+				t.Fatalf("data = %s, want %s", gotJSON, wantJSON)
+			}
+		})
 	}
 }
 
 func TestErrorFrameUsesMinimalStructuralWireShape(t *testing.T) {
-	b, err := json.Marshal(Error(&openbindings.InvocationError{Code: "ERR_RUNTIME", Message: "boom"}))
+	b, err := json.Marshal(Error(openbindings.NewInvocationError("ERR_RUNTIME")))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -202,7 +183,7 @@ func TestErrorFrameUsesMinimalStructuralWireShape(t *testing.T) {
 		t.Fatal(err)
 	}
 	errorValue, _ := frame["error"].(map[string]any)
-	if errorValue["code"] != "ERR_RUNTIME" || errorValue["message"] != "boom" {
+	if errorValue["code"] != "ERR_RUNTIME" || len(errorValue) != 1 {
 		t.Fatalf("structural error fields changed: %s", b)
 	}
 	if _, present := errorValue["category"]; present {
@@ -222,7 +203,7 @@ func TestOutputFrameStrictDecode(t *testing.T) {
 		{"legacy event envelope", `{"type":"event","output":1}`},
 		{"unknown kind", `{"kind":"event"}`},
 		{"error without code", `{"kind":"error","error":{"message":"m"}}`},
-		{"error without message", `{"kind":"error","error":{"code":"C"}}`},
+		{"retired error message", `{"kind":"error","error":{"code":"C","message":"m"}}`},
 		{"complete with extras", `{"kind":"complete","value":1}`},
 	}
 	for _, tc := range cases {
@@ -248,7 +229,7 @@ func TestTerminal(t *testing.T) {
 		{Output(1), false},
 		{InputClosed(), false},
 		{Complete(), true},
-		{Error(&openbindings.InvocationError{Code: "C", Message: "m"}), true},
+		{Error(openbindings.NewInvocationError("C")), true},
 	} {
 		if got := tc.frame.Terminal(); got != tc.want {
 			t.Errorf("Terminal(%s) = %v, want %v", tc.frame.Kind, got, tc.want)
@@ -257,7 +238,7 @@ func TestTerminal(t *testing.T) {
 }
 
 func TestContextRequiredDetailsCrossTheWire(t *testing.T) {
-	// CONTEXT_REQUIRED details serialize on the error frame and decode back
+	// CONTEXT_REQUIRED data serializes on the error frame and decodes back
 	// into the typed shape via ContextRequiredFrom.
 	details := &openbindings.ContextRequiredDetails{
 		Target: "api.example.com",
@@ -265,7 +246,7 @@ func TestContextRequiredDetailsCrossTheWire(t *testing.T) {
 			{Requirements: []openbindings.ContextRequirement{{Type: "auth.bearer"}}},
 		},
 	}
-	frame := Error(openbindings.NewContextRequiredError("need auth", details))
+	frame := Error(openbindings.NewContextRequiredError(details))
 
 	b, err := json.Marshal(frame)
 	if err != nil {

@@ -149,7 +149,7 @@
       ]
     },
     "openbindings.ob.renameOperation": {
-      "description": "Rename an operation and update every reference to it across the interface \u2014 binding operation fields and binding keys following the <operation>.<source> convention. Returns the modified interface.",
+      "description": "Rename an operation and update every reference to it across the interface — binding operation fields and binding keys following the <operation>.<source> convention. Returns the modified interface.",
       "input": {
         "$ref": "#/schemas/RenameOperationInput"
       },
@@ -379,7 +379,7 @@
       ]
     },
     "openbindings.ob.registerDelegate": {
-      "description": "Register a delegate \u2014 any referenceable OpenBindings interface (an exec: or http(s) location) that ob may route operations to. ob resolves the location to the delegate's OBI and records a snapshot: the operation identifiers it carries (keys and aliases), a content digest pinning the resolved document, and what ob derives for its own routing \u2014 which of ob's format capabilities the delegate satisfies (checked by conformance, not name-matching) and the formats it handles. Registration fails when the location cannot be resolved to an interface. Re-registering a location re-resolves and replaces the snapshot; the registrar's preferences persist unless a new preference is supplied. An OBI carrying none of ob's three format capabilities registers successfully but is inert for ob; registration warns.",
+      "description": "Register a delegate — any referenceable OpenBindings interface (an exec: or http(s) location) that ob may route operations to. ob resolves the location to the delegate's OBI and records a snapshot: the operation identifiers it carries (keys and aliases), a content digest pinning the resolved document, and what ob derives for its own routing — which of ob's format capabilities the delegate satisfies (checked by conformance, not name-matching) and the formats it handles. Registration fails when the location cannot be resolved to an interface. Re-registering a location re-resolves and replaces the snapshot; the registrar's preferences persist unless a new preference is supplied. An OBI carrying none of ob's three format capabilities registers successfully but is inert for ob; registration warns.",
       "aliases": [
         "openbindings.delegate-manager.registerDelegate"
       ],
@@ -410,7 +410,7 @@
       ]
     },
     "openbindings.ob.listDelegates": {
-      "description": "List every registered delegate \u2014 the self-delegate included \u2014 with the operations each carried when last resolved, the capabilities and formats ob derived for routing, and its selection preferences.",
+      "description": "List every registered delegate — the self-delegate included — with the operations each carried when last resolved, the capabilities and formats ob derived for routing, and its selection preferences.",
       "aliases": [
         "openbindings.delegate-manager.listDelegates"
       ],
@@ -436,7 +436,7 @@
       ]
     },
     "openbindings.ob.resolveDelegate": {
-      "description": "Resolve an operation to the registered delegates that carry it \u2014 those whose interface answers to the operation's key or an alias \u2014 ordered by effective preference: the per-operation override when set, else the delegate-level preference, else the baseline; ties favor the self-delegate, then registration order. Returns candidates only; it does not invoke anything, and ob's routing applies its own narrowing (format support) on top.",
+      "description": "Resolve an operation to the registered delegates that carry it — those whose interface answers to the operation's key or an alias — ordered by effective preference: the per-operation override when set, else the delegate-level preference, else the baseline; ties favor the self-delegate, then registration order. Returns candidates only; it does not invoke anything, and ob's routing applies its own narrowing (format support) on top.",
       "aliases": [
         "openbindings.delegate-manager.resolveDelegate"
       ],
@@ -452,7 +452,7 @@
       ]
     },
     "openbindings.ob.resolveDelegateForBindingSpec": {
-      "description": "Report which delegate ob's routing would select for a format token, and the capabilities it offers for it \u2014 ob's format-narrowing diagnostic, layered on top of the operation-keyed resolveDelegate.",
+      "description": "Report which delegate ob's routing would select for a format token, and the capabilities it offers for it — ob's format-narrowing diagnostic, layered on top of the operation-keyed resolveDelegate.",
       "idempotent": true,
       "input": {
         "$ref": "#/schemas/ResolveDelegateForBindingSpecInput"
@@ -465,7 +465,7 @@
       ]
     },
     "openbindings.ob.getDelegateRequirements": {
-      "description": "Return the exact operation subset a delegate must satisfy to provide an ob capability (invoke \u2192 listBindingSpecs + invokeBinding, synthesize \u2192 listBindingSpecs + synthesizeInterface, inspect \u2192 listBindingSpecs + inspectSource). Definitions are derived from immutable published interfaces bundled with this ob release. Correspondence is per operation, so unrelated operations from the same published interface are not imposed on a delegate.",
+      "description": "Return the exact operation subset a delegate must satisfy to provide an ob capability (invoke → listBindingSpecs + invokeBinding, synthesize → listBindingSpecs + synthesizeInterface, inspect → listBindingSpecs + inspectSource). Definitions are derived from immutable published interfaces bundled with this ob release. Correspondence is per operation, so unrelated operations from the same published interface are not imposed on a delegate.",
       "idempotent": true,
       "input": {
         "$ref": "#/schemas/GetDelegateRequirementsInput"
@@ -478,7 +478,7 @@
       ]
     },
     "openbindings.ob.setDelegatePreference": {
-      "description": "Set or clear a delegate's selection preference (higher = more preferred; 0 is the baseline; negatives rank below it; null clears). Without an operation, sets the delegate-level default; with one, sets that operation's entry in the delegate's preference index. ob additionally accepts a binding-source format scope on an operation entry \u2014 how synthesis of one format can prefer one delegate while everything else prefers another. Preference governs the order resolveDelegate returns candidates in; routing applies OBI-T-09's selection semantics to delegates \u2014 ob's own narrowing, not a spec rule \u2014 with effective preference the per-operation value, else the delegate-level value, else 0. Returns the updated summary.",
+      "description": "Set or clear a delegate's selection preference (higher = more preferred; 0 is the baseline; negatives rank below it; null clears). Without an operation, sets the delegate-level default; with one, sets that operation's entry in the delegate's preference index. ob additionally accepts a binding-source format scope on an operation entry — how synthesis of one format can prefer one delegate while everything else prefers another. Preference governs the order resolveDelegate returns candidates in; routing applies OBI-T-09's selection semantics to delegates — ob's own narrowing, not a spec rule — with effective preference the per-operation value, else the delegate-level value, else 0. Returns the updated summary.",
       "aliases": [
         "openbindings.delegate-manager.setDelegatePreference"
       ],
@@ -517,7 +517,7 @@
       ]
     },
     "openbindings.ob.reportInterfaceStatus": {
-      "description": "Report an interface's status against its sources: per-source sync state (in-sync, tracked, what a pull would change) and the source-owned vs hand-authored breakdown of its operations and bindings. Read-only \u2014 distinct from pullSource (which re-derives and writes) and from compareInterfaces with fromSources (which reports raw differences).",
+      "description": "Report an interface's status against its sources: per-source sync state (in-sync, tracked, what a pull would change) and the source-owned vs hand-authored breakdown of its operations and bindings. Read-only — distinct from pullSource (which re-derives and writes) and from compareInterfaces with fromSources (which reports raw differences).",
       "idempotent": true,
       "input": {
         "$ref": "#/schemas/InterfaceStatusInput"
@@ -619,7 +619,7 @@
       ]
     },
     "openbindings.ob.listOperationAliases": {
-      "description": "List the correspondence map \u2014 each operation and the interface operations it corresponds to via aliases.",
+      "description": "List the correspondence map — each operation and the interface operations it corresponds to via aliases.",
       "idempotent": true,
       "input": {
         "$ref": "#/schemas/ListOperationAliasesInput"
@@ -635,7 +635,7 @@
       ]
     },
     "openbindings.ob.pullSource": {
-      "description": "Derive operations and bindings from registered sources into the interface \u2014 create on first pull, overwrite + prune source-owned objects on later pulls, leave hand-authored objects untouched. Returns the resulting interface document plus the change log of affected operation and binding keys.",
+      "description": "Derive operations and bindings from registered sources into the interface — create on first pull, overwrite + prune source-owned objects on later pulls, leave hand-authored objects untouched. Returns the resulting interface document plus the change log of affected operation and binding keys.",
       "input": {
         "$ref": "#/schemas/PullSourceInput"
       },
@@ -1138,7 +1138,7 @@
           "items": {
             "type": "string"
           },
-          "description": "Satisfaction aliases \u2014 other interfaces' operation keys this operation also answers to (OBI-T-12)."
+          "description": "Satisfaction aliases — other interfaces' operation keys this operation also answers to (OBI-T-12)."
         }
       },
       "required": [
@@ -1241,7 +1241,7 @@
         },
         "opsOnly": {
           "type": "boolean",
-          "description": "Graft operations only (no bindings or source entries) \u2014 the adopt-keys satisfaction strategy."
+          "description": "Graft operations only (no bindings or source entries) — the adopt-keys satisfaction strategy."
         },
         "noBindings": {
           "type": "boolean",
@@ -1671,7 +1671,7 @@
     },
     "BindingContext": {
       "type": "object",
-      "description": "Opaque context supplied by value for one binding invocation. The contract neither requires nor exposes a context store; callers may assemble this object from per-call values, durable state, a credential broker, or any other source before invocation. Well-known credential fields: 'bearerToken' (string), 'apiKey' (string), 'apiKeys' (object mapping a requirement's 'name' to its key), 'basic' (object with 'username' and 'password'), and 'accessToken' / 'refreshToken' / 'expiresAt' for OAuth. Well-known transport fields: 'headers' / 'cookies' / 'environment' (objects with string values) and 'metadata' (object with arbitrary values). Well-known configuration field: 'configuration' (object), keyed by configuration-point name and interpreted by the specification that defines each point. Implementations and callers MAY add fields for session state, consent, or other runtime data; consumers SHOULD ignore fields they do not recognize unless the governing binding specification says otherwise. Credential fields are secret, and any other field may also be secret according to its requirement family, binding specification, or application policy.",
+      "description": "Opaque context supplied by value for one binding invocation. The contract neither requires nor exposes a context store; callers may assemble this object from per-call values, durable state, a credential broker, or any other source before invocation. The general named-credential field is 'credentials': an object keyed by a requirement's nonempty 'name'. For auth.bearer and auth.apiKey its named value is a string; for auth.basic it is an object with username and password; for auth.oauth2 it is an object whose accessToken is the applying credential and whose refreshToken, expiresAt, and clientSecret are optional lifecycle values. Unnamed or unambiguous single-scheme conveniences remain 'bearerToken', 'apiKey', 'basic', and 'accessToken' / 'refreshToken' / 'expiresAt'; the historical 'apiKeys' named map remains accepted for auth.apiKey. Well-known transport fields: 'headers' / 'cookies' / 'environment' (objects with string values) and 'metadata' (object with arbitrary values). Well-known configuration field: 'configuration' (object), keyed by configuration-point name and interpreted by the specification that defines each point. A config.value requirement's relative JSON Pointer path addresses within configuration[point]; an empty path addresses the entire point. The operation-invoker contract defines configuration.selection as an ordered array of binding-key strings. Implementations and callers MAY add fields for session state, consent, or other runtime data; consumers SHOULD ignore fields they do not recognize unless the governing binding specification says otherwise. Every value in credentials and the single-scheme credential fields is secret, and any other field may also be secret according to its requirement family, binding specification, or application policy.",
       "additionalProperties": true
     },
     "BindingInvocationInput": {
@@ -1993,36 +1993,29 @@
     },
     "InvocationError": {
       "type": "object",
-      "description": "Minimal unsuccessful-completion record carried by an `error` output frame. The frame kind is the portable failure signal. Only codes named by a rule of an invoker interface have portable semantics; other strings are open extension or implementation identifiers.",
+      "description": "Minimal unsuccessful-completion record carried by an `error` output frame. The frame kind is the portable failure signal. Only codes named by a rule of this interface, its operation-invoker peer, or the governing binding specification have portable semantics; other strings are open extension or implementation identifiers. Codes defined by either invocation interface are reserved to their defined meanings and MUST NOT be redefined by a binding or implementation. Other governed codes SHOULD use collision-resistant identifiers. ERR_EXECUTION_FAILED is the generic fallback when no more specific governed meaning exists; it means only that the interaction completed unsuccessfully, and carries no protocol category, blame, retryability, side-effect, authentication, authorization, or availability semantics.",
       "properties": {
         "code": {
           "type": "string",
-          "description": "Machine-readable error code (e.g., ERR_CANCELLED, ERR_VALIDATION_FAILED, ERR_PROTOCOL, CONTEXT_REQUIRED)."
+          "minLength": 1,
+          "description": "Machine-readable error code. This interface owns CONTEXT_REQUIRED, ERR_CANCELLED, ERR_FRAME_PROTOCOL, ERR_TRANSPORT_CLOSED, and ERR_EXECUTION_FAILED."
         },
-        "message": {
-          "type": "string",
-          "description": "Human-readable, protocol-independent description. It may preserve application-authored failure prose identified by governing binding rules; raw native status lines, frame facts, process results, and other protocol evidence belong in diagnostics instead."
-        },
-        "details": {
-          "description": "Optional portable structured data defined by an interface-owned code, or an opaque JSON failure value that the governing binding rules identify as application-authored. For CONTEXT_REQUIRED, this is a ContextRequiredDetails object. Application failure values retain only their author's meaning; raw statuses, headers, trailers, envelopes, bytes, and implementation evidence do not belong here merely because a binding observed them."
-        },
-        "diagnostics": {
-          "description": "Optional expert diagnostic evidence specific to the selected binding or implementation. It may reveal protocol identity and native representations and MUST NOT be required for correct ordinary invocation behavior."
+        "data": {
+          "description": "Optional portable JSON data associated with the unsuccessful completion. A rule defining `code` may define its structure and semantics; otherwise, the governing binding specification may use it to preserve an opaque application-authored failure value. For CONTEXT_REQUIRED, this is a ContextRequiredDetails object. Presence is significant: an absent member means no portable associated value, while an explicit null is a present JSON null value. Statuses, headers, trailers, envelopes, raw debugging bytes, exception prose, stacks, and implementation evidence do not belong here unless they are themselves application data under an explicit governing rule."
         }
       },
       "required": [
-        "code",
-        "message"
+        "code"
       ],
       "additionalProperties": false
     },
     "ContextRequiredDetails": {
       "type": "object",
-      "description": "The `details` payload of an InvocationError whose `code` is CONTEXT_REQUIRED, and the return shape of this contract's preflight operation. Enumerates the context the invoker needs before it can proceed. `alternatives` are disjunctive: satisfying ANY one suffices. The `requirements` within a single alternative are conjunctive: ALL must be satisfied. This OR-of-AND shape captures real authentication semantics such as 'OAuth2 OR (apiKey AND clientCert)', which a flat list cannot. A challenge is a scope, not a hint: a caller that resolves it MUST provision only the context needed for one selected alternative and MUST NOT disclose unrelated credentials. The interface supplies context by value and exposes no context-store access.",
+      "description": "The `data` value of an InvocationError whose `code` is CONTEXT_REQUIRED, and the return shape of this contract's preflight operation. Enumerates the context the invoker needs before it can proceed. `alternatives` are disjunctive: satisfying ANY one suffices. The `requirements` within a single alternative are conjunctive: ALL must be satisfied. This OR-of-AND shape captures real authentication semantics such as 'OAuth2 OR (apiKey AND clientCert)', which a flat list cannot. A challenge is a scope, not a hint: a caller that resolves it MUST provision only the context needed for one selected alternative and MUST NOT disclose unrelated credentials. The interface supplies context by value and exposes no context-store access.",
       "properties": {
         "target": {
           "type": "string",
-          "description": "Opaque identifier for the concrete destination or context scope the invoker is about to use. A runtime MAY use it to scope resolution or reuse and MAY compare it with independently derived source information before releasing secrets. Interpretation, verification, normalization, hierarchy, key derivation, and persistence policy are outside this contract."
+          "description": "Opaque identifier for the concrete destination or context scope asserted by the invoker. A runtime MAY use it to scope resolution or reuse. Before releasing a reusable secret on an assertion from outside its trust boundary, a resolver MUST validate that assertion against independently derived information; an in-process resolver MAY deliberately include its co-located invoker in the trust boundary. Interpretation, normalization, hierarchy, key derivation, and persistence policy are otherwise outside this contract."
         },
         "alternatives": {
           "type": "array",
@@ -2042,34 +2035,39 @@
             },
             "required": [
               "requirements"
-            ]
+            ],
+            "additionalProperties": false
           }
         }
       },
       "required": [
         "target",
         "alternatives"
-      ]
+      ],
+      "additionalProperties": false
     },
     "ContextRequirement": {
       "type": "object",
-      "description": "One prerequisite that must be satisfied before a binding can be invoked. `type` names the requirement family; the remaining fields are type-specific. The well-known `auth.*` family resolves into BindingContext credential fields: `auth.bearer` produces 'bearerToken', `auth.apiKey` produces 'apiKey' (or a scheme-keyed entry in 'apiKeys' when the requirement carries a `name`), `auth.basic` produces 'basic', and `auth.oauth2` produces 'accessToken' (carrying flow fields such as 'grantType', 'authorizeUrl', 'tokenUrl', and 'scopes'). The `config.value` family carries a configuration value a binding needs but the artifact does not supply: it carries 'point' and 'key' (and optional 'choices') and resolves into the 'configuration' context field under 'point'. Other families (e.g. 'approval.user', 'account.link') resolve into their own context fields. Resolution architecture and value secrecy beyond the always-secret credential fields are determined by the requirement family, governing binding specification, and caller.",
+      "description": "One prerequisite that must be satisfied before a binding can be invoked. `type` names the requirement family; the remaining fields are type-specific. A named well-known `auth.*` requirement resolves at BindingContext.credentials[name]: a string for `auth.bearer` and `auth.apiKey`, a username/password object for `auth.basic`, or an OAuth object beginning with accessToken for `auth.oauth2`. Unnamed or unambiguous single-scheme requirements use the corresponding bearerToken, apiKey, basic, or flat OAuth conveniences; historical apiKeys[name] remains accepted for `auth.apiKey`. OAuth requirements may carry flow fields such as grantType, authorizeUrl, tokenUrl, and scopes. The `config.value` family carries a configuration value a binding needs but the artifact does not supply: it carries 'point' and a relative JSON Pointer 'path' (plus optional 'choices') and resolves within BindingContext.configuration. Other families (e.g. 'approval.user', 'account.link') resolve into their own context fields. Resolution architecture and value secrecy beyond the always-secret credential fields are determined by the requirement family, governing binding specification, and caller.",
       "properties": {
         "type": {
           "type": "string",
+          "minLength": 1,
           "description": "Requirement type identifier, e.g. 'auth.bearer', 'auth.oauth2', 'auth.basic', 'auth.apiKey', 'approval.user', 'config.value'. An unrecognized type is unsatisfiable by a runtime that has no way to satisfy it. An invoker may surface an artifact-defined scheme as an extension requirement only when it knows how the resulting context will be applied faithfully; an invoker that cannot represent or apply a prerequisite refuses before dispatch rather than emitting a satisfiable-looking challenge or attempting the interaction without it."
         },
         "name": {
           "type": "string",
-          "description": "The scheme name as the source artifact declares it (e.g. an OpenAPI securitySchemes key). Distinguishes two requirements of the same type within one alternative \u2014 two ANDed API keys are otherwise indistinguishable \u2014 and keys scheme-scoped credential lookup (see BindingContext's 'apiKeys')."
+          "minLength": 1,
+          "description": "The scheme name as the source artifact declares it (e.g. an OpenAPI securitySchemes key). Distinguishes multiple requirements of the same family and keys scheme-scoped lookup in BindingContext.credentials."
         },
         "point": {
           "type": "string",
-          "description": "config.value only: the binding-specification configuration point the value belongs to ('server', 'address', a family's decode point, \u2026). The resolved value is carried in the 'configuration' context field under this point; the value's shape there is the invoker's own (configuration carriage is implementation surface, not contract)."
+          "description": "config.value only: the binding-specification configuration point the value belongs to ('server', 'address', a family's decode point, …)."
         },
-        "key": {
+        "path": {
           "type": "string",
-          "description": "config.value only: the specific value needed within 'point' \u2014 a server-variable name, or 'address' for a whole channel address."
+          "pattern": "^(|/(?:[^~]|~[01])*(?:/(?:[^~]|~[01])*)*)$",
+          "description": "config.value only: RFC 6901 JSON Pointer relative to configuration[point]. The empty pointer addresses the whole point; '/variables/region' addresses a nested member; '/value' addresses a member literally named value."
         },
         "choices": {
           "type": "array",
@@ -2084,7 +2082,8 @@
         },
         "durable": {
           "type": "boolean",
-          "description": "Whether resolved context for this requirement MAY be persisted and reused for later invocations (true), or MUST be satisfied freshly and MUST NOT be persisted or reused (false). Defaults to true. This permission does not require persistence or prescribe a store, key, or reuse policy."
+          "default": false,
+          "description": "Whether resolved context for this requirement MAY be persisted and reused for later invocations (true), or MUST be satisfied freshly and MUST NOT be persisted or reused (false). Defaults to false. This permission does not require persistence or prescribe a store, key, or reuse policy."
         }
       },
       "required": [
@@ -2195,11 +2194,11 @@
           "items": {
             "type": "string"
           },
-          "description": "Every operation identifier the delegate answers to \u2014 the keys and aliases its interface declared when last resolved. A snapshot: re-registering the location refreshes it."
+          "description": "Every operation identifier the delegate answers to — the keys and aliases its interface declared when last resolved. A snapshot: re-registering the location refreshes it."
         },
         "contentHash": {
           "type": "string",
-          "description": "Digest of the delegate's interface document as last resolved (sha256: over its RFC 8785 canonical form). Pins the snapshot; opaque \u2014 compare for equality, don't recompute."
+          "description": "Digest of the delegate's interface document as last resolved (sha256: over its RFC 8785 canonical form). Pins the snapshot; opaque — compare for equality, don't recompute."
         },
         "capabilities": {
           "type": "array",
@@ -2217,7 +2216,7 @@
         },
         "preference": {
           "type": "number",
-          "description": "Delegate-level selection preference \u2014 the default for every operation it carries. Higher is more preferred; absent is the baseline."
+          "description": "Delegate-level selection preference — the default for every operation it carries. Higher is more preferred; absent is the baseline."
         },
         "operationPreferences": {
           "type": "object",
@@ -2231,11 +2230,11 @@
           "items": {
             "$ref": "#/schemas/BindingSpecPreference"
           },
-          "description": "Preference overrides scoped to one (operation, format) pair \u2014 ob's extra granularity beyond the delegate-manager contract's per-operation index."
+          "description": "Preference overrides scoped to one (operation, format) pair — ob's extra granularity beyond the delegate-manager contract's per-operation index."
         },
         "builtin": {
           "type": "boolean",
-          "description": "True for ob's own native handling \u2014 the self-delegate."
+          "description": "True for ob's own native handling — the self-delegate."
         }
       },
       "required": [
@@ -2743,7 +2742,7 @@
     },
     "BindingSpecPreference": {
       "type": "object",
-      "description": "A preference override scoped to one (operation, format) pair \u2014 ob's extra granularity beyond the delegate-manager contract's per-operation index. It replaces both the delegate-level and the per-operation preference when resolving that operation for that binding-source format.",
+      "description": "A preference override scoped to one (operation, format) pair — ob's extra granularity beyond the delegate-manager contract's per-operation index. It replaces both the delegate-level and the per-operation preference when resolving that operation for that binding-source format.",
       "properties": {
         "operation": {
           "type": "string",
@@ -2797,7 +2796,7 @@
         },
         "bindingSpec": {
           "type": "string",
-          "description": "Optional binding-source format scope for an operation entry (requires operation) \u2014 ob's extra granularity beyond the delegate-manager contract."
+          "description": "Optional binding-source format scope for an operation entry (requires operation) — ob's extra granularity beyond the delegate-manager contract."
         }
       },
       "required": [
@@ -2827,7 +2826,7 @@
     },
     "SourcePullOutput": {
       "type": "object",
-      "description": "The result of a `source pull`: the resulting interface document plus the change log \u2014 the source-owned operations and bindings added, updated, or pruned, the sources pulled and skipped, and any warnings.",
+      "description": "The result of a `source pull`: the resulting interface document plus the change log — the source-owned operations and bindings added, updated, or pruned, the sources pulled and skipped, and any warnings.",
       "properties": {
         "interface": {
           "$ref": "#/schemas/OpenBindingsInterface"

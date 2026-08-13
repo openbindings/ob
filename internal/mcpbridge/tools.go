@@ -13,7 +13,6 @@ import (
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 	openbindings "github.com/openbindings/openbindings-go"
-	mcpbinding "github.com/openbindings/openbindings-go/formats/mcp"
 )
 
 // DefaultToolDeadline bounds a single bridged tool/resource/prompt call when
@@ -91,10 +90,7 @@ func drainOperation(ctx context.Context, call openbindings.Invocation[any, any],
 			call.Cancel()
 			if dctx.Err() == context.DeadlineExceeded && ctx.Err() == nil {
 				return drainedOperation{Outputs: outputs, Error: &openbindings.InvocationError{
-					Code: openbindings.ErrCodeTimeout,
-					Message: fmt.Sprintf(
-						"operation %q streamed for %s without completing (%d event(s) collected); MCP tool calls are request-scoped, and a subscription-style operation cannot complete as a tool — invoke it through an OpenBindings consumer that speaks streams (ob operation invoke, the SDKs)",
-						opKey, deadline, len(outputs)),
+					Code: openbindings.ErrCodeCancelled,
 				}}
 			}
 			return drainedOperation{Outputs: outputs, Error: openbindings.AsInvocationError(err)}
@@ -435,12 +431,7 @@ func registerTool(
 			}
 		}
 		if ierr != nil {
-			if nativeMCP {
-				if result := mcpErrorResult(ierr); result != nil {
-					return result, nil
-				}
-				genericResult.Error = ierr
-			}
+			genericResult.Error = ierr
 			return genericToolResult(genericResult), nil
 		}
 
@@ -491,7 +482,7 @@ func registerStaticResource(
 		// intentionally takes no OpenBindings input value.
 		drained := drainOperation(ctx, call, operationInput{}, opKey, opts.deadline())
 		if drained.Error != nil {
-			return nil, fmt.Errorf("%s: %s", drained.Error.Code, drained.Error.Message)
+			return nil, fmt.Errorf("%s", drained.Error.Code)
 		}
 		if len(drained.Outputs) != 1 {
 			return nil, fmt.Errorf("MCP binding %q emitted %d results; exactly one ReadResourceResult is required", binding.ref, len(drained.Outputs))
@@ -589,7 +580,7 @@ func registerPrompt(
 			openbindings.WithContext(baseContext))
 		drained := drainOperation(ctx, call, input, opKey, opts.deadline())
 		if drained.Error != nil {
-			return nil, fmt.Errorf("%s: %s", drained.Error.Code, drained.Error.Message)
+			return nil, fmt.Errorf("%s", drained.Error.Code)
 		}
 		if len(drained.Outputs) != 1 {
 			return nil, fmt.Errorf("MCP binding %q emitted %d results; exactly one GetPromptResult is required", binding.ref, len(drained.Outputs))
@@ -611,18 +602,6 @@ func remarshal(value any, target any) error {
 		return err
 	}
 	return json.Unmarshal(data, target)
-}
-
-func mcpErrorResult(ierr *openbindings.InvocationError) *mcp.CallToolResult {
-	evidence, ok := mcpbinding.FailureEvidenceFrom(ierr)
-	if !ok || evidence.Result == nil {
-		return nil
-	}
-	result := &mcp.CallToolResult{}
-	if remarshal(evidence.Result, result) != nil {
-		return nil
-	}
-	return result
 }
 
 func toolStructuredOutputSchema(output openbindings.JSONSchema) any {
@@ -694,8 +673,7 @@ func drainMCPTool(
 			call.Cancel()
 			if dctx.Err() == context.DeadlineExceeded && ctx.Err() == nil {
 				return nil, false, &openbindings.InvocationError{
-					Code:    openbindings.ErrCodeTimeout,
-					Message: fmt.Sprintf("operation %q did not complete within %s", opKey, deadline),
+					Code: openbindings.ErrCodeCancelled,
 				}
 			}
 			return nil, false, openbindings.AsInvocationError(err)
@@ -705,16 +683,14 @@ func drainMCPTool(
 			if err := remarshal(pending, progress); err != nil {
 				call.Cancel()
 				return nil, false, &openbindings.InvocationError{
-					Code: openbindings.ErrCodeProtocol, Message: "MCP binding emitted an invalid progress value",
-					Details: err.Error(),
+					Code: openbindings.ErrCodeProtocol,
 				}
 			}
 			progress.ProgressToken = req.Params.GetProgressToken()
 			if err := req.Session.NotifyProgress(dctx, progress); err != nil {
 				call.Cancel()
 				return nil, false, &openbindings.InvocationError{
-					Code: openbindings.ErrCodeProtocol, Message: "failed to forward MCP progress",
-					Details: err.Error(),
+					Code: openbindings.ErrCodeProtocol,
 				}
 			}
 		}

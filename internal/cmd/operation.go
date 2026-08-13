@@ -106,7 +106,6 @@ func newOperationInvokeCmd() *cobra.Command {
 	var bindingKey string
 	var inputArg string
 	var verbose bool
-	var diagnostics bool
 	var decode string
 	var okExits string
 	var routes []string
@@ -152,8 +151,6 @@ stdin) — so credentials never sit on ob's own argv.
 
 Use -v/--verbose to emit the binding key, duration, and any displaced
 output-schema overrides on stderr.
-Use --diagnostics to expose selected-binding, protocol-native, and
-implementation evidence. Ordinary outputs and errors remain protocol blind.
 
 Examples:
   ob op invoke interface.json listPets --input '{"limit":10}'
@@ -239,23 +236,14 @@ Examples:
 
 			start := time.Now()
 			if jsonEnvelope {
-				return renderInvokeJSON(os.Stdout, run, diagnostics)
-			}
-			if diagnostics {
-				renderDiagnosticValue(os.Stderr, map[string]any{"bindingKey": run.BindingKey})
+				return renderInvokeJSON(os.Stdout, run)
 			}
 
 			enc := json.NewEncoder(os.Stdout)
 			hadError := false
 			for ev := range run.Events {
-				if ev.Terminal {
-					if diagnostics && len(ev.Metadata) > 0 {
-						renderDiagnosticValue(os.Stderr, map[string]any{"trailing": metadataObject(ev.Metadata)})
-					}
-					continue
-				}
 				if ev.Error != nil {
-					renderInvokeError(os.Stderr, ev.Error, diagnostics)
+					renderInvokeError(os.Stderr, ev.Error)
 					hadError = true
 					continue
 				}
@@ -282,7 +270,6 @@ Examples:
 	cmd.Flags().StringVar(&decode, "decode", "", "output decode lane: json|text|none")
 	cmd.Flags().StringVar(&okExits, "ok-exit", "", "exit codes classified as success, comma-separated (e.g. 0,1)")
 	cmd.Flags().StringArrayVar(&routes, "route", nil, "field routing: field=argv|stdin|stdin-dash|file (repeatable)")
-	cmd.Flags().BoolVar(&diagnostics, "diagnostics", false, "include expert binding and implementation diagnostics")
 	cmd.Flags().StringVar(&configurationArg, "configuration", "", "binding-spec configuration object as JSON, @file, or - for stdin")
 
 	return cmd
@@ -290,49 +277,18 @@ Examples:
 
 // renderInvokeJSON drains the invocation into one protocol-blind machine
 // envelope. Prior outputs remain present when completion is unsuccessful.
-// Selected-binding and native evidence appear only when diagnostics were
-// explicitly requested.
-func renderInvokeJSON(w io.Writer, run *app.ConfiguredInvocation, includeDiagnostics bool) error {
+func renderInvokeJSON(w io.Writer, run *app.ConfiguredInvocation) error {
 	outputs := []any{}
-	diagnostics := map[string]any{}
-	if includeDiagnostics {
-		if run.BindingKey != "" {
-			diagnostics["bindingKey"] = run.BindingKey
-		}
-		if run.DisplacedWarning != "" {
-			diagnostics["displacedElections"] = map[string]any{
-				"message": run.DisplacedWarning,
-				"details": run.DisplacedDetail,
-			}
-		}
-	}
 
 	enc := json.NewEncoder(w)
 	enc.SetIndent("", "  ")
 	for ev := range run.Events {
-		if ev.Terminal {
-			if includeDiagnostics && len(ev.Metadata) > 0 {
-				diagnostics["trailing"] = metadataObject(ev.Metadata)
-			}
-			continue
-		}
 		if ev.Error != nil {
-			errorValue := map[string]any{
-				"code":    ev.Error.Code,
-				"message": ev.Error.Message,
-			}
-			if ev.Error.Details != nil {
-				errorValue["details"] = ev.Error.Details
+			errorValue := map[string]any{"code": ev.Error.Code}
+			if ev.Error.HasData() {
+				errorValue["data"] = ev.Error.Data
 			}
 			envelope := map[string]any{"outputs": outputs, "error": errorValue}
-			if includeDiagnostics {
-				if ev.Error.Diagnostics != nil {
-					diagnostics["failure"] = ev.Error.Diagnostics
-				}
-				if len(diagnostics) > 0 {
-					envelope["diagnostics"] = diagnostics
-				}
-			}
 			_ = enc.Encode(envelope)
 			return app.ExitResult{Code: 1}
 		}
@@ -340,21 +296,18 @@ func renderInvokeJSON(w io.Writer, run *app.ConfiguredInvocation, includeDiagnos
 	}
 
 	envelope := map[string]any{"outputs": outputs}
-	if includeDiagnostics && len(diagnostics) > 0 {
-		envelope["diagnostics"] = diagnostics
-	}
 	if err := enc.Encode(envelope); err != nil {
 		return app.ExitResult{Code: 1, Message: fmt.Sprintf("write error: %v", err), ToStderr: true}
 	}
 	return nil
 }
 
-// renderInvokeError writes a terminal invocation error for humans: the
-// message, any actionable details, and — for CONTEXT_REQUIRED — the full
+// renderInvokeError writes a terminal invocation error for humans: the code,
+// any application-authored data, and — for CONTEXT_REQUIRED — the full
 // challenge plus a copy-pasteable remedy, so the auth loop closes from the
 // error itself instead of from the docs.
-func renderInvokeError(w io.Writer, ierr *openbindings.InvocationError, includeDiagnostics bool) {
-	fmt.Fprintf(w, "error: %s\n", ierr.Message)
+func renderInvokeError(w io.Writer, ierr *openbindings.InvocationError) {
+	fmt.Fprintf(w, "error: %s\n", ierr.Code)
 	if details := openbindings.ContextRequiredFrom(ierr); details != nil {
 		fmt.Fprintln(w, app.RenderContextRequirements(details))
 		if hint := contextSetHint(details); hint != "" {
@@ -362,31 +315,12 @@ func renderInvokeError(w io.Writer, ierr *openbindings.InvocationError, includeD
 		}
 		return
 	}
-	if d := renderErrorDetails(ierr.Details); d != "" {
-		fmt.Fprintf(w, "  %s\n", d)
+	if ierr.HasData() {
+		fmt.Fprint(w, "  data: ")
+		enc := json.NewEncoder(w)
+		enc.SetEscapeHTML(false)
+		_ = enc.Encode(ierr.Data)
 	}
-	if includeDiagnostics && ierr.Diagnostics != nil {
-		renderDiagnosticValue(w, map[string]any{"failure": ierr.Diagnostics})
-	}
-}
-
-func metadataObject(md openbindings.Metadata) map[string]any {
-	value := make(map[string]any, len(md))
-	for key, values := range md {
-		if len(values) == 1 {
-			value[key] = values[0]
-		} else {
-			value[key] = values
-		}
-	}
-	return value
-}
-
-func renderDiagnosticValue(w io.Writer, value any) {
-	fmt.Fprint(w, "diagnostics: ")
-	enc := json.NewEncoder(w)
-	enc.SetEscapeHTML(false)
-	_ = enc.Encode(value)
 }
 
 // contextSetHint maps the challenge's first requirement to the ob context
@@ -407,41 +341,6 @@ func contextSetHint(d *openbindings.ContextRequiredDetails) string {
 	default:
 		return fmt.Sprintf("ob context set %s --help", d.Target)
 	}
-}
-
-// renderErrorDetails renders an InvocationError's Details as a compact
-// human line (child exit code and stderr tail ride the error line, so an
-// exec failure is diagnosable in place). Returns "" when there is nothing
-// useful to show.
-func renderErrorDetails(details any) string {
-	m, ok := details.(map[string]any)
-	if !ok {
-		return ""
-	}
-	var parts []string
-	if code, ok := m["exitCode"]; ok {
-		parts = append(parts, fmt.Sprintf("exit %v", code))
-	}
-	if out, ok := m["output"].(string); ok && strings.TrimSpace(out) != "" {
-		parts = append(parts, "output: "+oneLine(out))
-	}
-	if so, ok := m["stdout"].(string); ok && strings.TrimSpace(so) != "" {
-		parts = append(parts, "stdout: "+oneLine(so))
-	}
-	return strings.Join(parts, "; ")
-}
-
-// oneLine collapses a captured stream to a single truncated line for the
-// human error line.
-func oneLine(s string) string {
-	s = strings.TrimSpace(s)
-	if i := strings.IndexByte(s, '\n'); i >= 0 {
-		s = s[:i] + " …"
-	}
-	if len(s) > 200 {
-		s = s[:200] + "…"
-	}
-	return s
 }
 
 // readInvokeInput resolves the --input house grammar: "" is no input,

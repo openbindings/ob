@@ -91,9 +91,7 @@ func (c *InvokeConfig) perInvocationHooks(invoker *openbindings.OperationInvoker
 			var v any
 			if err := json.Unmarshal(raw.Body, &v); err != nil {
 				return nil, &openbindings.InvocationError{
-					Code:    openbindings.ErrCodeResponseError,
-					Message: fmt.Sprintf("--decode json: output is not valid JSON: %v", err),
-					Details: map[string]any{"output": string(raw.Body)},
+					Code: openbindings.ErrCodeResponseError,
 				}
 			}
 			return v, nil
