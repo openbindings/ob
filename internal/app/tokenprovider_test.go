@@ -269,6 +269,37 @@ func TestEnsurePinnedToken_NoPinNeverMints(t *testing.T) {
 	}
 }
 
+// A provider that returns a non-RFC3339 expiresAt must be REJECTED, not
+// cached — otherwise the freshness parse fails on every later challenge and
+// ob re-mints on every invocation (a silent storm of real provider calls).
+func TestEnsurePinnedToken_UnparseableExpiryRejected(t *testing.T) {
+	hits := 0
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		hits++
+		w.Header().Set("Content-Type", "application/json")
+		// A Unix timestamp instead of an RFC 3339 instant.
+		_, _ = w.Write([]byte(`{"accessToken":"tok","expiresAt":"1786743000"}`))
+	}))
+	defer srv.Close()
+	provider := providerOBI(t, srv.URL)
+
+	store := &memStore{}
+	stored := map[string]any{"tokenProvider": provider, "tokenCredential": "c"}
+	out, minted := ensurePinnedToken(context.Background(), store, "k", stored)
+	if minted {
+		t.Fatal("an unparseable expiresAt must not count as a successful mint")
+	}
+	if _, cached := out["bearerToken"]; cached {
+		t.Fatal("a token with an unparseable expiry must not be cached (would storm)")
+	}
+	if store.sets != 0 {
+		t.Fatal("nothing should be persisted when the expiry is invalid")
+	}
+	if hits != 1 {
+		t.Fatalf("expected exactly one mint attempt, got %d", hits)
+	}
+}
+
 func TestEnsurePinnedToken_ReentrancyGuard(t *testing.T) {
 	hits := 0
 	srv := mintServer(t, "tok", &hits, "")

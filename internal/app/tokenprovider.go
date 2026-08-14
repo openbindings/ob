@@ -94,6 +94,10 @@ func ensurePinnedToken(ctx context.Context, store openbindings.ContextStore, key
 		return stored, false
 	}
 
+	// Best-effort read-modify-write: two concurrent same-target invocations
+	// (separate `ob` processes sharing the file store) may each mint and the
+	// later Set wins, wasting one token. Acceptable for a CLI — no corruption,
+	// bounded to one redundant mint — and a cross-process lock is out of scope.
 	refreshed := make(map[string]any, len(stored)+2)
 	for k, v := range stored {
 		refreshed[k] = v
@@ -137,6 +141,13 @@ func mintFromPinnedProvider(ctx context.Context, provider string, credential any
 	if err != nil {
 		return nil, fmt.Errorf("invoking %s: %w", opKey, err)
 	}
+	// Drain any remaining events so the invoker's forwarding goroutine can
+	// never block on an unread channel — notably on the ctx-cancelled branch
+	// below, which returns before reading.
+	defer func() {
+		for range run.Events {
+		}
+	}()
 	var out InvocationOutput
 	select {
 	case ev, ok := <-run.Events:
@@ -155,6 +166,14 @@ func mintFromPinnedProvider(ctx context.Context, provider string, credential any
 	expiresAt, _ := value["expiresAt"].(string)
 	if accessToken == "" || expiresAt == "" {
 		return nil, fmt.Errorf("mint output carried no accessToken/expiresAt")
+	}
+	// Validate the expiry before caching it. An unparseable expiresAt would be
+	// cached, fail the freshness parse on the next challenge, and re-mint on
+	// EVERY subsequent invocation — a silent storm of real provider calls.
+	// Reject it here: the failure becomes one stderr warning and a decline to
+	// the ordinary ladder, not a poisoned cache.
+	if _, err := time.Parse(time.RFC3339, expiresAt); err != nil {
+		return nil, fmt.Errorf("mint output expiresAt %q is not an RFC 3339 instant: %w", expiresAt, err)
 	}
 	return &mintedToken{accessToken: accessToken, expiresAt: expiresAt}, nil
 }
