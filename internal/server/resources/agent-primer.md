@@ -276,7 +276,10 @@ equivalent, or hiding protocol behavior that callers actually need to control.
    composition rules.
 6. Resolve the binding's `ref` and any required interpretation choices.
 7. Obtain credentials or other prerequisites through runtime context without
-   mutating them into the OBI.
+   mutating them into the OBI. Context carries what the manifestation
+   requires, never what an operation is about: an operation whose subject
+   matter is credentials or tokens takes them as ordinary inputs and
+   outputs, not as context.
 8. Apply the binding specification's input mapping, interaction, success
    classification, output mapping, and the binding's transforms.
 9. Refuse before dispatch if the target cannot be interpreted faithfully.
