@@ -134,6 +134,13 @@ a config file and can be specified multiple times.
 
 Use --from-curl to import credentials from a curl command.
 
+Pin a token provider (--token-provider, with --token-credential) when the
+target's token service corresponds to the shared token-provider contract:
+ob then mints and renews this context's bearer token automatically from the
+PINNED provider — and only the pinned provider; nothing else carrying the
+mint key is ever contacted. A bearer token you set yourself is never
+overwritten by the pin.
+
 Machine callers pass the full Context value with --value instead: the <url>
 is the key, --value takes the Context ({...}) as JSON and REPLACES the whole
 context (the document-store set contract), exclusive with the field flags.
@@ -144,6 +151,7 @@ Examples:
   ob context set https://api.github.com --bearer-token -
   ob context set https://api.stripe.com/openapi.json --api-key sk_live_xxx
   ob context set https://api.example.com --basic
+  ob context set https://api.example.com --token-provider https://auth.example.com --token-credential -
   ob context set https://api.example.com --header "Accept: application/json"
   ob context set exec:kubectl --env KUBECONFIG=/home/me/.kube/prod
   ob context set https://api.github.com --from-curl 'curl -H "Authorization: Bearer ghp_xxx" https://api.github.com'`,

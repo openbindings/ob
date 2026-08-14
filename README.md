@@ -206,6 +206,39 @@ When a binding needs context it doesn't have, invocation stops before any side e
 
 Then retry the invocation. `--from-curl` imports credentials from a working curl command; `--header`, `--cookie`, `--env`, and `--meta` cover the non-credential fields. The same store backs the HTTP surface (`/contexts`, with `POST /bindings/prepare` reporting requirements proactively) and everything routed through delegates.
 
+### Self-maintained bearer context (token-provider pinning)
+
+Storing a long-lived secret as a target's `--bearer-token` works, but then
+that durable credential rides every request. When the target's token service
+corresponds to the shared `token-provider` contract (it carries
+`openbindings.token-provider.mint` as an operation key or alias), pin it
+instead and ob keeps the bearer token minted for you:
+
+```
+ob context set https://api.example.com \
+  --token-provider https://auth.example.com \
+  --token-credential -        # the durable credential, from stdin
+```
+
+On a bearer challenge for that target, when no live token is cached (or the
+cached one is within 60 seconds of its recorded expiry), ob invokes the
+pinned provider's mint with the stored credential as input, caches the
+minted `accessToken`/`expiresAt` under the target's context, and satisfies
+the challenge with the short-lived token. The durable credential never rides
+an ordinary request again.
+
+Rules the behavior lives by:
+
+- **Only the pinned provider is ever contacted.** Correspondence tells ob
+  *which* operation on the provider mints — it never selects the provider.
+  A delegate, a discovered interface, or any other candidate carrying the
+  mint key is never consulted for this: capability never implies use.
+- A `bearerToken` you set yourself (one with no recorded expiry) is never
+  overwritten; remove it if you want the pin to take over.
+- If minting fails, ob warns on stderr and falls back to the ordinary
+  ladder (stored context, then interactive prompt), so a misconfigured pin
+  degrades loudly, not silently.
+
 Stored context is consulted only for an alternative whose every requirement
 explicitly permits reuse with `durable: true`; omission means one-shot. A
 freshly resolved one-shot value applies only to that exact invocation attempt
