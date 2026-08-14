@@ -36,6 +36,13 @@ func CLIContextResolver() openbindings.ContextResolver {
 		if key != "" {
 			stored, _ = store.Get(ctx, key)
 		}
+		// 1.5. Token-provider pinning: when this target pins a provider,
+		// keep its bearerToken self-maintained (mint on absence or expiry)
+		// so the durable credential never rides ordinary requests. Only the
+		// pinned provider is ever contacted — see tokenprovider.go.
+		if stored != nil {
+			stored, _ = ensurePinnedToken(ctx, store, key, stored)
+		}
 		if stored != nil {
 			if reusable := durableDetails(details); reusable != nil && openbindings.ContextSatisfies(stored, reusable) {
 				return openbindings.ScopeContext(stored, reusable), nil

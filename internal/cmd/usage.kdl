@@ -49,6 +49,8 @@ cmd "context" help="Manage binding context (credentials, headers, environment)" 
     flag "--bearer-token <token>" help="Bearer token (- for stdin)"
     flag "--api-key <key>" help="API key (- for stdin)"
     flag "--basic" help="Set basic auth (prompts for username and password)"
+    flag "--token-provider <locator>" help="Pin a token provider for this target: an interface locator whose openbindings.token-provider.mint keeps this context's bearer token minted automatically"
+    flag "--token-credential <credential>" help="Durable credential the pinned provider's mint exchanges (- for stdin)"
     flag "--header <header>" help="Add header as \"Key: Value\" (repeatable)" var=#true
     flag "--cookie <cookie>" help="Add cookie as \"Key=Value\" (repeatable)" var=#true
     flag "--env <env>" help="Add env var as \"VAR=value\" (repeatable)" var=#true

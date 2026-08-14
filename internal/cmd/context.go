@@ -102,9 +102,11 @@ payload, credentials included.`,
 
 func newContextSetCmd() *cobra.Command {
 	var (
-		bearerToken string
-		apiKey      string
-		basic       bool
+		bearerToken     string
+		apiKey          string
+		tokenProvider   string
+		tokenCredential string
+		basic           bool
 		headers     []string
 		cookies     []string
 		envVars     []string
@@ -180,6 +182,24 @@ Examples:
 				update.Credentials["apiKey"] = val
 			}
 
+			if cmd.Flags().Changed("token-provider") {
+				if update.Credentials == nil {
+					update.Credentials = map[string]any{}
+				}
+				update.Credentials["tokenProvider"] = tokenProvider
+			}
+
+			if cmd.Flags().Changed("token-credential") {
+				val, err := resolveSecretValue(tokenCredential, "Token-provider credential")
+				if err != nil {
+					return app.ExitResult{Code: 1, Message: err.Error(), ToStderr: true}
+				}
+				if update.Credentials == nil {
+					update.Credentials = map[string]any{}
+				}
+				update.Credentials["tokenCredential"] = val
+			}
+
 			if basic {
 				if !term.IsTerminal(int(os.Stdin.Fd())) {
 					return app.ExitResult{Code: 1, Message: "--basic requires an interactive terminal", ToStderr: true}
@@ -229,6 +249,8 @@ Examples:
 	cmd.Flags().StringArrayVar(&cookies, "cookie", nil, "add cookie as \"Key=Value\" (repeatable)")
 	cmd.Flags().StringArrayVar(&envVars, "env", nil, "add env var as \"VAR=value\" (repeatable)")
 	cmd.Flags().StringArrayVar(&metaEntries, "meta", nil, "add metadata as \"key=value\" (repeatable)")
+	cmd.Flags().StringVar(&tokenProvider, "token-provider", "", "pin a token provider for this target: an interface locator whose openbindings.token-provider.mint keeps this context's bearer token minted automatically")
+	cmd.Flags().StringVar(&tokenCredential, "token-credential", "", "durable credential the pinned provider's mint exchanges (use \"-\" to read from stdin)")
 	cmd.Flags().StringVar(&fromCurl, "from-curl", "", "import context from a curl command string")
 	cmd.Flags().StringVar(&valueJSON, "value", "", "full Context value as JSON, full-replacement machine lane (- reads stdin); keyed by <url>, exclusive with field flags")
 
