@@ -31,7 +31,10 @@ package app
 import (
 	"context"
 	"fmt"
+	"net"
+	"net/url"
 	"os"
+	"strings"
 	"time"
 
 	openbindings "github.com/openbindings/openbindings-go"
@@ -53,13 +56,19 @@ type mintingContextKey struct{}
 // tokenClock is the time source; override in tests.
 var tokenClock = time.Now
 
-// mintInvoker indirects the mint invocation through an init-time assignment:
-// CLIContextResolver participates in the default invoker's construction, so a
-// direct reference to invokeOnInterface here would close an initialization
-// cycle (resolver → mint → invoker → resolver).
-var mintInvoker func(ctx context.Context, iface *openbindings.Interface, opKey, bindingKey string, input any, config *InvokeConfig) (*ConfiguredInvocation, error)
+// mintInvoker and bindingResolver indirect into invoke.go through init-time
+// assignment: CLIContextResolver participates in the default invoker's
+// construction, so a direct reference to either invoke.go function here would
+// close an initialization cycle (resolver → mint → invoker → resolver).
+var (
+	mintInvoker     func(ctx context.Context, iface *openbindings.Interface, opKey, bindingKey string, input any, config *InvokeConfig) (*ConfiguredInvocation, error)
+	bindingResolver func(iface *openbindings.Interface, opKey, bindingKey string, input any) (*resolvedBinding, error)
+)
 
-func init() { mintInvoker = invokeOnInterface }
+func init() {
+	mintInvoker = invokeOnInterface
+	bindingResolver = resolveBindingAndSource
+}
 
 // ensurePinnedToken guarantees a live bearerToken in the stored context for
 // `key` when a token provider is pinned there, minting from the pinned
@@ -117,11 +126,71 @@ type mintedToken struct {
 	expiresAt   string
 }
 
+// isLoopbackHost reports whether host is a local-development host exempt from
+// the credential TLS floor (localhost, *.localhost, or a loopback IP).
+func isLoopbackHost(host string) bool {
+	if host == "localhost" || strings.HasSuffix(host, ".localhost") {
+		return true
+	}
+	if ip := net.ParseIP(host); ip != nil {
+		return ip.IsLoopback()
+	}
+	return false
+}
+
+// credentialOrigin classifies a locator or source location for the M5 credential
+// transport policy. It returns the normalized origin (host[:port]) when the
+// string names a network endpoint, whether that endpoint is PLAINTEXT to a
+// non-loopback host (the case a durable credential must never ride), and
+// whether it named a network endpoint at all. A file path or opaque scheme is
+// not a network endpoint (isNetwork=false); a bare host:port (e.g. gRPC) is a
+// network origin whose transport security is a channel/config matter ob cannot
+// read from the string, so it carries no plaintext verdict.
+func credentialOrigin(s string) (origin string, plaintextRemote bool, isNetwork bool) {
+	s = strings.TrimSpace(s)
+	if s == "" {
+		return "", false, false
+	}
+	// A real URL is identified by "://" — checking the scheme via url.Parse
+	// alone misfires, since it reads a bare host:port's colon (gRPC's
+	// "host:443") as a scheme and a URL's scheme colon as a host:port.
+	if strings.Contains(s, "://") {
+		u, err := url.Parse(s)
+		if err != nil || u.Host == "" {
+			return "", false, false // malformed, or file:/// (no host)
+		}
+		switch strings.ToLower(u.Scheme) {
+		case "http", "ws":
+			return openbindings.NormalizeEndpoint(s), !isLoopbackHost(u.Hostname()), true
+		case "https", "wss":
+			return openbindings.NormalizeEndpoint(s), false, true
+		default:
+			return "", false, false // opaque scheme: not an http-family endpoint
+		}
+	}
+	// No scheme: a bare host:port (gRPC-style) is a network origin whose
+	// transport ob can't read from the string; anything else is a file path.
+	if isHostPort(s) {
+		return openbindings.NormalizeEndpoint(s), false, true
+	}
+	return "", false, false
+}
+
 // mintFromPinnedProvider invokes `openbindings.token-provider.mint` on the
 // pinned provider's interface — and only there. The mint invocation runs
 // with the re-entrancy mark set and no caller context, so provider-side
 // challenges surface instead of triggering resolution loops.
 func mintFromPinnedProvider(ctx context.Context, provider string, credential any) (*mintedToken, error) {
+	// M5 locator floor — before any fetch: never retrieve the provider OBI, nor
+	// send a durable credential, over plaintext to a remote host. The OBI
+	// describes where the credential goes; fetching it authentically (TLS to a
+	// host the caller pinned) is what makes its binding targets trustworthy.
+	// Loopback and file-path locators are exempt (local dev; no network fetch).
+	locatorOrigin, locatorPlaintext, _ := credentialOrigin(provider)
+	if locatorPlaintext {
+		return nil, fmt.Errorf("refusing a plaintext token-provider locator %q for a durable credential; pin an https:// locator (loopback exempt for local dev)", provider)
+	}
+
 	iface, err := ResolveInterface(provider)
 	if err != nil {
 		return nil, fmt.Errorf("resolving pinned provider interface: %w", err)
@@ -134,6 +203,22 @@ func mintFromPinnedProvider(ctx context.Context, provider string, credential any
 	input := map[string]any{}
 	if cred, _ := credential.(string); cred != "" {
 		input["credential"] = cred
+	}
+
+	// M5 destination floor + cross-origin transparency, where the mint's source
+	// NAMES a network artifact (a located OpenAPI doc, a gRPC host, …). An
+	// embedded artifact's dispatch host is inside binding-family knowledge ob
+	// does not read here; for it the locator floor above is the backstop, and
+	// the binding — authored by a provider whose OBI ob fetched over TLS —
+	// owns the target (OB doctrine: ob does not second-guess the binding).
+	if resolved, rerr := bindingResolver(iface, opKey, "", input); rerr == nil {
+		destOrigin, destPlaintext, destIsNet := credentialOrigin(resolved.source.Location)
+		switch {
+		case destIsNet && destPlaintext:
+			return nil, fmt.Errorf("refusing a plaintext mint destination %q named by pinned provider %q; the artifact describing where the credential goes must be fetched over https", resolved.source.Location, provider)
+		case destIsNet && locatorOrigin != "" && destOrigin != locatorOrigin:
+			fmt.Fprintf(os.Stderr, "note: pinned provider %q dispatches its mint to %s — the durable credential is sent there\n", provider, destOrigin)
+		}
 	}
 
 	mintCtx := context.WithValue(ctx, mintingContextKey{}, true)

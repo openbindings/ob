@@ -137,6 +137,37 @@ func bearerMintProviderOBI(t *testing.T, srvURL string) string {
 	return path
 }
 
+// locatedMintProviderOBI writes a token-provider OBI whose mint source is a
+// LOCATED artifact at docURL (not embedded), so credentialOrigin can inspect
+// the fetch transport of the artifact describing where the credential goes.
+func locatedMintProviderOBI(t *testing.T, docURL string) string {
+	t.Helper()
+	doc := fmt.Sprintf(`{
+  "openbindings": "0.2.0",
+  "name": "Located Provider",
+  "version": "0.0.1",
+  "operations": {
+    "test.mint": {
+      "description": "Mint a token.",
+      "aliases": ["openbindings.token-provider.mint"],
+      "input": {"type": "object", "properties": {"credential": {"type": "string"}}, "additionalProperties": false},
+      "output": {"type": "object", "properties": {"accessToken": {"type": "string"}, "expiresAt": {"type": "string"}}, "required": ["accessToken", "expiresAt"]}
+    }
+  },
+  "sources": {
+    "api": {"bindingSpec": "openbindings.openapi@1", "location": %q}
+  },
+  "bindings": {
+    "mint.http": {"operation": "test.mint", "source": "api", "ref": "#/paths/~1mint/post"}
+  }
+}`, docURL)
+	path := filepath.Join(t.TempDir(), "located-provider.obi.json")
+	if err := os.WriteFile(path, []byte(doc), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	return path
+}
+
 // targetOBI writes a bearer-secured target OBI bound to srvURL's /data.
 func targetOBI(t *testing.T, srvURL string) string {
 	t.Helper()
@@ -352,6 +383,64 @@ func TestEnsurePinnedToken_UnparseableExpiryRejected(t *testing.T) {
 	}
 	if hits != 1 {
 		t.Fatalf("expected exactly one mint attempt, got %d", hits)
+	}
+}
+
+// M5 transport policy: the classifier that decides refuse/exempt/note.
+func TestCredentialOrigin(t *testing.T) {
+	cases := []struct {
+		in        string
+		plaintext bool
+		isNetwork bool
+	}{
+		{"https://auth.example.com/obi", false, true},
+		{"https://auth.example.com:8443", false, true},
+		{"http://auth.example.com/obi", true, true},   // plaintext remote → refuse
+		{"http://localhost:8787", false, true},        // loopback exempt
+		{"http://127.0.0.1:8787", false, true},        // loopback exempt
+		{"http://[::1]:8787", false, true},            // loopback exempt
+		{"http://api.localhost:3000", false, true},    // *.localhost exempt
+		{"wss://stream.example.com", false, true},     // TLS ws
+		{"ws://stream.example.com", true, true},       // plaintext ws remote
+		{"grpc.example.com:443", false, true},         // bare host:port: network, no TLS verdict
+		{"/home/me/provider.obi.json", false, false},  // file path: not a network endpoint
+		{"file:///etc/provider.json", false, false},   // file scheme: not network
+		{"", false, false},                            // empty
+	}
+	for _, c := range cases {
+		_, plaintext, isNet := credentialOrigin(c.in)
+		if plaintext != c.plaintext || isNet != c.isNetwork {
+			t.Errorf("credentialOrigin(%q) = (plaintext %v, isNet %v), want (%v, %v)",
+				c.in, plaintext, isNet, c.plaintext, c.isNetwork)
+		}
+	}
+}
+
+// The locator floor refuses a plaintext-remote pinned locator BEFORE any fetch
+// — a durable credential must never depend on an OBI retrieved insecurely.
+func TestMint_RefusesPlaintextRemoteLocator(t *testing.T) {
+	_, err := mintFromPinnedProvider(context.Background(), "http://provider.example.com/obi", "cred")
+	if err == nil {
+		t.Fatal("expected refusal of a plaintext-remote locator")
+	}
+	if !strings.Contains(err.Error(), "plaintext") {
+		t.Fatalf("expected a plaintext-refusal message, got: %v", err)
+	}
+}
+
+// The destination floor refuses when the mint's LOCATED source artifact is
+// fetched over plaintext to a remote host (the artifact describing where the
+// credential goes is itself MITM-injectable).
+func TestMint_RefusesPlaintextRemoteDestination(t *testing.T) {
+	// Locator is a local file (exempt); its mint source is a plaintext-remote
+	// artifact. No network call happens — the refusal precedes invocation.
+	provider := locatedMintProviderOBI(t, "http://insecure.example.com/openapi.json")
+	_, err := mintFromPinnedProvider(context.Background(), provider, "cred")
+	if err == nil {
+		t.Fatal("expected refusal of a plaintext-remote mint destination")
+	}
+	if !strings.Contains(err.Error(), "plaintext") {
+		t.Fatalf("expected a plaintext-refusal message, got: %v", err)
 	}
 }
 
