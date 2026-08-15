@@ -82,6 +82,61 @@ func providerOBI(t *testing.T, srvURL string) string {
 	return path
 }
 
+// bearerMintProviderOBI writes a token-provider OBI whose mint operation is
+// itself bearer-secured — invoking it raises CONTEXT_REQUIRED(auth.bearer)
+// for srvURL's origin (the invoker reads the requirement from the artifact
+// before dispatch). Used to exercise a provider whose own mint challenges.
+func bearerMintProviderOBI(t *testing.T, srvURL string) string {
+	t.Helper()
+	doc := fmt.Sprintf(`{
+  "openbindings": "0.2.0",
+  "name": "Bearer-Secured Provider",
+  "version": "0.0.1",
+  "operations": {
+    "test.mint": {
+      "description": "Mint a token (itself bearer-secured).",
+      "aliases": ["openbindings.token-provider.mint"],
+      "input": {"type": "object", "properties": {"credential": {"type": "string"}}, "additionalProperties": false},
+      "output": {"type": "object", "properties": {"accessToken": {"type": "string"}, "expiresAt": {"type": "string"}}, "required": ["accessToken", "expiresAt"]}
+    }
+  },
+  "sources": {
+    "api": {
+      "bindingSpec": "openbindings.openapi@1",
+      "content": {
+        "openapi": "3.1.0",
+        "info": {"title": "Bearer-Secured Provider", "version": "0.0.1"},
+        "servers": [{"url": %q}],
+        "components": {"securitySchemes": {"bearer": {"type": "http", "scheme": "bearer"}}},
+        "paths": {
+          "/mint": {
+            "post": {
+              "operationId": "mint",
+              "security": [{"bearer": []}],
+              "requestBody": {"required": false, "content": {"application/json": {"schema": {
+                "type": "object", "properties": {"credential": {"type": "string"}}
+              }}}},
+              "responses": {"200": {"description": "ok", "content": {"application/json": {"schema": {
+                "type": "object", "properties": {"accessToken": {"type": "string"}, "expiresAt": {"type": "string"}},
+                "required": ["accessToken", "expiresAt"]
+              }}}}}
+            }
+          }
+        }
+      }
+    }
+  },
+  "bindings": {
+    "mint.http": {"operation": "test.mint", "source": "api", "ref": "#/paths/~1mint/post"}
+  }
+}`, srvURL)
+	path := filepath.Join(t.TempDir(), "bearer-provider.obi.json")
+	if err := os.WriteFile(path, []byte(doc), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	return path
+}
+
 // targetOBI writes a bearer-secured target OBI bound to srvURL's /data.
 func targetOBI(t *testing.T, srvURL string) string {
 	t.Helper()
@@ -311,6 +366,56 @@ func TestEnsurePinnedToken_ReentrancyGuard(t *testing.T) {
 	_, minted := ensurePinnedToken(ctx, &memStore{}, "k", stored)
 	if minted || hits != 0 {
 		t.Fatal("mint-in-flight context must never recurse into another mint")
+	}
+}
+
+// TestReentrancyGuardPropagates proves the marker actually threads through the
+// real invoke path (invokeOnInterface → driveBinding → the live
+// CLIContextResolver), not merely that ensurePinnedToken short-circuits when
+// the marker is pre-set.
+//
+// Topology: mint from provider P, whose own mint is bearer-secured, so
+// invoking it raises CONTEXT_REQUIRED and consults the CLI resolver. Under
+// P's mint-server origin — the challenge target the resolver keys on — a
+// RECURSION DECOY provider is pinned. If the marker propagates, the resolver's
+// nested ensurePinnedToken sees it and returns early, and the decoy is never
+// contacted. If it did NOT propagate, the resolver would auto-mint from the
+// decoy — so a nonzero decoy hit count is a direct falsification.
+func TestReentrancyGuardPropagates(t *testing.T) {
+	dir := t.TempDir()
+	contextsDirFunc = func() (string, error) { return dir, nil }
+	t.Cleanup(func() { contextsDirFunc = defaultContextsDir })
+	t.Setenv(EnvCredentialsFile, filepath.Join(dir, "creds.json"))
+
+	decoyHits := 0
+	decoySrv := mintServer(t, "tok-decoy", &decoyHits, "")
+	defer decoySrv.Close()
+	decoyProvider := providerOBI(t, decoySrv.URL)
+
+	// P's mint is bearer-secured; its server is never reached (the challenge
+	// is raised from the artifact before dispatch), but it must resolve.
+	pSrv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusUnauthorized)
+	}))
+	defer pSrv.Close()
+	p := bearerMintProviderOBI(t, pSrv.URL)
+
+	// Pin the decoy under P's mint-server origin — the exact key the resolver
+	// derives from P's bearer challenge. A broken guard mints from it here.
+	if err := SaveUnifiedContext(pSrv.URL, map[string]any{
+		"tokenProvider":   decoyProvider,
+		"tokenCredential": "decoy-cred",
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	// Mint from P with a clean (no-marker) context, as the outer resolver would.
+	minted, err := mintFromPinnedProvider(context.Background(), p, "outer-cred")
+	if err == nil {
+		t.Fatalf("P's own mint is bearer-secured and unsatisfiable; expected failure, got token %v", minted)
+	}
+	if decoyHits != 0 {
+		t.Fatalf("RECURSION: the decoy was minted from (%d hits) — the re-entrancy marker did not propagate through the invoke path to the resolver", decoyHits)
 	}
 }
 
