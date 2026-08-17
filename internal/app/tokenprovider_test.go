@@ -395,17 +395,17 @@ func TestCredentialOrigin(t *testing.T) {
 	}{
 		{"https://auth.example.com/obi", false, true},
 		{"https://auth.example.com:8443", false, true},
-		{"http://auth.example.com/obi", true, true},   // plaintext remote → refuse
-		{"http://localhost:8787", false, true},        // loopback exempt
-		{"http://127.0.0.1:8787", false, true},        // loopback exempt
-		{"http://[::1]:8787", false, true},            // loopback exempt
-		{"http://api.localhost:3000", false, true},    // *.localhost exempt
-		{"wss://stream.example.com", false, true},     // TLS ws
-		{"ws://stream.example.com", true, true},       // plaintext ws remote
-		{"grpc.example.com:443", false, true},         // bare host:port: network, no TLS verdict
-		{"/home/me/provider.obi.json", false, false},  // file path: not a network endpoint
-		{"file:///etc/provider.json", false, false},   // file scheme: not network
-		{"", false, false},                            // empty
+		{"http://auth.example.com/obi", true, true},  // plaintext remote → refuse
+		{"http://localhost:8787", false, true},       // loopback exempt
+		{"http://127.0.0.1:8787", false, true},       // loopback exempt
+		{"http://[::1]:8787", false, true},           // loopback exempt
+		{"http://api.localhost:3000", false, true},   // *.localhost exempt
+		{"wss://stream.example.com", false, true},    // TLS ws
+		{"ws://stream.example.com", true, true},      // plaintext ws remote
+		{"grpc.example.com:443", false, true},        // bare host:port: network, no TLS verdict
+		{"/home/me/provider.obi.json", false, false}, // file path: not a network endpoint
+		{"file:///etc/provider.json", false, false},  // file scheme: not network
+		{"", false, false},                           // empty
 	}
 	for _, c := range cases {
 		_, plaintext, isNet := credentialOrigin(c.in)
