@@ -6,8 +6,8 @@ import (
 	"encoding/json"
 	"fmt"
 
-	openbindings "github.com/openbindings/openbindings-go"
 	"github.com/recolabs/gnata"
+	openbindings "github.com/openbindings/openbindings-go"
 )
 
 // ApplyTransform applies a JSONata transform to input data.
