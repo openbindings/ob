@@ -111,7 +111,6 @@ func newOperationInvokeCmd() *cobra.Command {
 	var routes []string
 	var selection []string
 	var configurationArg string
-	var anonymous bool
 
 	cmd := &cobra.Command{
 		Use:   "invoke <obi> [operation]",
@@ -192,7 +191,6 @@ Examples:
 				return app.ExitResult{Code: 2, Message: cerr.Error(), ToStderr: true}
 			}
 			config.Selection = append([]string(nil), selection...)
-			config.Anonymous = anonymous
 			configuration, configErr := readInvokeConfiguration(configurationArg)
 			if configErr != nil {
 				return app.ExitResult{Code: 2, Message: configErr.Error(), ToStderr: true}
@@ -273,7 +271,6 @@ Examples:
 	cmd.Flags().StringVar(&okExits, "ok-exit", "", "exit codes classified as success, comma-separated (e.g. 0,1)")
 	cmd.Flags().StringArrayVar(&routes, "route", nil, "field routing: field=argv|stdin|stdin-dash|file (repeatable)")
 	cmd.Flags().StringVar(&configurationArg, "configuration", "", "binding-spec configuration object as JSON, @file, or - for stdin")
-	cmd.Flags().BoolVar(&anonymous, "anonymous", false, "send no credentials, even where the artifact declares security")
 
 	return cmd
 }

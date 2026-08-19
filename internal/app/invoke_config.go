@@ -35,13 +35,6 @@ type InvokeConfig struct {
 	// Routes are field→channel elections (argv|stdin|stdin-dash|file),
 	// keyed by POST-TRANSFORM field name; nil/empty = axis unset.
 	Routes map[string]string
-	// Anonymous asserts that this invocation carries no credentials, which
-	// is how a caller reaches an operation whose artifact declares security
-	// the live service does not enforce — a public read under a blanket
-	// document-level requirement, say. It answers credential challenges and
-	// suppresses credential placement; it never answers a configuration
-	// point such as which server to address.
-	Anonymous bool
 }
 
 // empty reports whether the config carries no per-invocation hook intent.
@@ -55,28 +48,19 @@ func (c *InvokeConfig) empty() bool {
 // caller-owned; credentials and standing transport context continue to come
 // from the scoped context loop.
 func (c *InvokeConfig) context() map[string]any {
-	if c == nil || (len(c.Selection) == 0 && len(c.Configuration) == 0 && !c.Anonymous) {
+	if c == nil || (len(c.Selection) == 0 && len(c.Configuration) == 0) {
 		return nil
 	}
-	out := map[string]any{}
-	if len(c.Selection) > 0 || len(c.Configuration) > 0 {
-		configuration := make(map[string]any, len(c.Configuration)+1)
-		for key, value := range c.Configuration {
-			configuration[key] = value
-		}
-		if len(c.Selection) > 0 {
-			configuration["selection"] = append([]string(nil), c.Selection...)
-		}
-		out["configuration"] = configuration
+	configuration := make(map[string]any, len(c.Configuration)+1)
+	for key, value := range c.Configuration {
+		configuration[key] = value
 	}
-	// Anonymity sits beside `configuration`, not inside it: it is not a
-	// binding-specification interpretation point that some artifact declared,
-	// it is a statement about the credentials this call carries. Filing it
-	// under a named point would imply each family gets to redefine it.
-	if c.Anonymous {
-		out["anonymous"] = true
+	if len(c.Selection) > 0 {
+		configuration["selection"] = append([]string(nil), c.Selection...)
 	}
-	return out
+	return map[string]any{
+		"configuration": configuration,
+	}
 }
 
 // Context returns the caller-owned context represented by this invocation

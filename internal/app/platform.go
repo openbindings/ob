@@ -76,18 +76,11 @@ func CLIContextResolver() openbindings.ContextResolver {
 
 // requirementField maps an unnamed requirement family to the context field
 // populated by promptForAlternative.
-// Each family lists the context fields that can carry it, most specific
-// first. OAuth2 accepts a plain bearer token as well as an access token
-// because that is what it becomes on the wire, and because both the
-// negotiation and the credential placement already accept it — projecting
-// only `accessToken` here left a stored bearer token invisible to the retry,
-// so an oauth2 artifact challenged, printed a `--bearer-token` remedy, and
-// then challenged again forever.
-var requirementFieldCandidates = map[string][]string{
-	"auth.bearer": {"bearerToken"},
-	"auth.apiKey": {"apiKey"},
-	"auth.basic":  {"basic"},
-	"auth.oauth2": {"accessToken", "bearerToken"},
+var requirementField = map[string]string{
+	"auth.bearer": "bearerToken",
+	"auth.apiKey": "apiKey",
+	"auth.basic":  "basic",
+	"auth.oauth2": "accessToken",
 }
 
 // durableSubset positively projects only values contributed by requirements
@@ -101,30 +94,21 @@ func durableSubset(alt openbindings.ContextAlternative, candidate map[string]any
 		}
 		if req.Name != "" && strings.HasPrefix(req.Type, "auth.") {
 			credentials, _ := candidate["credentials"].(map[string]any)
-			if value, present := credentials[req.Name]; present {
-				scoped, _ := out["credentials"].(map[string]any)
-				if scoped == nil {
-					scoped = map[string]any{}
-					out["credentials"] = scoped
-				}
-				scoped[req.Name] = value
+			value, present := credentials[req.Name]
+			if !present {
 				continue
 			}
-			// No per-scheme credential under this name. Fall through to the
-			// flat fields rather than giving up: almost every artifact names
-			// its schemes (`petstore_auth`, `bearerAuth`), while `ob context
-			// set --bearer-token` stores one flat token, so requiring an exact
-			// name match here made the ordinary case unsatisfiable — the
-			// challenge asked for context, the user supplied exactly what it
-			// asked for, and the retry still carried nothing. Whether a flat
-			// value may stand in for a named scheme is decided downstream, by
-			// the invoker's own ambiguity rule; withholding it here pre-empted
-			// that decision instead of informing it.
+			scoped, _ := out["credentials"].(map[string]any)
+			if scoped == nil {
+				scoped = map[string]any{}
+				out["credentials"] = scoped
+			}
+			scoped[req.Name] = value
+			continue
 		}
-		for _, field := range requirementFieldCandidates[req.Type] {
+		if field, ok := requirementField[req.Type]; ok {
 			if value, present := candidate[field]; present {
 				out[field] = value
-				break
 			}
 		}
 	}
