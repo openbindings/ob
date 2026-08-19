@@ -436,8 +436,26 @@ func (s *cliContextStore) Get(_ context.Context, key string) (map[string]any, er
 
 // findStoredContextByOrigin returns the stored context URL whose endpoint
 // shares the challenge key's normalized origin (host[:port]), or "" when none
-// match. When several stored URLs share the origin (different paths), the
-// shortest (closest to the bare origin) wins, deterministically.
+// match.
+//
+// Several stored URLs can share one origin at different paths, and the choice
+// among them used to be "shortest wins". That silently lost credentials: a
+// context holding nothing but a header at the bare origin outranked the one
+// holding the bearer token at `/api/v3`, so a caller who had stored exactly the
+// right credential was told CONTEXT_REQUIRED with the value sitting in the
+// store. It cost a long investigation to find, because every visible piece —
+// the store, the satisfaction rule, the resolver — was individually correct.
+//
+// So candidates carrying credential material are preferred, and among equals
+// the MOST specific (longest) URL wins rather than the least. Both halves are
+// deterministic, and an origin with only non-credential contexts still resolves
+// exactly as before.
+//
+// This is a heuristic, and worth naming as one: the ContextStore contract hands
+// Get a key and not the challenge, so this layer cannot ask the question it
+// actually wants to ask — "which of these satisfies the requirement in front of
+// me?". Plumbing the challenge through would answer it properly; that is a
+// contract change, not a bug fix, and belongs in its own decision.
 func findStoredContextByOrigin(originKey string) string {
 	want := openbindings.NormalizeEndpoint(originKey)
 	if want == "" {
@@ -447,16 +465,39 @@ func findStoredContextByOrigin(originKey string) string {
 	if err != nil {
 		return ""
 	}
-	best := ""
+	best, bestHasCredential := "", false
 	for _, sum := range summaries {
 		if openbindings.NormalizeEndpoint(sum.URL) != want {
 			continue
 		}
-		if best == "" || len(sum.URL) < len(best) {
-			best = sum.URL
+		candidate, loadErr := LoadContext(sum.URL)
+		if loadErr != nil {
+			continue
+		}
+		hasCredential := contextCarriesCredential(candidate)
+		if best == "" ||
+			(hasCredential && !bestHasCredential) ||
+			(hasCredential == bestHasCredential && len(sum.URL) > len(best)) {
+			best, bestHasCredential = sum.URL, hasCredential
 		}
 	}
 	return best
+}
+
+// contextCarriesCredential reports whether a stored context holds anything that
+// could answer an auth requirement. It is deliberately a membership test over
+// the well-known field names rather than a satisfaction check: this function
+// cannot see the challenge, so it can only ask whether a candidate is the kind
+// of context a credential challenge would want.
+func contextCarriesCredential(ctx map[string]any) bool {
+	for _, field := range []string{
+		"bearerToken", "apiKey", "apiKeys", "basic", "accessToken", "credentials",
+	} {
+		if value, present := ctx[field]; present && value != nil {
+			return true
+		}
+	}
+	return false
 }
 
 func (s *cliContextStore) Set(_ context.Context, key string, value map[string]any) error {
