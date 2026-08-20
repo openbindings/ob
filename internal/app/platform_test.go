@@ -56,3 +56,43 @@ func TestDurableSubsetScopesNamedCredentials(t *testing.T) {
 		t.Fatalf("durable named subset = %#v", got)
 	}
 }
+
+func TestDurableSubsetProjectsConfigValueFragment(t *testing.T) {
+	candidate := map[string]any{
+		"configuration": map[string]any{
+			"server": map[string]any{
+				"url":       "https://eu.example",
+				"unrelated": "must-not-persist",
+			},
+			"otherPoint": "must-not-persist",
+		},
+		"bearerToken": "must-not-persist",
+	}
+	alt := invoke.ContextAlternative{Requirements: []invoke.ContextRequirement{{
+		Type:    "config.value",
+		Durable: platformBoolPointer(true),
+		Extra:   map[string]any{"point": "server", "path": "/url"},
+	}}}
+	got := durableSubset(alt, candidate)
+	configuration, _ := got["configuration"].(map[string]any)
+	point, _ := configuration["server"].(map[string]any)
+	if len(got) != 1 || len(configuration) != 1 || len(point) != 1 || point["url"] != "https://eu.example" {
+		t.Fatalf("config.value projection = %#v", got)
+	}
+}
+
+func TestDurableSubsetConfigValueWholePoint(t *testing.T) {
+	candidate := map[string]any{
+		"configuration": map[string]any{"requestMedia": "application/json"},
+	}
+	alt := invoke.ContextAlternative{Requirements: []invoke.ContextRequirement{{
+		Type:    "config.value",
+		Durable: platformBoolPointer(true),
+		Extra:   map[string]any{"point": "requestMedia", "path": ""},
+	}}}
+	got := durableSubset(alt, candidate)
+	configuration, _ := got["configuration"].(map[string]any)
+	if configuration["requestMedia"] != "application/json" {
+		t.Fatalf("empty-pointer projection = %#v", got)
+	}
+}

@@ -227,6 +227,32 @@ func LoadContext(rawURL string) (map[string]any, error) {
 	return mergeConfigAndCredentials(&cfg, cred), nil
 }
 
+// LoadContextExact returns the unified context payload stored under exactly
+// this key (write-time http → https normalization aside): no hierarchical
+// walk-up, no origin scan. Artifact-bound configuration files and fetches
+// under the exact asserted target (context-scope model, ratified 2026-08-19);
+// deriving a broader key would conflate a canonicalized source URL with its
+// origin — many artifacts can live on one host, and one artifact's
+// configuration answers must not resolve another's challenge.
+func LoadContextExact(rawURL string) (map[string]any, error) {
+	if rawURL == "" {
+		return nil, nil
+	}
+	targetURL := normalizeContextKey(rawURL)
+	if !ContextExists(targetURL) {
+		return nil, nil
+	}
+	cfg, err := LoadContextConfig(targetURL)
+	if err != nil {
+		return nil, err
+	}
+	cred, err := LoadContextCredentials(targetURL)
+	if err != nil {
+		return nil, err
+	}
+	return mergeConfigAndCredentials(&cfg, cred), nil
+}
+
 // resolveContextURL finds the best matching context URL for a target.
 // Tries exact match first, then walks up the URL path hierarchy.
 // For example, for "https://api.example.com/v1/spec.json", tries:

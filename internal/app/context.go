@@ -164,6 +164,27 @@ func ApplyContextUpdate(rawURL string, up ContextUpdate) error {
 	return SaveContextConfig(rawURL, cfg)
 }
 
+// mergeDurableConfiguration persists resolved config.value answers under the
+// exact asserted target key, merging point-wise: each point's fragment
+// deep-merges into any stored value at that point (a `/url` answer lands
+// beside a stored `/variables/region` answer), sibling points and all other
+// fields are preserved. Configuration is not a credential; it rides the
+// on-disk config side (see transportFields).
+func mergeDurableConfiguration(rawURL string, points map[string]any) error {
+	if len(points) == 0 {
+		return nil
+	}
+	cfg, err := LoadContextConfig(rawURL)
+	if err != nil {
+		return err
+	}
+	if cfg.Configuration == nil {
+		cfg.Configuration = make(map[string]any, len(points))
+	}
+	mergeConfigFragment(cfg.Configuration, points)
+	return SaveContextConfig(rawURL, cfg)
+}
+
 func stringMapToAny(m map[string]string) map[string]any {
 	out := make(map[string]any, len(m))
 	for k, v := range m {
