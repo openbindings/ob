@@ -8,7 +8,7 @@ import (
 	"strings"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
-	openbindings "github.com/openbindings/openbindings-go"
+	"github.com/openbindings/openbindings-go/invoke"
 )
 
 // readMCPResource forwards an expanded resources/read URI to the source MCP
@@ -49,19 +49,19 @@ func readMCPResource(ctx context.Context, location, uri string, bindContext map[
 }
 
 func mcpHTTPHeaders(bindContext map[string]any) (map[string]string, error) {
-	if openbindings.ContextAPIKey(bindContext) != "" {
+	if invoke.ContextAPIKey(bindContext) != "" {
 		return nil, fmt.Errorf("MCP does not declare a carrier for a generic credential; provide a named HTTP header credential")
 	}
-	if _, _, ok := openbindings.ContextBasicAuth(bindContext); ok {
+	if _, _, ok := invoke.ContextBasicAuth(bindContext); ok {
 		return nil, fmt.Errorf("MCP does not declare a carrier for a generic credential; provide a named HTTP header credential")
 	}
 
 	headers := map[string]string{}
-	if token := openbindings.ContextBearerToken(bindContext); token != "" {
+	if token := invoke.ContextBearerToken(bindContext); token != "" {
 		headers["Authorization"] = "Bearer " + token
 	}
-	for name, value := range openbindings.ContextHeaders(bindContext) {
-		if openbindings.ContextBearerToken(bindContext) != "" && strings.EqualFold(name, "Authorization") {
+	for name, value := range invoke.ContextHeaders(bindContext) {
+		if invoke.ContextBearerToken(bindContext) != "" && strings.EqualFold(name, "Authorization") {
 			return nil, fmt.Errorf("bearerToken and an explicit Authorization header target the same MCP credential destination")
 		}
 		if strings.EqualFold(name, "MCP-Session-Id") || strings.EqualFold(name, "MCP-Protocol-Version") {
@@ -69,7 +69,7 @@ func mcpHTTPHeaders(bindContext map[string]any) (map[string]string, error) {
 		}
 		headers[name] = value
 	}
-	if cookies := openbindings.ContextCookies(bindContext); len(cookies) > 0 {
+	if cookies := invoke.ContextCookies(bindContext); len(cookies) > 0 {
 		names := make([]string, 0, len(cookies))
 		for name := range cookies {
 			names = append(names, name)

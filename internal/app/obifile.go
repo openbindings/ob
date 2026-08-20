@@ -13,6 +13,7 @@ import (
 
 	"github.com/openbindings/openbindings-go"
 	"github.com/openbindings/openbindings-go/canonicaljson"
+	"github.com/openbindings/openbindings-go/synthesize"
 )
 
 // StdinLocator is the locator/path that means "read the document from stdin".
@@ -80,7 +81,7 @@ type ResolvedInterface struct {
 	Interface         *openbindings.Interface
 	Synthesized       bool
 	SourceBindingSpec string
-	Coverage          *openbindings.SynthesisCoverage
+	Coverage          *synthesize.SynthesisCoverage
 }
 
 // ResolveInterfaceDetailed loads an OBI or synthesizes one from a raw local or

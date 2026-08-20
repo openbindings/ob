@@ -9,7 +9,7 @@ import (
 	"sort"
 	"testing"
 
-	openbindings "github.com/openbindings/openbindings-go"
+	"github.com/openbindings/openbindings-go/invoke"
 )
 
 // This is the Go side of the JSONata transform differential-conformance gate
@@ -69,7 +69,7 @@ func transformCorpusDir(t *testing.T) string {
 func evalOutcome(expr string, input any) gateOutcome {
 	result, err := evalTransform(expr, input, nil)
 	switch {
-	case errors.Is(err, openbindings.ErrTransformUndefined):
+	case errors.Is(err, invoke.ErrTransformUndefined):
 		return gateOutcome{Status: "undefined"}
 	case err != nil:
 		return gateOutcome{Status: "error", ErrorContains: err.Error()}

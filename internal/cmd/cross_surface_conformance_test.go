@@ -14,6 +14,8 @@ import (
 
 	openbindings "github.com/openbindings/openbindings-go"
 
+	"github.com/openbindings/openbindings-go/invoke"
+
 	"github.com/openbindings/ob/internal/app"
 )
 
@@ -405,13 +407,13 @@ func invokeServedContractOperation(
 	ctx, cancel := context.WithTimeout(t.Context(), 30*time.Second)
 	defer cancel()
 
-	signature := openbindings.NewOperationSignature[any, any](operation)
-	invocation := openbindings.Invoke(
+	signature := invoke.NewOperationSignature[any, any](operation)
+	invocation := invoke.Invoke(
 		ctx,
 		app.DefaultInvoker(),
 		served,
 		signature,
-		openbindings.WithContext(map[string]any{"bearerToken": "test-token"}),
+		invoke.WithContext(map[string]any{"bearerToken": "test-token"}),
 	)
 	if input != nil {
 		if err := invocation.Write(ctx, input); err != nil {

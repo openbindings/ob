@@ -6,6 +6,8 @@ import (
 	"testing"
 
 	openbindings "github.com/openbindings/openbindings-go"
+
+	"github.com/openbindings/openbindings-go/invoke"
 )
 
 func TestInputFrameRoundTrip(t *testing.T) {
@@ -118,7 +120,7 @@ func TestOutputFrameRoundTrip(t *testing.T) {
 		{"complete", Complete(), `{"kind":"complete"}`},
 		{
 			name:  "error",
-			frame: Error(openbindings.NewInvocationError("ERR_RUNTIME")),
+			frame: Error(invoke.NewInvocationError("ERR_RUNTIME")),
 			want:  `{"kind":"error","error":{"code":"ERR_RUNTIME"}}`,
 		},
 	}
@@ -145,11 +147,11 @@ func TestOutputFrameRoundTrip(t *testing.T) {
 func TestErrorFramePreservesDataPresenceAndValue(t *testing.T) {
 	for _, tc := range []struct {
 		name string
-		err  *openbindings.InvocationError
+		err  *invoke.InvocationError
 	}{
-		{name: "absent", err: openbindings.NewInvocationError(openbindings.ErrCodeExecutionFailed)},
-		{name: "explicit null", err: openbindings.NewInvocationErrorWithData(openbindings.ErrCodeExecutionFailed, nil)},
-		{name: "object", err: openbindings.NewInvocationErrorWithData(openbindings.ErrCodeExecutionFailed, map[string]any{"reason": "missing"})},
+		{name: "absent", err: invoke.NewInvocationError(invoke.ErrCodeExecutionFailed)},
+		{name: "explicit null", err: invoke.NewInvocationErrorWithData(invoke.ErrCodeExecutionFailed, nil)},
+		{name: "object", err: invoke.NewInvocationErrorWithData(invoke.ErrCodeExecutionFailed, map[string]any{"reason": "missing"})},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			wire, err := json.Marshal(Error(tc.err))
@@ -174,7 +176,7 @@ func TestErrorFramePreservesDataPresenceAndValue(t *testing.T) {
 }
 
 func TestErrorFrameUsesMinimalStructuralWireShape(t *testing.T) {
-	b, err := json.Marshal(Error(openbindings.NewInvocationError("ERR_RUNTIME")))
+	b, err := json.Marshal(Error(invoke.NewInvocationError("ERR_RUNTIME")))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -229,7 +231,7 @@ func TestTerminal(t *testing.T) {
 		{Output(1), false},
 		{InputClosed(), false},
 		{Complete(), true},
-		{Error(openbindings.NewInvocationError("C")), true},
+		{Error(invoke.NewInvocationError("C")), true},
 	} {
 		if got := tc.frame.Terminal(); got != tc.want {
 			t.Errorf("Terminal(%s) = %v, want %v", tc.frame.Kind, got, tc.want)
@@ -240,13 +242,13 @@ func TestTerminal(t *testing.T) {
 func TestContextRequiredDetailsCrossTheWire(t *testing.T) {
 	// CONTEXT_REQUIRED data serializes on the error frame and decodes back
 	// into the typed shape via ContextRequiredFrom.
-	details := &openbindings.ContextRequiredDetails{
+	details := &invoke.ContextRequiredDetails{
 		Target: "api.example.com",
-		Alternatives: []openbindings.ContextAlternative{
-			{Requirements: []openbindings.ContextRequirement{{Type: "auth.bearer"}}},
+		Alternatives: []invoke.ContextAlternative{
+			{Requirements: []invoke.ContextRequirement{{Type: "auth.bearer"}}},
 		},
 	}
-	frame := Error(openbindings.NewContextRequiredError(details))
+	frame := Error(invoke.NewContextRequiredError(details))
 
 	b, err := json.Marshal(frame)
 	if err != nil {
@@ -256,7 +258,7 @@ func TestContextRequiredDetailsCrossTheWire(t *testing.T) {
 	if err := json.Unmarshal(b, &back); err != nil {
 		t.Fatal(err)
 	}
-	got := openbindings.ContextRequiredFrom(back.Error.InvocationError())
+	got := invoke.ContextRequiredFrom(back.Error.InvocationError())
 	if got == nil {
 		t.Fatal("ContextRequiredFrom returned nil after wire round trip")
 	}

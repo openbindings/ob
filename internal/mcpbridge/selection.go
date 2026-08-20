@@ -8,6 +8,7 @@ import (
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 	openbindings "github.com/openbindings/openbindings-go"
+	"github.com/openbindings/openbindings-go/invoke"
 )
 
 // Binding selection for multi-binding operations.
@@ -70,7 +71,7 @@ type bindingResolution struct {
 func resolveOperationBinding(
 	iface *openbindings.Interface,
 	opKey string,
-	invoker *openbindings.OperationInvoker,
+	invoker *invoke.OperationInvoker,
 	baseContext map[string]any,
 ) bindingResolution {
 	if invoker == nil {

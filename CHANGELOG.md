@@ -102,10 +102,12 @@ ship as part of 0.2.0.
   versionless token. Its demo uses canonical lower-case refs, exact
   executable-document configuration, and output transforms that explicitly
   unwrap the binding specification's complete GraphQL response envelope.
-  `ob op invoke` and `ob op prepare` accept `--configuration` as an inline
-  JSON object, `@file`, or stdin, carrying the same named binding-spec
-  interpretation points that `ob start` accepts through
-  `context.configuration`.
+  Named binding-spec interpretation points are context: invocation raises
+  `CONTEXT_REQUIRED` naming the point and the standing context store's
+  `configuration` for the target satisfies it — the same
+  `context.configuration` object `ob start` accepts on its machine lanes.
+  `ob op prepare` accepts `--configuration` (inline JSON object, `@file`,
+  or stdin) to preflight with points already known.
 
 - **Delegate frame-endpoint resolution moved behind the SDK's asyncapi
   seam.** Resolving a delegate's advertised `invokeBinding` endpoint from
@@ -143,10 +145,10 @@ ship as part of 0.2.0.
   for unary, streaming, and bidirectional bindings).
   - `ob codegen --lang go` emits **operation signatures**, not a bound invoker:
     the per-operation input/output structs plus an `OperationSignatures`
-    namespace (one `openbindings.OperationSignature[I, O]` per operation, built
+    namespace (one `invoke.OperationSignature[I, O]` per operation, built
     via `NewOperationSignature`). Callers invoke with the free verb,
-    `openbindings.Invoke(ctx, invoker, obi, sig, ...)`, and drive the
-    cardinality-agnostic handle (`openbindings.Single` for one-shot outputs).
+    `invoke.Invoke(ctx, invoker, obi, sig, ...)`, and drive the
+    cardinality-agnostic handle (`invoke.Single` for one-shot outputs).
     No per-operation methods, no bound invoker struct, no embedded contract: the
     interface is supplied at call time, and named schemas shared across
     operations are emitted once. `--lang typescript` emits the same shape: an
@@ -262,18 +264,17 @@ ship as part of 0.2.0.
   address durably with a notice; machine lanes (`--input`, the served
   surface, delegate invocations) never auto-authorize; everything else
   refuses, per the specification's default.
-- **`ob op invoke` grew the consumer data face, and every output is
-  contract-validated.** The per-invocation knobs are explicit, per-axis
-  flags — `--decode json|text|none`, `--ok-exit` (the diff(1) class: exit
-  codes that are results, not failures),
-  `--route field=argv|stdin|stdin-dash|file`, and `--input` with the house
-  grammar (inline JSON | `@file` | `-`) — compiled to per-invocation hooks;
-  a typo in a lane or channel refuses loudly. Dispatch is unified under
-  delegate selection,
-  computed pre-dispatch: when a preferred external delegate owns the hop,
-  displaced *flags* refuse (naming the delegate) while displaced *standing
-  elections* proceed with a loud attributed warning (stderr, plus
-  `x-ob-displaced-elections` in the machine envelope). The app-driven
+- **`ob op invoke` carries zero protocol semantics, and every output is
+  contract-validated.** The invocation surface takes the operation's input
+  (`--input` with the house grammar: inline JSON | `@file` | `-`) and the
+  caller's ordered binding choice (`--select-binding`) — nothing else. Wire
+  questions a format artifact cannot answer are consumer configuration:
+  ob's standing internal table (published as `docs/bound-cli-recipe.md`)
+  for its own bound surface, and the standing context store's
+  `configuration` for binding-spec interpretation points. Dispatch is
+  unified under delegate selection, computed pre-dispatch: when a preferred
+  external delegate owns the hop, displaced *standing elections* proceed
+  with a loud attributed warning on stderr. The app-driven
   binding path now enforces OBI-T-08: every output is validated against the
   operation's declared schema before it reaches the caller. `-F json` emits
   the machine-lane envelopes — one terminal `{outputs, metadata}` object on

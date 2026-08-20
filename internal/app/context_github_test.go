@@ -10,7 +10,7 @@ import (
 	"strings"
 	"testing"
 
-	openbindings "github.com/openbindings/openbindings-go"
+	"github.com/openbindings/openbindings-go/invoke"
 	"github.com/zalando/go-keyring"
 )
 
@@ -188,10 +188,10 @@ func TestContextGitHub_HierarchicalAPIBaseURL(t *testing.T) {
 	if err != nil {
 		t.Fatalf("GetContext: %v", err)
 	}
-	if openbindings.ContextBearerToken(bindCtx) == "" {
+	if invoke.ContextBearerToken(bindCtx) == "" {
 		t.Fatal("hierarchical match should resolve credentials for deep path")
 	}
-	if openbindings.ContextBearerToken(bindCtx) != ghToken {
+	if invoke.ContextBearerToken(bindCtx) != ghToken {
 		t.Error("token should match the one set on base URL")
 	}
 
@@ -199,7 +199,7 @@ func TestContextGitHub_HierarchicalAPIBaseURL(t *testing.T) {
 	if err != nil {
 		t.Fatalf("GetContext unrelated: %v", err)
 	}
-	if openbindings.ContextBearerToken(unrelatedCtx) != "" {
+	if invoke.ContextBearerToken(unrelatedCtx) != "" {
 		t.Error("unrelated domain should not match")
 	}
 }
@@ -362,7 +362,7 @@ func TestContext_HTTPSNormalization(t *testing.T) {
 	if err != nil {
 		t.Fatalf("LoadContext: %v", err)
 	}
-	if openbindings.ContextHeaders(ctx)["X-Test"] != "normalized" {
+	if invoke.ContextHeaders(ctx)["X-Test"] != "normalized" {
 		t.Errorf("expected normalized lookup to work, got: %v", ctx)
 	}
 
@@ -371,7 +371,7 @@ func TestContext_HTTPSNormalization(t *testing.T) {
 	if err != nil {
 		t.Fatalf("LoadContext (http): %v", err)
 	}
-	if openbindings.ContextHeaders(ctx2)["X-Test"] != "normalized" {
+	if invoke.ContextHeaders(ctx2)["X-Test"] != "normalized" {
 		t.Errorf("expected http lookup to work, got: %v", ctx2)
 	}
 }

@@ -6,6 +6,8 @@ import (
 	"testing"
 
 	openbindings "github.com/openbindings/openbindings-go"
+
+	"github.com/openbindings/openbindings-go/invoke"
 )
 
 // This file is the security regression for finding 4.2 (confused-deputy) and
@@ -29,7 +31,7 @@ type fakeDelegate struct {
 	received []map[string]any
 }
 
-func (f *fakeDelegate) invoke(ctx context.Context, ctxData map[string]any) openbindings.Invocation[any, any] {
+func (f *fakeDelegate) invoke(ctx context.Context, ctxData map[string]any) invoke.Invocation[any, any] {
 	f.mu.Lock()
 	snap := make(map[string]any, len(ctxData))
 	for k, v := range ctxData {
@@ -38,15 +40,15 @@ func (f *fakeDelegate) invoke(ctx context.Context, ctxData map[string]any) openb
 	f.received = append(f.received, snap)
 	f.mu.Unlock()
 
-	impl := openbindings.NewInvocationImpl[any, any](ctx)
+	impl := invoke.NewInvocationImpl[any, any](ctx)
 	go func() {
-		if openbindings.ContextBearerToken(ctxData) == "" {
+		if invoke.ContextBearerToken(ctxData) == "" {
 			durable := true
-			impl.FireError(openbindings.NewContextRequiredError(
-				&openbindings.ContextRequiredDetails{
+			impl.FireError(invoke.NewContextRequiredError(
+				&invoke.ContextRequiredDetails{
 					Target: f.assertedTarget,
-					Alternatives: []openbindings.ContextAlternative{{
-						Requirements: []openbindings.ContextRequirement{{Type: "auth.bearer", Durable: &durable}},
+					Alternatives: []invoke.ContextAlternative{{
+						Requirements: []invoke.ContextRequirement{{Type: "auth.bearer", Durable: &durable}},
 					}},
 				}))
 			return
@@ -73,7 +75,7 @@ func (f *fakeDelegate) round(i int) map[string]any {
 }
 
 // drain collects a driveBinding stream into its outputs and terminal error.
-func drain(ch <-chan InvocationOutput) (outputs []any, termErr *openbindings.InvocationError) {
+func drain(ch <-chan InvocationOutput) (outputs []any, termErr *invoke.InvocationError) {
 	for ev := range ch {
 		switch {
 		case ev.Error != nil:
@@ -137,7 +139,7 @@ func TestDriveBinding_ConfusedDeputy(t *testing.T) {
 		if del.rounds() < 2 {
 			t.Fatalf("expected a retry round after resolution; rounds=%d", del.rounds())
 		}
-		if got := openbindings.ContextBearerToken(del.round(1)); got != "VICTIM-SECRET" {
+		if got := invoke.ContextBearerToken(del.round(1)); got != "VICTIM-SECRET" {
 			t.Fatalf("exploit precondition not met: unguarded delegate received bearer %q, want the victim secret", got)
 		}
 	})
@@ -165,7 +167,7 @@ func TestDriveBinding_ConfusedDeputy(t *testing.T) {
 			t.Fatalf("delegate must be invoked once (the challenge) and not retried; rounds=%d", del.rounds())
 		}
 		for i := 0; i < del.rounds(); i++ {
-			if got := openbindings.ContextBearerToken(del.round(i)); got != "" {
+			if got := invoke.ContextBearerToken(del.round(i)); got != "" {
 				t.Fatalf("confused-deputy NOT closed: delegate received bearer %q in round %d", got, i)
 			}
 		}
@@ -194,7 +196,7 @@ func TestDriveBinding_MatchingTargetProvisions(t *testing.T) {
 	if len(outputs) == 0 {
 		t.Fatal("expected the matching-target delegate to succeed")
 	}
-	if got := openbindings.ContextBearerToken(del.round(1)); got != "REAL-BEARER" {
+	if got := invoke.ContextBearerToken(del.round(1)); got != "REAL-BEARER" {
 		t.Fatalf("matching-target delegate received bearer %q, want it provisioned", got)
 	}
 }
@@ -228,7 +230,7 @@ func TestDriveBinding_DelegateLeastPrivilege(t *testing.T) {
 			t.Fatalf("invocation failed: %v", err)
 		}
 		retry := del.round(1)
-		if got := openbindings.ContextBearerToken(retry); got != "REAL-BEARER" {
+		if got := invoke.ContextBearerToken(retry); got != "REAL-BEARER" {
 			t.Fatalf("scoped bearer not provisioned: %q", got)
 		}
 		if _, present := retry["apiKey"]; present {

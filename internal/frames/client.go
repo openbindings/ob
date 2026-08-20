@@ -8,21 +8,21 @@ import (
 
 	"github.com/coder/websocket"
 
-	openbindings "github.com/openbindings/openbindings-go"
+	"github.com/openbindings/openbindings-go/invoke"
 )
 
 // Dialer establishes the WebSocket connection for one invocation. It runs on
 // the invocation's goroutine (creation stays inert); a non-nil error becomes
 // the handle's pre-side-effect terminal.
-type Dialer func(ctx context.Context) (*websocket.Conn, *openbindings.InvocationError)
+type Dialer func(ctx context.Context) (*websocket.Conn, *invoke.InvocationError)
 
 // Invoke drives one binding-invoker frame stream as a caller-facing
 // Invocation handle: caller writes become `input` frames, `output` frames
 // become handle outputs, a service `input_closed` closes the handle's input
 // side, and the terminal frame (or its absence at transport closure, rule 5)
 // terminates the handle. One connection carries exactly one invocation.
-func Invoke(ctx context.Context, dial Dialer, input *BindingInvocationInput) openbindings.Invocation[any, any] {
-	impl := openbindings.NewInvocationImpl[any, any](ctx)
+func Invoke(ctx context.Context, dial Dialer, input *BindingInvocationInput) invoke.Invocation[any, any] {
+	impl := invoke.NewInvocationImpl[any, any](ctx)
 
 	go func() {
 		conn, ierr := dial(ctx)
@@ -50,7 +50,7 @@ func Invoke(ctx context.Context, dial Dialer, input *BindingInvocationInput) ope
 // frames and the caller's input closure as the close frame. Send failures
 // are not terminal here: the read side owns terminal reporting (a broken
 // transport surfaces as ERR_TRANSPORT_CLOSED from readPump).
-func writePump(ctx context.Context, conn *websocket.Conn, impl *openbindings.InvocationImpl[any, any], input *BindingInvocationInput) {
+func writePump(ctx context.Context, conn *websocket.Conn, impl *invoke.InvocationImpl[any, any], input *BindingInvocationInput) {
 	if writeFrame(ctx, conn, Open(input)) != nil {
 		return
 	}
@@ -75,21 +75,21 @@ func writePump(ctx context.Context, conn *websocket.Conn, impl *openbindings.Inv
 // readPump consumes output frames until the terminal frame, synthesizing
 // ERR_TRANSPORT_CLOSED when the transport closes without one (rule 5) and
 // ERR_FRAME_PROTOCOL when a frame fails strict decoding (rule 7, consumer side).
-func readPump(ctx context.Context, conn *websocket.Conn, impl *openbindings.InvocationImpl[any, any]) {
+func readPump(ctx context.Context, conn *websocket.Conn, impl *invoke.InvocationImpl[any, any]) {
 	for {
 		_, data, err := conn.Read(ctx)
 		if err != nil {
 			// FireError is a no-op once terminal, so closures caused by our
 			// own teardown (after complete/error/Cancel) don't overwrite.
-			impl.FireError(&openbindings.InvocationError{
-				Code: openbindings.ErrCodeTransportClosed,
+			impl.FireError(&invoke.InvocationError{
+				Code: invoke.ErrCodeTransportClosed,
 			})
 			return
 		}
 		var frame OutputFrame
 		if err := json.Unmarshal(data, &frame); err != nil {
-			impl.FireError(&openbindings.InvocationError{
-				Code: openbindings.ErrCodeFrameProtocol,
+			impl.FireError(&invoke.InvocationError{
+				Code: invoke.ErrCodeFrameProtocol,
 			})
 			return
 		}

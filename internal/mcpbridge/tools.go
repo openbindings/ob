@@ -13,6 +13,7 @@ import (
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 	openbindings "github.com/openbindings/openbindings-go"
+	"github.com/openbindings/openbindings-go/invoke"
 )
 
 // DefaultToolDeadline bounds a single bridged tool/resource/prompt call when
@@ -65,14 +66,14 @@ func (o RegisterOptions) deadline() time.Duration {
 
 type drainedOperation struct {
 	Outputs []any
-	Error   *openbindings.InvocationError
+	Error   *invoke.InvocationError
 }
 
 // drainOperation drives one cardinality-agnostic OpenBindings invocation to
 // completion. The complete output sequence is retained even when the
 // invocation later terminates with an error; OpenBindings does not retract
 // already-emitted values, so an adapter must not discard them either.
-func drainOperation(ctx context.Context, call openbindings.Invocation[any, any], input operationInput, opKey string, deadline time.Duration) drainedOperation {
+func drainOperation(ctx context.Context, call invoke.Invocation[any, any], input operationInput, opKey string, deadline time.Duration) drainedOperation {
 	dctx, cancel := context.WithTimeout(ctx, deadline)
 	defer cancel()
 	if input.Present {
@@ -89,11 +90,11 @@ func drainOperation(ctx context.Context, call openbindings.Invocation[any, any],
 		if err != nil {
 			call.Cancel()
 			if dctx.Err() == context.DeadlineExceeded && ctx.Err() == nil {
-				return drainedOperation{Outputs: outputs, Error: &openbindings.InvocationError{
-					Code: openbindings.ErrCodeCancelled,
+				return drainedOperation{Outputs: outputs, Error: &invoke.InvocationError{
+					Code: invoke.ErrCodeCancelled,
 				}}
 			}
-			return drainedOperation{Outputs: outputs, Error: openbindings.AsInvocationError(err)}
+			return drainedOperation{Outputs: outputs, Error: invoke.AsInvocationError(err)}
 		}
 		outputs = append(outputs, v)
 	}
@@ -114,7 +115,7 @@ func drainOperation(ctx context.Context, call openbindings.Invocation[any, any],
 func RegisterInterface(
 	srv *mcp.Server,
 	iface *openbindings.Interface,
-	invoker *openbindings.OperationInvoker,
+	invoker *invoke.OperationInvoker,
 	baseContext map[string]any,
 	opts RegisterOptions,
 ) int {
@@ -126,7 +127,7 @@ func RegisterInterface(
 func RegisterInterfaceWithReport(
 	srv *mcp.Server,
 	iface *openbindings.Interface,
-	invoker *openbindings.OperationInvoker,
+	invoker *invoke.OperationInvoker,
 	baseContext map[string]any,
 	opts RegisterOptions,
 ) RegistrationReport {
@@ -337,7 +338,7 @@ func registerTool(
 	opKey string,
 	binding mcpBinding,
 	nativeMCP bool,
-	invoker *openbindings.OperationInvoker,
+	invoker *invoke.OperationInvoker,
 	baseContext map[string]any,
 	opts RegisterOptions,
 	res bindingResolution,
@@ -413,13 +414,13 @@ func registerTool(
 		}
 
 		invokeCtx := contextWithSelection(baseContext, selection)
-		call := openbindings.Invoke(ctx, invoker, iface,
-			openbindings.NewOperationSignature[any, any](opKey),
-			openbindings.WithContext(mcpToolContext(invokeCtx, nativeMCP && req.Params.GetProgressToken() != nil)))
+		call := invoke.Invoke(ctx, invoker, iface,
+			invoke.NewOperationSignature[any, any](opKey),
+			invoke.WithContext(mcpToolContext(invokeCtx, nativeMCP && req.Params.GetProgressToken() != nil)))
 		var genericResult drainedOperation
 		var lastData any
 		var nativeFinal bool
-		var ierr *openbindings.InvocationError
+		var ierr *invoke.InvocationError
 		if nativeMCP && req.Params.GetProgressToken() != nil && req.Session != nil {
 			lastData, nativeFinal, ierr = drainMCPTool(ctx, call, input, opKey, opts.deadline(), req)
 		} else {
@@ -459,7 +460,7 @@ func registerStaticResource(
 	iface *openbindings.Interface,
 	opKey string,
 	binding mcpBinding,
-	invoker *openbindings.OperationInvoker,
+	invoker *invoke.OperationInvoker,
 	baseContext map[string]any,
 	opts RegisterOptions,
 ) {
@@ -475,9 +476,9 @@ func registerStaticResource(
 	}
 
 	srv.AddResource(descriptor, func(ctx context.Context, req *mcp.ReadResourceRequest) (*mcp.ReadResourceResult, error) {
-		call := openbindings.Invoke(ctx, invoker, iface,
-			openbindings.NewOperationSignature[any, any](opKey),
-			openbindings.WithContext(baseContext))
+		call := invoke.Invoke(ctx, invoker, iface,
+			invoke.NewOperationSignature[any, any](opKey),
+			invoke.WithContext(baseContext))
 		// A static MCP resource's URI lives in the binding ref. The binding
 		// intentionally takes no OpenBindings input value.
 		drained := drainOperation(ctx, call, operationInput{}, opKey, opts.deadline())
@@ -502,7 +503,7 @@ func registerResourceTemplate(
 	iface *openbindings.Interface,
 	opKey string,
 	binding mcpBinding,
-	invoker *openbindings.OperationInvoker,
+	invoker *invoke.OperationInvoker,
 	baseContext map[string]any,
 	opts RegisterOptions,
 ) {
@@ -537,7 +538,7 @@ func registerPrompt(
 	iface *openbindings.Interface,
 	opKey string,
 	binding mcpBinding,
-	invoker *openbindings.OperationInvoker,
+	invoker *invoke.OperationInvoker,
 	baseContext map[string]any,
 	opts RegisterOptions,
 ) {
@@ -575,9 +576,9 @@ func registerPrompt(
 			input = operationInput{Value: m, Present: true}
 		}
 
-		call := openbindings.Invoke(ctx, invoker, iface,
-			openbindings.NewOperationSignature[any, any](opKey),
-			openbindings.WithContext(baseContext))
+		call := invoke.Invoke(ctx, invoker, iface,
+			invoke.NewOperationSignature[any, any](opKey),
+			invoke.WithContext(baseContext))
 		drained := drainOperation(ctx, call, input, opKey, opts.deadline())
 		if drained.Error != nil {
 			return nil, fmt.Errorf("%s", drained.Error.Code)
@@ -648,12 +649,12 @@ func mcpToolContext(base map[string]any, solicit bool) map[string]any {
 // token; the last output is the complete CallToolResult.
 func drainMCPTool(
 	ctx context.Context,
-	call openbindings.Invocation[any, any],
+	call invoke.Invocation[any, any],
 	input operationInput,
 	opKey string,
 	deadline time.Duration,
 	req *mcp.CallToolRequest,
-) (any, bool, *openbindings.InvocationError) {
+) (any, bool, *invoke.InvocationError) {
 	dctx, cancel := context.WithTimeout(ctx, deadline)
 	defer cancel()
 	if input.Present {
@@ -672,25 +673,25 @@ func drainMCPTool(
 		if err != nil {
 			call.Cancel()
 			if dctx.Err() == context.DeadlineExceeded && ctx.Err() == nil {
-				return nil, false, &openbindings.InvocationError{
-					Code: openbindings.ErrCodeCancelled,
+				return nil, false, &invoke.InvocationError{
+					Code: invoke.ErrCodeCancelled,
 				}
 			}
-			return nil, false, openbindings.AsInvocationError(err)
+			return nil, false, invoke.AsInvocationError(err)
 		}
 		if pendingPresent {
 			progress := &mcp.ProgressNotificationParams{}
 			if err := remarshal(pending, progress); err != nil {
 				call.Cancel()
-				return nil, false, &openbindings.InvocationError{
-					Code: openbindings.ErrCodeProtocol,
+				return nil, false, &invoke.InvocationError{
+					Code: invoke.ErrCodeProtocol,
 				}
 			}
 			progress.ProgressToken = req.Params.GetProgressToken()
 			if err := req.Session.NotifyProgress(dctx, progress); err != nil {
 				call.Cancel()
-				return nil, false, &openbindings.InvocationError{
-					Code: openbindings.ErrCodeProtocol,
+				return nil, false, &invoke.InvocationError{
+					Code: invoke.ErrCodeProtocol,
 				}
 			}
 		}

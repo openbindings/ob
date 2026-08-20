@@ -11,7 +11,7 @@ import (
 	"sort"
 	"strings"
 
-	openbindings "github.com/openbindings/openbindings-go"
+	"github.com/openbindings/openbindings-go/invoke"
 )
 
 // ContextConfig holds structured non-credential fields of a URL-keyed
@@ -397,7 +397,7 @@ func GetContextSummary(rawURL string) (ContextSummary, error) {
 	}, nil
 }
 
-// cliContextStore implements openbindings.ContextStore by wrapping the CLI's
+// cliContextStore implements invoke.ContextStore by wrapping the CLI's
 // file+keychain persistence. The SDK and drivers call this through the
 // ContextStore interface — they never import this package directly.
 //
@@ -411,7 +411,7 @@ type cliContextStore struct{}
 
 // NewCLIContextStore returns a ContextStore backed by the CLI's file-system
 // config and OS keychain.
-func NewCLIContextStore() openbindings.ContextStore { return &cliContextStore{} }
+func NewCLIContextStore() invoke.ContextStore { return &cliContextStore{} }
 
 func (s *cliContextStore) Get(_ context.Context, key string) (map[string]any, error) {
 	ctx, err := LoadContext(key)
@@ -420,7 +420,7 @@ func (s *cliContextStore) Get(_ context.Context, key string) (map[string]any, er
 	}
 	// Bridge key conventions: the binding-invoker interface's challenge keys are
 	// normalized origins (host[:port], no scheme, no path — the same identity
-	// openbindings.NormalizeEndpoint derives), while `ob context set <url>`
+	// invoke.NormalizeEndpoint derives), while `ob context set <url>`
 	// persists under the URL the user supplied (commonly with a path). The
 	// hierarchical resolver only walks path-specific→general, so an origin
 	// challenge can't reach a context saved at a deeper URL. Resolve by origin
@@ -457,7 +457,7 @@ func (s *cliContextStore) Get(_ context.Context, key string) (map[string]any, er
 // me?". Plumbing the challenge through would answer it properly; that is a
 // contract change, not a bug fix, and belongs in its own decision.
 func findStoredContextByOrigin(originKey string) string {
-	want := openbindings.NormalizeEndpoint(originKey)
+	want := invoke.NormalizeEndpoint(originKey)
 	if want == "" {
 		return ""
 	}
@@ -467,7 +467,7 @@ func findStoredContextByOrigin(originKey string) string {
 	}
 	best, bestHasCredential := "", false
 	for _, sum := range summaries {
-		if openbindings.NormalizeEndpoint(sum.URL) != want {
+		if invoke.NormalizeEndpoint(sum.URL) != want {
 			continue
 		}
 		candidate, loadErr := LoadContext(sum.URL)

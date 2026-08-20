@@ -9,6 +9,7 @@ import (
 
 	gomcp "github.com/modelcontextprotocol/go-sdk/mcp"
 	openbindings "github.com/openbindings/openbindings-go"
+	"github.com/openbindings/openbindings-go/invoke"
 )
 
 func makeInterface(name string, ops map[string]openbindings.Operation) *openbindings.Interface {
@@ -133,21 +134,21 @@ type registrationTestInvoker struct {
 	specs []openbindings.BindingSpecInfo
 }
 
-func newRegistrationTestInvoker(specs ...string) *openbindings.OperationInvoker {
+func newRegistrationTestInvoker(specs ...string) *invoke.OperationInvoker {
 	infos := make([]openbindings.BindingSpecInfo, 0, len(specs))
 	for _, spec := range specs {
 		infos = append(infos, openbindings.BindingSpecInfo{BindingSpec: spec})
 	}
-	return openbindings.NewOperationInvoker(&registrationTestInvoker{specs: infos})
+	return invoke.NewOperationInvoker(&registrationTestInvoker{specs: infos})
 }
 
 func (i *registrationTestInvoker) BindingSpecs() []openbindings.BindingSpecInfo {
 	return i.specs
 }
 
-func (i *registrationTestInvoker) InvokeBinding(ctx context.Context, _ *openbindings.BindingInvocationArgs) openbindings.Invocation[any, any] {
-	inv := openbindings.NewInvocationImpl[any, any](ctx)
-	inv.FireError(openbindings.NewInvocationError(openbindings.ErrCodeRuntime))
+func (i *registrationTestInvoker) InvokeBinding(ctx context.Context, _ *invoke.BindingInvocationArgs) invoke.Invocation[any, any] {
+	inv := invoke.NewInvocationImpl[any, any](ctx)
+	inv.FireError(invoke.NewInvocationError(invoke.ErrCodeRuntime))
 	return inv
 }
 
@@ -412,8 +413,8 @@ func (n *neverEndingInvoker) BindingSpecs() []openbindings.BindingSpecInfo {
 	return []openbindings.BindingSpecInfo{{BindingSpec: "test-stream", Description: "unbounded stream"}}
 }
 
-func (n *neverEndingInvoker) InvokeBinding(ctx context.Context, args *openbindings.BindingInvocationArgs) openbindings.Invocation[any, any] {
-	inv := openbindings.NewInvocationImpl[any, any](ctx)
+func (n *neverEndingInvoker) InvokeBinding(ctx context.Context, args *invoke.BindingInvocationArgs) invoke.Invocation[any, any] {
+	inv := invoke.NewInvocationImpl[any, any](ctx)
 	go func() {
 		_ = inv.CloseInput()
 		i := 0
@@ -436,7 +437,7 @@ func (n *neverEndingInvoker) InvokeBinding(ctx context.Context, args *openbindin
 // call; the drain must terminate at the deadline with an honest refusal
 // (never hang until the agent's client gives up — the field-check finding).
 func TestDrainOperation_UnboundedStreamHitsDeadline(t *testing.T) {
-	invoker := openbindings.NewOperationInvoker(&neverEndingInvoker{})
+	invoker := invoke.NewOperationInvoker(&neverEndingInvoker{})
 	iface := &openbindings.Interface{
 		OpenBindings: "0.2.0",
 		Name:         "streams",
@@ -448,15 +449,15 @@ func TestDrainOperation_UnboundedStreamHitsDeadline(t *testing.T) {
 	}
 
 	start := time.Now()
-	call := openbindings.Invoke(context.Background(), invoker, iface,
-		openbindings.NewOperationSignature[any, any]("orderUpdates"))
+	call := invoke.Invoke(context.Background(), invoker, iface,
+		invoke.NewOperationSignature[any, any]("orderUpdates"))
 	drained := drainOperation(context.Background(), call, operationInput{}, "orderUpdates", 120*time.Millisecond)
 	elapsed := time.Since(start)
 
 	if drained.Error == nil {
 		t.Fatalf("unbounded stream must terminate with a refusal, got outputs %v", drained.Outputs)
 	}
-	if drained.Error.Code != openbindings.ErrCodeCancelled {
+	if drained.Error.Code != invoke.ErrCodeCancelled {
 		t.Errorf("want ERR_CANCELLED, got %s", drained.Error.Code)
 	}
 	if len(drained.Outputs) == 0 {
@@ -469,7 +470,7 @@ func TestDrainOperation_UnboundedStreamHitsDeadline(t *testing.T) {
 
 func TestDrainMCPTool_DistinguishesNoFinalResult(t *testing.T) {
 	ctx := context.Background()
-	call := openbindings.NewInvocationImpl[any, any](ctx)
+	call := invoke.NewInvocationImpl[any, any](ctx)
 	_ = call.CloseInput()
 	call.CloseOutput()
 

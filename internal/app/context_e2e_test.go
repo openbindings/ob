@@ -4,6 +4,8 @@ import (
 	"testing"
 
 	openbindings "github.com/openbindings/openbindings-go"
+
+	"github.com/openbindings/openbindings-go/invoke"
 )
 
 func TestContextE2E_URLKeyedRoundTrip(t *testing.T) {
@@ -29,17 +31,17 @@ func TestContextE2E_URLKeyedRoundTrip(t *testing.T) {
 		t.Fatal("GetContext: expected non-nil context")
 	}
 
-	if openbindings.ContextHeaders(ctx)["X-Custom"] != "custom-value" {
-		t.Errorf("header mismatch: %q", openbindings.ContextHeaders(ctx)["X-Custom"])
+	if invoke.ContextHeaders(ctx)["X-Custom"] != "custom-value" {
+		t.Errorf("header mismatch: %q", invoke.ContextHeaders(ctx)["X-Custom"])
 	}
-	if openbindings.ContextCookies(ctx)["session"] != "abc" {
-		t.Errorf("cookie mismatch: %q", openbindings.ContextCookies(ctx)["session"])
+	if invoke.ContextCookies(ctx)["session"] != "abc" {
+		t.Errorf("cookie mismatch: %q", invoke.ContextCookies(ctx)["session"])
 	}
-	if openbindings.ContextEnvironment(ctx)["STRIPE_ENV"] != "test" {
-		t.Errorf("env mismatch: %q", openbindings.ContextEnvironment(ctx)["STRIPE_ENV"])
+	if invoke.ContextEnvironment(ctx)["STRIPE_ENV"] != "test" {
+		t.Errorf("env mismatch: %q", invoke.ContextEnvironment(ctx)["STRIPE_ENV"])
 	}
-	if openbindings.ContextMetadata(ctx)["baseURL"] != "https://api.stripe.com" {
-		t.Errorf("metadata mismatch: %v", openbindings.ContextMetadata(ctx)["baseURL"])
+	if invoke.ContextMetadata(ctx)["baseURL"] != "https://api.stripe.com" {
+		t.Errorf("metadata mismatch: %v", invoke.ContextMetadata(ctx)["baseURL"])
 	}
 }
 
@@ -75,8 +77,8 @@ func TestContextE2E_ExecURLContext(t *testing.T) {
 	if ctx == nil {
 		t.Fatal("GetContext: expected non-nil context")
 	}
-	if openbindings.ContextEnvironment(ctx)["KUBECONFIG"] != "/home/me/.kube/prod" {
-		t.Errorf("env mismatch: %q", openbindings.ContextEnvironment(ctx)["KUBECONFIG"])
+	if invoke.ContextEnvironment(ctx)["KUBECONFIG"] != "/home/me/.kube/prod" {
+		t.Errorf("env mismatch: %q", invoke.ContextEnvironment(ctx)["KUBECONFIG"])
 	}
 }
 
@@ -107,7 +109,7 @@ func TestContextE2E_DeleteCleansUp(t *testing.T) {
 	if err != nil {
 		t.Fatalf("GetContext after delete: %v", err)
 	}
-	if len(openbindings.ContextHeaders(ctx)) > 0 {
+	if len(invoke.ContextHeaders(ctx)) > 0 {
 		t.Errorf("context should be empty after delete: %+v", ctx)
 	}
 }
@@ -129,8 +131,8 @@ func TestContextE2E_AutoResolution(t *testing.T) {
 	if ctx == nil {
 		t.Fatal("GetContext: expected non-nil context")
 	}
-	if openbindings.ContextHeaders(ctx)["X-Api-Key"] != "pet-key-123" {
-		t.Errorf("header mismatch: %q", openbindings.ContextHeaders(ctx)["X-Api-Key"])
+	if invoke.ContextHeaders(ctx)["X-Api-Key"] != "pet-key-123" {
+		t.Errorf("header mismatch: %q", invoke.ContextHeaders(ctx)["X-Api-Key"])
 	}
 
 	iface := &openbindings.Interface{
@@ -177,8 +179,8 @@ func TestContextE2E_HierarchicalURLMatch(t *testing.T) {
 	if ctx == nil {
 		t.Fatal("GetContext: expected non-nil context")
 	}
-	if openbindings.ContextHeaders(ctx)["Authorization"] != "Bearer test-token" {
-		t.Errorf("expected hierarchical match, got headers: %v", openbindings.ContextHeaders(ctx))
+	if invoke.ContextHeaders(ctx)["Authorization"] != "Bearer test-token" {
+		t.Errorf("expected hierarchical match, got headers: %v", invoke.ContextHeaders(ctx))
 	}
 
 	midURL := "https://raw.githubusercontent.com/github/rest-api-description"
@@ -189,8 +191,8 @@ func TestContextE2E_HierarchicalURLMatch(t *testing.T) {
 	if ctx2 == nil {
 		t.Fatal("GetContext: expected non-nil context")
 	}
-	if openbindings.ContextHeaders(ctx2)["Authorization"] != "Bearer test-token" {
-		t.Errorf("expected hierarchical match for mid-path, got headers: %v", openbindings.ContextHeaders(ctx2))
+	if invoke.ContextHeaders(ctx2)["Authorization"] != "Bearer test-token" {
+		t.Errorf("expected hierarchical match for mid-path, got headers: %v", invoke.ContextHeaders(ctx2))
 	}
 
 	otherURL := "https://api.github.com/user"
@@ -198,8 +200,8 @@ func TestContextE2E_HierarchicalURLMatch(t *testing.T) {
 	if err != nil {
 		t.Fatalf("GetContext: %v", err)
 	}
-	if len(openbindings.ContextHeaders(ctx3)) > 0 {
-		t.Errorf("different domain should not match: %v", openbindings.ContextHeaders(ctx3))
+	if len(invoke.ContextHeaders(ctx3)) > 0 {
+		t.Errorf("different domain should not match: %v", invoke.ContextHeaders(ctx3))
 	}
 }
 
@@ -227,8 +229,8 @@ func TestContextE2E_ExactMatchTakesPrecedence(t *testing.T) {
 	if ctx == nil {
 		t.Fatal("GetContext: expected non-nil context")
 	}
-	if openbindings.ContextHeaders(ctx)["X-Level"] != "specific" {
-		t.Errorf("exact match should take precedence, got %q", openbindings.ContextHeaders(ctx)["X-Level"])
+	if invoke.ContextHeaders(ctx)["X-Level"] != "specific" {
+		t.Errorf("exact match should take precedence, got %q", invoke.ContextHeaders(ctx)["X-Level"])
 	}
 
 	otherPath := "https://api.example.com/v3/other.json"
@@ -239,8 +241,8 @@ func TestContextE2E_ExactMatchTakesPrecedence(t *testing.T) {
 	if ctx2 == nil {
 		t.Fatal("GetContext: expected non-nil context")
 	}
-	if openbindings.ContextHeaders(ctx2)["X-Level"] != "base" {
-		t.Errorf("should fall back to base, got %q", openbindings.ContextHeaders(ctx2)["X-Level"])
+	if invoke.ContextHeaders(ctx2)["X-Level"] != "base" {
+		t.Errorf("should fall back to base, got %q", invoke.ContextHeaders(ctx2)["X-Level"])
 	}
 }
 

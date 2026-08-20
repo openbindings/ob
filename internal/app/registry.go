@@ -8,6 +8,10 @@ import (
 
 	openbindings "github.com/openbindings/openbindings-go"
 
+	"github.com/openbindings/openbindings-go/invoke"
+
+	"github.com/openbindings/openbindings-go/synthesize"
+
 	"github.com/openbindings/openbindings-go/formats/asyncapi"
 	connectbinding "github.com/openbindings/openbindings-go/formats/connect"
 	graphqlbinding "github.com/openbindings/openbindings-go/formats/graphql"
@@ -19,10 +23,10 @@ import (
 )
 
 var (
-	defaultInvoker     *openbindings.OperationInvoker
+	defaultInvoker     *invoke.OperationInvoker
 	defaultInvokerOnce sync.Once
 
-	defaultSynthesizer     openbindings.InterfaceSynthesizer
+	defaultSynthesizer     synthesize.InterfaceSynthesizer
 	defaultSynthesizerOnce sync.Once
 
 	// newInvokerFunc builds the OperationInvoker. Override in tests to
@@ -34,8 +38,8 @@ var (
 	newSynthesizerFunc = newDefaultSynthesizer
 )
 
-func newDefaultInvoker() *openbindings.OperationInvoker {
-	invoker := openbindings.NewOperationInvoker(
+func newDefaultInvoker() *invoke.OperationInvoker {
+	invoker := invoke.NewOperationInvoker(
 		openapi.NewInvoker(),
 		grpc.NewInvoker(),
 		connectbinding.NewInvoker(),
@@ -56,7 +60,7 @@ func newDefaultInvoker() *openbindings.OperationInvoker {
 	// both loops fire and a single challenge is retried up to 3×3 times.
 	//
 	// Least privilege: the resolver hands back only context fields named by
-	// the satisfied challenge alternative (openbindings.ScopeContext), and a
+	// the satisfied challenge alternative (invoke.ScopeContext), and a
 	// binding invoker never gets raw store access.
 	invoker.ContextResolver = CLIContextResolver()
 	// ob's own consumer configuration: the site-guarded hook table for the
@@ -70,8 +74,8 @@ func newDefaultInvoker() *openbindings.OperationInvoker {
 	return invoker
 }
 
-func newDefaultSynthesizer() openbindings.InterfaceSynthesizer {
-	return openbindings.CombineSynthesizers(
+func newDefaultSynthesizer() synthesize.InterfaceSynthesizer {
+	return synthesize.CombineSynthesizers(
 		openapi.NewSynthesizer(),
 		asyncapi.NewSynthesizer(),
 		grpc.NewSynthesizer(),
@@ -84,7 +88,7 @@ func newDefaultSynthesizer() openbindings.InterfaceSynthesizer {
 
 // DefaultSynthesizer returns the singleton combined InterfaceSynthesizer wired with
 // all built-in format synthesizers.
-func DefaultSynthesizer() openbindings.InterfaceSynthesizer {
+func DefaultSynthesizer() synthesize.InterfaceSynthesizer {
 	defaultSynthesizerOnce.Do(func() {
 		defaultSynthesizer = newSynthesizerFunc()
 	})
@@ -94,7 +98,7 @@ func DefaultSynthesizer() openbindings.InterfaceSynthesizer {
 // SynthesizeInterfaceFromSource routes interface creation to the appropriate
 // synthesizer by format, falling through to a synthesize-capable delegate when the
 // format is not natively supported.
-func SynthesizeInterfaceFromSource(ctx context.Context, input *openbindings.SynthesizeInput) (*openbindings.Interface, error) {
+func SynthesizeInterfaceFromSource(ctx context.Context, input *synthesize.SynthesizeInput) (*openbindings.Interface, error) {
 	if iface, routed, err := synthesizeViaDelegate(ctx, input); routed {
 		return iface, err
 	}
@@ -104,12 +108,12 @@ func SynthesizeInterfaceFromSource(ctx context.Context, input *openbindings.Synt
 // InspectSource returns bindable targets for a source, delegating to the
 // matching native inspector, or to an inspect-capable delegate when the format
 // is not natively supported.
-func InspectSource(ctx context.Context, source *openbindings.Source) (*openbindings.SourceInspection, error) {
+func InspectSource(ctx context.Context, source *openbindings.Source) (*synthesize.SourceInspection, error) {
 	if ins, routed, err := inspectViaDelegate(ctx, source); routed {
 		return ins, err
 	}
 	synthesizer := DefaultSynthesizer()
-	inspector, ok := synthesizer.(openbindings.SourceInspector)
+	inspector, ok := synthesizer.(synthesize.SourceInspector)
 	if !ok {
 		return nil, fmt.Errorf("synthesizer does not support source inspection")
 	}
@@ -119,7 +123,7 @@ func InspectSource(ctx context.Context, source *openbindings.Source) (*openbindi
 // DefaultInvoker returns the singleton OperationInvoker wired with all
 // built-in binding invokers. In tests, override newInvokerFunc
 // before calling DefaultInvoker to inject a custom invoker.
-func DefaultInvoker() *openbindings.OperationInvoker {
+func DefaultInvoker() *invoke.OperationInvoker {
 	defaultInvokerOnce.Do(func() {
 		defaultInvoker = newInvokerFunc()
 	})
@@ -140,11 +144,11 @@ func ResetDefaultInvoker() {
 // and returns a cleanup function that restores the original constructor.
 // Also resets the cached native-token list so BuiltinSupportsFormat picks
 // up the new invoker's formats. Intended for tests only.
-func OverrideInvokerForTest(invoker *openbindings.OperationInvoker) func() {
+func OverrideInvokerForTest(invoker *invoke.OperationInvoker) func() {
 	old := newInvokerFunc
 	ResetDefaultInvoker()
 	resetNativeTokens()
-	newInvokerFunc = func() *openbindings.OperationInvoker { return invoker }
+	newInvokerFunc = func() *invoke.OperationInvoker { return invoker }
 	return func() {
 		newInvokerFunc = old
 		ResetDefaultInvoker()

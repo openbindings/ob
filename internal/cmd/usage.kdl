@@ -295,12 +295,6 @@ cmd "operation" help="Manage and invoke operations on an OBI" subcommand_require
     flag "--binding <key>" help="Binding key to invoke (operation is derived from the entry)"
     flag "--select-binding <key>" help="Ordered binding choice for this and nested operations (repeatable)" var=#true
     flag "--input <value>" help="Operation input: inline JSON, @file, or - for stdin"
-    flag "--configuration <json>" help="Binding-spec configuration object: inline JSON, @file, or - for stdin"
-    flag "--decode <lane>" help="Output decode lane: json, text, or none" {
-      arg "<lane>"
-    }
-    flag "--ok-exit <codes>" help="Exit codes classified as success, comma-separated (e.g. 0,1)"
-    flag "--route <field=channel>" help="Field routing: field=argv|stdin|stdin-dash|file (repeatable)" var=#true
     flag "-v --verbose" help="Show binding key, duration, and any displaced output-schema overrides on stderr"
     arg "<obi>" help="OBI locator (file path, URL, exec: reference, or - for stdin)"
     arg "[operation]" help="Operation key to invoke"

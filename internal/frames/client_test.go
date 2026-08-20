@@ -12,7 +12,7 @@ import (
 
 	"github.com/coder/websocket"
 
-	openbindings "github.com/openbindings/openbindings-go"
+	"github.com/openbindings/openbindings-go/invoke"
 )
 
 // frameServer runs a scripted frame-protocol service for client tests: it
@@ -48,11 +48,11 @@ func frameServer(t *testing.T, script func(ctx context.Context, conn *websocket.
 }
 
 func testDialer(ts *httptest.Server) Dialer {
-	return func(ctx context.Context) (*websocket.Conn, *openbindings.InvocationError) {
+	return func(ctx context.Context) (*websocket.Conn, *invoke.InvocationError) {
 		wsURL := strings.Replace(ts.URL, "http://", "ws://", 1)
 		conn, _, err := websocket.Dial(ctx, wsURL, nil)
 		if err != nil {
-			return nil, openbindings.NewInvocationError(openbindings.ErrCodeConnectFailed)
+			return nil, invoke.NewInvocationError(invoke.ErrCodeConnectFailed)
 		}
 		return conn, nil
 	}
@@ -143,8 +143,8 @@ func TestInvoke_TransportClosedSynthesized(t *testing.T) {
 	}
 
 	_, err = out.Read(ctx)
-	ie := openbindings.AsInvocationError(err)
-	if ie == nil || ie.Code != openbindings.ErrCodeTransportClosed {
+	ie := invoke.AsInvocationError(err)
+	if ie == nil || ie.Code != invoke.ErrCodeTransportClosed {
 		t.Fatalf("expected ERR_TRANSPORT_CLOSED, got %v", err)
 	}
 }
@@ -152,26 +152,26 @@ func TestInvoke_TransportClosedSynthesized(t *testing.T) {
 func TestInvoke_ErrorFrameDataPassThrough(t *testing.T) {
 	// A terminal error frame (CONTEXT_REQUIRED with data) surfaces as the
 	// handle's terminal error with the typed data recoverable.
-	details := &openbindings.ContextRequiredDetails{
+	details := &invoke.ContextRequiredDetails{
 		Target: "api.example.com",
-		Alternatives: []openbindings.ContextAlternative{
-			{Requirements: []openbindings.ContextRequirement{{Type: "auth.bearer"}}},
+		Alternatives: []invoke.ContextAlternative{
+			{Requirements: []invoke.ContextRequirement{{Type: "auth.bearer"}}},
 		},
 	}
 	ts := frameServer(t, func(ctx context.Context, conn *websocket.Conn, in <-chan InputFrame) {
 		<-in // open
-		mustWrite(t, ctx, conn, Error(openbindings.NewContextRequiredError(details)))
+		mustWrite(t, ctx, conn, Error(invoke.NewContextRequiredError(details)))
 	})
 
 	ctx := t.Context()
 	inv := Invoke(ctx, testDialer(ts), testInput())
 
 	_, err := inv.Outputs().Read(ctx)
-	ie := openbindings.AsInvocationError(err)
-	if ie == nil || ie.Code != openbindings.ErrCodeContextRequired {
+	ie := invoke.AsInvocationError(err)
+	if ie == nil || ie.Code != invoke.ErrCodeContextRequired {
 		t.Fatalf("expected CONTEXT_REQUIRED, got %v", err)
 	}
-	got := openbindings.ContextRequiredFrom(ie)
+	got := invoke.ContextRequiredFrom(ie)
 	if got == nil || got.Target != "api.example.com" {
 		t.Fatalf("expected typed details after the wire, got %#v", got)
 	}
@@ -189,21 +189,21 @@ func TestInvoke_MalformedOutputFrameIsProtocolError(t *testing.T) {
 	inv := Invoke(ctx, testDialer(ts), testInput())
 
 	_, err := inv.Outputs().Read(ctx)
-	ie := openbindings.AsInvocationError(err)
-	if ie == nil || ie.Code != openbindings.ErrCodeFrameProtocol {
+	ie := invoke.AsInvocationError(err)
+	if ie == nil || ie.Code != invoke.ErrCodeFrameProtocol {
 		t.Fatalf("expected ERR_FRAME_PROTOCOL, got %v", err)
 	}
 }
 
 func TestInvoke_DialFailureIsTerminal(t *testing.T) {
 	ctx := t.Context()
-	dial := func(ctx context.Context) (*websocket.Conn, *openbindings.InvocationError) {
-		return nil, openbindings.NewInvocationError(openbindings.ErrCodeConnectFailed)
+	dial := func(ctx context.Context) (*websocket.Conn, *invoke.InvocationError) {
+		return nil, invoke.NewInvocationError(invoke.ErrCodeConnectFailed)
 	}
 	inv := Invoke(ctx, dial, testInput())
 	_, err := inv.Outputs().Read(ctx)
-	ie := openbindings.AsInvocationError(err)
-	if ie == nil || ie.Code != openbindings.ErrCodeConnectFailed {
+	ie := invoke.AsInvocationError(err)
+	if ie == nil || ie.Code != invoke.ErrCodeConnectFailed {
 		t.Fatalf("expected ERR_CONNECT_FAILED, got %v", err)
 	}
 }

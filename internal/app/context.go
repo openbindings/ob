@@ -5,7 +5,7 @@ import (
 	"sort"
 	"strings"
 
-	openbindings "github.com/openbindings/openbindings-go"
+	"github.com/openbindings/openbindings-go/invoke"
 )
 
 // GetContext loads the unified context payload for a target URL.
@@ -172,29 +172,29 @@ func RenderBindingContext(ctx map[string]any) string {
 
 	sb.WriteString(s.Header.Render("Binding Context"))
 
-	hasCred := openbindings.ContextBearerToken(ctx) != "" ||
-		openbindings.ContextAPIKey(ctx) != ""
-	if _, _, ok := openbindings.ContextBasicAuth(ctx); ok {
+	hasCred := invoke.ContextBearerToken(ctx) != "" ||
+		invoke.ContextAPIKey(ctx) != ""
+	if _, _, ok := invoke.ContextBasicAuth(ctx); ok {
 		hasCred = true
 	}
 	if hasCred {
 		sb.WriteString("\n\n")
 		sb.WriteString(s.Dim.Render("Credentials:"))
-		if token := openbindings.ContextBearerToken(ctx); token != "" {
+		if token := invoke.ContextBearerToken(ctx); token != "" {
 			sb.WriteString("\n  ")
 			sb.WriteString(s.Bullet.Render("•"))
 			sb.WriteString(" ")
 			sb.WriteString(s.Dim.Render("Bearer: "))
 			sb.WriteString(maskSecret(token))
 		}
-		if key := openbindings.ContextAPIKey(ctx); key != "" {
+		if key := invoke.ContextAPIKey(ctx); key != "" {
 			sb.WriteString("\n  ")
 			sb.WriteString(s.Bullet.Render("•"))
 			sb.WriteString(" ")
 			sb.WriteString(s.Dim.Render("API Key: "))
 			sb.WriteString(maskSecret(key))
 		}
-		if u, _, ok := openbindings.ContextBasicAuth(ctx); ok {
+		if u, _, ok := invoke.ContextBasicAuth(ctx); ok {
 			sb.WriteString("\n  ")
 			sb.WriteString(s.Bullet.Render("•"))
 			sb.WriteString(" ")
@@ -203,11 +203,11 @@ func RenderBindingContext(ctx map[string]any) string {
 		}
 	}
 
-	renderStringMap(&sb, s, "Headers:", openbindings.ContextHeaders(ctx), ": ", false)
-	renderStringMap(&sb, s, "Cookies:", openbindings.ContextCookies(ctx), "=", true)
-	renderStringMap(&sb, s, "Environment:", openbindings.ContextEnvironment(ctx), "=", true)
+	renderStringMap(&sb, s, "Headers:", invoke.ContextHeaders(ctx), ": ", false)
+	renderStringMap(&sb, s, "Cookies:", invoke.ContextCookies(ctx), "=", true)
+	renderStringMap(&sb, s, "Environment:", invoke.ContextEnvironment(ctx), "=", true)
 
-	meta := openbindings.ContextMetadata(ctx)
+	meta := invoke.ContextMetadata(ctx)
 	if len(meta) > 0 {
 		sb.WriteString("\n\n")
 		sb.WriteString(s.Dim.Render("Metadata:"))

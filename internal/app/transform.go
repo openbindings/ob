@@ -6,8 +6,9 @@ import (
 	"encoding/json"
 	"fmt"
 
-	"github.com/recolabs/gnata"
 	openbindings "github.com/openbindings/openbindings-go"
+	"github.com/openbindings/openbindings-go/invoke"
+	"github.com/recolabs/gnata"
 )
 
 // ApplyTransform applies a JSONata transform to input data.
@@ -83,7 +84,7 @@ func evalTransform(expression string, input any, vars map[string]any) (any, erro
 	}
 
 	if result == nil {
-		return nil, openbindings.ErrTransformUndefined
+		return nil, invoke.ErrTransformUndefined
 	}
 
 	return normalizeTransformResult(result)

@@ -3,7 +3,7 @@ package app
 import (
 	"testing"
 
-	openbindings "github.com/openbindings/openbindings-go"
+	"github.com/openbindings/openbindings-go/compare"
 )
 
 // The comparison's schema verdicts run the SDK's compatibility engine, so
@@ -52,10 +52,10 @@ func TestComparison_SubsumptionMatchesSDKVerdict(t *testing.T) {
 	}
 
 	// The SDK's verdict on the identical pair.
-	issues := openbindings.CheckInterfaceCompatibility(mustIface(t, contract), mustIface(t, changed))
+	issues := compare.CheckInterfaceCompatibility(mustIface(t, contract), mustIface(t, changed))
 	sdkIncompatible := false
 	for _, is := range issues {
-		if is.Operation == "getMenu" && is.Kind == openbindings.CompatibilityOutputIncompatible {
+		if is.Operation == "getMenu" && is.Kind == compare.CompatibilityOutputIncompatible {
 			sdkIncompatible = true
 		}
 	}
@@ -79,7 +79,7 @@ func TestComparison_SubsumptionMatchesSDKVerdict(t *testing.T) {
 	if delta2.Output != nil && delta2.Output.Verdict == "incompatible" {
 		t.Errorf("tightened-but-satisfying output flagged incompatible: %+v", delta2.Findings)
 	}
-	if issues2 := openbindings.CheckInterfaceCompatibility(mustIface(t, contract), mustIface(t, widened)); len(issues2) != 0 {
+	if issues2 := compare.CheckInterfaceCompatibility(mustIface(t, contract), mustIface(t, widened)); len(issues2) != 0 {
 		t.Errorf("SDK disagrees on the satisfying pair: %+v", issues2)
 	}
 }

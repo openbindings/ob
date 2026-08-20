@@ -14,6 +14,8 @@ import (
 	"time"
 
 	openbindings "github.com/openbindings/openbindings-go"
+
+	"github.com/openbindings/openbindings-go/invoke"
 )
 
 // ---------------------------------------------------------------------------
@@ -125,7 +127,7 @@ func TestDefaultBindingForOp_PreferenceDoesNotResolveAmbiguity(t *testing.T) {
 	if got != nil {
 		t.Fatalf("ambiguous candidates must not auto-resolve, got %+v", got)
 	}
-	if !errors.Is(err, openbindings.ErrBindingSelectionRequired) {
+	if !errors.Is(err, invoke.ErrBindingSelectionRequired) {
 		t.Fatalf("expected ErrBindingSelectionRequired, got %v", err)
 	}
 }
@@ -142,7 +144,7 @@ func TestDefaultBindingForOp_NilAndExplicitPreferenceRemainAmbiguous(t *testing.
 	if got != nil {
 		t.Fatalf("ambiguous candidates must not auto-resolve, got %+v", got)
 	}
-	if !errors.Is(err, openbindings.ErrBindingSelectionRequired) {
+	if !errors.Is(err, invoke.ErrBindingSelectionRequired) {
 		t.Fatalf("expected ErrBindingSelectionRequired, got %v", err)
 	}
 }
@@ -190,7 +192,7 @@ func TestResolveBindingAndSource_MalformedSelectionDoesNotInventChoice(t *testin
 	context := map[string]any{
 		"configuration": map[string]any{"selection": []any{"listPets.a", 2}},
 	}
-	if _, err := resolveBindingAndSourceWithContext(iface, "listPets", "", nil, context); !errors.Is(err, openbindings.ErrBindingSelectionRequired) {
+	if _, err := resolveBindingAndSourceWithContext(iface, "listPets", "", nil, context); !errors.Is(err, invoke.ErrBindingSelectionRequired) {
 		t.Fatalf("malformed selection must leave ambiguity unresolved, got %v", err)
 	}
 }
@@ -369,8 +371,8 @@ func TestInvokeOBIOperation_InputTransformError(t *testing.T) {
 func TestDriveBindingTearsDownOnCancel(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 
-	invoke := func(c context.Context, _ map[string]any) openbindings.Invocation[any, any] {
-		inv := openbindings.NewInvocationImpl[any, any](c)
+	invoke := func(c context.Context, _ map[string]any) invoke.Invocation[any, any] {
+		inv := invoke.NewInvocationImpl[any, any](c)
 		go func() {
 			// Infinite producer that honors the handle's terminal model:
 			// EmitOutput returns a terminal error once the invocation is

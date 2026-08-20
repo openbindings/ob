@@ -10,6 +10,10 @@ import (
 	"time"
 
 	openbindings "github.com/openbindings/openbindings-go"
+
+	"github.com/openbindings/openbindings-go/invoke"
+
+	"github.com/openbindings/openbindings-go/synthesize"
 )
 
 // carryCodegenName copies an author-set codegen-name override from an existing
@@ -43,7 +47,7 @@ func carryOutputSchemaElection(existing openbindings.Operation, fresh *openbindi
 	if elected == nil {
 		return
 	}
-	if fresh.Output != nil && !openbindings.FloorStamped(fresh.Output) {
+	if fresh.Output != nil && !invoke.FloorStamped(fresh.Output) {
 		// The source grew a real output schema: grown coverage wins.
 		*warnings = append(*warnings, fmt.Sprintf(
 			"op %q: the source now derives a real output schema; the prior output-schema election is displaced", opKey))
@@ -490,8 +494,8 @@ func reReadAndDerive(iface *openbindings.Interface, key, obiDir string) (DeriveR
 
 	if needsLiveDiscovery(src.BindingSpec, meta.Ref) {
 		ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
-		derivedIface, derr := SynthesizeInterfaceFromSource(ctx, &openbindings.SynthesizeInput{
-			Sources: []openbindings.SynthesizeSource{{BindingSpec: src.BindingSpec, Location: meta.Ref}},
+		derivedIface, derr := SynthesizeInterfaceFromSource(ctx, &synthesize.SynthesizeInput{
+			Sources: []synthesize.SynthesizeSource{{BindingSpec: src.BindingSpec, Location: meta.Ref}},
 		})
 		cancel()
 		if derr != nil {

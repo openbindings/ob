@@ -7,7 +7,7 @@ import (
 	"strings"
 	"time"
 
-	openbindings "github.com/openbindings/openbindings-go"
+	"github.com/openbindings/openbindings-go/synthesize"
 )
 
 // probeTimeout bounds each per-format synthesis probe during detection.
@@ -48,7 +48,7 @@ func DetectSourceCandidates(location string) ([]DelegateClaim, error) {
 		if claimedFamilies[family] {
 			continue
 		}
-		if claim, ok := probeFormatClaim(openbindings.SynthesizeSource{BindingSpec: fi.BindingSpec, Location: location}); ok {
+		if claim, ok := probeFormatClaim(synthesize.SynthesizeSource{BindingSpec: fi.BindingSpec, Location: location}); ok {
 			claims = append(claims, claim)
 			claimedFamilies[family] = true
 		}
@@ -81,7 +81,7 @@ func detectCandidatesFromBytes(data []byte) ([]DelegateClaim, error) {
 		if err != nil {
 			continue
 		}
-		if claim, ok := probeFormatClaim(openbindings.SynthesizeSource{BindingSpec: fi.BindingSpec, Content: content}); ok {
+		if claim, ok := probeFormatClaim(synthesize.SynthesizeSource{BindingSpec: fi.BindingSpec, Content: content}); ok {
 			claims = append(claims, claim)
 			claimedFamilies[family] = true
 		}
@@ -96,11 +96,11 @@ func detectCandidatesFromBytes(data []byte) ([]DelegateClaim, error) {
 
 // probeFormatClaim runs one bounded synthesis probe and returns the claim
 // when the candidate format's synthesizer accepts the source.
-func probeFormatClaim(source openbindings.SynthesizeSource) (DelegateClaim, bool) {
+func probeFormatClaim(source synthesize.SynthesizeSource) (DelegateClaim, bool) {
 	probeCtx, cancel := context.WithTimeout(context.Background(), probeTimeout)
 	defer cancel()
-	iface, err := SynthesizeInterfaceFromSource(probeCtx, &openbindings.SynthesizeInput{
-		Sources: []openbindings.SynthesizeSource{source},
+	iface, err := SynthesizeInterfaceFromSource(probeCtx, &synthesize.SynthesizeInput{
+		Sources: []synthesize.SynthesizeSource{source},
 	})
 	if err != nil {
 		return DelegateClaim{}, false

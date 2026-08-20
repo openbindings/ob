@@ -19,6 +19,8 @@ import (
 
 	openbindings "github.com/openbindings/openbindings-go"
 
+	"github.com/openbindings/openbindings-go/invoke"
+
 	"github.com/openbindings/ob/internal/delegates"
 	"github.com/openbindings/ob/internal/execref"
 )
@@ -51,11 +53,6 @@ type InvocationInput struct {
 	// Binding: a non-nil Binding with a nil InputSchema means "no-input
 	// operation" to the usage run loop (the recorded discriminator).
 	InputSchema openbindings.JSONSchema `json:"-"`
-	// Hooks is the data face's per-invocation seam carrier (compiled from
-	// `op invoke` flags), composed over ob's standing invoker-level table.
-	// Nil = no per-invocation configuration; the invoker's own snapshot
-	// (its site-guarded table) still applies. Process-local — never wire.
-	Hooks *openbindings.InvokeHooks `json:"-"`
 }
 
 // InvocationResult is the app-level invocation result for both lanes.
@@ -233,7 +230,7 @@ func contextSelection(ctx map[string]any) []string {
 // presence.
 func selectBindingForOp(opKey string, iface *openbindings.Interface, ordered []string) (string, *openbindings.BindingEntry, error) {
 	if iface == nil {
-		return "", nil, fmt.Errorf("%w: %s", openbindings.ErrBindingNotFound, opKey)
+		return "", nil, fmt.Errorf("%w: %s", invoke.ErrBindingNotFound, opKey)
 	}
 	invocable := func(binding openbindings.BindingEntry) bool {
 		source, ok := iface.Sources[binding.Source]
@@ -268,7 +265,7 @@ func selectBindingForOp(opKey string, iface *openbindings.Interface, ordered []s
 	sort.Strings(candidates)
 	switch len(candidates) {
 	case 0:
-		return "", nil, fmt.Errorf("%w: %s", openbindings.ErrBindingNotFound, opKey)
+		return "", nil, fmt.Errorf("%w: %s", invoke.ErrBindingNotFound, opKey)
 	case 1:
 		return selectedKey, selected, nil
 	default:
@@ -278,7 +275,7 @@ func selectBindingForOp(opKey string, iface *openbindings.Interface, ordered []s
 		// the two surfaces must not disagree about the same artifact.
 		// Resolution policy is unchanged: several candidates still refuse.
 		return "", nil, fmt.Errorf("%w: operation %q has %d invocable bindings (%s); choose one with --binding or --select-binding",
-			openbindings.ErrBindingSelectionRequired, opKey, len(candidates), strings.Join(candidates, ", "))
+			invoke.ErrBindingSelectionRequired, opKey, len(candidates), strings.Join(candidates, ", "))
 	}
 }
 
@@ -289,8 +286,8 @@ func selectBindingForOp(opKey string, iface *openbindings.Interface, ordered []s
 // directory, which made nonconformant documents (OBI-D-05) invoke fine in
 // place and die with a bare file error everywhere else. The remedy is the
 // D-05 ruling's local lane — embed the artifact — or an absolute URI.
-func resolveSourceLocation(source openbindings.Source) (openbindings.InvocationSource, error) {
-	es := openbindings.InvocationSource{BindingSpec: source.BindingSpec}
+func resolveSourceLocation(source openbindings.Source) (invoke.InvocationSource, error) {
+	es := invoke.InvocationSource{BindingSpec: source.BindingSpec}
 	if source.Location != "" {
 		loc := source.Location
 		if !execref.IsExec(loc) && !strings.Contains(loc, "://") && !filepath.IsAbs(loc) && !isHostPort(loc) {
@@ -318,10 +315,10 @@ func isHostPort(s string) bool {
 // DurationMs is filled by the caller. Status is an app-local process result;
 // binding-native status is never compiled into it.
 type InvocationOutput struct {
-	Output     any                           `json:"output,omitempty"`
-	Error      *openbindings.InvocationError `json:"error,omitempty"`
-	Status     int                           `json:"status,omitempty"`
-	DurationMs int64                         `json:"durationMs,omitempty"`
+	Output     any                     `json:"output,omitempty"`
+	Error      *invoke.InvocationError `json:"error,omitempty"`
+	Status     int                     `json:"status,omitempty"`
+	DurationMs int64                   `json:"durationMs,omitempty"`
 }
 
 // maxBindingContextRounds caps CONTEXT_REQUIRED resolve-and-retry rounds for
@@ -335,7 +332,7 @@ const maxBindingContextRounds = 3
 // delegate's asserted CONTEXT_REQUIRED target against it without trusting the
 // delegate's word (the binding-invoker contract's confused-deputy defense).
 //
-// It returns the host-normalized location (openbindings.NormalizeEndpoint — the
+// It returns the host-normalized location (invoke.NormalizeEndpoint — the
 // same origin identity the context store keys on) when the location is a
 // concrete network endpoint: an http(s)/ws(s) URL, or a bare host:port address
 // (a gRPC-style location). It returns "" when no network host is readable
@@ -352,12 +349,12 @@ func deriveSourceTarget(source InvokeSource) string {
 		return "" // exec ref: no network host
 	}
 	if isHostPort(loc) {
-		return openbindings.NormalizeEndpoint(loc) // the location IS the endpoint
+		return invoke.NormalizeEndpoint(loc) // the location IS the endpoint
 	}
 	if u, err := url.Parse(loc); err == nil && u.Host != "" {
 		switch strings.ToLower(u.Scheme) {
 		case "http", "https", "ws", "wss":
-			return openbindings.NormalizeEndpoint(loc)
+			return invoke.NormalizeEndpoint(loc)
 		}
 	}
 	return "" // file path, relative ref, or opaque scheme: no derivable host
@@ -390,7 +387,7 @@ func sourceLabel(source InvokeSource) string {
 //     target and refuses a mismatch — no lookup, no merge.
 //
 //   - Least privilege. Every context ob provisions to the delegate is scoped to
-//     the one challenge it answered (openbindings.ScopeContext), so a delegate
+//     the one challenge it answered (invoke.ScopeContext), so a delegate
 //     never receives more credential material than its own challenge named.
 type delegateProvisionGuard struct {
 	// authoritativeTarget is deriveSourceTarget(source): the source's target
@@ -423,17 +420,17 @@ func newDelegateProvisionGuard(source InvokeSource) *delegateProvisionGuard {
 //     target to verify against; it withholds stored-credential provisioning for
 //     the unverifiable target and lets the delegate's own challenge surface, so
 //     a caller can still supply per-call context explicitly.
-func (g *delegateProvisionGuard) vetTarget(asserted string) (provision bool, refusal *openbindings.InvocationError) {
+func (g *delegateProvisionGuard) vetTarget(asserted string) (provision bool, refusal *invoke.InvocationError) {
 	if g.authoritativeTarget == "" {
 		return false, nil
 	}
-	if openbindings.NormalizeEndpoint(asserted) != g.authoritativeTarget {
-		return false, openbindings.NewInvocationError(errCodeDelegateTargetRefused)
+	if invoke.NormalizeEndpoint(asserted) != g.authoritativeTarget {
+		return false, invoke.NewInvocationError(errCodeDelegateTargetRefused)
 	}
 	return true, nil
 }
 
-// driveBinding invokes a binding (via the supplied invoke function), writes
+// driveBinding invokes a binding (via the supplied invokeBinding function), writes
 // the single input (when non-nil), closes the input side, and streams the
 // handle's outputs (and any terminal error) onto a channel of app-layer
 // InvocationOutput.
@@ -457,10 +454,10 @@ func (g *delegateProvisionGuard) vetTarget(asserted string) (provision bool, ref
 // provisioned context to the challenge (least privilege).
 func driveBinding(
 	ctx context.Context,
-	invoke func(context.Context, map[string]any) openbindings.Invocation[any, any],
+	invokeBinding func(context.Context, map[string]any) invoke.Invocation[any, any],
 	contextData map[string]any,
 	input any,
-	resolver openbindings.ContextResolver,
+	resolver invoke.ContextResolver,
 	guard *delegateProvisionGuard,
 ) <-chan InvocationOutput {
 	ch := make(chan InvocationOutput, 16)
@@ -468,7 +465,7 @@ func driveBinding(
 		defer close(ch)
 
 		for round := 0; ; round++ {
-			call := invoke(ctx, contextData)
+			call := invokeBinding(ctx, contextData)
 			if input != nil {
 				_ = call.Write(ctx, input)
 			}
@@ -482,10 +479,10 @@ func driveBinding(
 					return
 				}
 				if err != nil {
-					ie := openbindings.AsInvocationError(err)
+					ie := invoke.AsInvocationError(err)
 					// Resolve-and-retry: only before any observable progress,
 					// only with a resolver, and only a bounded number of times.
-					if details := openbindings.ContextRequiredFrom(ie); details != nil &&
+					if details := invoke.ContextRequiredFrom(ie); details != nil &&
 						!emitted && resolver != nil && round < maxBindingContextRounds {
 						// Confused-deputy defense (delegate path only): before any
 						// credential lookup, validate the invoker-asserted target
@@ -493,7 +490,7 @@ func driveBinding(
 						// a loud terminal refusal — no lookup, no merge.
 						provision := true
 						if guard != nil {
-							var refusal *openbindings.InvocationError
+							var refusal *invoke.InvocationError
 							provision, refusal = guard.vetTarget(details.Target)
 							if refusal != nil {
 								select {
@@ -519,7 +516,7 @@ func driveBinding(
 								// hand the delegate only the context its challenge
 								// scoped, never the caller's full per-call profile.
 								if guard != nil {
-									merged = openbindings.ScopeContext(merged, details)
+									merged = invoke.ScopeContext(merged, details)
 								}
 								contextData = merged
 								break // next round re-invokes with merged context
@@ -551,7 +548,7 @@ func driveBinding(
 // statusFromError deliberately does not compile binding-native status into the
 // app's ordinary result. InvocationError already carries structural failure;
 // native status remains below the OpenBindings abstraction boundary.
-func statusFromError(err *openbindings.InvocationError) int {
+func statusFromError(err *invoke.InvocationError) int {
 	return 0
 }
 
@@ -578,7 +575,7 @@ func InvokeOBIOperation(ctx context.Context, obiPath string, opKey string, bindi
 	return run.Events, run.BindingKey, nil
 }
 
-// ConfiguredInvocation is the data face's invocation result: the event
+// ConfiguredInvocation is the configured invocation's result: the event
 // stream, the resolved binding key, and — when a winning EXTERNAL delegate
 // displaces ob's standing internal-table elections (the table published as
 // docs/bound-cli-recipe.md) — the loud attributed displacement warning and
@@ -590,11 +587,10 @@ type ConfiguredInvocation struct {
 	DisplacedDetail  []string
 }
 
-// InvokeOBIOperationConfigured is the data-face entry: it invokes an
-// operation with an optional per-invocation InvokeConfig (--decode/
-// --ok-exit/--route), computing delegate selection PRE-DISPATCH so the
-// displacement split (flags refuse, standing elections warn) is decidable
-// before anything runs.
+// InvokeOBIOperationConfigured invokes an operation with an optional
+// InvokeConfig (ordered binding selection and caller-known binding-spec
+// configuration), computing delegate selection PRE-DISPATCH so standing-
+// election displacement is decidable before anything runs.
 func InvokeOBIOperationConfigured(ctx context.Context, obiPath, opKey, bindingKey string, input any, config *InvokeConfig) (*ConfiguredInvocation, error) {
 	iface, err := resolveInterface(obiPath)
 	if err != nil {
@@ -610,11 +606,10 @@ func InvokeOBIOperationConfigured(ctx context.Context, obiPath, opKey, bindingKe
 // the delegate's own resolved OBI through this same path.
 //
 // Dispatch is UNIFIED under delegate selection: the winner is
-// computed before anything runs. When the self-delegate wins, the config's
-// per-invocation hooks are compiled and threaded, and the streaming lane is
-// available. When an external delegate wins the hop, displaced FLAGS refuse
-// loudly (explicit intent that cannot cross the boundary) and displaced
-// STANDING elections proceed with a loud attributed warning. Every emitted
+// computed before anything runs. When the self-delegate wins, the streaming
+// lane is available. When an external delegate wins the hop, displaced
+// STANDING elections (ob's internal table, which the delegate's own handling
+// replaces) proceed with a loud attributed warning. Every emitted
 // output is T-08-validated against the operation's declared output schema
 // before it reaches the caller (stop-and-return on nonconformant emission).
 func invokeOnInterface(ctx context.Context, iface *openbindings.Interface, opKey, bindingKey string, input any, config *InvokeConfig) (*ConfiguredInvocation, error) {
@@ -661,13 +656,8 @@ func invokeOnInterface(ctx context.Context, iface *openbindings.Interface, opKey
 	// before any side effect.
 	chosen := selectDelegate(CapInvoke, es.BindingSpec)
 	if chosen != nil && !chosen.builtin {
-		// An external delegate owns the binding hop. Displaced FLAGS cannot
-		// apply across the boundary — refuse the explicit intent loudly.
-		if !config.empty() {
-			return nil, fmt.Errorf("op invoke: --decode/--ok-exit/--route configure ob's built-in handling, which delegate %q displaces for format %q (the delegate dispatches the binding itself); unset them, or run in-process with `ob delegate prefer ob --operation %s`",
-				chosen.name(), es.BindingSpec, opCanonical)
-		}
-		// Displaced STANDING elections proceed with a loud attributed warning.
+		// An external delegate owns the binding hop. Displaced STANDING
+		// elections proceed with a loud attributed warning.
 		run.DisplacedWarning, run.DisplacedDetail = displacedElectionsWarning(opCanonical, chosen.name())
 
 		delegateIface, rerr := chosen.resolveInterface()
@@ -683,10 +673,6 @@ func invokeOnInterface(ctx context.Context, iface *openbindings.Interface, opKey
 		run.Events = applyT08(unaryChannel(iface, resolved, out), iface, opCanonical, outputSchema, resolved.bindingKey)
 		return run, nil
 	}
-
-	// Self-delegate / builtin: compile the config's per-invocation hooks
-	// (composed over ob's standing table) and thread them.
-	lowLevel.Hooks = config.perInvocationHooks(DefaultInvoker())
 
 	// Streaming lane (builtin drivers only) when the self-delegate wins.
 	if BuiltinSupportsFormat(es.BindingSpec) {
@@ -718,9 +704,9 @@ func unaryChannel(iface *openbindings.Interface, resolved *resolvedBinding, resu
 	}
 	ch := make(chan InvocationOutput, 1)
 	if result.Error != nil {
-		invocationError := openbindings.NewInvocationError(result.Error.Code)
+		invocationError := invoke.NewInvocationError(result.Error.Code)
 		if result.Error.DataPresent {
-			invocationError = openbindings.NewInvocationErrorWithData(result.Error.Code, result.Error.Data)
+			invocationError = invoke.NewInvocationErrorWithData(result.Error.Code, result.Error.Data)
 		}
 		ch <- InvocationOutput{Error: invocationError, Status: result.Status}
 	} else {
@@ -764,8 +750,8 @@ func applyT08(src <-chan InvocationOutput, iface *openbindings.Interface, operat
 // t08Failure builds the stop-and-return terminal for a nonconformant output.
 // Validation is local SDK behavior, so its implementation evidence does not
 // become application-authored invocation data.
-func t08Failure(ev InvocationOutput, verr error, schema openbindings.JSONSchema, bindingKey string) *openbindings.InvocationError {
-	return openbindings.NewInvocationError(openbindings.ErrCodeValidationFailed)
+func t08Failure(ev InvocationOutput, verr error, schema openbindings.JSONSchema, bindingKey string) *invoke.InvocationError {
+	return invoke.NewInvocationError(invoke.ErrCodeValidationFailed)
 }
 
 // PrepareOperation is the operation-level preflight: it resolves an operation
@@ -776,7 +762,7 @@ func t08Failure(ev InvocationOutput, verr error, schema openbindings.JSONSchema,
 // always-satisfiable answer). Context resolution is not performed here; any
 // supplied callerContext narrows the reported requirements to what is still
 // unsatisfied, exactly as for PrepareBinding.
-func PrepareOperation(ctx context.Context, obiPath string, opKey string, bindingKey string, callerContext map[string]any) (*openbindings.ContextRequiredDetails, error) {
+func PrepareOperation(ctx context.Context, obiPath string, opKey string, bindingKey string, callerContext map[string]any) (*invoke.ContextRequiredDetails, error) {
 	iface, err := resolveInterface(obiPath)
 	if err != nil {
 		return nil, fmt.Errorf("load OBI %q: %w", obiPath, err)
@@ -787,7 +773,7 @@ func PrepareOperation(ctx context.Context, obiPath string, opKey string, binding
 // PrepareInterfaceOperation is PrepareOperation's document-valued form. It is
 // used by remote APIs, where the interface is request data rather than a local
 // path, while preserving the CLI path's acquisition and preflight semantics.
-func PrepareInterfaceOperation(ctx context.Context, iface *openbindings.Interface, opKey string, bindingKey string, callerContext map[string]any) (*openbindings.ContextRequiredDetails, error) {
+func PrepareInterfaceOperation(ctx context.Context, iface *openbindings.Interface, opKey string, bindingKey string, callerContext map[string]any) (*invoke.ContextRequiredDetails, error) {
 	if iface == nil {
 		return nil, fmt.Errorf("interface is required")
 	}
@@ -874,7 +860,7 @@ func acquireSourceDocument(ctx context.Context, location string) []byte {
 // for humans. Nil means no requirements could be determined without invoking
 // (the always-conformant answer). The wire shape is the details themselves
 // (or null) per the contract's oneOf — no envelope.
-func RenderContextRequirements(details *openbindings.ContextRequiredDetails) string {
+func RenderContextRequirements(details *invoke.ContextRequiredDetails) string {
 	s := Styles
 	if details == nil {
 		return s.Dim.Render("No context requirements (none determinable without invoking)")
@@ -914,7 +900,7 @@ func transformEventStream(src <-chan InvocationOutput, iface *openbindings.Inter
 			}
 			transformed, err := ApplyTransform(iface.Transforms, resolved.binding.OutputTransform, ev.Output)
 			if err != nil {
-				out <- InvocationOutput{Error: &openbindings.InvocationError{
+				out <- InvocationOutput{Error: &invoke.InvocationError{
 					Code: "output_transform_error",
 				}}
 				continue
@@ -934,15 +920,15 @@ func SubscribeOBIOperationDirect(ctx context.Context, binding *openbindings.Bind
 		return nil, err
 	}
 	invoker := DefaultInvoker()
-	invoke := func(ctx context.Context, ctxData map[string]any) openbindings.Invocation[any, any] {
-		return invoker.InvokeBinding(ctx, &openbindings.BindingInvocationArgs{
+	invokeBinding := func(ctx context.Context, ctxData map[string]any) invoke.Invocation[any, any] {
+		return invoker.InvokeBinding(ctx, &invoke.BindingInvocationArgs{
 			Source:  es,
 			Ref:     binding.Ref,
 			Context: ctxData,
 		})
 	}
 	// Builtin in-process invoker: trusted (no guard).
-	return driveBinding(ctx, invoke, nil, nil, invoker.ContextResolver, nil), nil
+	return driveBinding(ctx, invokeBinding, nil, nil, invoker.ContextResolver, nil), nil
 }
 
 var (
@@ -1060,9 +1046,9 @@ func SubscribeOperationWithContext(ctx context.Context, input InvocationInput) (
 	}
 
 	invoker := DefaultInvoker()
-	invoke := func(ctx context.Context, ctxData map[string]any) openbindings.Invocation[any, any] {
-		return invoker.InvokeBinding(ctx, &openbindings.BindingInvocationArgs{
-			Source: openbindings.InvocationSource{
+	invokeBinding := func(ctx context.Context, ctxData map[string]any) invoke.Invocation[any, any] {
+		return invoker.InvokeBinding(ctx, &invoke.BindingInvocationArgs{
+			Source: invoke.InvocationSource{
 				BindingSpec: input.Source.BindingSpec,
 				Location:    input.Source.Location,
 				Content:     input.Source.Content,
@@ -1072,11 +1058,10 @@ func SubscribeOperationWithContext(ctx context.Context, input InvocationInput) (
 			Interface:   input.Interface,
 			Binding:     input.Binding,
 			InputSchema: input.InputSchema,
-			Hooks:       input.Hooks,
 		})
 	}
 	// Builtin in-process invoker: trusted (no guard).
-	return driveBinding(ctx, invoke, input.Context, input.Input, invoker.ContextResolver, nil), nil
+	return driveBinding(ctx, invokeBinding, input.Context, input.Input, invoker.ContextResolver, nil), nil
 }
 
 // invokeViaBuiltin invokes an operation using the built-in OperationInvoker.
@@ -1087,9 +1072,9 @@ func invokeViaBuiltin(ctx context.Context, input InvocationInput) InvocationResu
 	}
 
 	invoker := DefaultInvoker()
-	invoke := func(ctx context.Context, ctxData map[string]any) openbindings.Invocation[any, any] {
-		return invoker.InvokeBinding(ctx, &openbindings.BindingInvocationArgs{
-			Source: openbindings.InvocationSource{
+	invokeBinding := func(ctx context.Context, ctxData map[string]any) invoke.Invocation[any, any] {
+		return invoker.InvokeBinding(ctx, &invoke.BindingInvocationArgs{
+			Source: invoke.InvocationSource{
 				BindingSpec: input.Source.BindingSpec,
 				Location:    input.Source.Location,
 				Content:     input.Source.Content,
@@ -1099,12 +1084,11 @@ func invokeViaBuiltin(ctx context.Context, input InvocationInput) InvocationResu
 			Interface:   input.Interface,
 			Binding:     input.Binding,
 			InputSchema: input.InputSchema,
-			Hooks:       input.Hooks,
 		})
 	}
 
 	// Builtin in-process invoker: trusted (no guard).
-	return reduceUnaryInvocation(driveBinding(ctx, invoke, bindCtx, input.Input, invoker.ContextResolver, nil))
+	return reduceUnaryInvocation(driveBinding(ctx, invokeBinding, bindCtx, input.Input, invoker.ContextResolver, nil))
 }
 
 // reduceUnaryInvocation collapses an invocation event stream to the unary
@@ -1155,9 +1139,9 @@ func invokeViaExternalDelegate(ctx context.Context, resolved delegates.Resolved,
 		}
 	}
 
-	invoke := func(ctx context.Context, ctxData map[string]any) openbindings.Invocation[any, any] {
-		return delegateInvoker.InvokeBinding(ctx, &openbindings.BindingInvocationArgs{
-			Source: openbindings.InvocationSource{
+	invokeBinding := func(ctx context.Context, ctxData map[string]any) invoke.Invocation[any, any] {
+		return delegateInvoker.InvokeBinding(ctx, &invoke.BindingInvocationArgs{
+			Source: invoke.InvocationSource{
 				BindingSpec: input.Source.BindingSpec,
 				Location:    input.Source.Location,
 				Content:     input.Source.Content,
@@ -1170,7 +1154,7 @@ func invokeViaExternalDelegate(ctx context.Context, resolved delegates.Resolved,
 	// against the source's authoritative target (confused-deputy defense) and
 	// scope every provisioned context to the challenge (least privilege).
 	guard := newDelegateProvisionGuard(input.Source)
-	return reduceUnaryInvocation(driveBinding(ctx, invoke, input.Context, input.Input, DefaultInvoker().ContextResolver, guard))
+	return reduceUnaryInvocation(driveBinding(ctx, invokeBinding, input.Context, input.Input, DefaultInvoker().ContextResolver, guard))
 }
 
 // effectiveInputSchema is the no-input-convention discriminator's honest

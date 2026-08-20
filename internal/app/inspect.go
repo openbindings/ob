@@ -4,13 +4,13 @@ import (
 	"fmt"
 	"strings"
 
-	openbindings "github.com/openbindings/openbindings-go"
+	"github.com/openbindings/openbindings-go/synthesize"
 )
 
 // RenderSourceInspection returns a human-friendly summary of a source
 // inspection: the bindable targets discovered in a source and whether the
 // reported list is exhaustive.
-func RenderSourceInspection(format, location string, ins *openbindings.SourceInspection) string {
+func RenderSourceInspection(format, location string, ins *synthesize.SourceInspection) string {
 	s := Styles
 	if ins == nil || len(ins.Targets) == 0 {
 		return s.Dim.Render("No bindable targets found.")

@@ -7,13 +7,13 @@ import (
 	"io"
 	"os"
 	"os/signal"
-	"strconv"
 	"strings"
 	"time"
 
 	"github.com/charmbracelet/huh"
 	"github.com/openbindings/ob/internal/app"
 	openbindings "github.com/openbindings/openbindings-go"
+	"github.com/openbindings/openbindings-go/invoke"
 	"github.com/spf13/cobra"
 	"golang.org/x/term"
 )
@@ -106,11 +106,7 @@ func newOperationInvokeCmd() *cobra.Command {
 	var bindingKey string
 	var inputArg string
 	var verbose bool
-	var decode string
-	var okExits string
-	var routes []string
 	var selection []string
-	var configurationArg string
 
 	cmd := &cobra.Command{
 		Use:   "invoke <obi> [operation]",
@@ -132,19 +128,11 @@ when invoking by operation. The list also reaches nested operation-graph
 calls, so one invocation can choose a binding for each referenced operation.
 
 Context (credentials, headers, etc.) is automatically resolved from
-the target URL. Use 'ob context set <url>' to configure context.
-
-The data face — per-invocation configuration for the wire questions a
-format artifact cannot answer (specification + configuration = complete
-invocation):
-  --decode json|text|none   how the output bytes become a value
-  --ok-exit 0,1             which exit codes count as success (CLI lanes)
-  --route field=argv|stdin|stdin-dash|file   where an input field rides
-  --configuration JSON     binding-spec interpretation points for this call
-Each is per-axis: an unmentioned axis or field falls through to ob's
-built-in handling. These configure ob's in-process handling; when an
-external delegate is preferred for the format, it owns the binding hop
-and these flags refuse (its own handling governs).
+the target URL. Use 'ob context set <url>' to configure context. When
+the governing binding specification exposes named interpretation points
+(a GraphQL document, a server choice), those answers are context too:
+invocation raises CONTEXT_REQUIRED naming the point, and the standing
+context store's configuration for the target satisfies it.
 
 --input accepts inline JSON, @file (read from a file), or - (read from
 stdin) — so credentials never sit on ob's own argv.
@@ -155,10 +143,7 @@ output-schema overrides on stderr.
 Examples:
   ob op invoke interface.json listPets --input '{"limit":10}'
   ob op invoke interface.json echo
-  ob op invoke interface.json validate --input @doc.json --ok-exit 0,1
-  ob op invoke interface.json --binding viewer.graphql \
-    --configuration '{"document":"query { viewer { id name } }"}'
-  ob op invoke interface.json format --route source=stdin-dash --input -
+  ob op invoke interface.json --binding viewer.graphql
   ob op invoke interface.json placeAndTrack \
     --select-binding placeOrder.rest --select-binding orderUpdates.grpc
   ob op invoke interface.json --binding listPets.openapi --input '{"limit":10}'`,
@@ -177,7 +162,7 @@ Examples:
 			if operationKey != "" && bindingKey != "" {
 				return app.ExitResult{Code: 2, Message: "operation key and --binding are mutually exclusive", ToStderr: true}
 			}
-			if conflict := invocationStdinConflict(obiFile, inputArg, configurationArg); conflict != "" {
+			if conflict := invocationStdinConflict(obiFile, inputArg, ""); conflict != "" {
 				return app.ExitResult{Code: 2, Message: conflict, ToStderr: true}
 			}
 
@@ -186,16 +171,7 @@ Examples:
 				return app.ExitResult{Code: 2, Message: ierr.Error(), ToStderr: true}
 			}
 
-			config, cerr := buildInvokeConfig(decode, okExits, routes)
-			if cerr != nil {
-				return app.ExitResult{Code: 2, Message: cerr.Error(), ToStderr: true}
-			}
-			config.Selection = append([]string(nil), selection...)
-			configuration, configErr := readInvokeConfiguration(configurationArg)
-			if configErr != nil {
-				return app.ExitResult{Code: 2, Message: configErr.Error(), ToStderr: true}
-			}
-			config.Configuration = configuration
+			config := &app.InvokeConfig{Selection: append([]string(nil), selection...)}
 
 			// The invoke lane is a streaming Unix filter: output rides stdout as
 			// one JSON value per event. -o (write-to-file) has no place on a
@@ -267,10 +243,6 @@ Examples:
 	cmd.Flags().StringArrayVar(&selection, "select-binding", nil, "ordered binding choice for this and nested operations (repeatable)")
 	cmd.Flags().StringVar(&inputArg, "input", "", "operation input: inline JSON, @file, or - (stdin)")
 	cmd.Flags().BoolVarP(&verbose, "verbose", "v", false, "show binding key, duration, and displaced output-schema overrides on stderr")
-	cmd.Flags().StringVar(&decode, "decode", "", "output decode lane: json|text|none")
-	cmd.Flags().StringVar(&okExits, "ok-exit", "", "exit codes classified as success, comma-separated (e.g. 0,1)")
-	cmd.Flags().StringArrayVar(&routes, "route", nil, "field routing: field=argv|stdin|stdin-dash|file (repeatable)")
-	cmd.Flags().StringVar(&configurationArg, "configuration", "", "binding-spec configuration object as JSON, @file, or - for stdin")
 
 	return cmd
 }
@@ -306,9 +278,9 @@ func renderInvokeJSON(w io.Writer, run *app.ConfiguredInvocation) error {
 // any application-authored data, and — for CONTEXT_REQUIRED — the full
 // challenge plus a copy-pasteable remedy, so the auth loop closes from the
 // error itself instead of from the docs.
-func renderInvokeError(w io.Writer, ierr *openbindings.InvocationError) {
+func renderInvokeError(w io.Writer, ierr *invoke.InvocationError) {
 	fmt.Fprintf(w, "error: %s\n", ierr.Code)
-	if details := openbindings.ContextRequiredFrom(ierr); details != nil {
+	if details := invoke.ContextRequiredFrom(ierr); details != nil {
 		fmt.Fprintln(w, app.RenderContextRequirements(details))
 		if hint := contextSetHint(details); hint != "" {
 			fmt.Fprintf(w, "  satisfy it with: %s\n", hint)
@@ -325,7 +297,7 @@ func renderInvokeError(w io.Writer, ierr *openbindings.InvocationError) {
 
 // contextSetHint maps the challenge's first requirement to the ob context
 // flag that satisfies it.
-func contextSetHint(d *openbindings.ContextRequiredDetails) string {
+func contextSetHint(d *invoke.ContextRequiredDetails) string {
 	if d.Target == "" || len(d.Alternatives) == 0 || len(d.Alternatives[0].Requirements) == 0 {
 		return ""
 	}
@@ -435,52 +407,6 @@ func readJSONObjectArg(arg, flagName string) (map[string]any, error) {
 	return configuration, nil
 }
 
-// buildInvokeConfig validates and compiles the data-face flags into an
-// InvokeConfig. Unknown decode lanes and channel tokens are refused at
-// parse (a typo can never silently change behavior).
-func buildInvokeConfig(decode, okExits string, routes []string) (*app.InvokeConfig, error) {
-	config := &app.InvokeConfig{}
-
-	switch decode {
-	case "", "json", "text", "none":
-		config.Decode = decode
-	default:
-		return nil, fmt.Errorf("--decode: unknown lane %q (want json, text, or none)", decode)
-	}
-
-	if okExits != "" {
-		for _, part := range strings.Split(okExits, ",") {
-			part = strings.TrimSpace(part)
-			if part == "" {
-				continue
-			}
-			n, err := strconv.Atoi(part)
-			if err != nil {
-				return nil, fmt.Errorf("--ok-exit: %q is not an integer exit code", part)
-			}
-			config.OKExits = append(config.OKExits, n)
-		}
-	}
-
-	if len(routes) > 0 {
-		config.Routes = map[string]string{}
-		for _, r := range routes {
-			field, channel, ok := strings.Cut(r, "=")
-			if !ok || field == "" {
-				return nil, fmt.Errorf("--route: %q is not field=channel", r)
-			}
-			switch channel {
-			case "argv", "stdin", "stdin-dash", "file":
-			default:
-				return nil, fmt.Errorf("--route %s: unknown channel %q (want argv, stdin, stdin-dash, or file)", field, channel)
-			}
-			config.Routes[field] = channel
-		}
-	}
-
-	return config, nil
-}
-
 func newOperationPrepareCmd() *cobra.Command {
 	var bindingKey string
 	var selection []string
@@ -496,8 +422,8 @@ Resolves the operation (or, with --binding, a specific binding) to a
 concrete binding and reports its context requirements, or reports none
 when they cannot be determined without invoking. Repeat --select-binding
 to supply the same ordered caller choice accepted by invocation. Use
---configuration with the same JSON, @file, or stdin grammar as invocation
-when binding-spec interpretation points are already known. This is advisory:
+--configuration (inline JSON, @file, or - for stdin) when binding-spec
+interpretation points are already known. This is advisory:
 the reactive CONTEXT_REQUIRED error from 'ob op invoke' is authoritative.
 
 Examples:

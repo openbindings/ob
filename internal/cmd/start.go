@@ -20,7 +20,7 @@ import (
 
 	"golang.org/x/term"
 
-	openbindings "github.com/openbindings/openbindings-go"
+	"github.com/openbindings/openbindings-go/invoke"
 	"github.com/spf13/cobra"
 
 	"github.com/openbindings/ob/internal/app"
@@ -31,7 +31,7 @@ import (
 // Align the HTTP and WebSocket carrier bound with the SDK's delivery-unit
 // policy so the same operation is not accepted in-process and refused by ob
 // start solely because it crossed a transport boundary.
-const maxRequestBodyBytes = openbindings.DefaultMaxDeliveryUnitBytes
+const maxRequestBodyBytes = invoke.DefaultMaxDeliveryUnitBytes
 
 // DefaultServePort is the default TCP port for `ob start`.
 // It equals 0x4F42 (decimal 20290): the big-endian pair of ASCII 'O' (0x4F) and 'B' (0x42),

@@ -107,12 +107,12 @@ func newContextSetCmd() *cobra.Command {
 		tokenProvider   string
 		tokenCredential string
 		basic           bool
-		headers     []string
-		cookies     []string
-		envVars     []string
-		metaEntries []string
-		fromCurl    string
-		valueJSON   string
+		headers         []string
+		cookies         []string
+		envVars         []string
+		metaEntries     []string
+		fromCurl        string
+		valueJSON       string
 	)
 
 	cmd := &cobra.Command{

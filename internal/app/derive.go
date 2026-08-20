@@ -8,6 +8,8 @@ import (
 	"strings"
 
 	openbindings "github.com/openbindings/openbindings-go"
+
+	"github.com/openbindings/openbindings-go/synthesize"
 )
 
 // DeriveResult holds the operations and bindings derived from a single source,
@@ -44,7 +46,7 @@ func DeriveFromSource(source openbindings.Source, sourceKey string, obiDir strin
 		locationPath = filepath.Join(obiDir, locationPath)
 	}
 
-	createSrc := openbindings.SynthesizeSource{
+	createSrc := synthesize.SynthesizeSource{
 		BindingSpec: source.BindingSpec,
 		Location:    locationPath,
 	}
@@ -52,8 +54,8 @@ func DeriveFromSource(source openbindings.Source, sourceKey string, obiDir strin
 		createSrc.Content = source.Content
 	}
 
-	generated, err := SynthesizeInterfaceFromSource(context.Background(), &openbindings.SynthesizeInput{
-		Sources:   []openbindings.SynthesizeSource{createSrc},
+	generated, err := SynthesizeInterfaceFromSource(context.Background(), &synthesize.SynthesizeInput{
+		Sources:   []synthesize.SynthesizeSource{createSrc},
 		OnWarning: printSynthesizerWarning,
 	})
 	if err != nil {
