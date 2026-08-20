@@ -25,6 +25,8 @@ import (
 
 	openbindings "github.com/openbindings/openbindings-go"
 
+	"github.com/openbindings/openbindings-go/invoke"
+
 	"github.com/openbindings/ob/internal/app"
 	"github.com/openbindings/ob/internal/frames"
 	"github.com/openbindings/ob/internal/server"
@@ -40,8 +42,8 @@ type mockBlockingInvoker struct {
 }
 
 func (m *mockBlockingInvoker) BindingSpecs() []openbindings.BindingSpecInfo { return m.formats }
-func (m *mockBlockingInvoker) InvokeBinding(ctx context.Context, _ *openbindings.BindingInvocationArgs) openbindings.Invocation[any, any] {
-	inv := openbindings.NewInvocationImpl[any, any](ctx)
+func (m *mockBlockingInvoker) InvokeBinding(ctx context.Context, _ *invoke.BindingInvocationArgs) invoke.Invocation[any, any] {
+	inv := invoke.NewInvocationImpl[any, any](ctx)
 	go func() {
 		_ = inv.CloseInput()
 		for {
@@ -62,8 +64,8 @@ type mockStreamInvoker struct {
 }
 
 func (m *mockStreamInvoker) BindingSpecs() []openbindings.BindingSpecInfo { return m.formats }
-func (m *mockStreamInvoker) InvokeBinding(ctx context.Context, _ *openbindings.BindingInvocationArgs) openbindings.Invocation[any, any] {
-	inv := openbindings.NewInvocationImpl[any, any](ctx)
+func (m *mockStreamInvoker) InvokeBinding(ctx context.Context, _ *invoke.BindingInvocationArgs) invoke.Invocation[any, any] {
+	inv := invoke.NewInvocationImpl[any, any](ctx)
 	go func() {
 		_ = inv.CloseInput()
 		for _, ev := range m.events {
@@ -81,12 +83,12 @@ func (m *mockStreamInvoker) InvokeBinding(ctx context.Context, _ *openbindings.B
 type errorStreamInvoker struct {
 	formats []openbindings.BindingSpecInfo
 	outputs []any
-	err     *openbindings.InvocationError
+	err     *invoke.InvocationError
 }
 
 func (m *errorStreamInvoker) BindingSpecs() []openbindings.BindingSpecInfo { return m.formats }
-func (m *errorStreamInvoker) InvokeBinding(ctx context.Context, _ *openbindings.BindingInvocationArgs) openbindings.Invocation[any, any] {
-	inv := openbindings.NewInvocationImpl[any, any](ctx)
+func (m *errorStreamInvoker) InvokeBinding(ctx context.Context, _ *invoke.BindingInvocationArgs) invoke.Invocation[any, any] {
+	inv := invoke.NewInvocationImpl[any, any](ctx)
 	go func() {
 		_ = inv.CloseInput()
 		for _, ev := range m.outputs {
@@ -107,12 +109,12 @@ type mockEchoInvoker struct {
 }
 
 func (m *mockEchoInvoker) BindingSpecs() []openbindings.BindingSpecInfo { return m.formats }
-func (m *mockEchoInvoker) InvokeBinding(ctx context.Context, _ *openbindings.BindingInvocationArgs) openbindings.Invocation[any, any] {
-	inv := openbindings.NewInvocationImpl[any, any](ctx)
+func (m *mockEchoInvoker) InvokeBinding(ctx context.Context, _ *invoke.BindingInvocationArgs) invoke.Invocation[any, any] {
+	inv := invoke.NewInvocationImpl[any, any](ctx)
 	go func() {
 		v, err := inv.ReadInput(ctx)
 		if err != nil {
-			inv.FireError(openbindings.AsInvocationError(err))
+			inv.FireError(invoke.AsInvocationError(err))
 			return
 		}
 		_ = inv.CloseInput()
@@ -130,9 +132,9 @@ type contextCaptureInvoker struct {
 }
 
 func (m *contextCaptureInvoker) BindingSpecs() []openbindings.BindingSpecInfo { return m.formats }
-func (m *contextCaptureInvoker) InvokeBinding(ctx context.Context, args *openbindings.BindingInvocationArgs) openbindings.Invocation[any, any] {
+func (m *contextCaptureInvoker) InvokeBinding(ctx context.Context, args *invoke.BindingInvocationArgs) invoke.Invocation[any, any] {
 	m.seen <- args.Context
-	inv := openbindings.NewInvocationImpl[any, any](ctx)
+	inv := invoke.NewInvocationImpl[any, any](ctx)
 	go func() {
 		for {
 			if _, err := inv.ReadInput(ctx); err != nil {
@@ -153,11 +155,11 @@ type gatedUnaryInvoker struct {
 }
 
 func (m *gatedUnaryInvoker) BindingSpecs() []openbindings.BindingSpecInfo { return m.formats }
-func (m *gatedUnaryInvoker) InvokeBinding(ctx context.Context, _ *openbindings.BindingInvocationArgs) openbindings.Invocation[any, any] {
-	inv := openbindings.NewInvocationImpl[any, any](ctx)
+func (m *gatedUnaryInvoker) InvokeBinding(ctx context.Context, _ *invoke.BindingInvocationArgs) invoke.Invocation[any, any] {
+	inv := invoke.NewInvocationImpl[any, any](ctx)
 	go func() {
 		if _, err := inv.ReadInput(ctx); err != nil {
-			inv.FireError(openbindings.AsInvocationError(err))
+			inv.FireError(invoke.AsInvocationError(err))
 			return
 		}
 		_ = inv.CloseInput()
@@ -181,13 +183,13 @@ func (m *gatedUnaryInvoker) InvokeBinding(ctx context.Context, _ *openbindings.B
 // challenge, before any output (binding-invoker rule 8).
 type contextRequiredInvoker struct {
 	formats []openbindings.BindingSpecInfo
-	details *openbindings.ContextRequiredDetails
+	details *invoke.ContextRequiredDetails
 }
 
 func (m *contextRequiredInvoker) BindingSpecs() []openbindings.BindingSpecInfo { return m.formats }
-func (m *contextRequiredInvoker) InvokeBinding(ctx context.Context, _ *openbindings.BindingInvocationArgs) openbindings.Invocation[any, any] {
-	inv := openbindings.NewInvocationImpl[any, any](ctx)
-	inv.FireError(openbindings.NewContextRequiredError(m.details))
+func (m *contextRequiredInvoker) InvokeBinding(ctx context.Context, _ *invoke.BindingInvocationArgs) invoke.Invocation[any, any] {
+	inv := invoke.NewInvocationImpl[any, any](ctx)
+	inv.FireError(invoke.NewContextRequiredError(m.details))
 	return inv
 }
 
@@ -813,7 +815,7 @@ func dialFrameWSAt(t *testing.T, ctx context.Context, ts *httptest.Server, path,
 
 func TestServeOperationInvoke_WS_UnaryRoundTrip(t *testing.T) {
 	mock := &mockEchoInvoker{formats: []openbindings.BindingSpecInfo{{BindingSpec: "mock-echo@1.0"}}}
-	cleanup := app.OverrideInvokerForTest(openbindings.NewOperationInvoker(mock))
+	cleanup := app.OverrideInvokerForTest(invoke.NewOperationInvoker(mock))
 	defer cleanup()
 
 	ts := testEnv(t)
@@ -843,7 +845,7 @@ func TestServeOperationInvoke_WS_UnaryRoundTrip(t *testing.T) {
 
 func TestServeOperationInvoke_WS_BindingAddressed(t *testing.T) {
 	mock := &mockEchoInvoker{formats: []openbindings.BindingSpecInfo{{BindingSpec: "mock-echo@1.0"}}}
-	cleanup := app.OverrideInvokerForTest(openbindings.NewOperationInvoker(mock))
+	cleanup := app.OverrideInvokerForTest(invoke.NewOperationInvoker(mock))
 	defer cleanup()
 
 	ts := testEnv(t)
@@ -870,7 +872,7 @@ func TestServeOperationInvoke_WS_CarriesSameConfigurationAsCLI(t *testing.T) {
 		formats: []openbindings.BindingSpecInfo{{BindingSpec: "openbindings.graphql@1"}},
 		seen:    make(chan map[string]any, 1),
 	}
-	cleanup := app.OverrideInvokerForTest(openbindings.NewOperationInvoker(mock))
+	cleanup := app.OverrideInvokerForTest(invoke.NewOperationInvoker(mock))
 	defer cleanup()
 
 	configuration := map[string]any{
@@ -1042,7 +1044,7 @@ func TestServeBindingInvoke_WS_SecondOpenRejected(t *testing.T) {
 		formats: []openbindings.BindingSpecInfo{{BindingSpec: "mock-gated@1.0"}},
 		release: release,
 	}
-	cleanup := app.OverrideInvokerForTest(openbindings.NewOperationInvoker(mock))
+	cleanup := app.OverrideInvokerForTest(invoke.NewOperationInvoker(mock))
 	defer cleanup()
 
 	ts := testEnv(t)
@@ -1067,7 +1069,7 @@ func TestServeBindingInvoke_WS_UnaryRoundTrip(t *testing.T) {
 	// open, input, close -> output, complete: the unary cardinality under
 	// the frame protocol.
 	mock := &mockEchoInvoker{formats: []openbindings.BindingSpecInfo{{BindingSpec: "mock-echo@1.0"}}}
-	cleanup := app.OverrideInvokerForTest(openbindings.NewOperationInvoker(mock))
+	cleanup := app.OverrideInvokerForTest(invoke.NewOperationInvoker(mock))
 	defer cleanup()
 
 	ts := testEnv(t)
@@ -1101,7 +1103,7 @@ func TestServeBindingInvoke_WS_LateInputAfterInputClosedIgnored(t *testing.T) {
 		formats: []openbindings.BindingSpecInfo{{BindingSpec: "mock-gated@1.0"}},
 		release: release,
 	}
-	cleanup := app.OverrideInvokerForTest(openbindings.NewOperationInvoker(mock))
+	cleanup := app.OverrideInvokerForTest(invoke.NewOperationInvoker(mock))
 	defer cleanup()
 
 	ts := testEnv(t)
@@ -1152,7 +1154,7 @@ func TestServeBindingInvoke_WS_UnknownFramePropertyRejected(t *testing.T) {
 		formats: []openbindings.BindingSpecInfo{{BindingSpec: "mock-gated@1.0"}},
 		release: release,
 	}
-	cleanup := app.OverrideInvokerForTest(openbindings.NewOperationInvoker(mock))
+	cleanup := app.OverrideInvokerForTest(invoke.NewOperationInvoker(mock))
 	defer cleanup()
 
 	ts := testEnv(t)
@@ -1202,14 +1204,14 @@ func TestServeBindingInvoke_WS_ContextRequiredPassthrough(t *testing.T) {
 	// with its ContextRequiredDetails intact, before any output.
 	mock := &contextRequiredInvoker{
 		formats: []openbindings.BindingSpecInfo{{BindingSpec: "mock-ctx@1.0"}},
-		details: &openbindings.ContextRequiredDetails{
+		details: &invoke.ContextRequiredDetails{
 			Target: "api.example.com",
-			Alternatives: []openbindings.ContextAlternative{
-				{Requirements: []openbindings.ContextRequirement{{Type: "auth.bearer"}}},
+			Alternatives: []invoke.ContextAlternative{
+				{Requirements: []invoke.ContextRequirement{{Type: "auth.bearer"}}},
 			},
 		},
 	}
-	cleanup := app.OverrideInvokerForTest(openbindings.NewOperationInvoker(mock))
+	cleanup := app.OverrideInvokerForTest(invoke.NewOperationInvoker(mock))
 	defer cleanup()
 
 	ts := testEnv(t)
@@ -1250,7 +1252,7 @@ func TestServeBindingInvoke_WS_StreamE2E(t *testing.T) {
 		events:  []any{"event-1", "event-2", "event-3"},
 	}
 	cleanup := app.OverrideInvokerForTest(
-		openbindings.NewOperationInvoker(mockInvoker),
+		invoke.NewOperationInvoker(mockInvoker),
 	)
 	defer cleanup()
 
@@ -1283,10 +1285,10 @@ func TestServeBindingInvoke_WS_StreamThenError(t *testing.T) {
 	mockInvoker := &errorStreamInvoker{
 		formats: []openbindings.BindingSpecInfo{{BindingSpec: "mock-stream@1.0"}},
 		outputs: []any{map[string]any{"count": 2}},
-		err:     openbindings.NewInvocationError("ERR_VALIDATION_FAILED"),
+		err:     invoke.NewInvocationError("ERR_VALIDATION_FAILED"),
 	}
 	cleanup := app.OverrideInvokerForTest(
-		openbindings.NewOperationInvoker(mockInvoker),
+		invoke.NewOperationInvoker(mockInvoker),
 	)
 	defer cleanup()
 
@@ -1495,20 +1497,20 @@ func TestServeBindingInvoke_FrameRoundTripViaClient(t *testing.T) {
 	// the full protocol round trip ob uses when delegating to a remote host.
 	// Auth rides the upgrade request's Authorization header.
 	mock := &mockEchoInvoker{formats: []openbindings.BindingSpecInfo{{BindingSpec: "mock-echo@1.0"}}}
-	cleanup := app.OverrideInvokerForTest(openbindings.NewOperationInvoker(mock))
+	cleanup := app.OverrideInvokerForTest(invoke.NewOperationInvoker(mock))
 	defer cleanup()
 
 	ts := testEnv(t)
 	defer ts.Close()
 
 	ctx := t.Context()
-	dial := func(ctx context.Context) (*websocket.Conn, *openbindings.InvocationError) {
+	dial := func(ctx context.Context) (*websocket.Conn, *invoke.InvocationError) {
 		wsURL := strings.Replace(ts.URL, "http://", "ws://", 1) + "/bindings/invoke"
 		header := http.Header{}
 		header.Set("Authorization", "Bearer test-token")
 		conn, _, err := websocket.Dial(ctx, wsURL, &websocket.DialOptions{HTTPHeader: header})
 		if err != nil {
-			return nil, openbindings.NewInvocationError(openbindings.ErrCodeConnectFailed)
+			return nil, invoke.NewInvocationError(invoke.ErrCodeConnectFailed)
 		}
 		return conn, nil
 	}
@@ -1572,7 +1574,7 @@ func TestServeBindingPrepare_UnknownPropertyRejected(t *testing.T) {
 
 func TestServeBindingPrepare_AcceptsExtensibleSource(t *testing.T) {
 	mock := &mockEchoInvoker{formats: []openbindings.BindingSpecInfo{{BindingSpec: "mock-echo@1.0"}}}
-	cleanup := app.OverrideInvokerForTest(openbindings.NewOperationInvoker(mock))
+	cleanup := app.OverrideInvokerForTest(invoke.NewOperationInvoker(mock))
 	defer cleanup()
 
 	ts := testEnv(t)
@@ -1665,7 +1667,7 @@ func TestServeBindingPrepare_NullForFormatWithoutPreparer(t *testing.T) {
 	// A format whose invoker has no BindingPreparer reports null — the
 	// conformant "cannot determine statically" answer.
 	mock := &mockEchoInvoker{formats: []openbindings.BindingSpecInfo{{BindingSpec: "mock-echo@1.0"}}}
-	cleanup := app.OverrideInvokerForTest(openbindings.NewOperationInvoker(mock))
+	cleanup := app.OverrideInvokerForTest(invoke.NewOperationInvoker(mock))
 	defer cleanup()
 
 	ts := testEnv(t)
@@ -1691,7 +1693,7 @@ func TestServeBindingPrepare_NullForFormatWithoutPreparer(t *testing.T) {
 
 func TestServeOperationPrepare_InlineInterface(t *testing.T) {
 	mock := &mockEchoInvoker{formats: []openbindings.BindingSpecInfo{{BindingSpec: "mock-echo@1.0"}}}
-	cleanup := app.OverrideInvokerForTest(openbindings.NewOperationInvoker(mock))
+	cleanup := app.OverrideInvokerForTest(invoke.NewOperationInvoker(mock))
 	defer cleanup()
 
 	ts := testEnv(t)
@@ -2083,7 +2085,7 @@ func TestServeBindingInvoke_WS_ClientDisconnectTearsDown(t *testing.T) {
 		formats:  []openbindings.BindingSpecInfo{{BindingSpec: "mock-block@1.0"}},
 		tornDown: torn,
 	}
-	cleanup := app.OverrideInvokerForTest(openbindings.NewOperationInvoker(mock))
+	cleanup := app.OverrideInvokerForTest(invoke.NewOperationInvoker(mock))
 	defer cleanup()
 
 	ts := testEnv(t)

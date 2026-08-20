@@ -15,6 +15,7 @@ import (
 	"github.com/openbindings/ob/internal/frames"
 	"github.com/openbindings/ob/internal/server"
 	openbindings "github.com/openbindings/openbindings-go"
+	"github.com/openbindings/openbindings-go/invoke"
 )
 
 // TestWireConformance_ErrorFramesMatchServedInvokerSchema asserts that every
@@ -30,13 +31,13 @@ func TestWireConformance_ErrorFramesMatchServedInvokerSchema(t *testing.T) {
 
 	cases := []struct {
 		name string
-		err  *openbindings.InvocationError
+		err  *invoke.InvocationError
 	}{
 		// The bare literals the serve routes write on protocol violations.
-		{"bare runtime literal", openbindings.NewInvocationError(openbindings.ErrCodeRuntime)},
-		{"bare protocol literal", openbindings.NewInvocationError(openbindings.ErrCodeFrameProtocol)},
+		{"bare runtime literal", invoke.NewInvocationError(invoke.ErrCodeRuntime)},
+		{"bare protocol literal", invoke.NewInvocationError(invoke.ErrCodeFrameProtocol)},
 		// The portable interface-owned data path the workbench branches on.
-		{"context required", openbindings.NewContextRequiredError(&openbindings.ContextRequiredDetails{Target: "api.example.com"})},
+		{"context required", invoke.NewContextRequiredError(&invoke.ContextRequiredDetails{Target: "api.example.com"})},
 		{"nil terminal error", nil},
 	}
 	for _, schemaName := range []string{"OperationInvokerOutputFrame", "BindingInvokerOutputFrame"} {

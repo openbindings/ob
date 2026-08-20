@@ -6,6 +6,8 @@ import (
 
 	openbindings "github.com/openbindings/openbindings-go"
 
+	"github.com/openbindings/openbindings-go/invoke"
+
 	"github.com/openbindings/ob/internal/delegates"
 )
 
@@ -21,20 +23,20 @@ import (
 // surfaces as a terminal CONTEXT_REQUIRED for the remote caller — the consumer
 // runtime owns reactive resolution (binding-invoker rule 9); a frame server
 // never prompts.
-func InvokeBindingHandle(ctx context.Context, input InvocationInput) openbindings.Invocation[any, any] {
+func InvokeBindingHandle(ctx context.Context, input InvocationInput) invoke.Invocation[any, any] {
 	if input.Source.BindingSpec == "" {
-		return openbindings.NewErroredInvocation[any, any](openbindings.NewInvocationError(openbindings.ErrCodeValidationFailed))
+		return invoke.NewErroredInvocation[any, any](invoke.NewInvocationError(invoke.ErrCodeValidationFailed))
 	}
 	if input.Ref == "" {
-		return openbindings.NewErroredInvocation[any, any](openbindings.NewInvocationError(openbindings.ErrCodeValidationFailed))
+		return invoke.NewErroredInvocation[any, any](invoke.NewInvocationError(invoke.ErrCodeValidationFailed))
 	}
 
 	bindCtx := input.Context
 	if input.Source.Binary != "" {
 		bindCtx = withBinaryMetadata(bindCtx, input.Source.Binary)
 	}
-	args := &openbindings.BindingInvocationArgs{
-		Source: openbindings.InvocationSource{
+	args := &invoke.BindingInvocationArgs{
+		Source: invoke.InvocationSource{
 			BindingSpec: input.Source.BindingSpec,
 			Location:    input.Source.Location,
 			Content:     input.Source.Content,
@@ -52,7 +54,7 @@ func InvokeBindingHandle(ctx context.Context, input InvocationInput) openbinding
 
 	delegateInvoker, err := resolveDelegateInvoker(input.Source.BindingSpec)
 	if err != nil {
-		return openbindings.NewErroredInvocation[any, any](openbindings.NewInvocationError(openbindings.ErrCodeBindingNotFound))
+		return invoke.NewErroredInvocation[any, any](invoke.NewInvocationError(invoke.ErrCodeBindingNotFound))
 	}
 	return delegateInvoker.InvokeBinding(ctx, args)
 }
@@ -70,36 +72,36 @@ type OperationHandleInput struct {
 // InvokeOperationHandle returns the cardinality-agnostic operation-layer
 // handle for an inline interface. Creation is inert; callers drive it with
 // Write/Close and consume Outputs exactly as they do InvokeBindingHandle.
-func InvokeOperationHandle(ctx context.Context, input OperationHandleInput) openbindings.Invocation[any, any] {
+func InvokeOperationHandle(ctx context.Context, input OperationHandleInput) invoke.Invocation[any, any] {
 	if input.Interface == nil {
-		return openbindings.NewErroredInvocation[any, any](&openbindings.InvocationError{
-			Code: openbindings.ErrCodeValidationFailed,
+		return invoke.NewErroredInvocation[any, any](&invoke.InvocationError{
+			Code: invoke.ErrCodeValidationFailed,
 		})
 	}
 	if (input.Operation == "") == (input.Binding == "") {
-		return openbindings.NewErroredInvocation[any, any](&openbindings.InvocationError{
-			Code: openbindings.ErrCodeValidationFailed,
+		return invoke.NewErroredInvocation[any, any](&invoke.InvocationError{
+			Code: invoke.ErrCodeValidationFailed,
 		})
 	}
 
 	operation := input.Operation
-	var opts []openbindings.InvokeOption
+	var opts []invoke.InvokeOption
 	if len(input.Context) > 0 {
-		opts = append(opts, openbindings.WithContext(input.Context))
+		opts = append(opts, invoke.WithContext(input.Context))
 	}
 	if input.Binding != "" {
 		binding, ok := input.Interface.Bindings[input.Binding]
 		if !ok {
-			return openbindings.NewErroredInvocation[any, any](&openbindings.InvocationError{
-				Code: openbindings.ErrCodeBindingNotFound,
+			return invoke.NewErroredInvocation[any, any](&invoke.InvocationError{
+				Code: invoke.ErrCodeBindingNotFound,
 			})
 		}
 		operation = binding.Operation
-		opts = append(opts, openbindings.WithBindingKey(input.Binding))
+		opts = append(opts, invoke.WithBindingKey(input.Binding))
 	}
 
-	sig := openbindings.NewOperationSignature[any, any](operation)
-	return openbindings.Invoke(ctx, DefaultInvoker(), input.Interface, sig, opts...)
+	sig := invoke.NewOperationSignature[any, any](operation)
+	return invoke.Invoke(ctx, DefaultInvoker(), input.Interface, sig, opts...)
 }
 
 // resolveDelegateInvoker selects an invoke-capable delegate that handles the
@@ -112,7 +114,7 @@ func InvokeOperationHandle(ctx context.Context, input OperationHandleInput) open
 // DelegateBindingInvoker (the frame-transport collapse remains a tracked
 // follow-up; its owner is the serve-pass handoff note in
 // ob-pj/wire-conformance.md).
-func resolveDelegateInvoker(format string) (openbindings.BindingInvoker, error) {
+func resolveDelegateInvoker(format string) (invoke.BindingInvoker, error) {
 	chosen := selectDelegate(CapInvoke, format)
 	if chosen == nil || chosen.builtin {
 		return nil, fmt.Errorf("no invoker or delegate handles format %q", format)
@@ -136,12 +138,12 @@ func resolveDelegateInvoker(format string) (openbindings.BindingInvoker, error) 
 // per-call context cannot satisfy the reported requirements, only the
 // per-call context passes through and the binding's own CONTEXT_REQUIRED
 // challenge reaches the caller.
-func withStoredContext(ctx context.Context, invoker *openbindings.OperationInvoker, args *openbindings.BindingInvocationArgs) map[string]any {
+func withStoredContext(ctx context.Context, invoker *invoke.OperationInvoker, args *invoke.BindingInvocationArgs) map[string]any {
 	details, err := invoker.PrepareBinding(ctx, args)
 	if err != nil || details == nil {
 		return args.Context
 	}
-	stored, _ := NewCLIContextStore().Get(ctx, openbindings.NormalizeEndpoint(details.Target))
+	stored, _ := NewCLIContextStore().Get(ctx, invoke.NormalizeEndpoint(details.Target))
 	if len(stored) == 0 {
 		return args.Context
 	}
@@ -152,13 +154,13 @@ func withStoredContext(ctx context.Context, invoker *openbindings.OperationInvok
 	for k, v := range args.Context {
 		merged[k] = v
 	}
-	if !openbindings.ContextSatisfies(merged, details) {
+	if !invoke.ContextSatisfies(merged, details) {
 		return args.Context
 	}
 	// Least privilege applies to reusable stored context. Preserve explicit
 	// invocation context after reducing the stored entry to the selected
 	// challenge alternative.
-	scoped := openbindings.ScopeContext(stored, details)
+	scoped := invoke.ScopeContext(stored, details)
 	out := make(map[string]any, len(scoped)+len(args.Context))
 	for k, v := range scoped {
 		out[k] = v
@@ -175,7 +177,7 @@ func withStoredContext(ctx context.Context, invoker *openbindings.OperationInvok
 // preparer — including formats handled by delegates — report nil, the
 // always-satisfiable conformant answer; invokeBinding's reactive
 // CONTEXT_REQUIRED challenge remains authoritative.
-func PrepareBinding(ctx context.Context, input InvocationInput) (*openbindings.ContextRequiredDetails, error) {
+func PrepareBinding(ctx context.Context, input InvocationInput) (*invoke.ContextRequiredDetails, error) {
 	if input.Source.BindingSpec == "" {
 		return nil, fmt.Errorf("source.bindingSpec is required")
 	}
@@ -185,8 +187,8 @@ func PrepareBinding(ctx context.Context, input InvocationInput) (*openbindings.C
 	if !BuiltinSupportsFormat(input.Source.BindingSpec) {
 		return nil, nil
 	}
-	return DefaultInvoker().PrepareBinding(ctx, &openbindings.BindingInvocationArgs{
-		Source: openbindings.InvocationSource{
+	return DefaultInvoker().PrepareBinding(ctx, &invoke.BindingInvocationArgs{
+		Source: invoke.InvocationSource{
 			BindingSpec: input.Source.BindingSpec,
 			Location:    input.Source.Location,
 			Content:     input.Source.Content,

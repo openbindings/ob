@@ -13,7 +13,7 @@ import (
 	"time"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
-	openbindings "github.com/openbindings/openbindings-go"
+	"github.com/openbindings/openbindings-go/synthesize"
 	"github.com/spf13/cobra"
 
 	"github.com/openbindings/ob/internal/app"
@@ -170,7 +170,7 @@ Examples:
 						"exhaustive", resolved.Coverage.Exhaustive,
 						"fullyRepresented", resolved.Coverage.FullyRepresented)
 					for _, entry := range resolved.Coverage.Entries {
-						if entry.Status != openbindings.SynthesisRepresented {
+						if entry.Status != synthesize.SynthesisRepresented {
 							logger.Warn("synthesis disposition",
 								"sourceRef", entry.SourceRef,
 								"scope", entry.Scope,

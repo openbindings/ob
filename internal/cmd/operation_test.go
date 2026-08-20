@@ -9,7 +9,7 @@ import (
 	"testing"
 
 	"github.com/openbindings/ob/internal/app"
-	openbindings "github.com/openbindings/openbindings-go"
+	"github.com/openbindings/openbindings-go/invoke"
 )
 
 func TestOperationUnbind_ExactBindingKey(t *testing.T) {
@@ -90,8 +90,8 @@ func TestRenderInvokeJSON_SuccessEnvelopeIsMinimal(t *testing.T) {
 func TestRenderInvokeJSON_DefaultIsProtocolBlindAndPreservesPartialOutputs(t *testing.T) {
 	ch := make(chan app.InvocationOutput, 3)
 	ch <- app.InvocationOutput{Output: map[string]any{"partial": true}}
-	ch <- app.InvocationOutput{Error: openbindings.NewInvocationErrorWithData(
-		openbindings.ErrCodeExecutionFailed, map[string]any{"reason": "declined"})}
+	ch <- app.InvocationOutput{Error: invoke.NewInvocationErrorWithData(
+		invoke.ErrCodeExecutionFailed, map[string]any{"reason": "declined"})}
 	close(ch)
 	run := &app.ConfiguredInvocation{BindingKey: "op.openapi", Events: ch}
 	var buf bytes.Buffer
@@ -114,7 +114,7 @@ func TestRenderInvokeJSON_DefaultIsProtocolBlindAndPreservesPartialOutputs(t *te
 		t.Fatalf("legacy metadata leaked by default: %#v", envelope)
 	}
 	errorValue, _ := envelope["error"].(map[string]any)
-	if errorValue["code"] != openbindings.ErrCodeExecutionFailed {
+	if errorValue["code"] != invoke.ErrCodeExecutionFailed {
 		t.Fatalf("abstract unsuccessful completion missing: %#v", envelope)
 	}
 	if data, _ := errorValue["data"].(map[string]any); data["reason"] != "declined" {

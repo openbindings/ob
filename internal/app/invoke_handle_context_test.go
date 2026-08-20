@@ -5,23 +5,25 @@ import (
 	"testing"
 
 	openbindings "github.com/openbindings/openbindings-go"
+
+	"github.com/openbindings/openbindings-go/invoke"
 )
 
 type storedContextPreparer struct {
-	details *openbindings.ContextRequiredDetails
+	details *invoke.ContextRequiredDetails
 }
 
 func (p storedContextPreparer) BindingSpecs() []openbindings.BindingSpecInfo {
 	return []openbindings.BindingSpecInfo{{BindingSpec: "example.binding@1"}}
 }
 
-func (p storedContextPreparer) InvokeBinding(context.Context, *openbindings.BindingInvocationArgs) openbindings.Invocation[any, any] {
-	return openbindings.NewErroredInvocation[any, any](&openbindings.InvocationError{
-		Code: openbindings.ErrCodeRuntime,
+func (p storedContextPreparer) InvokeBinding(context.Context, *invoke.BindingInvocationArgs) invoke.Invocation[any, any] {
+	return invoke.NewErroredInvocation[any, any](&invoke.InvocationError{
+		Code: invoke.ErrCodeRuntime,
 	})
 }
 
-func (p storedContextPreparer) PrepareBinding(context.Context, *openbindings.BindingInvocationArgs) (*openbindings.ContextRequiredDetails, error) {
+func (p storedContextPreparer) PrepareBinding(context.Context, *invoke.BindingInvocationArgs) (*invoke.ContextRequiredDetails, error) {
 	return p.details, nil
 }
 
@@ -37,15 +39,15 @@ func TestWithStoredContextScopesStoreButPreservesExplicitContext(t *testing.T) {
 		t.Fatalf("SaveUnifiedContext: %v", err)
 	}
 
-	details := &openbindings.ContextRequiredDetails{
+	details := &invoke.ContextRequiredDetails{
 		Target: target,
-		Alternatives: []openbindings.ContextAlternative{{
-			Requirements: []openbindings.ContextRequirement{{Type: "auth.bearer"}},
+		Alternatives: []invoke.ContextAlternative{{
+			Requirements: []invoke.ContextRequirement{{Type: "auth.bearer"}},
 		}},
 	}
-	invoker := openbindings.NewOperationInvoker(storedContextPreparer{details: details})
-	args := &openbindings.BindingInvocationArgs{
-		Source: openbindings.InvocationSource{BindingSpec: "example.binding@1"},
+	invoker := invoke.NewOperationInvoker(storedContextPreparer{details: details})
+	args := &invoke.BindingInvocationArgs{
+		Source: invoke.InvocationSource{BindingSpec: "example.binding@1"},
 		Context: map[string]any{
 			"headers": map[string]any{
 				"X-Explicit": "caller-value",
@@ -54,10 +56,10 @@ func TestWithStoredContextScopesStoreButPreservesExplicitContext(t *testing.T) {
 	}
 
 	got := withStoredContext(context.Background(), invoker, args)
-	if openbindings.ContextBearerToken(got) != "stored-token" {
+	if invoke.ContextBearerToken(got) != "stored-token" {
 		t.Fatalf("scoped stored credential missing: %#v", got)
 	}
-	headers := openbindings.ContextHeaders(got)
+	headers := invoke.ContextHeaders(got)
 	if headers["X-Explicit"] != "caller-value" {
 		t.Fatalf("explicit per-call context was dropped: %#v", got)
 	}

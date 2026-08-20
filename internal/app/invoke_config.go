@@ -6,7 +6,7 @@ import (
 	"sort"
 	"strings"
 
-	openbindings "github.com/openbindings/openbindings-go"
+	"github.com/openbindings/openbindings-go/invoke"
 )
 
 // InvokeConfig is the data face's per-invocation configuration, compiled
@@ -76,45 +76,45 @@ func (c *InvokeConfig) Context() map[string]any {
 // explicit per-invocation flag is intent for THIS invocation and wins over
 // any format built-in, so no format guard is applied (unlike the standing
 // table, which is site-guarded to ob's own OBI).
-func (c *InvokeConfig) perInvocationHooks(invoker *openbindings.OperationInvoker) *openbindings.InvokeHooks {
+func (c *InvokeConfig) perInvocationHooks(invoker *invoke.OperationInvoker) *invoke.InvokeHooks {
 	if c.empty() {
 		return nil
 	}
 
-	var decode openbindings.OutputDecoder
+	var decode invoke.OutputDecoder
 	switch c.Decode {
 	case "json":
-		decode = func(_ openbindings.InvokeSite, raw openbindings.RawResult) (any, error) {
+		decode = func(_ invoke.InvokeSite, raw invoke.RawResult) (any, error) {
 			if len(raw.Body) == 0 {
 				return nil, nil
 			}
 			var v any
 			if err := json.Unmarshal(raw.Body, &v); err != nil {
-				return nil, &openbindings.InvocationError{
-					Code: openbindings.ErrCodeResponseError,
+				return nil, &invoke.InvocationError{
+					Code: invoke.ErrCodeResponseError,
 				}
 			}
 			return v, nil
 		}
 	case "text":
-		decode = func(_ openbindings.InvokeSite, raw openbindings.RawResult) (any, error) {
+		decode = func(_ invoke.InvokeSite, raw invoke.RawResult) (any, error) {
 			return strings.TrimRight(string(raw.Body), "\r\n"), nil
 		}
 	case "none":
 		// stdout not consulted; the output value is null. T-08 still runs
 		// against the contract (deriving output from exit status is a hook
 		// capability, not a flag one — the triage row says so).
-		decode = func(_ openbindings.InvokeSite, _ openbindings.RawResult) (any, error) {
+		decode = func(_ invoke.InvokeSite, _ invoke.RawResult) (any, error) {
 			return nil, nil
 		}
 	}
 
-	var classify openbindings.ResultClassifier
+	var classify invoke.ResultClassifier
 	if len(c.OKExits) > 0 {
 		oks := append([]int(nil), c.OKExits...)
-		classify = func(_ openbindings.InvokeSite, raw openbindings.RawResult) (bool, error) {
+		classify = func(_ invoke.InvokeSite, raw invoke.RawResult) (bool, error) {
 			if raw.Status == nil {
-				return false, openbindings.ErrUseDefault
+				return false, invoke.ErrUseDefault
 			}
 			for _, o := range oks {
 				if *raw.Status == o {
@@ -125,10 +125,10 @@ func (c *InvokeConfig) perInvocationHooks(invoker *openbindings.OperationInvoker
 		}
 	}
 
-	var route openbindings.FieldRouter
+	var route invoke.FieldRouter
 	if len(c.Routes) > 0 {
 		routes := c.Routes
-		route = func(_ openbindings.InvokeSite, field string, _ any) string {
+		route = func(_ invoke.InvokeSite, field string, _ any) string {
 			return routes[field] // "" (absent) declines to the format default
 		}
 	}

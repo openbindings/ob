@@ -14,6 +14,7 @@ import (
 	"github.com/charmbracelet/huh"
 	"github.com/openbindings/ob/internal/app"
 	openbindings "github.com/openbindings/openbindings-go"
+	"github.com/openbindings/openbindings-go/invoke"
 	"github.com/spf13/cobra"
 	"golang.org/x/term"
 )
@@ -306,9 +307,9 @@ func renderInvokeJSON(w io.Writer, run *app.ConfiguredInvocation) error {
 // any application-authored data, and — for CONTEXT_REQUIRED — the full
 // challenge plus a copy-pasteable remedy, so the auth loop closes from the
 // error itself instead of from the docs.
-func renderInvokeError(w io.Writer, ierr *openbindings.InvocationError) {
+func renderInvokeError(w io.Writer, ierr *invoke.InvocationError) {
 	fmt.Fprintf(w, "error: %s\n", ierr.Code)
-	if details := openbindings.ContextRequiredFrom(ierr); details != nil {
+	if details := invoke.ContextRequiredFrom(ierr); details != nil {
 		fmt.Fprintln(w, app.RenderContextRequirements(details))
 		if hint := contextSetHint(details); hint != "" {
 			fmt.Fprintf(w, "  satisfy it with: %s\n", hint)
@@ -325,7 +326,7 @@ func renderInvokeError(w io.Writer, ierr *openbindings.InvocationError) {
 
 // contextSetHint maps the challenge's first requirement to the ob context
 // flag that satisfies it.
-func contextSetHint(d *openbindings.ContextRequiredDetails) string {
+func contextSetHint(d *invoke.ContextRequiredDetails) string {
 	if d.Target == "" || len(d.Alternatives) == 0 || len(d.Alternatives[0].Requirements) == 0 {
 		return ""
 	}

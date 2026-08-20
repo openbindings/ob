@@ -143,10 +143,10 @@ ship as part of 0.2.0.
   for unary, streaming, and bidirectional bindings).
   - `ob codegen --lang go` emits **operation signatures**, not a bound invoker:
     the per-operation input/output structs plus an `OperationSignatures`
-    namespace (one `openbindings.OperationSignature[I, O]` per operation, built
+    namespace (one `invoke.OperationSignature[I, O]` per operation, built
     via `NewOperationSignature`). Callers invoke with the free verb,
-    `openbindings.Invoke(ctx, invoker, obi, sig, ...)`, and drive the
-    cardinality-agnostic handle (`openbindings.Single` for one-shot outputs).
+    `invoke.Invoke(ctx, invoker, obi, sig, ...)`, and drive the
+    cardinality-agnostic handle (`invoke.Single` for one-shot outputs).
     No per-operation methods, no bound invoker struct, no embedded contract: the
     interface is supplied at call time, and named schemas shared across
     operations are emitted once. `--lang typescript` emits the same shape: an

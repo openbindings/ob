@@ -17,6 +17,8 @@ import (
 
 	openbindings "github.com/openbindings/openbindings-go"
 
+	"github.com/openbindings/openbindings-go/invoke"
+
 	"github.com/openbindings/ob/internal/app"
 	"github.com/openbindings/ob/internal/codegen"
 	"github.com/openbindings/ob/internal/frames"
@@ -211,15 +213,15 @@ func serveBindingFrameStream(ctx context.Context, cancel context.CancelFunc, con
 	}
 	var open frames.InputFrame
 	if uerr := json.Unmarshal(first, &open); uerr != nil {
-		_ = writer.write(ctx, frames.Error(&openbindings.InvocationError{
-			Code: openbindings.ErrCodeFrameProtocol,
+		_ = writer.write(ctx, frames.Error(&invoke.InvocationError{
+			Code: invoke.ErrCodeFrameProtocol,
 		}))
 		conn.Close(websocket.StatusNormalClosure, "")
 		return
 	}
 	if open.Kind != frames.KindOpen {
-		_ = writer.write(ctx, frames.Error(&openbindings.InvocationError{
-			Code: openbindings.ErrCodeFrameProtocol,
+		_ = writer.write(ctx, frames.Error(&invoke.InvocationError{
+			Code: invoke.ErrCodeFrameProtocol,
 		}))
 		conn.Close(websocket.StatusNormalClosure, "")
 		return
@@ -248,15 +250,15 @@ func serveOperationFrameStream(ctx context.Context, cancel context.CancelFunc, c
 	}
 	var open frames.OperationInputFrame
 	if uerr := json.Unmarshal(first, &open); uerr != nil {
-		_ = writer.write(ctx, frames.Error(&openbindings.InvocationError{
-			Code: openbindings.ErrCodeFrameProtocol,
+		_ = writer.write(ctx, frames.Error(&invoke.InvocationError{
+			Code: invoke.ErrCodeFrameProtocol,
 		}))
 		conn.Close(websocket.StatusNormalClosure, "")
 		return
 	}
 	if open.Kind != frames.KindOpen {
-		_ = writer.write(ctx, frames.Error(&openbindings.InvocationError{
-			Code: openbindings.ErrCodeFrameProtocol,
+		_ = writer.write(ctx, frames.Error(&invoke.InvocationError{
+			Code: invoke.ErrCodeFrameProtocol,
 		}))
 		conn.Close(websocket.StatusNormalClosure, "")
 		return
@@ -282,13 +284,13 @@ func driveFrameStream(
 	conn *websocket.Conn,
 	logger *slog.Logger,
 	writer *frameWriter,
-	inv openbindings.Invocation[any, any],
+	inv invoke.Invocation[any, any],
 ) {
 
 	// A protocol violation after open (second open, undecodable frame)
 	// terminates the invocation; the violation's error replaces the handle's
 	// ERR_CANCELLED on the terminal frame.
-	protoErr := make(chan *openbindings.InvocationError, 1)
+	protoErr := make(chan *invoke.InvocationError, 1)
 	var callerClosed atomic.Bool
 
 	// Input side: frames -> handle.
@@ -321,7 +323,7 @@ func driveFrameStream(
 			break
 		}
 		if rerr != nil {
-			ie := openbindings.AsInvocationError(rerr)
+			ie := invoke.AsInvocationError(rerr)
 			select {
 			case pe := <-protoErr:
 				ie = pe
@@ -354,14 +356,14 @@ func readInputFrames(
 	ctx context.Context,
 	cancel context.CancelFunc,
 	conn *websocket.Conn,
-	inv openbindings.Invocation[any, any],
+	inv invoke.Invocation[any, any],
 	callerClosed *atomic.Bool,
-	protoErr chan<- *openbindings.InvocationError,
+	protoErr chan<- *invoke.InvocationError,
 	logger *slog.Logger,
 ) {
 	violation := func(reason string) {
 		select {
-		case protoErr <- &openbindings.InvocationError{Code: openbindings.ErrCodeFrameProtocol}:
+		case protoErr <- &invoke.InvocationError{Code: invoke.ErrCodeFrameProtocol}:
 		default:
 		}
 		inv.Cancel()
@@ -400,8 +402,8 @@ func readInputFrames(
 				continue
 			}
 			if werr := inv.Write(ctx, frame.Value); werr != nil {
-				var ie *openbindings.InvocationError
-				if errors.As(werr, &ie) && ie.Code == openbindings.ErrCodeInputClosed {
+				var ie *invoke.InvocationError
+				if errors.As(werr, &ie) && ie.Code == invoke.ErrCodeInputClosed {
 					// Rule 3's inherent race: closure landed while the write
 					// was in flight. Same treatment as the pre-checked case.
 					logger.Debug("ignoring input frame after input closure")
@@ -422,7 +424,7 @@ func readInputFrames(
 
 // inputSideClosed reports (without blocking) whether the invocation's input
 // side has closed from either side.
-func inputSideClosed(inv openbindings.Invocation[any, any]) bool {
+func inputSideClosed(inv invoke.Invocation[any, any]) bool {
 	select {
 	case <-inv.InputClosed():
 		return true

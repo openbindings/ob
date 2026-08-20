@@ -6,7 +6,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	openbindings "github.com/openbindings/openbindings-go"
+	"github.com/openbindings/openbindings-go/invoke"
 	"github.com/zalando/go-keyring"
 )
 
@@ -299,7 +299,7 @@ func TestCLIContextStore_OriginChallengeFindsPathScopedContext(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Get: %v", err)
 	}
-	if openbindings.ContextBearerToken(got) != "secret-tok" {
+	if invoke.ContextBearerToken(got) != "secret-tok" {
 		t.Fatalf("origin challenge did not resolve path-scoped context: %#v", got)
 	}
 

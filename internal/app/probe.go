@@ -16,6 +16,8 @@ import (
 
 	openbindings "github.com/openbindings/openbindings-go"
 
+	"github.com/openbindings/openbindings-go/synthesize"
+
 	"github.com/openbindings/ob/internal/delegates"
 	"github.com/openbindings/ob/internal/execref"
 )
@@ -39,7 +41,7 @@ type ProbeResult struct {
 	SourceBindingSpec string
 	// Coverage is present when this resolution synthesized a raw artifact
 	// through a coverage-capable synthesizer.
-	Coverage *openbindings.SynthesisCoverage
+	Coverage *synthesize.SynthesisCoverage
 }
 
 // NormalizeURL trims input and canonicalises the scheme.
@@ -200,7 +202,7 @@ func probeHTTP(u string, timeout time.Duration) ProbeResult {
 	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
 
-	fetched, err := openbindings.FetchInterface(ctx, u, openbindings.WithSynthesizers(DefaultSynthesizer()))
+	fetched, err := synthesize.FetchInterface(ctx, u, synthesize.WithSynthesizers(DefaultSynthesizer()))
 	if err != nil {
 		return ProbeResult{Status: ProbeStatusBad, Detail: err.Error()}
 	}
@@ -263,7 +265,7 @@ func ResolveOBI(urlOrHost string) (doc []byte, synthesizedFrom string, err error
 	ctx, cancel := context.WithTimeout(context.Background(), delegates.DefaultProbeTimeout)
 	defer cancel()
 
-	fetched, err := openbindings.FetchInterface(ctx, u, openbindings.WithSynthesizers(DefaultSynthesizer()))
+	fetched, err := synthesize.FetchInterface(ctx, u, synthesize.WithSynthesizers(DefaultSynthesizer()))
 	if err != nil {
 		return nil, "", err
 	}
@@ -298,14 +300,14 @@ func normalizeOBIJSON(body []byte) (string, bool) {
 func trySynthesizeInterface(location, originalURL, obiDir string) (ProbeResult, bool) {
 	synthesizer := DefaultSynthesizer()
 	for _, fi := range synthesizer.BindingSpecs() {
-		input := &openbindings.SynthesizeInput{
-			Sources: []openbindings.SynthesizeSource{{BindingSpec: fi.BindingSpec, Location: location}},
+		input := &synthesize.SynthesizeInput{
+			Sources: []synthesize.SynthesizeSource{{BindingSpec: fi.BindingSpec, Location: location}},
 		}
-		var coverage *openbindings.SynthesisCoverage
+		var coverage *synthesize.SynthesisCoverage
 		var iface *openbindings.Interface
-		if coverageSynthesizer, ok := synthesizer.(openbindings.CoverageSynthesizer); ok {
+		if coverageSynthesizer, ok := synthesizer.(synthesize.CoverageSynthesizer); ok {
 			result, err := coverageSynthesizer.SynthesizeInterfaceWithCoverage(context.Background(), input)
-			if errors.Is(err, openbindings.ErrSynthesisCoverageUnsupported) {
+			if errors.Is(err, synthesize.ErrSynthesisCoverageUnsupported) {
 				iface, err = synthesizer.SynthesizeInterface(context.Background(), input)
 			} else if err != nil {
 				continue

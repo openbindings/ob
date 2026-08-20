@@ -16,6 +16,8 @@ import (
 
 	openbindings "github.com/openbindings/openbindings-go"
 
+	"github.com/openbindings/openbindings-go/invoke"
+
 	"github.com/openbindings/ob/internal/delegates"
 	"github.com/openbindings/ob/internal/frames"
 	"github.com/openbindings/openbindings-go/formats/asyncapi"
@@ -32,7 +34,7 @@ const (
 
 // Delegate-backed binding invocation. A resolved delegate's OBI declares how
 // its invokeBinding operation is reachable; ob exposes that as a normal
-// openbindings.BindingInvoker:
+// invoke.BindingInvoker:
 //
 //   - asyncapi source with an http(s) location: the binding-invoker frame
 //     protocol over WebSocket (internal/frames). Full Invocation-handle
@@ -48,7 +50,7 @@ const frameDocFetchTimeout = 10 * time.Second
 
 // DelegateBindingInvoker returns a BindingInvoker that routes invocations to
 // the resolved delegate via its advertised invokeBinding binding.
-func DelegateBindingInvoker(resolved delegates.Resolved) (openbindings.BindingInvoker, error) {
+func DelegateBindingInvoker(resolved delegates.Resolved) (invoke.BindingInvoker, error) {
 	if resolved.OBI == nil {
 		return nil, fmt.Errorf("delegate %q has no OBI", resolved.Delegate)
 	}
@@ -145,7 +147,7 @@ func (d *delegateFrameInvoker) BindingSpecs() []openbindings.BindingSpecInfo {
 	return []openbindings.BindingSpecInfo{{BindingSpec: d.format}}
 }
 
-func (d *delegateFrameInvoker) InvokeBinding(ctx context.Context, args *openbindings.BindingInvocationArgs) openbindings.Invocation[any, any] {
+func (d *delegateFrameInvoker) InvokeBinding(ctx context.Context, args *invoke.BindingInvocationArgs) invoke.Invocation[any, any] {
 	input := &frames.BindingInvocationInput{
 		Source: frames.InvokeSource{
 			BindingSpec: args.Source.BindingSpec,
@@ -167,18 +169,18 @@ func (d *delegateFrameInvoker) InvokeBinding(ctx context.Context, args *openbind
 // serve` session token) is read from the context store under the delegate
 // host's key and presented as a bearer on the upgrade request — it never
 // mixes with the downstream context carried by the open frame.
-func (d *delegateFrameInvoker) dial(ctx context.Context) (*websocket.Conn, *openbindings.InvocationError) {
+func (d *delegateFrameInvoker) dial(ctx context.Context) (*websocket.Conn, *invoke.InvocationError) {
 	endpoint, err := resolveFrameEndpoint(ctx, d.docURL, d.ref)
 	if err != nil {
-		return nil, &openbindings.InvocationError{
-			Code: openbindings.ErrCodeSourceConfigError,
+		return nil, &invoke.InvocationError{
+			Code: invoke.ErrCodeSourceConfigError,
 		}
 	}
 
 	header := http.Header{}
 	store := NewCLIContextStore()
-	if stored, _ := store.Get(ctx, openbindings.NormalizeEndpoint(endpoint)); stored != nil {
-		if token := openbindings.ContextBearerToken(stored); token != "" {
+	if stored, _ := store.Get(ctx, invoke.NormalizeEndpoint(endpoint)); stored != nil {
+		if token := invoke.ContextBearerToken(stored); token != "" {
 			header.Set("Authorization", "Bearer "+token)
 		}
 	}
@@ -186,12 +188,12 @@ func (d *delegateFrameInvoker) dial(ctx context.Context) (*websocket.Conn, *open
 	conn, resp, dialErr := websocket.Dial(ctx, endpoint, &websocket.DialOptions{HTTPHeader: header})
 	if dialErr != nil {
 		if resp != nil && (resp.StatusCode == http.StatusUnauthorized || resp.StatusCode == http.StatusForbidden) {
-			return nil, &openbindings.InvocationError{
+			return nil, &invoke.InvocationError{
 				Code: errCodeDelegateAuthRequired,
 			}
 		}
-		return nil, &openbindings.InvocationError{
-			Code: openbindings.ErrCodeConnectFailed,
+		return nil, &invoke.InvocationError{
+			Code: invoke.ErrCodeConnectFailed,
 		}
 	}
 	conn.SetReadLimit(maxFrameBytes)
@@ -296,19 +298,19 @@ type delegateCLIInvoker struct {
 // never a payload sniff in the format builtin. Classification stays the
 // builtin exit-0 rule: a delegate's handled failures surface as non-zero
 // exits with the captured output in Details.
-func delegateExecInvoker(delegate string) *openbindings.OperationInvoker {
+func delegateExecInvoker(delegate string) *invoke.OperationInvoker {
 	lane := DefaultInvoker().WithRuntime(nil) // blessed shallow copy; runtime fields ride
-	lane.OutputDecoder = func(site openbindings.InvokeSite, raw openbindings.RawResult) (any, error) {
+	lane.OutputDecoder = func(site invoke.InvokeSite, raw invoke.RawResult) (any, error) {
 		if site.FamilyName() != "usage" {
-			return nil, openbindings.ErrUseDefault
+			return nil, invoke.ErrUseDefault
 		}
 		if len(raw.Body) == 0 {
 			return nil, nil
 		}
 		var v any
 		if err := json.Unmarshal(raw.Body, &v); err != nil {
-			return nil, &openbindings.InvocationError{
-				Code: openbindings.ErrCodeResponseError,
+			return nil, &invoke.InvocationError{
+				Code: invoke.ErrCodeResponseError,
 			}
 		}
 		return v, nil
@@ -320,8 +322,8 @@ func (d *delegateCLIInvoker) BindingSpecs() []openbindings.BindingSpecInfo {
 	return []openbindings.BindingSpecInfo{{BindingSpec: d.format}}
 }
 
-func (d *delegateCLIInvoker) InvokeBinding(ctx context.Context, args *openbindings.BindingInvocationArgs) openbindings.Invocation[any, any] {
-	impl := openbindings.NewInvocationImpl[any, any](ctx)
+func (d *delegateCLIInvoker) InvokeBinding(ctx context.Context, args *invoke.BindingInvocationArgs) invoke.Invocation[any, any] {
+	impl := invoke.NewInvocationImpl[any, any](ctx)
 
 	go func() {
 		// Unary: read at most one input, then close the input side so the
@@ -352,8 +354,8 @@ func (d *delegateCLIInvoker) InvokeBinding(ctx context.Context, args *openbindin
 		if d.binding.InputTransform != nil {
 			transformed, tErr := ApplyTransform(d.iface.Transforms, d.binding.InputTransform, payload)
 			if tErr != nil {
-				impl.FireError(&openbindings.InvocationError{
-					Code: openbindings.ErrCodeTransformError,
+				impl.FireError(&invoke.InvocationError{
+					Code: invoke.ErrCodeTransformError,
 				})
 				return
 			}
@@ -362,12 +364,12 @@ func (d *delegateCLIInvoker) InvokeBinding(ctx context.Context, args *openbindin
 
 		es, esErr := resolveSourceLocation(d.source)
 		if esErr != nil {
-			impl.FireError(&openbindings.InvocationError{
-				Code: openbindings.ErrCodeSourceConfigError,
+			impl.FireError(&invoke.InvocationError{
+				Code: invoke.ErrCodeSourceConfigError,
 			})
 			return
 		}
-		inner := delegateExecInvoker(d.delegate).InvokeBinding(ctx, &openbindings.BindingInvocationArgs{
+		inner := delegateExecInvoker(d.delegate).InvokeBinding(ctx, &invoke.BindingInvocationArgs{
 			Source:  es,
 			Ref:     d.binding.Ref,
 			Context: args.Context,
@@ -383,7 +385,7 @@ func (d *delegateCLIInvoker) InvokeBinding(ctx context.Context, args *openbindin
 				return
 			}
 			if rerr != nil {
-				impl.FireError(openbindings.AsInvocationError(rerr))
+				impl.FireError(invoke.AsInvocationError(rerr))
 				return
 			}
 			if impl.EmitOutput(v) != nil {

@@ -17,6 +17,8 @@ import (
 
 	openbindings "github.com/openbindings/openbindings-go"
 
+	"github.com/openbindings/openbindings-go/invoke"
+
 	"github.com/openbindings/ob/internal/delegates"
 	"github.com/openbindings/ob/internal/frames"
 )
@@ -123,8 +125,8 @@ func TestDelegateFrameInvoker_UnaryRoundTrip(t *testing.T) {
 	}
 
 	ctx := t.Context()
-	inv := invoker.InvokeBinding(ctx, &openbindings.BindingInvocationArgs{
-		Source: openbindings.InvocationSource{BindingSpec: "thrift@1.0", Location: "service.thrift"},
+	inv := invoker.InvokeBinding(ctx, &invoke.BindingInvocationArgs{
+		Source: invoke.InvocationSource{BindingSpec: "thrift@1.0", Location: "service.thrift"},
 		Ref:    "Service/method",
 	})
 	if werr := inv.Write(ctx, "ping"); werr != nil {
@@ -357,8 +359,8 @@ exit 1
 	}
 
 	ctx := t.Context()
-	inv := invoker.InvokeBinding(ctx, &openbindings.BindingInvocationArgs{
-		Source: openbindings.InvocationSource{BindingSpec: "thrift@1.0", Location: "service.thrift"},
+	inv := invoker.InvokeBinding(ctx, &invoke.BindingInvocationArgs{
+		Source: invoke.InvocationSource{BindingSpec: "thrift@1.0", Location: "service.thrift"},
 		Ref:    "Service/method",
 	})
 	if werr := inv.Write(ctx, map[string]any{"limit": 10}); werr != nil {

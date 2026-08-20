@@ -17,6 +17,8 @@ import (
 	"fmt"
 
 	openbindings "github.com/openbindings/openbindings-go"
+
+	"github.com/openbindings/openbindings-go/invoke"
 )
 
 // Frame kinds. Input frames: open, input, close. Output frames: output,
@@ -107,9 +109,9 @@ func (e *WireError) UnmarshalJSON(raw []byte) error {
 }
 
 // WireErrorFrom converts an SDK terminal error to its wire shape.
-func WireErrorFrom(err *openbindings.InvocationError) *WireError {
+func WireErrorFrom(err *invoke.InvocationError) *WireError {
 	if err == nil {
-		return &WireError{Code: openbindings.ErrCodeRuntime}
+		return &WireError{Code: invoke.ErrCodeRuntime}
 	}
 	return &WireError{
 		Code:        err.Code,
@@ -121,14 +123,14 @@ func WireErrorFrom(err *openbindings.InvocationError) *WireError {
 // InvocationError converts the wire shape back to the SDK terminal error.
 // CONTEXT_REQUIRED data crosses as a generic map; ContextRequiredFrom decodes
 // them back into the typed shape on demand.
-func (e *WireError) InvocationError() *openbindings.InvocationError {
+func (e *WireError) InvocationError() *invoke.InvocationError {
 	if e == nil {
-		return openbindings.NewInvocationError(openbindings.ErrCodeRuntime)
+		return invoke.NewInvocationError(invoke.ErrCodeRuntime)
 	}
 	if e.dataPresent {
-		return openbindings.NewInvocationErrorWithData(e.Code, e.Data)
+		return invoke.NewInvocationErrorWithData(e.Code, e.Data)
 	}
-	return openbindings.NewInvocationError(e.Code)
+	return invoke.NewInvocationError(e.Code)
 }
 
 // ProtocolError reports a frame that violates the protocol (rule 1, 2, or 7).
@@ -401,7 +403,7 @@ func InputClosed() OutputFrame { return OutputFrame{Kind: KindInputClosed} }
 func Complete() OutputFrame { return OutputFrame{Kind: KindComplete} }
 
 // Error constructs the terminal error frame from an SDK terminal error.
-func Error(err *openbindings.InvocationError) OutputFrame {
+func Error(err *invoke.InvocationError) OutputFrame {
 	return OutputFrame{Kind: KindError, Error: WireErrorFrom(err)}
 }
 

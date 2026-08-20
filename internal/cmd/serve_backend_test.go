@@ -9,14 +9,16 @@ import (
 
 	openbindings "github.com/openbindings/openbindings-go"
 
+	"github.com/openbindings/openbindings-go/invoke"
+
 	"github.com/openbindings/ob/internal/app"
 )
 
 func invokeServedOperation(t *testing.T, ctx context.Context, iface *openbindings.Interface, operation string, input any) any {
 	t.Helper()
-	sig := openbindings.NewOperationSignature[any, any]("openbindings.ob." + operation)
-	inv := openbindings.Invoke(ctx, app.DefaultInvoker(), iface, sig,
-		openbindings.WithContext(map[string]any{"bearerToken": "test-token"}))
+	sig := invoke.NewOperationSignature[any, any]("openbindings.ob." + operation)
+	inv := invoke.Invoke(ctx, app.DefaultInvoker(), iface, sig,
+		invoke.WithContext(map[string]any{"bearerToken": "test-token"}))
 	if input != nil {
 		if err := inv.Write(ctx, input); err != nil {
 			t.Fatalf("%s write: %v", operation, err)

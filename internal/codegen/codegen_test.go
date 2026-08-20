@@ -140,10 +140,10 @@ func TestEmitGoDemo(t *testing.T) {
 	if !strings.Contains(code, "var OperationSignatures = operationSignatures{") {
 		t.Error("missing OperationSignatures namespace value")
 	}
-	if !strings.Contains(code, "GetMenu openbindings.OperationSignature[") {
+	if !strings.Contains(code, "GetMenu invoke.OperationSignature[") {
 		t.Error("missing typed GetMenu signature field")
 	}
-	if !strings.Contains(code, "openbindings.NewOperationSignature[") || !strings.Contains(code, `]("getMenu")`) {
+	if !strings.Contains(code, "invoke.NewOperationSignature[") || !strings.Contains(code, `]("getMenu")`) {
 		t.Error(`GetMenu signature should be built with NewOperationSignature(..., "getMenu")`)
 	}
 
@@ -230,7 +230,7 @@ func TestCodegenNameOverride(t *testing.T) {
 
 	goCode := EmitGo(result, "binvoker")
 	// Friendly member + friendly I/O type from the override.
-	if !strings.Contains(goCode, "InvokeBinding openbindings.OperationSignature[") {
+	if !strings.Contains(goCode, "InvokeBinding invoke.OperationSignature[") {
 		t.Error("Go: missing overridden InvokeBinding member")
 	}
 	if !strings.Contains(goCode, "type InvokeBindingInput struct") {
@@ -245,7 +245,7 @@ func TestCodegenNameOverride(t *testing.T) {
 		t.Error("Go: override should replace the verbose OpenbindingsBindingInvokerInvokeBinding")
 	}
 	// ...but the un-overridden op keeps it.
-	if !strings.Contains(goCode, "OpenbindingsBindingInvokerListFormats openbindings.OperationSignature[") {
+	if !strings.Contains(goCode, "OpenbindingsBindingInvokerListFormats invoke.OperationSignature[") {
 		t.Error("Go: un-overridden op should keep the verbose full-key symbol")
 	}
 

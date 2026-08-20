@@ -7,9 +7,11 @@ import (
 	"strings"
 
 	openbindings "github.com/openbindings/openbindings-go"
+
 	asyncapiformat "github.com/openbindings/openbindings-go/formats/asyncapi"
 	openapiformat "github.com/openbindings/openbindings-go/formats/openapi"
 	"github.com/openbindings/openbindings-go/formats/usage"
+	"github.com/openbindings/openbindings-go/invoke"
 )
 
 // CommandByShort maps each contract operation's short name to its CLI
@@ -610,24 +612,24 @@ func BoundCLIHookTable(contract *openbindings.Interface) usage.HookTable {
 // InstallBoundCLIHooks compiles the table and installs it at invoker
 // level, wrapped in the SITE GUARD (usage family + ob's own Target):
 // elections never leak onto foreign bindings.
-func InstallBoundCLIHooks(inv *openbindings.OperationInvoker, contract *openbindings.Interface) {
+func InstallBoundCLIHooks(inv *invoke.OperationInvoker, contract *openbindings.Interface) {
 	decode, classify, route := BoundCLIHookTable(contract).Hooks()
-	guard := func(site openbindings.InvokeSite) bool {
+	guard := func(site invoke.InvokeSite) bool {
 		return site.FamilyName() == "usage" && (site.Target == "ob" || strings.HasSuffix(site.Target, "/ob"))
 	}
-	inv.OutputDecoder = func(site openbindings.InvokeSite, raw openbindings.RawResult) (any, error) {
+	inv.OutputDecoder = func(site invoke.InvokeSite, raw invoke.RawResult) (any, error) {
 		if !guard(site) {
-			return nil, openbindings.ErrUseDefault
+			return nil, invoke.ErrUseDefault
 		}
 		return decode(site, raw)
 	}
-	inv.ResultClassifier = func(site openbindings.InvokeSite, raw openbindings.RawResult) (bool, error) {
+	inv.ResultClassifier = func(site invoke.InvokeSite, raw invoke.RawResult) (bool, error) {
 		if !guard(site) {
-			return false, openbindings.ErrUseDefault
+			return false, invoke.ErrUseDefault
 		}
 		return classify(site, raw)
 	}
-	inv.FieldRouter = func(site openbindings.InvokeSite, field string, value any) string {
+	inv.FieldRouter = func(site invoke.InvokeSite, field string, value any) string {
 		if !guard(site) {
 			return ""
 		}

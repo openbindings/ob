@@ -15,6 +15,8 @@ import (
 	openbindings "github.com/openbindings/openbindings-go"
 	mcpbinding "github.com/openbindings/openbindings-go/formats/mcp"
 	openapibinding "github.com/openbindings/openbindings-go/formats/openapi"
+	"github.com/openbindings/openbindings-go/invoke"
+	"github.com/openbindings/openbindings-go/synthesize"
 
 	"github.com/openbindings/ob/internal/app"
 	"github.com/openbindings/ob/internal/mcpbridge"
@@ -163,8 +165,8 @@ func TestMCPRoundTrip_Differential(t *testing.T) {
 
 	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
 	defer cancel()
-	iface, err := mcpbinding.NewSynthesizer().SynthesizeInterface(ctx, &openbindings.SynthesizeInput{
-		Sources: []openbindings.SynthesizeSource{{
+	iface, err := mcpbinding.NewSynthesizer().SynthesizeInterface(ctx, &synthesize.SynthesizeInput{
+		Sources: []synthesize.SynthesizeSource{{
 			BindingSpec: mcpbinding.BindingSpec,
 			Location:    originHTTP.URL,
 			Embed:       true,
@@ -182,7 +184,7 @@ func TestMCPRoundTrip_Differential(t *testing.T) {
 		mcpbinding.WithIdleTimeout(10*time.Millisecond),
 	)
 	defer mcpInvoker.Close()
-	roundTripInvoker := openbindings.NewOperationInvoker(mcpInvoker)
+	roundTripInvoker := invoke.NewOperationInvoker(mcpInvoker)
 	bridged := gomcp.NewServer(&gomcp.Implementation{Name: "round-trip-bridge", Version: "test"}, nil)
 	if got := mcpbridge.RegisterInterface(bridged, iface, roundTripInvoker, nil, mcpbridge.RegisterOptions{}); got != 1 {
 		t.Fatalf("registered primitives = %d, want 1", got)
@@ -386,7 +388,7 @@ func TestMCPCommand_BridgesInterfaceToTools(t *testing.T) {
 	}
 
 	// Use a mock invoker that just echoes the input back as output.
-	invoker := openbindings.NewOperationInvoker(&echoMockInvoker{})
+	invoker := invoke.NewOperationInvoker(&echoMockInvoker{})
 
 	// Build the MCP server the same way internal/cmd/mcp.go does.
 	mcpServer := gomcp.NewServer(&gomcp.Implementation{
@@ -512,7 +514,7 @@ func TestMCPGenericProjection_BindingFamilyNeutral(t *testing.T) {
 		"openbindings.operation-graph@1",
 	}
 	bindingInvoker := &familyEchoInvoker{families: families}
-	invoker := openbindings.NewOperationInvoker(bindingInvoker)
+	invoker := invoke.NewOperationInvoker(bindingInvoker)
 	input := map[string]any{"message": "same boundary"}
 
 	for _, family := range families {
@@ -540,8 +542,8 @@ func TestMCPGenericProjection_BindingFamilyNeutral(t *testing.T) {
 				},
 			}
 
-			directCall := openbindings.Invoke(context.Background(), invoker, iface,
-				openbindings.NewOperationSignature[any, any]("echo"))
+			directCall := invoke.Invoke(context.Background(), invoker, iface,
+				invoke.NewOperationSignature[any, any]("echo"))
 			if err := directCall.Write(context.Background(), input); err != nil {
 				t.Fatal(err)
 			}
@@ -635,7 +637,7 @@ func TestMCPGenericProjection_OpenAPISynthesizedDifferential(t *testing.T) {
 	}`
 	synthesized, err := openapibinding.NewSynthesizer().SynthesizeInterfaceWithCoverage(
 		context.Background(),
-		&openbindings.SynthesizeInput{Sources: []openbindings.SynthesizeSource{{
+		&synthesize.SynthesizeInput{Sources: []synthesize.SynthesizeSource{{
 			BindingSpec: openapibinding.BindingSpec,
 			Content:     openbindings.TextContent(artifact),
 		}}},
@@ -647,15 +649,15 @@ func TestMCPGenericProjection_OpenAPISynthesizedDifferential(t *testing.T) {
 		t.Fatalf("unexpected synthesis coverage: %#v", synthesized.Coverage)
 	}
 
-	invoker := openbindings.NewOperationInvoker(openapibinding.NewInvoker())
+	invoker := invoke.NewOperationInvoker(openapibinding.NewInvoker())
 	input := map[string]any{"id": "42"}
-	direct := openbindings.Invoke(context.Background(), invoker, synthesized.Interface,
-		openbindings.NewOperationSignature[any, any]("getPet"))
+	direct := invoke.Invoke(context.Background(), invoker, synthesized.Interface,
+		invoke.NewOperationSignature[any, any]("getPet"))
 	if err := direct.Write(context.Background(), input); err != nil {
 		t.Fatal(err)
 	}
 	_ = direct.Close()
-	directOutput, err := openbindings.Single(context.Background(), direct.Outputs())
+	directOutput, err := invoke.Single(context.Background(), direct.Outputs())
 	if err != nil {
 		t.Fatalf("direct OpenAPI invocation: %v", err)
 	}
@@ -729,8 +731,8 @@ func TestBuildMCPContext_RefusesConflictingIntent(t *testing.T) {
 }
 
 func TestRequireCompleteMCPCoverage(t *testing.T) {
-	complete := &openbindings.SynthesisCoverage{Exhaustive: true, FullyRepresented: true}
-	incomplete := &openbindings.SynthesisCoverage{Exhaustive: true, FullyRepresented: false}
+	complete := &synthesize.SynthesisCoverage{Exhaustive: true, FullyRepresented: true}
+	incomplete := &synthesize.SynthesisCoverage{Exhaustive: true, FullyRepresented: false}
 	tests := []struct {
 		name     string
 		resolved *app.ResolvedInterface
@@ -771,7 +773,7 @@ func TestMCPCommand_LocalRawArtifactWritesCompleteCoverage(t *testing.T) {
 	if readErr != nil {
 		t.Fatalf("coverage report was not written: %v", readErr)
 	}
-	var coverage openbindings.SynthesisCoverage
+	var coverage synthesize.SynthesisCoverage
 	if err := json.Unmarshal(data, &coverage); err != nil {
 		t.Fatalf("coverage report is not valid evidence JSON: %v", err)
 	}
@@ -798,7 +800,7 @@ func TestObStartServedInterfaceBridgesToMCP(t *testing.T) {
 	ts := testEnv(t)
 	defer ts.Close()
 
-	fetched, err := openbindings.FetchInterface(context.Background(), ts.URL+"/.well-known/openbindings")
+	fetched, err := synthesize.FetchInterface(context.Background(), ts.URL+"/.well-known/openbindings")
 	if err != nil {
 		t.Fatalf("fetch ob's served OBI: %v", err)
 	}
@@ -839,12 +841,12 @@ func (e *familyEchoInvoker) BindingSpecs() []openbindings.BindingSpecInfo {
 	return out
 }
 
-func (e *familyEchoInvoker) InvokeBinding(ctx context.Context, args *openbindings.BindingInvocationArgs) openbindings.Invocation[any, any] {
+func (e *familyEchoInvoker) InvokeBinding(ctx context.Context, args *invoke.BindingInvocationArgs) invoke.Invocation[any, any] {
 	return (&echoMockInvoker{}).InvokeBinding(ctx, args)
 }
 
-func (e *echoMockInvoker) InvokeBinding(ctx context.Context, args *openbindings.BindingInvocationArgs) openbindings.Invocation[any, any] {
-	inv := openbindings.NewInvocationImpl[any, any](ctx)
+func (e *echoMockInvoker) InvokeBinding(ctx context.Context, args *invoke.BindingInvocationArgs) invoke.Invocation[any, any] {
+	inv := invoke.NewInvocationImpl[any, any](ctx)
 	go func() {
 		// Echo the first input message back as the single output.
 		first, err := inv.ReadInput(ctx)

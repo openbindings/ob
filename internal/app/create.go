@@ -10,6 +10,8 @@ import (
 	"strings"
 
 	openbindings "github.com/openbindings/openbindings-go"
+
+	"github.com/openbindings/openbindings-go/synthesize"
 	"golang.org/x/text/cases"
 	"golang.org/x/text/language"
 )
@@ -238,7 +240,7 @@ func DeriveSourceKey(src SynthesizeInterfaceSource, index int) string {
 		// A live-address location (localhost:9090, https://host) derives a
 		// name with characters OBI-D-03 forbids in map keys; sanitize so
 		// synthesize output always validates.
-		key := openbindings.SanitizeKey(sb.String())
+		key := synthesize.SanitizeKey(sb.String())
 		if key != "" && len(key) <= 30 {
 			return key
 		}
@@ -293,7 +295,7 @@ func SynthesizeInterface(input SynthesizeInterfaceInput) (*openbindings.Interfac
 // printSynthesizerWarning surfaces a non-fatal synthesis limitation on stderr —
 // the tooling-output surface SynthesizerWarning documents (lossy conversions
 // such as grpc skipping an unmappable construct).
-func printSynthesizerWarning(w openbindings.SynthesizerWarning) {
+func printSynthesizerWarning(w synthesize.SynthesizerWarning) {
 	if w.Path != "" {
 		fmt.Fprintf(os.Stderr, "warning: %s: %s (%s)\n", w.Code, w.Message, w.Path)
 		return
@@ -307,8 +309,8 @@ func printSynthesizerWarning(w openbindings.SynthesizerWarning) {
 func processSource(iface *openbindings.Interface, src SynthesizeInterfaceSource, index int) error {
 	sourceKey := DeriveSourceKey(src, index)
 
-	generated, err := SynthesizeInterfaceFromSource(context.Background(), &openbindings.SynthesizeInput{
-		Sources: []openbindings.SynthesizeSource{
+	generated, err := SynthesizeInterfaceFromSource(context.Background(), &synthesize.SynthesizeInput{
+		Sources: []synthesize.SynthesizeSource{
 			{
 				BindingSpec: src.BindingSpec,
 				Location:    src.Location,

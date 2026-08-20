@@ -6,6 +6,8 @@ import (
 	"fmt"
 
 	openbindings "github.com/openbindings/openbindings-go"
+
+	"github.com/openbindings/openbindings-go/synthesize"
 )
 
 // Create / inspect delegation. When a source's format is not natively
@@ -49,7 +51,7 @@ func delegateOpKey(iface *openbindings.Interface, names ...string) (string, bool
 // synthesizeViaDelegate routes a single-source, non-native synthesizeInterface to a
 // synthesize-capable delegate. routed reports whether a delegate handled it; when
 // false, the caller uses the native synthesizer.
-func synthesizeViaDelegate(ctx context.Context, input *openbindings.SynthesizeInput) (iface *openbindings.Interface, routed bool, err error) {
+func synthesizeViaDelegate(ctx context.Context, input *synthesize.SynthesizeInput) (iface *openbindings.Interface, routed bool, err error) {
 	if input == nil || len(input.Sources) != 1 {
 		return nil, false, nil // multi-source/mixed not routed; native handles or errors
 	}
@@ -83,7 +85,7 @@ func synthesizeViaDelegate(ctx context.Context, input *openbindings.SynthesizeIn
 
 // inspectViaDelegate routes a non-native inspectSource to an inspect-capable
 // delegate. routed reports whether a delegate handled it.
-func inspectViaDelegate(ctx context.Context, source *openbindings.Source) (ins *openbindings.SourceInspection, routed bool, err error) {
+func inspectViaDelegate(ctx context.Context, source *openbindings.Source) (ins *synthesize.SourceInspection, routed bool, err error) {
 	if source == nil || source.BindingSpec == "" || BuiltinSupportsFormat(source.BindingSpec) {
 		return nil, false, nil
 	}
@@ -104,7 +106,7 @@ func inspectViaDelegate(ctx context.Context, source *openbindings.Source) (ins *
 	if ierr != nil {
 		return nil, true, fmt.Errorf("delegate %q inspectSource: %w", chosen.name(), ierr)
 	}
-	result, cerr := decodeOutput[openbindings.SourceInspection](out)
+	result, cerr := decodeOutput[synthesize.SourceInspection](out)
 	if cerr != nil {
 		return nil, true, fmt.Errorf("delegate %q returned an invalid inspection: %w", chosen.name(), cerr)
 	}

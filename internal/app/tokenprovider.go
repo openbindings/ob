@@ -38,6 +38,8 @@ import (
 	"time"
 
 	openbindings "github.com/openbindings/openbindings-go"
+
+	"github.com/openbindings/openbindings-go/invoke"
 )
 
 // TokenProviderMintIdentifier is the shared contract key ob resolves on the
@@ -77,7 +79,7 @@ func init() {
 // never consults delegates, and declines silently into the ordinary ladder
 // on any failure (after a stderr warning, so misconfiguration is not
 // invisible).
-func ensurePinnedToken(ctx context.Context, store openbindings.ContextStore, key string, stored map[string]any) (map[string]any, bool) {
+func ensurePinnedToken(ctx context.Context, store invoke.ContextStore, key string, stored map[string]any) (map[string]any, bool) {
 	if ctx.Value(mintingContextKey{}) != nil {
 		return stored, false
 	}
@@ -161,9 +163,9 @@ func credentialOrigin(s string) (origin string, plaintextRemote bool, isNetwork 
 		}
 		switch strings.ToLower(u.Scheme) {
 		case "http", "ws":
-			return openbindings.NormalizeEndpoint(s), !isLoopbackHost(u.Hostname()), true
+			return invoke.NormalizeEndpoint(s), !isLoopbackHost(u.Hostname()), true
 		case "https", "wss":
-			return openbindings.NormalizeEndpoint(s), false, true
+			return invoke.NormalizeEndpoint(s), false, true
 		default:
 			return "", false, false // opaque scheme: not an http-family endpoint
 		}
@@ -171,7 +173,7 @@ func credentialOrigin(s string) (origin string, plaintextRemote bool, isNetwork 
 	// No scheme: a bare host:port (gRPC-style) is a network origin whose
 	// transport ob can't read from the string; anything else is a file path.
 	if isHostPort(s) {
-		return openbindings.NormalizeEndpoint(s), false, true
+		return invoke.NormalizeEndpoint(s), false, true
 	}
 	return "", false, false
 }

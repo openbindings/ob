@@ -10,7 +10,11 @@ import (
 	"testing"
 
 	openbindings "github.com/openbindings/openbindings-go"
+
+	"github.com/openbindings/openbindings-go/invoke"
+
 	openapibinding "github.com/openbindings/openbindings-go/formats/openapi"
+	"github.com/openbindings/openbindings-go/synthesize"
 )
 
 func TestOpenAPICandidateCollisionSurvivesOBTransformRuntime(t *testing.T) {
@@ -53,7 +57,7 @@ func TestOpenAPICandidateCollisionSurvivesOBTransformRuntime(t *testing.T) {
 
 	synthesis, err := openapibinding.NewSynthesizer().SynthesizeInterfaceWithCoverage(
 		context.Background(),
-		&openbindings.SynthesizeInput{Sources: []openbindings.SynthesizeSource{{
+		&synthesize.SynthesizeInput{Sources: []synthesize.SynthesizeSource{{
 			BindingSpec: openapibinding.BindingSpec,
 			Content:     openbindings.TextContent(artifact),
 		}}},
@@ -62,13 +66,13 @@ func TestOpenAPICandidateCollisionSurvivesOBTransformRuntime(t *testing.T) {
 		t.Fatalf("synthesize: %v", err)
 	}
 
-	invoker := openbindings.NewOperationInvoker(openapibinding.NewInvoker())
+	invoker := invoke.NewOperationInvoker(openapibinding.NewInvoker())
 	invoker.TransformEvaluator = &jsonataEvaluator{}
-	call := openbindings.Invoke(
+	call := invoke.Invoke(
 		context.Background(),
 		invoker,
 		synthesis.Interface,
-		openbindings.NewOperationSignature[any, any]("updateItem"),
+		invoke.NewOperationSignature[any, any]("updateItem"),
 	)
 	if err := call.Write(context.Background(), map[string]any{
 		"id": "path-value", "id_2": "query-value", "id_3": "body-value",
@@ -76,7 +80,7 @@ func TestOpenAPICandidateCollisionSurvivesOBTransformRuntime(t *testing.T) {
 		t.Fatalf("write operation input: %v", err)
 	}
 	_ = call.Close()
-	output, err := openbindings.Single(context.Background(), call.Outputs())
+	output, err := invoke.Single(context.Background(), call.Outputs())
 	if err != nil {
 		t.Fatalf("invoke through ob transform runtime: %v", err)
 	}

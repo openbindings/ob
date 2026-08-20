@@ -3,7 +3,7 @@ package app
 import (
 	"testing"
 
-	openbindings "github.com/openbindings/openbindings-go"
+	"github.com/openbindings/openbindings-go/invoke"
 )
 
 func platformBoolPointer(value bool) *bool { return &value }
@@ -14,7 +14,7 @@ func TestDurableSubsetIsPositiveAndOptIn(t *testing.T) {
 		"apiKey":      "reusable",
 		"unrelated":   "must-not-persist",
 	}
-	alt := openbindings.ContextAlternative{Requirements: []openbindings.ContextRequirement{
+	alt := invoke.ContextAlternative{Requirements: []invoke.ContextRequirement{
 		{Type: "auth.bearer"},
 		{Type: "auth.apiKey", Durable: platformBoolPointer(true)},
 	}}
@@ -26,17 +26,17 @@ func TestDurableSubsetIsPositiveAndOptIn(t *testing.T) {
 
 func TestPromptedNamedCredentialsCanSatisfyAnANDSet(t *testing.T) {
 	ctx := map[string]any{}
-	first := openbindings.ContextRequirement{Type: "auth.apiKey", Name: "headerKey"}
-	second := openbindings.ContextRequirement{Type: "auth.apiKey", Name: "queryKey"}
+	first := invoke.ContextRequirement{Type: "auth.apiKey", Name: "headerKey"}
+	second := invoke.ContextRequirement{Type: "auth.apiKey", Name: "queryKey"}
 	setPromptedCredential(ctx, first, "apiKey", "key-h")
 	setPromptedCredential(ctx, second, "apiKey", "key-q")
-	details := &openbindings.ContextRequiredDetails{
+	details := &invoke.ContextRequiredDetails{
 		Target: "api.example.com",
-		Alternatives: []openbindings.ContextAlternative{{Requirements: []openbindings.ContextRequirement{
+		Alternatives: []invoke.ContextAlternative{{Requirements: []invoke.ContextRequirement{
 			first, second,
 		}}},
 	}
-	if !openbindings.ContextSatisfies(ctx, details) {
+	if !invoke.ContextSatisfies(ctx, details) {
 		t.Fatalf("named context does not satisfy challenge: %#v", ctx)
 	}
 }
@@ -46,7 +46,7 @@ func TestDurableSubsetScopesNamedCredentials(t *testing.T) {
 		"oneShot":  "temporary",
 		"reusable": "stored",
 	}}
-	alt := openbindings.ContextAlternative{Requirements: []openbindings.ContextRequirement{
+	alt := invoke.ContextAlternative{Requirements: []invoke.ContextRequirement{
 		{Type: "auth.bearer", Name: "oneShot"},
 		{Type: "auth.bearer", Name: "reusable", Durable: platformBoolPointer(true)},
 	}}
