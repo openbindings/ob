@@ -1,6 +1,7 @@
 package app
 
 import (
+	"encoding/json"
 	"fmt"
 	"sort"
 	"strings"
@@ -23,11 +24,18 @@ func GetContext(targetURL string) (map[string]any, error) {
 
 // transportFields are the well-known context fields that the CLI stores in
 // the on-disk config file rather than the keychain credentials blob.
+// "configuration" (binding-specification configuration points, the
+// config.value answers) rides the file side: configuration is not a
+// credential, though the binding-invoker contract notes it may be sensitive
+// according to its meaning — the config file already carries
+// credential-store permissions, and secret-bearing configuration belongs in
+// credentials instead.
 var transportFields = map[string]bool{
-	"headers":     true,
-	"cookies":     true,
-	"environment": true,
-	"metadata":    true,
+	"headers":       true,
+	"cookies":       true,
+	"environment":   true,
+	"metadata":      true,
+	"configuration": true,
 }
 
 // SaveUnifiedContext stores a unified context payload under a URL, fully
@@ -59,6 +67,10 @@ func SaveUnifiedContext(rawURL string, ctx map[string]any) error {
 			if m, ok := v.(map[string]any); ok {
 				cfg.Metadata = m
 			}
+		case "configuration":
+			if m, ok := v.(map[string]any); ok {
+				cfg.Configuration = m
+			}
 		}
 	}
 	if err := SaveContextConfig(rawURL, cfg); err != nil {
@@ -78,12 +90,15 @@ type ContextUpdate struct {
 	Cookies     map[string]string
 	Environment map[string]string
 	Metadata    map[string]any
+	// Configuration merges point-wise: each provided point's value replaces
+	// that point, sibling points and all other fields are preserved.
+	Configuration map[string]any
 }
 
 // IsEmpty reports whether the update carries no changes.
 func (u ContextUpdate) IsEmpty() bool {
 	return len(u.Credentials) == 0 && len(u.Headers) == 0 && len(u.Cookies) == 0 &&
-		len(u.Environment) == 0 && len(u.Metadata) == 0
+		len(u.Environment) == 0 && len(u.Metadata) == 0 && len(u.Configuration) == 0
 }
 
 // ApplyContextUpdate merges field updates into the stored context for a URL,
@@ -135,9 +150,38 @@ func ApplyContextUpdate(rawURL string, up ContextUpdate) error {
 			cfg.Metadata[k] = v
 		}
 	}
+	if len(up.Configuration) > 0 {
+		if cfg.Configuration == nil {
+			cfg.Configuration = make(map[string]any, len(up.Configuration))
+		}
+		for point, v := range up.Configuration {
+			cfg.Configuration[point] = v
+		}
+	}
 
 	// Always write the config file: it doubles as the store's index entry, so
 	// a credentials-only context still lists and matches.
+	return SaveContextConfig(rawURL, cfg)
+}
+
+// mergeDurableConfiguration persists resolved config.value answers under the
+// exact asserted target key, merging point-wise: each point's fragment
+// deep-merges into any stored value at that point (a `/url` answer lands
+// beside a stored `/variables/region` answer), sibling points and all other
+// fields are preserved. Configuration is not a credential; it rides the
+// on-disk config side (see transportFields).
+func mergeDurableConfiguration(rawURL string, points map[string]any) error {
+	if len(points) == 0 {
+		return nil
+	}
+	cfg, err := LoadContextConfig(rawURL)
+	if err != nil {
+		return err
+	}
+	if cfg.Configuration == nil {
+		cfg.Configuration = make(map[string]any, len(points))
+	}
+	mergeConfigFragment(cfg.Configuration, points)
 	return SaveContextConfig(rawURL, cfg)
 }
 
@@ -226,6 +270,29 @@ func RenderBindingContext(ctx map[string]any) string {
 		}
 	}
 
+	configuration := invoke.ContextConfiguration(ctx)
+	if len(configuration) > 0 {
+		sb.WriteString("\n\n")
+		sb.WriteString(s.Dim.Render("Configuration:"))
+		points := make([]string, 0, len(configuration))
+		for point := range configuration {
+			points = append(points, point)
+		}
+		sort.Strings(points)
+		for _, point := range points {
+			sb.WriteString("\n  ")
+			sb.WriteString(s.Bullet.Render("•"))
+			sb.WriteString(" ")
+			sb.WriteString(s.Key.Render(point))
+			sb.WriteString(s.Dim.Render(": "))
+			if compact, err := json.Marshal(configuration[point]); err == nil {
+				sb.WriteString(string(compact))
+			} else {
+				sb.WriteString(fmt.Sprintf("%v", configuration[point]))
+			}
+		}
+	}
+
 	return sb.String()
 }
 
@@ -265,6 +332,9 @@ func RenderContextList(summaries []ContextSummary) string {
 		}
 		if cs.MetadataCount > 0 {
 			parts = append(parts, fmt.Sprintf("%d metadata", cs.MetadataCount))
+		}
+		if cs.ConfigurationCount > 0 {
+			parts = append(parts, fmt.Sprintf("%d configuration", cs.ConfigurationCount))
 		}
 		if len(parts) > 0 {
 			sb.WriteString(s.Dim.Render(" (" + strings.Join(parts, ", ") + ")"))

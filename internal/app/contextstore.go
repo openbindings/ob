@@ -23,17 +23,26 @@ type ContextConfig struct {
 	Cookies     map[string]string `json:"cookies,omitempty"`
 	Environment map[string]string `json:"environment,omitempty"`
 	Metadata    map[string]any    `json:"metadata,omitempty"`
+	// Configuration holds binding-specification configuration points
+	// (config.value answers: a server selection, a channel address, …),
+	// keyed by point name. Configuration is NOT a credential — it routes to
+	// this on-disk config side, not the keychain — but the contract notes
+	// configuration may be sensitive according to its meaning (the file
+	// already carries credential-store permissions); secret-bearing
+	// configuration belongs in credentials, not here.
+	Configuration map[string]any `json:"configuration,omitempty"`
 }
 
 // ContextSummary is a compact representation for listing contexts.
 type ContextSummary struct {
-	URL            string `json:"url"`
-	HasCredentials bool   `json:"hasCredentials"`
-	HeaderCount    int    `json:"headerCount,omitempty"`
-	CookieCount    int    `json:"cookieCount,omitempty"`
-	EnvCount       int    `json:"envCount,omitempty"`
-	MetadataCount  int    `json:"metadataCount,omitempty"`
-	LoadError      string `json:"loadError,omitempty"`
+	URL                string `json:"url"`
+	HasCredentials     bool   `json:"hasCredentials"`
+	HeaderCount        int    `json:"headerCount,omitempty"`
+	CookieCount        int    `json:"cookieCount,omitempty"`
+	EnvCount           int    `json:"envCount,omitempty"`
+	MetadataCount      int    `json:"metadataCount,omitempty"`
+	ConfigurationCount int    `json:"configurationCount,omitempty"`
+	LoadError          string `json:"loadError,omitempty"`
 }
 
 // contextsDirFunc is the resolver for the contexts directory.
@@ -218,6 +227,32 @@ func LoadContext(rawURL string) (map[string]any, error) {
 	return mergeConfigAndCredentials(&cfg, cred), nil
 }
 
+// LoadContextExact returns the unified context payload stored under exactly
+// this key (write-time http → https normalization aside): no hierarchical
+// walk-up, no origin scan. Artifact-bound configuration files and fetches
+// under the exact asserted target (context-scope model, ratified 2026-08-19);
+// deriving a broader key would conflate a canonicalized source URL with its
+// origin — many artifacts can live on one host, and one artifact's
+// configuration answers must not resolve another's challenge.
+func LoadContextExact(rawURL string) (map[string]any, error) {
+	if rawURL == "" {
+		return nil, nil
+	}
+	targetURL := normalizeContextKey(rawURL)
+	if !ContextExists(targetURL) {
+		return nil, nil
+	}
+	cfg, err := LoadContextConfig(targetURL)
+	if err != nil {
+		return nil, err
+	}
+	cred, err := LoadContextCredentials(targetURL)
+	if err != nil {
+		return nil, err
+	}
+	return mergeConfigAndCredentials(&cfg, cred), nil
+}
+
 // resolveContextURL finds the best matching context URL for a target.
 // Tries exact match first, then walks up the URL path hierarchy.
 // For example, for "https://api.example.com/v1/spec.json", tries:
@@ -272,11 +307,11 @@ func resolveContextURL(targetURL string) string {
 // mergeConfigAndCredentials combines the two storage lanes into one Context
 // payload. The split is structural, not a secrecy classification.
 func mergeConfigAndCredentials(cfg *ContextConfig, cred map[string]any) map[string]any {
-	hasConfig := cfg != nil && (len(cfg.Headers) > 0 || len(cfg.Cookies) > 0 || len(cfg.Environment) > 0 || len(cfg.Metadata) > 0)
+	hasConfig := cfg != nil && (len(cfg.Headers) > 0 || len(cfg.Cookies) > 0 || len(cfg.Environment) > 0 || len(cfg.Metadata) > 0 || len(cfg.Configuration) > 0)
 	if len(cred) == 0 && !hasConfig {
 		return nil
 	}
-	out := make(map[string]any, len(cred)+4)
+	out := make(map[string]any, len(cred)+5)
 	for k, v := range cred {
 		out[k] = v
 	}
@@ -292,6 +327,9 @@ func mergeConfigAndCredentials(cfg *ContextConfig, cred map[string]any) map[stri
 		}
 		if len(cfg.Metadata) > 0 {
 			out["metadata"] = cfg.Metadata
+		}
+		if len(cfg.Configuration) > 0 {
+			out["configuration"] = cfg.Configuration
 		}
 	}
 	return out
@@ -358,12 +396,13 @@ func ListContexts() ([]ContextSummary, error) {
 			cfg.URL = strings.TrimSuffix(e.Name(), ".json")
 		}
 		summaries = append(summaries, ContextSummary{
-			URL:            cfg.URL,
-			HasCredentials: credentialsExist(cfg.URL),
-			HeaderCount:    len(cfg.Headers),
-			CookieCount:    len(cfg.Cookies),
-			EnvCount:       len(cfg.Environment),
-			MetadataCount:  len(cfg.Metadata),
+			URL:                cfg.URL,
+			HasCredentials:     credentialsExist(cfg.URL),
+			HeaderCount:        len(cfg.Headers),
+			CookieCount:        len(cfg.Cookies),
+			EnvCount:           len(cfg.Environment),
+			MetadataCount:      len(cfg.Metadata),
+			ConfigurationCount: len(cfg.Configuration),
 		})
 	}
 
@@ -388,12 +427,13 @@ func GetContextSummary(rawURL string) (ContextSummary, error) {
 		return ContextSummary{URL: targetURL, LoadError: err.Error()}, err
 	}
 	return ContextSummary{
-		URL:            targetURL,
-		HasCredentials: credentialsExist(targetURL),
-		HeaderCount:    len(cfg.Headers),
-		CookieCount:    len(cfg.Cookies),
-		EnvCount:       len(cfg.Environment),
-		MetadataCount:  len(cfg.Metadata),
+		URL:                targetURL,
+		HasCredentials:     credentialsExist(targetURL),
+		HeaderCount:        len(cfg.Headers),
+		CookieCount:        len(cfg.Cookies),
+		EnvCount:           len(cfg.Environment),
+		MetadataCount:      len(cfg.Metadata),
+		ConfigurationCount: len(cfg.Configuration),
 	}, nil
 }
 

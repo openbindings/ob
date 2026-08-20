@@ -1754,15 +1754,8 @@
     },
     "ContextRequirement": {
       "additionalProperties": true,
-      "description": "One prerequisite that must be satisfied before a binding can be invoked. `type` names the requirement family; the remaining fields are type-specific. A named well-known `auth.*` requirement resolves at BindingContext.credentials[name]: a string for `auth.bearer` and `auth.apiKey`, a username/password object for `auth.basic`, or an OAuth object beginning with accessToken for `auth.oauth2`. Unnamed or unambiguous single-scheme requirements use the corresponding bearerToken, apiKey, basic, or flat OAuth conveniences; historical apiKeys[name] remains accepted for `auth.apiKey`. OAuth requirements may carry flow fields such as grantType, authorizeUrl, tokenUrl, and scopes. The `config.value` family carries a configuration value a binding needs but the artifact does not supply: it carries 'point' and a relative JSON Pointer 'path' (plus optional 'choices') and resolves within BindingContext.configuration. Other families (e.g. 'approval.user', 'account.link') resolve into their own context fields. Resolution architecture and value secrecy beyond the always-secret credential fields are determined by the requirement family, governing binding specification, and caller.",
+      "description": "One prerequisite that must be satisfied before a binding can be invoked. `type` names the requirement family; the remaining fields are type-specific. A named well-known `auth.*` requirement resolves at BindingContext.credentials[name]: a string for `auth.bearer` and `auth.apiKey`, a username/password object for `auth.basic`, or an OAuth object beginning with accessToken for `auth.oauth2`. Unnamed or unambiguous single-scheme requirements use the corresponding bearerToken, apiKey, basic, or flat OAuth conveniences; historical apiKeys[name] remains accepted for `auth.apiKey`. OAuth requirements may carry flow fields such as grantType, authorizeUrl, tokenUrl, and scopes. The `config.value` family carries a configuration value a binding needs but the artifact does not supply: it carries 'point' and a relative JSON Pointer 'path' (plus an optional engine-asserted 'schema') and resolves within BindingContext.configuration. Other families (e.g. 'approval.user', 'account.link') resolve into their own context fields. Resolution architecture and value secrecy beyond the always-secret credential fields are determined by the requirement family, governing binding specification, and caller.",
       "properties": {
-        "choices": {
-          "description": "config.value only: values declared by the source artifact, suitable for rendering as a picker. Whether an off-list value is valid is defined by the governing binding specification: a closed artifact enum is enforced; an advisory list remains advisory.",
-          "items": {
-            "type": "string"
-          },
-          "type": "array"
-        },
         "description": {
           "description": "Human-readable description shown to a user or operator during resolution (e.g. an approval prompt message).",
           "type": "string"
@@ -1785,6 +1778,10 @@
         "point": {
           "description": "config.value only: the binding-specification configuration point the value belongs to ('server', 'address', a family's decode point, …).",
           "type": "string"
+        },
+        "schema": {
+          "description": "config.value only: an engine-asserted JSON Schema for the value addressed by point and path. Derived from the source artifact where the artifact speaks, supplied by the binding-specification implementation where that specification pins a shape, and absent where nothing does; absence means the value is unconstrained. An 'enum' declares the closed admissible set and satisfaction validates against it; 'examples' are advisory suggestions and an off-list value remains valid.",
+          "type": "object"
         },
         "type": {
           "description": "Requirement type identifier, e.g. 'auth.bearer', 'auth.oauth2', 'auth.basic', 'auth.apiKey', 'approval.user', 'config.value'. An unrecognized type is unsatisfiable by a runtime that has no way to satisfy it. An invoker may surface an artifact-defined scheme as an extension requirement only when it knows how the resulting context will be applied faithfully; an invoker that cannot represent or apply a prerequisite refuses before dispatch rather than emitting a satisfiable-looking challenge or attempting the interaction without it.",

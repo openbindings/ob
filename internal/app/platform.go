@@ -5,6 +5,7 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"strconv"
 	"strings"
 
 	"github.com/openbindings/openbindings-go/invoke"
@@ -14,9 +15,11 @@ import (
 // CLIContextResolver returns ob's optional stored and interactive realization
 // of binding-invoker context challenges. When a
 // binding raises CONTEXT_REQUIRED, the resolver derives a store key from the
-// challenge's target and first consults the CLI context store under it; if the
+// challenge's target (per requirement family — see the keying rule below)
+// and first consults the CLI context store under it; if the
 // stored context can't satisfy the challenge, it prompts for the missing
-// credentials (the first satisfiable alternative), persists only values whose
+// credentials or configuration (the first satisfiable alternative), persists
+// only values whose
 // requirements explicitly permit reuse under the key, and returns the
 // resolved context scoped to the challenge
 // (ScopeContext: only fields named by the satisfied alternative).
@@ -25,33 +28,61 @@ import (
 func CLIContextResolver() invoke.ContextResolver {
 	store := NewCLIContextStore()
 	return func(ctx context.Context, details *invoke.ContextRequiredDetails) (map[string]any, error) {
-		// The challenge reports the target the binding addresses; derive the
-		// store key from it the same way the SDK's StoreContextResolver does,
-		// so keys match across the CLI and the in-process resolver.
-		key := invoke.NormalizeEndpoint(details.Target)
+		// Keying rule (context-scope model, ratified 2026-08-19): the
+		// challenge target is an engine-asserted opaque scope, and the
+		// requirement family decides how it keys the store. An alternative
+		// consisting solely of config.value requirements is artifact-bound
+		// configuration: it files and fetches under the EXACT asserted
+		// target, verbatim (no endpoint normalization, no origin scan, no
+		// hierarchical walk-up) — one artifact's configuration answers must
+		// not resolve another's challenge. A credential-bearing alternative
+		// keeps the endpoint-normalized convention, derived the same way as
+		// the SDK's StoreContextResolver so keys match across the CLI and
+		// the in-process resolver.
+		credKey := invoke.NormalizeEndpoint(details.Target)
 
-		// 1. Try the stored context first, but never turn an empty or
-		// unkeyable challenge target into a shared storage bucket.
-		var stored map[string]any
-		if key != "" {
-			stored, _ = store.Get(ctx, key)
+		// 1. Try the stored context first, per alternative under its
+		// asserted key, but never turn an empty or unkeyable challenge
+		// target into a shared storage bucket.
+		var credStored map[string]any
+		if credKey != "" {
+			credStored, _ = store.Get(ctx, credKey)
 		}
 		// 1.5. Token-provider pinning: when this target pins a provider,
 		// keep its bearerToken self-maintained (mint on absence or expiry)
 		// so the durable credential never rides ordinary requests. Only the
 		// pinned provider is ever contacted — see tokenprovider.go.
-		if stored != nil {
-			stored, _ = ensurePinnedToken(ctx, store, key, stored)
+		// Credential lane only: a configuration challenge never mints.
+		if credStored != nil {
+			credStored, _ = ensurePinnedToken(ctx, store, credKey, credStored)
 		}
-		if stored != nil {
-			if reusable := durableDetails(details); reusable != nil && invoke.ContextSatisfies(stored, reusable) {
-				return invoke.ScopeContext(stored, reusable), nil
+		if reusable := durableDetails(details); reusable != nil {
+			for _, alt := range reusable.Alternatives {
+				altDetails := &invoke.ContextRequiredDetails{
+					Target:       details.Target,
+					Alternatives: []invoke.ContextAlternative{alt},
+				}
+				var stored map[string]any
+				if configValueOnlyAlternative(alt) {
+					if details.Target == "" {
+						continue
+					}
+					stored, _ = LoadContextExact(details.Target)
+				} else {
+					if credKey == "" {
+						continue
+					}
+					stored = credStored
+				}
+				if stored != nil && invoke.ContextSatisfies(stored, altDetails) {
+					return invoke.ScopeContext(stored, altDetails), nil
+				}
 			}
 		}
 
 		// 2. Interactively resolve the first satisfiable alternative.
 		resolved := map[string]any{}
-		for k, v := range stored {
+		for k, v := range credStored {
 			resolved[k] = v
 		}
 		for _, alt := range details.Alternatives {
@@ -60,11 +91,20 @@ func CLIContextResolver() invoke.ContextResolver {
 				candidate[k] = v
 			}
 			if promptForAlternative(ctx, alt, candidate) && invoke.ContextSatisfies(candidate, details) {
-				// 3. Persist only the durable portion under the challenge key.
-				// Non-durable context (e.g. a short-lived token) MUST NOT be
-				// written to disk/keychain; it is re-acquired each call.
-				if persistable := durableSubset(alt, candidate); key != "" && len(persistable) > 0 {
-					_ = store.Set(ctx, key, persistable)
+				// 3. Persist only the durable portion under the alternative's
+				// asserted key. Non-durable context (e.g. a short-lived
+				// token) MUST NOT be written to disk/keychain; it is
+				// re-acquired each call. Configuration answers merge
+				// point-wise under the exact target; the credential lane
+				// keeps its existing store.Set convention.
+				if persistable := durableSubset(alt, candidate); len(persistable) > 0 {
+					if configValueOnlyAlternative(alt) {
+						if config, ok := persistable["configuration"].(map[string]any); ok && details.Target != "" {
+							_ = mergeDurableConfiguration(details.Target, config)
+						}
+					} else if credKey != "" {
+						_ = store.Set(ctx, credKey, persistable)
+					}
 				}
 				// Least privilege: hand back only what this challenge needs.
 				return invoke.ScopeContext(candidate, details), nil
@@ -106,6 +146,10 @@ func durableSubset(alt invoke.ContextAlternative, candidate map[string]any) map[
 			scoped[req.Name] = value
 			continue
 		}
+		if req.Type == "config.value" {
+			projectDurableConfigValue(req, candidate, out)
+			continue
+		}
 		if field, ok := requirementField[req.Type]; ok {
 			if value, present := candidate[field]; present {
 				out[field] = value
@@ -113,6 +157,40 @@ func durableSubset(alt invoke.ContextAlternative, candidate map[string]any) map[
 		}
 	}
 	return out
+}
+
+// projectDurableConfigValue projects a config.value requirement's
+// contribution into the persistable subset: only configuration.<point>, and
+// within the point only the fragment the requirement's path addresses —
+// never the whole configuration map, so unrelated points and members do not
+// enter persistence by accident.
+func projectDurableConfigValue(req invoke.ContextRequirement, candidate, out map[string]any) {
+	point, path, _, ok := configValueCarriage(req)
+	if !ok {
+		return
+	}
+	configuration, _ := candidate["configuration"].(map[string]any)
+	value, present := configuration[point]
+	if !present {
+		return
+	}
+	selected, selectedPresent := configValueAt(value, path)
+	if !selectedPresent {
+		return
+	}
+	scoped, _ := out["configuration"].(map[string]any)
+	if scoped == nil {
+		scoped = map[string]any{}
+		out["configuration"] = scoped
+	}
+	pointValue := configPointValue(path, selected)
+	if existing, ok := scoped[point].(map[string]any); ok {
+		if fragment, isFragment := pointValue.(map[string]any); isFragment {
+			mergeConfigFragment(existing, fragment)
+			return
+		}
+	}
+	scoped[point] = pointValue
 }
 
 // durableDetails retains only complete alternatives whose every requirement
@@ -180,11 +258,66 @@ func promptForAlternative(ctx context.Context, alt invoke.ContextAlternative, in
 				value = map[string]any{"accessToken": v}
 			}
 			setPromptedCredential(into, req, "accessToken", value)
+		case "config.value":
+			if !promptConfigValue(ctx, req, into) {
+				return false
+			}
 		default:
 			// Unknown requirement family — can't prompt for it.
 			return false
 		}
 	}
+	return true
+}
+
+// promptConfigValue interactively resolves a config.value requirement.
+// Bounded on purpose: only an engine-asserted closed set (an `enum` schema)
+// prompts — a numbered selection in the style of the credential prompts —
+// because a free-form JSON prompt invites typos into persisted
+// configuration. For a non-enum schema, or none, the rendered challenge and
+// its remedy line (`ob context set … --config`) are the resolution path, so
+// this declines and the challenge surfaces unchanged.
+func promptConfigValue(ctx context.Context, req invoke.ContextRequirement, into map[string]any) bool {
+	point, path, schema, ok := configValueCarriage(req)
+	if !ok {
+		return false
+	}
+	members := schemaEnum(schema)
+	if members == nil {
+		return false
+	}
+	if !term.IsTerminal(int(os.Stdin.Fd())) {
+		return false
+	}
+	fmt.Fprintf(os.Stderr, "%s\n", promptLabel(req, "Configuration value for "+point))
+	for i, member := range members {
+		fmt.Fprintf(os.Stderr, "  %d. %s\n", i+1, renderConfigChoice(member))
+	}
+	answer, err := cliPrompt(ctx, fmt.Sprintf("Select [1-%d]", len(members)), nil)
+	if err != nil {
+		return false
+	}
+	index, err := strconv.Atoi(strings.TrimSpace(answer))
+	if err != nil || index < 1 || index > len(members) {
+		return false
+	}
+	selected := members[index-1]
+	configuration, _ := into["configuration"].(map[string]any)
+	if configuration == nil {
+		configuration = map[string]any{}
+		into["configuration"] = configuration
+	}
+	// Shape the selection into the fragment the path addresses (the SDK's
+	// configurationFragment semantics: /url yields {"url": <value>}), and
+	// merge rather than replace so sibling members of the point survive.
+	pointValue := configPointValue(path, selected)
+	if existing, ok := configuration[point].(map[string]any); ok {
+		if fragment, isFragment := pointValue.(map[string]any); isFragment {
+			mergeConfigFragment(existing, fragment)
+			return true
+		}
+	}
+	configuration[point] = pointValue
 	return true
 }
 

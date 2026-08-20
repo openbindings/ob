@@ -310,6 +310,11 @@ func contextSetHint(d *invoke.ContextRequiredDetails) string {
 		return fmt.Sprintf("ob context set %s --basic <user:pass>", d.Target)
 	case "auth.oauth2":
 		return fmt.Sprintf("ob context set %s --bearer-token <access-token>", d.Target)
+	case "config.value":
+		if point, ok := d.Alternatives[0].Requirements[0].Extra["point"].(string); ok && point != "" {
+			return fmt.Sprintf("ob context set %s --config %s='<json>'", d.Target, point)
+		}
+		return fmt.Sprintf("ob context set %s --help", d.Target)
 	default:
 		return fmt.Sprintf("ob context set %s --help", d.Target)
 	}
