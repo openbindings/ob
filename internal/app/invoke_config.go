@@ -1,20 +1,18 @@
 package app
 
 import (
-	"encoding/json"
 	"fmt"
 	"sort"
 	"strings"
-
-	"github.com/openbindings/openbindings-go/invoke"
 )
 
-// InvokeConfig is the data face's per-invocation configuration, compiled
-// from `op invoke`'s --decode/--ok-exit/--route flags into per-invocation
-// hooks — the top decline-chain tier over ob's standing internal table
-// (specification + configuration = complete invocation). Empty means no
-// per-invocation intent: every axis falls through the chain to the
-// table/builtin. Flags are PER-AXIS; an unmentioned axis or field declines.
+// InvokeConfig carries the caller-owned invocation context: the ordered
+// binding selection, and (on the prepare surface) the binding
+// specification's named interpretation points already known to the caller.
+// Invocation surfaces carry zero protocol semantics — protocol-mechanic
+// answers come from the standing context loop (CONTEXT_REQUIRED + the
+// context store) and ob's standing internal table, never from per-call
+// configuration.
 type InvokeConfig struct {
 	// Selection is the operation-invoker contract's ordered caller choice.
 	// The first invocable binding key belonging to each resolved operation
@@ -22,25 +20,9 @@ type InvokeConfig struct {
 	// operation-graph calls without putting selection policy in the OBI.
 	Selection []string
 	// Configuration carries the governing binding specification's named
-	// interpretation points for this call (document, server, address, and
-	// so on). It is merged with Selection under context.configuration.
+	// interpretation points (document, server, address, and so on). It is
+	// merged with Selection under context.configuration.
 	Configuration map[string]any
-	// Decode is the output-lane override: "json" (strict parse), "text"
-	// (trailing-newline-stripped string), "none" (stdout unconsulted,
-	// output null — T-08 STILL applies on a typed contract), or "" (unset).
-	Decode string
-	// OKExits are the exit codes classified as success (the diff(1) class,
-	// {0,1}); nil = axis unset.
-	OKExits []int
-	// Routes are field→channel elections (argv|stdin|stdin-dash|file),
-	// keyed by POST-TRANSFORM field name; nil/empty = axis unset.
-	Routes map[string]string
-}
-
-// empty reports whether the config carries no per-invocation hook intent.
-// Binding-spec configuration and selection ride context independently.
-func (c *InvokeConfig) empty() bool {
-	return c == nil || (c.Decode == "" && len(c.OKExits) == 0 && len(c.Routes) == 0)
 }
 
 // context returns the caller-owned operation context carried into this
@@ -68,72 +50,6 @@ func (c *InvokeConfig) context() map[string]any {
 // same binding-spec interpretation points reach both contracts.
 func (c *InvokeConfig) Context() map[string]any {
 	return c.context()
-}
-
-// perInvocationHooks compiles the config into a seam carrier composed over
-// the invoker's standing hooks (SnapshotHooks: per-invocation over
-// invoker-level). Nil when empty. The axes are format-generic — an
-// explicit per-invocation flag is intent for THIS invocation and wins over
-// any format built-in, so no format guard is applied (unlike the standing
-// table, which is site-guarded to ob's own OBI).
-func (c *InvokeConfig) perInvocationHooks(invoker *invoke.OperationInvoker) *invoke.InvokeHooks {
-	if c.empty() {
-		return nil
-	}
-
-	var decode invoke.OutputDecoder
-	switch c.Decode {
-	case "json":
-		decode = func(_ invoke.InvokeSite, raw invoke.RawResult) (any, error) {
-			if len(raw.Body) == 0 {
-				return nil, nil
-			}
-			var v any
-			if err := json.Unmarshal(raw.Body, &v); err != nil {
-				return nil, &invoke.InvocationError{
-					Code: invoke.ErrCodeResponseError,
-				}
-			}
-			return v, nil
-		}
-	case "text":
-		decode = func(_ invoke.InvokeSite, raw invoke.RawResult) (any, error) {
-			return strings.TrimRight(string(raw.Body), "\r\n"), nil
-		}
-	case "none":
-		// stdout not consulted; the output value is null. T-08 still runs
-		// against the contract (deriving output from exit status is a hook
-		// capability, not a flag one — the triage row says so).
-		decode = func(_ invoke.InvokeSite, _ invoke.RawResult) (any, error) {
-			return nil, nil
-		}
-	}
-
-	var classify invoke.ResultClassifier
-	if len(c.OKExits) > 0 {
-		oks := append([]int(nil), c.OKExits...)
-		classify = func(_ invoke.InvokeSite, raw invoke.RawResult) (bool, error) {
-			if raw.Status == nil {
-				return false, invoke.ErrUseDefault
-			}
-			for _, o := range oks {
-				if *raw.Status == o {
-					return true, nil
-				}
-			}
-			return false, nil
-		}
-	}
-
-	var route invoke.FieldRouter
-	if len(c.Routes) > 0 {
-		routes := c.Routes
-		route = func(_ invoke.InvokeSite, field string, _ any) string {
-			return routes[field] // "" (absent) declines to the format default
-		}
-	}
-
-	return invoker.SnapshotHooks(decode, classify, route)
 }
 
 // displacedElections enumerates ob's standing internal-table elections for

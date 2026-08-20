@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"net"
 	"net/http"
+	"os"
 	"os/exec"
 	"path/filepath"
 	"strings"
@@ -45,12 +46,22 @@ func TestDemoSmoke_PrintedCommands(t *testing.T) {
 	}
 
 	// Commands run from a sandbox dir: `ob resolve` writes the resolved OBI
-	// to its working directory, which must never be the repo.
+	// to its working directory, which must never be the repo. HOME and the
+	// credential backend are sandboxed too, so `ob context set` (the GraphQL
+	// interpretation-point flow below) never touches the developer's real
+	// config dir or OS keychain.
 	workDir := t.TempDir()
+	homeDir := t.TempDir()
+	env := append(os.Environ(),
+		"HOME="+homeDir,
+		"XDG_CONFIG_HOME="+filepath.Join(homeDir, ".config"),
+		"OB_CREDENTIALS_FILE="+filepath.Join(homeDir, "credentials.json"),
+	)
 	run := func(args ...string) string {
 		t.Helper()
 		cmd := exec.Command(ob, args...)
 		cmd.Dir = workDir
+		cmd.Env = env
 		out, err := cmd.CombinedOutput()
 		if err != nil {
 			t.Fatalf("ob %s: %v\n%s", strings.Join(args, " "), err, out)
@@ -72,8 +83,12 @@ func TestDemoSmoke_PrintedCommands(t *testing.T) {
 	} {
 		run("op", "invoke", base, "--binding", binding)
 	}
-	run("op", "invoke", base, "--binding", "getMenu.graphqlServer",
-		"--configuration", `{"document":"query { getMenu { items { name description category sizes { id label price } } } }"}`)
+	// GraphQL's executable document is a binding-spec interpretation point:
+	// context, set once as standing configuration, then an unadorned invoke
+	// (the invocation surface carries zero protocol semantics).
+	run("context", "set", base+"/graphql",
+		"--value", `{"configuration":{"document":"query { getMenu { items { name description category sizes { id label price } } } }"}}`)
+	run("op", "invoke", base, "--binding", "getMenu.graphqlServer")
 
 	// Place an order (the demo's printed input, verbatim).
 	out := run("op", "invoke", base, "--binding", "placeOrder.restApi",

@@ -53,11 +53,6 @@ type InvocationInput struct {
 	// Binding: a non-nil Binding with a nil InputSchema means "no-input
 	// operation" to the usage run loop (the recorded discriminator).
 	InputSchema openbindings.JSONSchema `json:"-"`
-	// Hooks is the data face's per-invocation seam carrier (compiled from
-	// `op invoke` flags), composed over ob's standing invoker-level table.
-	// Nil = no per-invocation configuration; the invoker's own snapshot
-	// (its site-guarded table) still applies. Process-local — never wire.
-	Hooks *invoke.InvokeHooks `json:"-"`
 }
 
 // InvocationResult is the app-level invocation result for both lanes.
@@ -580,7 +575,7 @@ func InvokeOBIOperation(ctx context.Context, obiPath string, opKey string, bindi
 	return run.Events, run.BindingKey, nil
 }
 
-// ConfiguredInvocation is the data face's invocation result: the event
+// ConfiguredInvocation is the configured invocation's result: the event
 // stream, the resolved binding key, and — when a winning EXTERNAL delegate
 // displaces ob's standing internal-table elections (the table published as
 // docs/bound-cli-recipe.md) — the loud attributed displacement warning and
@@ -592,11 +587,10 @@ type ConfiguredInvocation struct {
 	DisplacedDetail  []string
 }
 
-// InvokeOBIOperationConfigured is the data-face entry: it invokes an
-// operation with an optional per-invocation InvokeConfig (--decode/
-// --ok-exit/--route), computing delegate selection PRE-DISPATCH so the
-// displacement split (flags refuse, standing elections warn) is decidable
-// before anything runs.
+// InvokeOBIOperationConfigured invokes an operation with an optional
+// InvokeConfig (ordered binding selection and caller-known binding-spec
+// configuration), computing delegate selection PRE-DISPATCH so standing-
+// election displacement is decidable before anything runs.
 func InvokeOBIOperationConfigured(ctx context.Context, obiPath, opKey, bindingKey string, input any, config *InvokeConfig) (*ConfiguredInvocation, error) {
 	iface, err := resolveInterface(obiPath)
 	if err != nil {
@@ -612,11 +606,10 @@ func InvokeOBIOperationConfigured(ctx context.Context, obiPath, opKey, bindingKe
 // the delegate's own resolved OBI through this same path.
 //
 // Dispatch is UNIFIED under delegate selection: the winner is
-// computed before anything runs. When the self-delegate wins, the config's
-// per-invocation hooks are compiled and threaded, and the streaming lane is
-// available. When an external delegate wins the hop, displaced FLAGS refuse
-// loudly (explicit intent that cannot cross the boundary) and displaced
-// STANDING elections proceed with a loud attributed warning. Every emitted
+// computed before anything runs. When the self-delegate wins, the streaming
+// lane is available. When an external delegate wins the hop, displaced
+// STANDING elections (ob's internal table, which the delegate's own handling
+// replaces) proceed with a loud attributed warning. Every emitted
 // output is T-08-validated against the operation's declared output schema
 // before it reaches the caller (stop-and-return on nonconformant emission).
 func invokeOnInterface(ctx context.Context, iface *openbindings.Interface, opKey, bindingKey string, input any, config *InvokeConfig) (*ConfiguredInvocation, error) {
@@ -663,13 +656,8 @@ func invokeOnInterface(ctx context.Context, iface *openbindings.Interface, opKey
 	// before any side effect.
 	chosen := selectDelegate(CapInvoke, es.BindingSpec)
 	if chosen != nil && !chosen.builtin {
-		// An external delegate owns the binding hop. Displaced FLAGS cannot
-		// apply across the boundary — refuse the explicit intent loudly.
-		if !config.empty() {
-			return nil, fmt.Errorf("op invoke: --decode/--ok-exit/--route configure ob's built-in handling, which delegate %q displaces for format %q (the delegate dispatches the binding itself); unset them, or run in-process with `ob delegate prefer ob --operation %s`",
-				chosen.name(), es.BindingSpec, opCanonical)
-		}
-		// Displaced STANDING elections proceed with a loud attributed warning.
+		// An external delegate owns the binding hop. Displaced STANDING
+		// elections proceed with a loud attributed warning.
 		run.DisplacedWarning, run.DisplacedDetail = displacedElectionsWarning(opCanonical, chosen.name())
 
 		delegateIface, rerr := chosen.resolveInterface()
@@ -685,10 +673,6 @@ func invokeOnInterface(ctx context.Context, iface *openbindings.Interface, opKey
 		run.Events = applyT08(unaryChannel(iface, resolved, out), iface, opCanonical, outputSchema, resolved.bindingKey)
 		return run, nil
 	}
-
-	// Self-delegate / builtin: compile the config's per-invocation hooks
-	// (composed over ob's standing table) and thread them.
-	lowLevel.Hooks = config.perInvocationHooks(DefaultInvoker())
 
 	// Streaming lane (builtin drivers only) when the self-delegate wins.
 	if BuiltinSupportsFormat(es.BindingSpec) {
@@ -1074,7 +1058,6 @@ func SubscribeOperationWithContext(ctx context.Context, input InvocationInput) (
 			Interface:   input.Interface,
 			Binding:     input.Binding,
 			InputSchema: input.InputSchema,
-			Hooks:       input.Hooks,
 		})
 	}
 	// Builtin in-process invoker: trusted (no guard).
@@ -1101,7 +1084,6 @@ func invokeViaBuiltin(ctx context.Context, input InvocationInput) InvocationResu
 			Interface:   input.Interface,
 			Binding:     input.Binding,
 			InputSchema: input.InputSchema,
-			Hooks:       input.Hooks,
 		})
 	}
 

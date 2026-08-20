@@ -136,19 +136,21 @@ bindings remain, choose one directly with `--binding` or provide repeatable,
 ordered `--select-binding` choices. The latter also reaches operations nested
 inside an operation graph. You never write protocol-specific code.
 
-When the governing binding specification exposes interpretation points, pass
-their named values with `--configuration` (inline JSON, `@file`, or stdin).
-For example, `openbindings.graphql@1` requires the exact executable document:
+When the governing binding specification exposes interpretation points, their
+named answers are context, not invocation arguments: invoking without them
+raises `CONTEXT_REQUIRED` naming the point, and the standing context store
+satisfies it. For example, `openbindings.graphql@1` requires the exact
+executable document — set it once for the target, then invoke:
 
 ```bash
-ob operation invoke interface.json --binding getMenu.graphql \
-  --configuration '{"document":"query { getMenu { items { name price } } }"}'
+ob context set https://api.example.com/graphql \
+  --value '{"configuration":{"document":"query { getMenu { items { name price } } }"}}'
+ob operation invoke interface.json --binding getMenu.graphql
 ```
 
-The same object may be supplied as `context.configuration` to the
-`/operations/invoke` WebSocket API exposed by `ob start`. `ob operation
-prepare` accepts `--configuration` too, so preflight and invocation see the
-same effective choices.
+Machine callers of the `/operations/invoke` WebSocket API exposed by
+`ob start` supply the same object as `context.configuration`. `ob operation
+prepare` accepts `--configuration` to preflight with points already known.
 
 ### 6. Generate typed client code
 
@@ -442,7 +444,7 @@ ob source pull interface.json -o dist/interface.json --pure # publish clean
 
 | Command | Description |
 |---------|-------------|
-| `ob operation invoke <obi> [operation]` | Invoke by operation (sole candidate or ordered `--select-binding`) or directly by `--binding`; `--configuration` supplies named interpretation points |
+| `ob operation invoke <obi> [operation]` | Invoke by operation (sole candidate or ordered `--select-binding`) or directly by `--binding`; named interpretation points come from standing context |
 | `ob operation list <obi>` | List operations |
 | `ob operation add <obi> <name>` | Add a hand-authored operation |
 | `ob operation set <obi> <operation>` | Edit an operation's fields |

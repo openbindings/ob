@@ -404,13 +404,12 @@ exit 1
 	}
 }
 
-// TestOpInvoke_ExternalDelegateDisplacesElections is the §7/§11 dispatch-
+// TestOpInvoke_ExternalDelegateDisplacesElections is the dispatch-
 // unification harness case: `op invoke` routes a usage op to a PREFERRED
-// EXTERNAL delegate, and the displacement split fires. Without flags, ob's
+// EXTERNAL delegate, and standing-election displacement fires. Ob's
 // standing internal-table elections for the op cannot cross the delegate
 // boundary, so the invocation proceeds with a loud attributed warning and
-// the delegate answers. With a data-face flag, the explicit per-invocation
-// intent that cannot apply is refused loudly (naming the delegate).
+// the delegate answers.
 func TestOpInvoke_ExternalDelegateDisplacesElections(t *testing.T) {
 	dir := t.TempDir()
 	cliPath := filepath.Join(dir, "ext-delegate")
@@ -485,7 +484,7 @@ func TestOpInvoke_ExternalDelegateDisplacesElections(t *testing.T) {
 
 	ctx := t.Context()
 
-	// (a) No flags: the delegate answers and the displacement warning fires.
+	// The delegate answers and the displacement warning fires.
 	run, err := InvokeOBIOperationConfigured(ctx, invokedFile, "openbindings.ob.validateInterface", "", nil, nil)
 	if err != nil {
 		t.Fatalf("configured invoke: %v", err)
@@ -501,14 +500,5 @@ func TestOpInvoke_ExternalDelegateDisplacesElections(t *testing.T) {
 	}
 	if m, _ := got.Output.(map[string]any); m["delegated"] != true {
 		t.Errorf("delegate did not answer the hop: %#v", got.Output)
-	}
-
-	// (b) A data-face flag is refused loudly (it cannot cross the boundary).
-	_, ferr := InvokeOBIOperationConfigured(ctx, invokedFile, "openbindings.ob.validateInterface", "", nil, &InvokeConfig{OKExits: []int{0, 1}})
-	if ferr == nil {
-		t.Fatal("expected --ok-exit to refuse when an external delegate displaces ob's handling")
-	}
-	if !strings.Contains(ferr.Error(), "ext") {
-		t.Errorf("the refusal must name the delegate: %v", ferr)
 	}
 }
