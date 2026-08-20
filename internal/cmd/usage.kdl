@@ -55,6 +55,7 @@ cmd "context" help="Manage binding context (credentials, headers, environment)" 
     flag "--cookie <cookie>" help="Add cookie as \"Key=Value\" (repeatable)" var=#true
     flag "--env <env>" help="Add env var as \"VAR=value\" (repeatable)" var=#true
     flag "--meta <meta>" help="Add metadata as \"key=value\" (repeatable)" var=#true
+    flag "--config <config>" help="Set a configuration point as \"point=value\" (value parsed as JSON, bare string fallback; repeatable)" var=#true
     flag "--from-curl <curl>" help="Import context from a curl command string"
     flag "--value <json>" help="Full Context value as JSON (machine lane; full replacement, keyed by <url>, exclusive with field flags; - reads stdin)"
     arg "[url]" help="Target URL"

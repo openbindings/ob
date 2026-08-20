@@ -89,3 +89,31 @@ func TestTokenizeCurl(t *testing.T) {
 		}
 	}
 }
+
+func TestParseConfigFlagEntries_JSONAndBareString(t *testing.T) {
+	got, err := parseConfigFlagEntries([]string{
+		`server={"url":"https://eu.example.com"}`,
+		"region=eu-west-1",
+		"retries=3",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	server, _ := got["server"].(map[string]any)
+	if server["url"] != "https://eu.example.com" {
+		t.Errorf("server point: %#v", got["server"])
+	}
+	// Not valid JSON → bare string; valid JSON → typed value.
+	if got["region"] != "eu-west-1" {
+		t.Errorf("region point: %#v", got["region"])
+	}
+	if got["retries"] != float64(3) {
+		t.Errorf("retries point: %#v", got["retries"])
+	}
+}
+
+func TestParseConfigFlagEntries_RejectsMissingSeparator(t *testing.T) {
+	if _, err := parseConfigFlagEntries([]string{"server"}); err == nil {
+		t.Fatal("expected an error for a --config entry without '='")
+	}
+}

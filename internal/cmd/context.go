@@ -111,6 +111,7 @@ func newContextSetCmd() *cobra.Command {
 		cookies         []string
 		envVars         []string
 		metaEntries     []string
+		configEntries   []string
 		fromCurl        string
 		valueJSON       string
 	)
@@ -131,6 +132,14 @@ secrets out of shell history).
 
 Non-secret flags (--header, --cookie, --env, --meta) are stored in
 a config file and can be specified multiple times.
+
+--config answers a binding specification's configuration point (the
+config.value context requirement an invocation challenges with): each
+"point=value" sets configuration.<point>, preserving sibling points and all
+other fields. The value is parsed as JSON; a value that is not valid JSON is
+taken as a bare string. Configuration is stored on the config-file side, not
+the keychain: it is not a credential, though it may be sensitive per its
+meaning — keep secret-bearing values in credential fields instead.
 
 Use --from-curl to import credentials from a curl command.
 
@@ -153,6 +162,7 @@ Examples:
   ob context set https://api.example.com --basic
   ob context set https://api.example.com --token-provider https://auth.example.com --token-credential -
   ob context set https://api.example.com --header "Accept: application/json"
+  ob context set https://api.example.com/openapi.json --config server='{"url":"https://eu.example.com"}'
   ob context set exec:kubectl --env KUBECONFIG=/home/me/.kube/prod
   ob context set https://api.github.com --from-curl 'curl -H "Authorization: Bearer ghp_xxx" https://api.github.com'`,
 		Args: cobra.MaximumNArgs(1),
@@ -236,9 +246,13 @@ Examples:
 			if err != nil {
 				return err
 			}
+			update.Configuration, err = parseConfigFlagEntries(configEntries)
+			if err != nil {
+				return err
+			}
 
 			if update.IsEmpty() {
-				return app.ExitResult{Code: 1, Message: "no fields specified; use --bearer-token, --api-key, --basic, --header, --cookie, --env, --meta, or --from-curl", ToStderr: true}
+				return app.ExitResult{Code: 1, Message: "no fields specified; use --bearer-token, --api-key, --basic, --header, --cookie, --env, --meta, --config, or --from-curl", ToStderr: true}
 			}
 
 			if err := app.ApplyContextUpdate(targetURL, update); err != nil {
@@ -257,6 +271,7 @@ Examples:
 	cmd.Flags().StringArrayVar(&cookies, "cookie", nil, "add cookie as \"Key=Value\" (repeatable)")
 	cmd.Flags().StringArrayVar(&envVars, "env", nil, "add env var as \"VAR=value\" (repeatable)")
 	cmd.Flags().StringArrayVar(&metaEntries, "meta", nil, "add metadata as \"key=value\" (repeatable)")
+	cmd.Flags().StringArrayVar(&configEntries, "config", nil, "set a configuration point as \"point=value\" (value parsed as JSON, bare string fallback; repeatable)")
 	cmd.Flags().StringVar(&tokenProvider, "token-provider", "", "pin a token provider for this target: an interface locator whose openbindings.token-provider.mint keeps this context's bearer token minted automatically")
 	cmd.Flags().StringVar(&tokenCredential, "token-credential", "", "durable credential the pinned provider's mint exchanges (use \"-\" to read from stdin)")
 	cmd.Flags().StringVar(&fromCurl, "from-curl", "", "import context from a curl command string")
@@ -275,7 +290,7 @@ func runContextSetValue(cmd *cobra.Command, args []string, valueJSON string) err
 	}
 	if cmd.Flags().Changed("bearer-token") || cmd.Flags().Changed("api-key") || cmd.Flags().Changed("basic") ||
 		cmd.Flags().Changed("header") || cmd.Flags().Changed("cookie") || cmd.Flags().Changed("env") ||
-		cmd.Flags().Changed("meta") || cmd.Flags().Changed("from-curl") {
+		cmd.Flags().Changed("meta") || cmd.Flags().Changed("config") || cmd.Flags().Changed("from-curl") {
 		return app.ExitResult{Code: 2, Message: "--value is exclusive with the field flags", ToStderr: true}
 	}
 	key := args[0]
@@ -580,6 +595,29 @@ func parseContextKVFlags(headers, cookies, envVars, metaEntries []string) (h, c,
 		m[k] = v
 	}
 	return h, c, e, m, nil
+}
+
+// parseConfigFlagEntries parses the repeatable --config flag values
+// ("point=value") into a configuration update map. The value is parsed as
+// JSON; a value that is not valid JSON is taken as a bare string, so plain
+// URLs and words work without quoting gymnastics.
+func parseConfigFlagEntries(entries []string) (map[string]any, error) {
+	var out map[string]any
+	for _, raw := range entries {
+		point, value, ok := parseKV(raw, "=")
+		if !ok {
+			return nil, app.ExitResult{Code: 1, Message: fmt.Sprintf("invalid config %q (expected \"point=value\")", raw), ToStderr: true}
+		}
+		var parsed any
+		if err := json.Unmarshal([]byte(value), &parsed); err != nil {
+			parsed = value
+		}
+		if out == nil {
+			out = make(map[string]any)
+		}
+		out[point] = parsed
+	}
+	return out, nil
 }
 
 // parseKV splits a string on the first occurrence of sep, trimming whitespace.

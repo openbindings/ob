@@ -194,3 +194,27 @@ func TestInvocationStdinConflict(t *testing.T) {
 		}
 	}
 }
+
+// The remedy line for a config.value challenge is the copy-pasteable
+// --config command against the challenge's asserted target (never a
+// full-replace --value, which could clobber sibling points).
+func TestContextSetHint_ConfigValue(t *testing.T) {
+	details := &invoke.ContextRequiredDetails{
+		Target: "https://host.example/openapi.json",
+		Alternatives: []invoke.ContextAlternative{{Requirements: []invoke.ContextRequirement{{
+			Type:  "config.value",
+			Extra: map[string]any{"point": "server", "path": "/url"},
+		}}}},
+	}
+	got := contextSetHint(details)
+	want := "ob context set https://host.example/openapi.json --config server='<json>'"
+	if got != want {
+		t.Errorf("contextSetHint = %q, want %q", got, want)
+	}
+
+	// Still suppressed when the challenge asserts no target.
+	details.Target = ""
+	if got := contextSetHint(details); got != "" {
+		t.Errorf("empty-target hint = %q, want suppression", got)
+	}
+}

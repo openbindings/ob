@@ -879,9 +879,60 @@ func RenderContextRequirements(details *invoke.ContextRequiredDetails) string {
 			if req.Description != "" {
 				sb.WriteString(s.Dim.Render(" — " + req.Description))
 			}
+			renderConfigValueRequirement(&sb, s, req)
 		}
 	}
 	return sb.String()
+}
+
+// renderConfigValueRequirement renders the type-specific carriage of a
+// config.value requirement: the point it belongs to, then the value shape
+// the engine asserted — an `enum` schema as a numbered choice list, any
+// other schema as its compact one-line form, and no schema as a free-form
+// note. Unknown extra members (e.g. a legacy `choices` from an un-migrated
+// engine) are ignored.
+func renderConfigValueRequirement(sb *strings.Builder, s styles, req invoke.ContextRequirement) {
+	point, path, schema, ok := configValueCarriage(req)
+	if !ok {
+		return
+	}
+	sb.WriteString("\n      ")
+	sb.WriteString(s.Dim.Render("point: "))
+	sb.WriteString(s.Key.Render(point))
+	if path != "" {
+		sb.WriteString(s.Dim.Render(" (at " + path + ")"))
+	}
+	if members := schemaEnum(schema); members != nil {
+		for i, member := range members {
+			sb.WriteString(fmt.Sprintf("\n      %s %s",
+				s.Dim.Render(fmt.Sprintf("%d.", i+1)), renderConfigChoice(member)))
+		}
+		return
+	}
+	if schema != nil {
+		compact, err := json.Marshal(schema)
+		if err == nil {
+			sb.WriteString("\n      ")
+			sb.WriteString(s.Dim.Render("schema: "))
+			sb.WriteString(string(compact))
+		}
+		return
+	}
+	sb.WriteString("\n      ")
+	sb.WriteString(s.Dim.Render("(free-form JSON value expected)"))
+}
+
+// renderConfigChoice renders one admissible value: strings verbatim,
+// anything else as compact JSON.
+func renderConfigChoice(value any) string {
+	if text, ok := value.(string); ok {
+		return text
+	}
+	compact, err := json.Marshal(value)
+	if err != nil {
+		return fmt.Sprintf("%v", value)
+	}
+	return string(compact)
 }
 
 // transformEventStream applies the binding's outputTransform to each event.
