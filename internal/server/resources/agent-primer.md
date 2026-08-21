@@ -29,8 +29,9 @@ For any task, establish three facts before acting:
 
 OpenBindings is a portable interface description format. An OpenBindings
 interface document (OBI) describes protocol-independent operations, with
-optional JSON Schema contracts for each input and output value, and connects
-those operations to concrete realizations through sources and bindings. A
+optional JSON Schema contracts for each input and output value. It connects
+operations to concrete realizations through sources and bindings and declares
+named consumption points through dependencies. A
 binding specification governs how a source family such as OpenAPI, AsyncAPI,
 gRPC, GraphQL, MCP, or a CLI descriptor is interpreted and acted upon.
 OpenBindings does not replace those artifacts or protocols. It adds an
@@ -39,10 +40,10 @@ operation-level layer that can survive across them.
 The useful separation is:
 
 ```text
-what a capability means                     how it is realized
-──────────────────────────────────────      ─────────────────────────────
-operation key, aliases, description,        source, bindingSpec, ref,
-per-value input/output schemas              transforms, concrete interaction
+what a capability means       what is consumed         how it is realized
+──────────────────────────    ─────────────────────    ───────────────────────
+operation key, aliases,       dependency key,         source, bindingSpec, ref,
+per-value schemas             operation, bindingSpecs transforms, interaction
 ```
 
 One operation may have several bindings. Those bindings are author-declared
@@ -59,7 +60,7 @@ binding-governed source domain
                  │ governed by a binding specification
                  ▼
         OpenBindings interface document
-      operations + sources + bindings + transforms
+ operations + dependencies + sources + bindings + transforms
                  │
                  │ resolution and invocation
                  │ governed by the same binding specification
@@ -100,6 +101,24 @@ transport. The selected binding owns those interaction properties.
 An operation key and its aliases form one flat namespace. An alias can assert
 correspondence with a shared interface's operation name, but the assertion does
 not prove compatibility, ownership, trust, or substitutability.
+
+An operation's presence declares only the contract. A binding declares a
+concrete realization; a dependency declares a named place where the described
+component consumes a realization. The same operation may participate in both
+relationships.
+
+### Dependency
+
+A dependency references an operation by key and may carry `bindingSpecs`, an
+unordered any-of list of exact binding-specification identifiers acceptable at
+that consumption point. Omission makes no binding-family claim. A dependency
+does not carry a provider address or binding, and it does not prove that a
+provider or binding implementation is available.
+
+Provider discovery, operation compatibility, selection, registration, wiring,
+credentials, lifecycle, and the effect of an unsatisfied dependency are
+implementation and deployment policy. An unresolved dependency is not an OBI
+conformance failure.
 
 ### Source
 
@@ -169,9 +188,10 @@ Use this ownership model when specifications appear to overlap:
 | --- | --- |
 | Is the OBI structurally conformant? How do OBI-defined references resolve? | Core OpenBindings specification |
 | What does an operation's input or output value mean at its caller-facing boundary? | The operation contract in the OBI |
+| Which operation does a dependency consume, and which binding-specification identifiers does it permit? | The dependency declaration in the OBI |
 | What source forms are accepted? What does `ref` identify? How is the interaction performed and classified? | The named binding specification |
 | What does an incorporated OpenAPI, protobuf, GraphQL, MCP, or other declaration mean? | The incorporated upstream authority, as scoped by the binding specification |
-| Which binding should be selected? Where are credentials stored? Should values be runtime-validated? How are retries, caching, and policy handled? | The implementation or consuming application |
+| How is a dependency satisfied? Which provider or binding should be selected? Where are credentials stored? Should values be runtime-validated? How are retries, caching, and policy handled? | The implementation or consuming application |
 
 Do not promote an implementation choice into core or binding-specification
 doctrine merely because both reference SDKs currently make that choice.
@@ -216,6 +236,7 @@ OpenBindings provides:
 
 - a common operation and per-value contract model across source families;
 - explicit correspondence from an operation to one or more concrete targets;
+- named consumption points for operations, with optional binding-family constraints;
 - portable documents suitable for discovery, indexing, invocation, code
   generation, bridging, and comparison;
 - a place for shape transforms without absorbing protocol mechanics into the
@@ -228,15 +249,17 @@ OpenBindings does not by itself provide:
 - semantic equivalence among arbitrary bindings;
 - complete coverage of every feature in every upstream protocol;
 - a universal interaction lifecycle or failure vocabulary;
-- binding selection, credential storage, prompting, retries, rate limiting, or
-  trust policy;
+- dependency satisfaction, provider or binding selection, credential storage,
+  prompting, retries, rate limiting, or trust policy;
 - a central registry of binding specifications or operation names;
 - proof that synthesized operations cover an entire source artifact; or
 - recovery of upstream information that a synthesizer omitted.
 
 Authentication declarations remain in their governed artifacts. Credentials
-and other runtime prerequisites are supplied as invocation context; they are
-not copied into the OBI.
+and non-operation runtime prerequisites are supplied as invocation context;
+they are not copied into the OBI. Operation capabilities consumed by the
+described component may be declared as dependencies, without prescribing how a
+runtime supplies them.
 
 Core document conformance is offline-decidable. If validation needs a binding
 specification the processor does not have, the binding-specific conclusion is
@@ -284,39 +307,45 @@ equivalent, or hiding protocol behavior that callers actually need to control.
    classification, output mapping, and the binding's transforms.
 9. Refuse before dispatch if the target cannot be interpreted faithfully.
 
-### Supplying an operation dependency
+### Satisfying a declared operation dependency
 
 Use this playbook when a UI component, agent, workflow, plugin, or other
 consumer should depend on a capability without choosing its protocol or
 deployment:
 
-1. Express the consumer's requirement as an ordinary OBI contract, commonly
-   unbound, and select one operation by a typed signature.
-2. Let the application supply concrete interfaces and operation invokers. The
+1. Read the named entry from the consumer OBI's `dependencies` map and resolve
+   its `operation` as a key in that document's `operations` map.
+2. Treat a present `bindingSpecs` list as an exact-match any-of constraint on
+   candidate bindings' source specifications. Omission declares no family
+   restriction; it does not guarantee that a particular runtime can invoke
+   every family.
+3. Let the application supply concrete interfaces and operation invokers. The
    consumer must not own a protocol client, credential store, delegate
    registry, or binding-selection policy.
-3. Match per operation by an adopted key or alias, then check directional
+4. Match per operation by an adopted key or alias, then check directional
    schema compatibility. A name is an author assertion of correspondence, not
    proof of compatibility or trust.
-4. Verify invocability through side-effect-free preflight. Treat known context
+5. Verify invocability through side-effect-free preflight. Treat known context
    requirements as advisory; live `CONTEXT_REQUIRED` remains authoritative.
-5. Compose the matches according to application semantics. Use the SDK's
+6. Compose the matches according to application semantics. Use the SDK's
    conservative resolution helper only for route-to-one behavior; aggregation,
    fan-out, race, fallback, and multi-operation affinity remain explicit
    application policy.
-6. Invoke the selected concrete interface through the ordinary
+7. Invoke the selected concrete interface through the ordinary
    cardinality-agnostic invocation handle. Do not create a second UI-specific
    call model.
-7. Install only the binding packages the application actually uses. A thin UI
+8. Install only the binding packages the application actually uses. A thin UI
    framework adapter may make resolution reactive without changing these
    semantics.
 
-The TypeScript SDK names these primitives `operationRequirement`,
+The current reference SDKs predate the Core field. The TypeScript SDK names its
+transitional requirement primitives `operationRequirement`,
 `matchOperationRequirement`, and `resolveOperationRequirement`; the Go SDK
 publishes the corresponding `NewOperationRequirement`,
 `MatchOperationRequirement`, and `ResolveOperationRequirement`. The
-non-normative website guide **Operation Dependencies** develops the pattern and
-its boundaries.
+non-normative website guide **Operation Dependencies** distinguishes that
+current API from the Core declaration and develops the runtime pattern's
+boundaries. The SDK audit will determine the eventual dependency-oriented API.
 
 ### Synthesizing an OBI from an upstream artifact
 
