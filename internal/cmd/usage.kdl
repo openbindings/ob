@@ -113,10 +113,19 @@ cmd "delegate" help="Manage delegates" subcommand_required=#true {
   }
 }
 
-cmd "binding-specs" help="List the binding specifications this ob instance can handle" {
+cmd "binding-specs" help="List or check binding specifications" subcommand_required=#true {
   alias "binding-spec"
   flag "-o --output <path>" help="Write output to file"
   flag "-F --format <format>" help="Output format: json|yaml|text"
+  cmd "list" help="List the binding specifications this ob instance can name" {
+    flag "-o --output <path>" help="Write output to file"
+    flag "-F --format <format>" help="Output format: json|yaml|text"
+  }
+  cmd "check" help="Authoritatively check exact binding-specification identifiers" {
+    flag "-o --output <path>" help="Write output to file"
+    flag "-F --format <format>" help="Output format: json|yaml|text"
+    arg "[binding-spec]..." help="Exact binding-specification identifiers to check"
+  }
 }
 
 cmd "new" help="Create an empty OpenBindings interface document" {

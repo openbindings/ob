@@ -52,9 +52,12 @@ func InvokeBindingHandle(ctx context.Context, input InvocationInput) invoke.Invo
 		return invoker.InvokeBinding(ctx, args)
 	}
 
-	delegateInvoker, err := resolveDelegateInvoker(input.Source.BindingSpec)
+	delegateInvoker, err := resolveDelegateInvoker(ctx, input.Source.BindingSpec)
 	if err != nil {
-		return invoke.NewErroredInvocation[any, any](invoke.NewInvocationError(invoke.ErrCodeBindingNotFound))
+		return invoke.NewErroredInvocation[any, any](invoke.NewInvocationErrorWithData(
+			invoke.ErrCodeBindingNotFound,
+			map[string]any{"message": err.Error()},
+		))
 	}
 	return delegateInvoker.InvokeBinding(ctx, args)
 }
@@ -114,8 +117,11 @@ func InvokeOperationHandle(ctx context.Context, input OperationHandleInput) invo
 // DelegateBindingInvoker (the frame-transport collapse remains a tracked
 // follow-up; its owner is the serve-pass handoff note in
 // ob-pj/wire-conformance.md).
-func resolveDelegateInvoker(format string) (invoke.BindingInvoker, error) {
-	chosen := selectDelegate(CapInvoke, format)
+func resolveDelegateInvoker(ctx context.Context, format string) (invoke.BindingInvoker, error) {
+	chosen, selectionErr := selectDelegate(ctx, CapInvoke, format)
+	if selectionErr != nil {
+		return nil, selectionErr
+	}
 	if chosen == nil || chosen.builtin {
 		return nil, fmt.Errorf("no invoker or delegate handles format %q", format)
 	}

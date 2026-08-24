@@ -151,6 +151,9 @@ func TestCrossSurfaceConformance(t *testing.T) {
 	}{
 		{name: "describe", short: "describe"},
 		{name: "binding specs", short: "listBindingSpecs"},
+		{name: "check binding specs", short: "checkBindingSpecs", input: map[string]any{
+			"bindingSpecs": []any{"openbindings.openapi@1", "unknown@1", "openbindings.openapi@1"},
+		}},
 		{name: "inspect embedded source", short: "inspectSource", input: map[string]any{"source": map[string]any{
 			"bindingSpec": "openbindings.openapi@1", "content": openAPISource,
 		}}},

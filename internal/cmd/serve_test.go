@@ -42,6 +42,9 @@ type mockBlockingInvoker struct {
 }
 
 func (m *mockBlockingInvoker) BindingSpecs() []openbindings.BindingSpecInfo { return m.formats }
+func (m *mockBlockingInvoker) CheckBindingSpecs(bindingSpecs []string) []openbindings.BindingSpecVerdict {
+	return openbindings.CheckBindingSpecs(bindingSpecs, m.BindingSpecs())
+}
 func (m *mockBlockingInvoker) InvokeBinding(ctx context.Context, _ *invoke.BindingInvocationArgs) invoke.Invocation[any, any] {
 	inv := invoke.NewInvocationImpl[any, any](ctx)
 	go func() {
@@ -64,6 +67,9 @@ type mockStreamInvoker struct {
 }
 
 func (m *mockStreamInvoker) BindingSpecs() []openbindings.BindingSpecInfo { return m.formats }
+func (m *mockStreamInvoker) CheckBindingSpecs(bindingSpecs []string) []openbindings.BindingSpecVerdict {
+	return openbindings.CheckBindingSpecs(bindingSpecs, m.BindingSpecs())
+}
 func (m *mockStreamInvoker) InvokeBinding(ctx context.Context, _ *invoke.BindingInvocationArgs) invoke.Invocation[any, any] {
 	inv := invoke.NewInvocationImpl[any, any](ctx)
 	go func() {
@@ -87,6 +93,9 @@ type errorStreamInvoker struct {
 }
 
 func (m *errorStreamInvoker) BindingSpecs() []openbindings.BindingSpecInfo { return m.formats }
+func (m *errorStreamInvoker) CheckBindingSpecs(bindingSpecs []string) []openbindings.BindingSpecVerdict {
+	return openbindings.CheckBindingSpecs(bindingSpecs, m.BindingSpecs())
+}
 func (m *errorStreamInvoker) InvokeBinding(ctx context.Context, _ *invoke.BindingInvocationArgs) invoke.Invocation[any, any] {
 	inv := invoke.NewInvocationImpl[any, any](ctx)
 	go func() {
@@ -109,6 +118,9 @@ type mockEchoInvoker struct {
 }
 
 func (m *mockEchoInvoker) BindingSpecs() []openbindings.BindingSpecInfo { return m.formats }
+func (m *mockEchoInvoker) CheckBindingSpecs(bindingSpecs []string) []openbindings.BindingSpecVerdict {
+	return openbindings.CheckBindingSpecs(bindingSpecs, m.BindingSpecs())
+}
 func (m *mockEchoInvoker) InvokeBinding(ctx context.Context, _ *invoke.BindingInvocationArgs) invoke.Invocation[any, any] {
 	inv := invoke.NewInvocationImpl[any, any](ctx)
 	go func() {
@@ -132,6 +144,9 @@ type contextCaptureInvoker struct {
 }
 
 func (m *contextCaptureInvoker) BindingSpecs() []openbindings.BindingSpecInfo { return m.formats }
+func (m *contextCaptureInvoker) CheckBindingSpecs(bindingSpecs []string) []openbindings.BindingSpecVerdict {
+	return openbindings.CheckBindingSpecs(bindingSpecs, m.BindingSpecs())
+}
 func (m *contextCaptureInvoker) InvokeBinding(ctx context.Context, args *invoke.BindingInvocationArgs) invoke.Invocation[any, any] {
 	m.seen <- args.Context
 	inv := invoke.NewInvocationImpl[any, any](ctx)
@@ -155,6 +170,9 @@ type gatedUnaryInvoker struct {
 }
 
 func (m *gatedUnaryInvoker) BindingSpecs() []openbindings.BindingSpecInfo { return m.formats }
+func (m *gatedUnaryInvoker) CheckBindingSpecs(bindingSpecs []string) []openbindings.BindingSpecVerdict {
+	return openbindings.CheckBindingSpecs(bindingSpecs, m.BindingSpecs())
+}
 func (m *gatedUnaryInvoker) InvokeBinding(ctx context.Context, _ *invoke.BindingInvocationArgs) invoke.Invocation[any, any] {
 	inv := invoke.NewInvocationImpl[any, any](ctx)
 	go func() {
@@ -187,6 +205,9 @@ type contextRequiredInvoker struct {
 }
 
 func (m *contextRequiredInvoker) BindingSpecs() []openbindings.BindingSpecInfo { return m.formats }
+func (m *contextRequiredInvoker) CheckBindingSpecs(bindingSpecs []string) []openbindings.BindingSpecVerdict {
+	return openbindings.CheckBindingSpecs(bindingSpecs, m.BindingSpecs())
+}
 func (m *contextRequiredInvoker) InvokeBinding(ctx context.Context, _ *invoke.BindingInvocationArgs) invoke.Invocation[any, any] {
 	inv := invoke.NewInvocationImpl[any, any](ctx)
 	inv.FireError(invoke.NewContextRequiredError(m.details))

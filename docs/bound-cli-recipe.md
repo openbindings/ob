@@ -19,6 +19,7 @@ success = exit 0, fields ride argv).
 | `openbindings.ob.addOperationAlias` | `ob operation alias add` | json | 0 (assumption) | obi-path=stdin-dash |
 | `openbindings.ob.addSource` | `ob source add` | json | 0 (assumption) | — |
 | `openbindings.ob.bindOperation` | `ob operation bind` | json | 0 (assumption) | obi-path=stdin-dash |
+| `openbindings.ob.checkBindingSpecs` | `ob binding-specs check` | json | 0 (assumption) | — |
 | `openbindings.ob.codegen` | `ob codegen` | json | 0 (assumption) | source=stdin-dash |
 | `openbindings.ob.compareInterfaces` | `ob diff` | json | 0, 1 | baseline=stdin-dash, comparison=file |
 | `openbindings.ob.conform` | `ob conform` | json | 0 (assumption) | interface=file, target-obi=file |
@@ -31,7 +32,7 @@ success = exit 0, fields ride argv).
 | `openbindings.ob.inspectSource` | `ob inspect` | json | 0 (assumption) | — |
 | `openbindings.ob.invokeBinding` | `ob binding invoke` | json | 0 (assumption) | — |
 | `openbindings.ob.invokeOperation` | `ob operation invoke` | json | 0 (assumption) | — |
-| `openbindings.ob.listBindingSpecs` | `ob binding-specs` | json | 0 (assumption) | — |
+| `openbindings.ob.listBindingSpecs` | `ob binding-specs list` | json | 0 (assumption) | — |
 | `openbindings.ob.listBindings` | `ob binding list` | json | 0 (assumption) | obi-path=stdin-dash |
 | `openbindings.ob.listContexts` | `ob context list` | json | 0 (assumption) | — |
 | `openbindings.ob.listDelegates` | `ob delegate list` | json | 0 (assumption) | — |

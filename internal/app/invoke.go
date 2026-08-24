@@ -88,7 +88,7 @@ func operationKeyForName(name string, iface *openbindings.Interface) string {
 // error. Preference, deprecation, source order, and key order never invent a
 // choice.
 func DefaultBindingForOp(opKey string, iface *openbindings.Interface) (string, *openbindings.BindingEntry, error) {
-	return selectBindingForOp(opKey, iface, nil)
+	return selectBindingForOp(context.Background(), opKey, iface, nil)
 }
 
 // bindingByKey looks up a binding by its key.
@@ -138,14 +138,14 @@ type resolvedBinding struct {
 // from an OBI interface. Context resolution is handled by the invoker and
 // per-format invokers via the ContextStore.
 func resolveBindingAndSource(iface *openbindings.Interface, opKey, bindingKey string, input any) (*resolvedBinding, error) {
-	return resolveBindingAndSourceWithContext(iface, opKey, bindingKey, input, nil)
+	return resolveBindingAndSourceWithContext(context.Background(), iface, opKey, bindingKey, input, nil)
 }
 
 // resolveBindingAndSourceWithContext is the operation-invoker resolution
 // surface used by invocation and preflight. An explicit binding bypasses
 // selection; otherwise context.configuration.selection is the caller's ordered
 // choice and sole-candidate inference is the only automatic resolution.
-func resolveBindingAndSourceWithContext(iface *openbindings.Interface, opKey, bindingKey string, input any, callerContext map[string]any) (*resolvedBinding, error) {
+func resolveBindingAndSourceWithContext(ctx context.Context, iface *openbindings.Interface, opKey, bindingKey string, input any, callerContext map[string]any) (*resolvedBinding, error) {
 	if opKey != "" && bindingKey != "" {
 		return nil, fmt.Errorf("operation key and binding key are mutually exclusive")
 	}
@@ -174,7 +174,7 @@ func resolveBindingAndSourceWithContext(iface *openbindings.Interface, opKey, bi
 			}
 		}
 		var selectionErr error
-		resolvedKey, binding, selectionErr = selectBindingForOp(opKey, iface, contextSelection(callerContext))
+		resolvedKey, binding, selectionErr = selectBindingForOp(ctx, opKey, iface, contextSelection(callerContext))
 		if selectionErr != nil {
 			return nil, selectionErr
 		}
@@ -228,9 +228,22 @@ func contextSelection(ctx map[string]any) []string {
 // policy-neutral sole-invocable-candidate rule. "Invocable" is evaluated
 // against ob's builtin and registered-delegate reach, not merely document
 // presence.
-func selectBindingForOp(opKey string, iface *openbindings.Interface, ordered []string) (string, *openbindings.BindingEntry, error) {
+func selectBindingForOp(ctx context.Context, opKey string, iface *openbindings.Interface, ordered []string) (string, *openbindings.BindingEntry, error) {
 	if iface == nil {
 		return "", nil, fmt.Errorf("%w: %s", invoke.ErrBindingNotFound, opKey)
+	}
+	var bindingSpecs []string
+	for _, binding := range iface.Bindings {
+		if binding.Operation != opKey {
+			continue
+		}
+		if source, ok := iface.Sources[binding.Source]; ok {
+			bindingSpecs = append(bindingSpecs, source.BindingSpec)
+		}
+	}
+	available, err := availableBindingSpecs(ctx, gatherDelegates(), CapInvoke, bindingSpecs)
+	if err != nil {
+		return "", nil, err
 	}
 	invocable := func(binding openbindings.BindingEntry) bool {
 		source, ok := iface.Sources[binding.Source]
@@ -240,7 +253,7 @@ func selectBindingForOp(opKey string, iface *openbindings.Interface, ordered []s
 			// dangling source as "unsupported" would mask the real defect.
 			return true
 		}
-		return BuiltinSupportsFormat(source.BindingSpec) || selectDelegate(CapInvoke, source.BindingSpec) != nil
+		return available[source.BindingSpec]
 	}
 
 	for _, key := range ordered {
@@ -614,7 +627,7 @@ func InvokeOBIOperationConfigured(ctx context.Context, obiPath, opKey, bindingKe
 // before it reaches the caller (stop-and-return on nonconformant emission).
 func invokeOnInterface(ctx context.Context, iface *openbindings.Interface, opKey, bindingKey string, input any, config *InvokeConfig) (*ConfiguredInvocation, error) {
 	callerContext := config.context()
-	resolved, err := resolveBindingAndSourceWithContext(iface, opKey, bindingKey, input, callerContext)
+	resolved, err := resolveBindingAndSourceWithContext(ctx, iface, opKey, bindingKey, input, callerContext)
 	if err != nil {
 		return nil, err
 	}
@@ -654,7 +667,10 @@ func invokeOnInterface(ctx context.Context, iface *openbindings.Interface, opKey
 
 	// Pre-dispatch delegate selection (deterministic): the split is decided
 	// before any side effect.
-	chosen := selectDelegate(CapInvoke, es.BindingSpec)
+	chosen, err := selectDelegate(ctx, CapInvoke, es.BindingSpec)
+	if err != nil {
+		return nil, err
+	}
 	if chosen != nil && !chosen.builtin {
 		// An external delegate owns the binding hop. Displaced STANDING
 		// elections proceed with a loud attributed warning.
@@ -777,7 +793,7 @@ func PrepareInterfaceOperation(ctx context.Context, iface *openbindings.Interfac
 	if iface == nil {
 		return nil, fmt.Errorf("interface is required")
 	}
-	resolved, err := resolveBindingAndSourceWithContext(iface, opKey, bindingKey, nil, callerContext)
+	resolved, err := resolveBindingAndSourceWithContext(ctx, iface, opKey, bindingKey, nil, callerContext)
 	if err != nil {
 		return nil, err
 	}
@@ -1043,7 +1059,13 @@ func InvokeOperationWithContext(ctx context.Context, input InvocationInput) Invo
 	// Unified delegate selection (capability + format, preference, self-first
 	// ties). Native formats select the self-delegate (iface nil → in-process);
 	// non-native formats select an external delegate when one is registered.
-	chosen := selectDelegate(CapInvoke, input.Source.BindingSpec)
+	chosen, selectionErr := selectDelegate(ctx, CapInvoke, input.Source.BindingSpec)
+	if selectionErr != nil {
+		return InvocationResult{Error: &Error{
+			Code:    "delegate_resolution_failed",
+			Message: selectionErr.Error(),
+		}}
+	}
 
 	var output InvocationResult
 	if chosen == nil || chosen.builtin {

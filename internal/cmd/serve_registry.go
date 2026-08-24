@@ -17,6 +17,7 @@ func registerCanonicalOperationRoutes(srv *server.Server, logger *slog.Logger) {
 	httpHandlers := map[string]http.HandlerFunc{
 		"describe":                      handleDescribe,
 		"listBindingSpecs":              handleBindingSpecs,
+		"checkBindingSpecs":             handleCheckBindingSpecs,
 		"resolveInterface":              handleResolve,
 		"synthesizeInterface":           handleInterfaceSynthesize,
 		"inspectSource":                 handleSourceInspect,

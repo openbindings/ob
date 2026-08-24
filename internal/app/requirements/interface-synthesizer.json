@@ -21,6 +21,24 @@
                 "bindingSpec"
             ]
         },
+        "BindingSpecVerdict": {
+            "type": "object",
+            "description": "Authoritative support verdict for one exact binding-specification identifier. Future optional fields may annotate this verdict but never qualify or soften supported.",
+            "properties": {
+                "bindingSpec": {
+                    "type": "string",
+                    "description": "Exact binding-specification identifier token as supplied by the caller."
+                },
+                "supported": {
+                    "type": "boolean",
+                    "description": "Strict support verdict. True warrants that this implementation implements the specification denoted by the exact bindingSpec string, as published; false is an unqualified refusal."
+                }
+            },
+            "required": [
+                "bindingSpec",
+                "supported"
+            ]
+        },
         "SynthesizeInterfaceSource": {
             "type": "object",
             "description": "A binding source to synthesize an interface from.",
@@ -121,7 +139,7 @@
                 "sourceRef": {
                     "type": "string",
                     "minLength": 1,
-                    "description": "Stable source-local identifier for the interaction unit. It need not be a conformant binding ref when the unit is excluded or invalid."
+                    "description": "Stable source-local identifier for the interaction unit. It need not be a conformant binding selector when the unit is excluded or invalid."
                 },
                 "scope": {
                     "type": "string",
@@ -150,13 +168,13 @@
                     "type": "string",
                     "description": "Emitted binding key. Required when status is represented or lossy."
                 },
-                "bindingRef": {
+                "bindingSelector": {
                     "type": "string",
-                    "description": "Emitted binding ref. Required when status is represented or lossy; the empty string denotes a binding-specification-defined omitted ref."
+                    "description": "Emitted binding selector. Required when status is represented or lossy; the empty string denotes a binding-specification-defined omitted selector."
                 },
                 "reasonCode": {
                     "type": "string",
-                    "pattern": "^[a-z][a-z0-9]*(?:[._-][a-z0-9]+)+$",
+                    "minLength": 1,
                     "description": "Stable family-namespaced reason code. Required unless status is represented."
                 },
                 "rule": {
@@ -173,8 +191,7 @@
                     "items": {
                         "type": "string",
                         "minLength": 1
-                    },
-                    "uniqueItems": true
+                    }
                 },
                 "details": {
                     "type": "object",
@@ -188,52 +205,49 @@
                 "scope",
                 "status"
             ],
-            "allOf": [
+            "oneOf": [
                 {
-                    "if": {
-                        "properties": {
-                            "status": {
-                                "const": "represented"
-                            }
-                        },
-                        "required": [
-                            "status"
-                        ]
+                    "properties": {
+                        "status": {
+                            "const": "represented"
+                        }
                     },
-                    "then": {
-                        "required": [
-                            "sourceKey",
-                            "operationKey",
-                            "bindingKey",
-                            "bindingRef"
-                        ]
-                    },
-                    "else": {
-                        "required": [
-                            "reasonCode",
-                            "message"
-                        ]
-                    }
+                    "required": [
+                        "sourceKey",
+                        "operationKey",
+                        "bindingKey",
+                        "bindingSelector"
+                    ]
                 },
                 {
-                    "if": {
-                        "properties": {
-                            "status": {
-                                "const": "lossy"
-                            }
-                        },
-                        "required": [
-                            "status"
-                        ]
+                    "properties": {
+                        "status": {
+                            "const": "lossy"
+                        }
                     },
-                    "then": {
-                        "required": [
-                            "sourceKey",
-                            "operationKey",
-                            "bindingKey",
-                            "bindingRef"
-                        ]
-                    }
+                    "required": [
+                        "sourceKey",
+                        "operationKey",
+                        "bindingKey",
+                        "bindingSelector",
+                        "reasonCode",
+                        "message"
+                    ]
+                },
+                {
+                    "properties": {
+                        "status": {
+                            "enum": [
+                                "excluded",
+                                "invalid",
+                                "implementation-unsupported"
+                            ]
+                        }
+                    },
+                    "required": [
+                        "reasonCode",
+                        "message"
+                    ]
                 }
             ]
         },
@@ -264,23 +278,23 @@
                 "exhaustive",
                 "fullyRepresented"
             ],
-            "allOf": [
+            "oneOf": [
                 {
-                    "if": {
-                        "properties": {
-                            "exhaustive": {
-                                "const": false
-                            }
-                        },
-                        "required": [
-                            "exhaustive"
-                        ]
-                    },
-                    "then": {
-                        "required": [
-                            "limitation"
-                        ]
+                    "properties": {
+                        "exhaustive": {
+                            "const": true
+                        }
                     }
+                },
+                {
+                    "properties": {
+                        "exhaustive": {
+                            "const": false
+                        }
+                    },
+                    "required": [
+                        "limitation"
+                    ]
                 }
             ]
         },
@@ -290,7 +304,7 @@
             "properties": {
                 "code": {
                     "type": "string",
-                    "pattern": "^[a-z][a-z0-9]*(?:[._-][a-z0-9]+)+$",
+                    "minLength": 1,
                     "description": "Stable namespaced reason code."
                 },
                 "message": {
@@ -328,12 +342,38 @@
     },
     "operations": {
         "openbindings.interface-synthesizer.listBindingSpecs": {
-            "description": "List the binding specifications this synthesizer can synthesize interfaces from, by exact identifier.",
+            "description": "Return an advisory glance at binding specifications this synthesizer can name, for display, documentation, and pickers. Presence is a support warrant, and every listed identifier MUST receive supported: true from checkBindingSpecs. Absence carries no information and MUST NOT be treated as a negative support decision.",
             "idempotent": true,
             "output": {
                 "type": "array",
                 "items": {
                     "$ref": "#/schemas/BindingSpecInfo"
+                }
+            }
+        },
+        "openbindings.interface-synthesizer.checkBindingSpecs": {
+            "description": "Authoritatively determine support for exact, opaque binding-specification identifier tokens. This is the only operation a consumer may use to make a support decision such as source acceptance, refusal, or delegation. The result contains one verdict per unique input token in first-occurrence order. supported is always a strict boolean; true warrants that this implementation implements the specification the exact string denotes, as published. The result is deterministic for a given implementation version and the operation is side-effect free. An internal pattern may compress the warranted set but MUST NOT extend it: an implementation never answers true for a specification it has not implemented and never matches future revisions by prefix or regular expression. Future optional verdict fields may annotate a verdict but never qualify or soften supported.",
+            "idempotent": true,
+            "input": {
+                "type": "object",
+                "properties": {
+                    "bindingSpecs": {
+                        "type": "array",
+                        "items": {
+                            "type": "string"
+                        },
+                        "description": "Exact, opaque binding-specification identifier tokens to check. The array may be empty."
+                    }
+                },
+                "required": [
+                    "bindingSpecs"
+                ],
+                "additionalProperties": false
+            },
+            "output": {
+                "type": "array",
+                "items": {
+                    "$ref": "#/schemas/BindingSpecVerdict"
                 }
             }
         },

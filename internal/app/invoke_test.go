@@ -172,7 +172,7 @@ func TestResolveBindingAndSource_OrderedCallerSelection(t *testing.T) {
 		},
 	}
 
-	resolved, err := resolveBindingAndSourceWithContext(iface, "listPets", "", nil, context)
+	resolved, err := resolveBindingAndSourceWithContext(t.Context(), iface, "listPets", "", nil, context)
 	if err != nil {
 		t.Fatalf("ordered caller selection: %v", err)
 	}
@@ -192,7 +192,7 @@ func TestResolveBindingAndSource_MalformedSelectionDoesNotInventChoice(t *testin
 	context := map[string]any{
 		"configuration": map[string]any{"selection": []any{"listPets.a", 2}},
 	}
-	if _, err := resolveBindingAndSourceWithContext(iface, "listPets", "", nil, context); !errors.Is(err, invoke.ErrBindingSelectionRequired) {
+	if _, err := resolveBindingAndSourceWithContext(t.Context(), iface, "listPets", "", nil, context); !errors.Is(err, invoke.ErrBindingSelectionRequired) {
 		t.Fatalf("malformed selection must leave ambiguity unresolved, got %v", err)
 	}
 }

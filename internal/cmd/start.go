@@ -491,6 +491,14 @@ func handleBindingSpecs(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, app.ListBindingSpecs())
 }
 
+func handleCheckBindingSpecs(w http.ResponseWriter, r *http.Request) {
+	var input app.BindingSpecCheckInput
+	if !decodeRequest(w, r, &input) {
+		return
+	}
+	writeJSON(w, http.StatusOK, app.CheckBindingSpecs(input.BindingSpecs))
+}
+
 func handleDelegates(w http.ResponseWriter, r *http.Request) {
 	// The contract's listDelegates output: {"delegates": [...]}.
 	writeJSON(w, http.StatusOK, app.ListDelegates())

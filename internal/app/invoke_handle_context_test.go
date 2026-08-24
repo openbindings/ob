@@ -17,6 +17,10 @@ func (p storedContextPreparer) BindingSpecs() []openbindings.BindingSpecInfo {
 	return []openbindings.BindingSpecInfo{{BindingSpec: "example.binding@1"}}
 }
 
+func (p storedContextPreparer) CheckBindingSpecs(bindingSpecs []string) []openbindings.BindingSpecVerdict {
+	return openbindings.CheckBindingSpecs(bindingSpecs, p.BindingSpecs())
+}
+
 func (p storedContextPreparer) InvokeBinding(context.Context, *invoke.BindingInvocationArgs) invoke.Invocation[any, any] {
 	return invoke.NewErroredInvocation[any, any](&invoke.InvocationError{
 		Code: invoke.ErrCodeRuntime,

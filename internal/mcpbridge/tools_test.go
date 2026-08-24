@@ -146,6 +146,10 @@ func (i *registrationTestInvoker) BindingSpecs() []openbindings.BindingSpecInfo 
 	return i.specs
 }
 
+func (i *registrationTestInvoker) CheckBindingSpecs(bindingSpecs []string) []openbindings.BindingSpecVerdict {
+	return openbindings.CheckBindingSpecs(bindingSpecs, i.BindingSpecs())
+}
+
 func (i *registrationTestInvoker) InvokeBinding(ctx context.Context, _ *invoke.BindingInvocationArgs) invoke.Invocation[any, any] {
 	inv := invoke.NewInvocationImpl[any, any](ctx)
 	inv.FireError(invoke.NewInvocationError(invoke.ErrCodeRuntime))
@@ -411,6 +415,10 @@ type neverEndingInvoker struct{}
 
 func (n *neverEndingInvoker) BindingSpecs() []openbindings.BindingSpecInfo {
 	return []openbindings.BindingSpecInfo{{BindingSpec: "test-stream", Description: "unbounded stream"}}
+}
+
+func (n *neverEndingInvoker) CheckBindingSpecs(bindingSpecs []string) []openbindings.BindingSpecVerdict {
+	return openbindings.CheckBindingSpecs(bindingSpecs, n.BindingSpecs())
 }
 
 func (n *neverEndingInvoker) InvokeBinding(ctx context.Context, args *invoke.BindingInvocationArgs) invoke.Invocation[any, any] {

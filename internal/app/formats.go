@@ -1,11 +1,11 @@
 package app
 
 import (
+	"fmt"
 	"sort"
 	"strings"
 	"sync"
 
-	"github.com/openbindings/ob/internal/delegates"
 	openbindings "github.com/openbindings/openbindings-go"
 )
 
@@ -14,6 +14,11 @@ import (
 type BindingSpecInfo struct {
 	BindingSpec string `json:"bindingSpec"`
 	Description string `json:"description,omitempty"`
+}
+
+// BindingSpecCheckInput is the wire input to checkBindingSpecs.
+type BindingSpecCheckInput struct {
+	BindingSpecs []string `json:"bindingSpecs"`
 }
 
 var (
@@ -44,6 +49,25 @@ func RenderBindingSpecList(formats []BindingSpecInfo) string {
 	return strings.TrimSuffix(sb.String(), "\n")
 }
 
+// RenderBindingSpecVerdicts returns a human-friendly exact support report.
+func RenderBindingSpecVerdicts(verdicts []openbindings.BindingSpecVerdict) string {
+	if len(verdicts) == 0 {
+		return "No binding specifications requested."
+	}
+	var sb strings.Builder
+	for i, verdict := range verdicts {
+		if i > 0 {
+			sb.WriteByte('\n')
+		}
+		mark := "no"
+		if verdict.Supported {
+			mark = "yes"
+		}
+		fmt.Fprintf(&sb, "%s: %s", verdict.BindingSpec, mark)
+	}
+	return sb.String()
+}
+
 // isDraftBindingSpec reports whether a binding-spec token is one of ob's
 // pre-promotion drafts, whose identifier is not yet minted. A minted OB
 // binding spec (openbindings.<name>@<n>) and
@@ -61,8 +85,9 @@ func isDraftBindingSpec(tok string) bool {
 	return true
 }
 
-// ListFormats returns all formats that ob can handle, both built-in (native
-// Go SDK drivers) and external delegates.
+// ListBindingSpecs returns ob's advisory native-format listing. Registered
+// delegates retain their own advisory listings in ListDelegates; they are not
+// promoted into ob's list because delegation support is checked live.
 func ListBindingSpecs() []BindingSpecInfo {
 	var formats []BindingSpecInfo
 
@@ -70,16 +95,18 @@ func ListBindingSpecs() []BindingSpecInfo {
 		formats = append(formats, BindingSpecInfo{BindingSpec: tok})
 	}
 
-	// Delegate formats come from the registry's registration-time snapshots —
-	// the aggregate-across-all composition (native ∪ every delegate), never a
-	// route-to-one, and no live probing.
-	for _, rec := range GetDelegateContext().Delegates {
-		for _, f := range rec.BindingSpecs {
-			formats = append(formats, BindingSpecInfo{BindingSpec: f.BindingSpec, Description: f.Description})
-		}
-	}
-
 	return uniqueSortedFormats(formats)
+}
+
+// CheckBindingSpecs authoritatively checks ob's native support for exact,
+// opaque identifiers. The SDK helper provides de-duplication and preserves
+// first-occurrence order.
+func CheckBindingSpecs(bindingSpecs []string) []openbindings.BindingSpecVerdict {
+	supported := make([]openbindings.BindingSpecInfo, 0, len(getNativeTokens()))
+	for _, bindingSpec := range getNativeTokens() {
+		supported = append(supported, openbindings.BindingSpecInfo{BindingSpec: bindingSpec})
+	}
+	return openbindings.CheckBindingSpecs(bindingSpecs, supported)
 }
 
 func getNativeTokens() []string {
@@ -100,12 +127,8 @@ func resetNativeTokens() {
 
 // BuiltinSupportsFormat checks if ob natively supports a given format (in-process).
 func BuiltinSupportsFormat(format string) bool {
-	for _, tok := range getNativeTokens() {
-		if delegates.SupportsFormat(tok, format) {
-			return true
-		}
-	}
-	return false
+	verdicts := CheckBindingSpecs([]string{format})
+	return len(verdicts) == 1 && verdicts[0].Supported
 }
 
 func uniqueSortedFormats(in []BindingSpecInfo) []BindingSpecInfo {

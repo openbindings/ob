@@ -207,6 +207,9 @@ func TestWireConformance_ExecLane(t *testing.T) {
 	}{
 		{"describe", "openbindings.ob.describe", nil, nil},
 		{"listBindingSpecs", "openbindings.ob.listBindingSpecs", nil, nil},
+		{"checkBindingSpecs", "openbindings.ob.checkBindingSpecs", map[string]any{
+			"bindingSpecs": []any{"openbindings.openapi@1", "unknown@1", "openbindings.openapi@1"},
+		}, nil},
 		{"initializeEnvironment", "openbindings.ob.initializeEnvironment", map[string]any{"global": true}, nil},
 		{"reportEnvironmentStatus", "openbindings.ob.reportEnvironmentStatus", nil, nil},
 		{"listContexts", "openbindings.ob.listContexts", nil, nil},
@@ -230,8 +233,12 @@ func TestWireConformance_ExecLane(t *testing.T) {
 		}},
 		{"removeContext", "openbindings.ob.removeContext", map[string]any{"key": "https://wire.example.com"}, nil},
 		{"resolveDelegateForBindingSpec", "openbindings.ob.resolveDelegateForBindingSpec", map[string]any{"bindingSpec": "openbindings.usage@1"}, nil},
-		{"registerDelegate", "openbindings.ob.registerDelegate", map[string]any{"location": "exec:ob-fixture", "preference": 5}, nil},
-		{"setDelegatePreference", "openbindings.ob.setDelegatePreference", map[string]any{"location": "exec:ob-fixture", "preference": 10}, nil},
+		// Keep this aliased copy tied with the builtin (the builtin wins ties)
+		// while exercising registry writes: it is a transport fixture, not a
+		// second independent runtime, and routing ob back through itself would
+		// recurse by construction.
+		{"registerDelegate", "openbindings.ob.registerDelegate", map[string]any{"location": "exec:ob-fixture", "preference": 0}, nil},
+		{"setDelegatePreference", "openbindings.ob.setDelegatePreference", map[string]any{"location": "exec:ob-fixture", "preference": 0}, nil},
 		{"unregisterDelegate", "openbindings.ob.unregisterDelegate", map[string]any{"location": "exec:ob-fixture"}, nil},
 		{"resolveInterface", "openbindings.ob.resolveInterface", map[string]any{"address": ts.URL}, func(t *testing.T, output any) {
 			m, _ := output.(map[string]any)

@@ -77,19 +77,19 @@ func DelegateBindingInvoker(resolved delegates.Resolved) (invoke.BindingInvoker,
 			continue
 		}
 		switch {
-		case (strings.HasPrefix(source.BindingSpec, "openbindings.asyncapi") || strings.HasPrefix(source.BindingSpec, "asyncapi")) && delegates.IsHTTPURL(source.Location):
+		case source.BindingSpec == asyncapi.BindingSpec && delegates.IsHTTPURL(source.Location):
 			if frameBinding == nil {
 				bc := b
 				frameBinding = &bc
 			}
-		case source.BindingSpec == usage.BindingSpec || strings.HasPrefix(source.BindingSpec, "usage@") || source.BindingSpec == "usage":
+		case source.BindingSpec == usage.BindingSpec:
 			if cliBinding == nil {
 				bc := b
 				cliBinding = &bc
 			}
-		case strings.HasPrefix(source.BindingSpec, "openbindings.usage"):
-			// Wrapper-era registration (the retired openbindings.usage@0.x
-			// WRAPPER format — distinct from the unreleased openbindings.usage@1
+		case source.BindingSpec == "openbindings.usage@0.1.0":
+			// Wrapper-era registration (the retired openbindings.usage@0.1.0
+			// WRAPPER format — distinct from openbindings.usage@1
 			// bare-artifact candidate matched exactly above): loud migration, never
 			// silent non-matching — the delegate must be re-registered so its
 			// pinned OBI carries the source the current dispatch speaks.
@@ -145,6 +145,10 @@ type delegateFrameInvoker struct {
 
 func (d *delegateFrameInvoker) BindingSpecs() []openbindings.BindingSpecInfo {
 	return []openbindings.BindingSpecInfo{{BindingSpec: d.format}}
+}
+
+func (d *delegateFrameInvoker) CheckBindingSpecs(bindingSpecs []string) []openbindings.BindingSpecVerdict {
+	return openbindings.CheckBindingSpecs(bindingSpecs, d.BindingSpecs())
 }
 
 func (d *delegateFrameInvoker) InvokeBinding(ctx context.Context, args *invoke.BindingInvocationArgs) invoke.Invocation[any, any] {
@@ -320,6 +324,10 @@ func delegateExecInvoker(delegate string) *invoke.OperationInvoker {
 
 func (d *delegateCLIInvoker) BindingSpecs() []openbindings.BindingSpecInfo {
 	return []openbindings.BindingSpecInfo{{BindingSpec: d.format}}
+}
+
+func (d *delegateCLIInvoker) CheckBindingSpecs(bindingSpecs []string) []openbindings.BindingSpecVerdict {
+	return openbindings.CheckBindingSpecs(bindingSpecs, d.BindingSpecs())
 }
 
 func (d *delegateCLIInvoker) InvokeBinding(ctx context.Context, args *invoke.BindingInvocationArgs) invoke.Invocation[any, any] {

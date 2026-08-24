@@ -39,19 +39,22 @@ var requirementFiles = map[DelegateCapability]string{
 }
 
 // capabilityRequirementOperations is the minimum published operation set ob
-// uses for each capability. listBindingSpecs is included because ob uses it to
-// establish which source families the delegate can handle.
+// uses for each capability. listBindingSpecs remains the advisory display
+// surface; checkBindingSpecs is the authoritative selection warrant.
 var capabilityRequirementOperations = map[DelegateCapability][]string{
 	CapInvoke: {
 		"openbindings.binding-invoker.listBindingSpecs",
+		"openbindings.binding-invoker.checkBindingSpecs",
 		"openbindings.binding-invoker.invokeBinding",
 	},
 	CapSynthesize: {
 		"openbindings.interface-synthesizer.listBindingSpecs",
+		"openbindings.interface-synthesizer.checkBindingSpecs",
 		"openbindings.interface-synthesizer.synthesizeInterface",
 	},
 	CapInspect: {
 		"openbindings.source-inspector.listBindingSpecs",
+		"openbindings.interface-synthesizer.checkBindingSpecs",
 		"openbindings.source-inspector.inspectSource",
 	},
 }
@@ -79,6 +82,19 @@ func RequirementInterface(cap DelegateCapability) (*openbindings.Interface, erro
 	iface, err := publishedRequirementInterface(cap)
 	if err != nil {
 		return nil, err
+	}
+	// Source-inspector has no support-query operation of its own. ob's inspect
+	// routing therefore consumes the interface-synthesizer query alongside the
+	// source-inspector operation; reference authoring implementations expose
+	// both from the same exact supported set.
+	if cap == CapInspect {
+		const checkKey = "openbindings.interface-synthesizer.checkBindingSpecs"
+		synth, synthErr := publishedRequirementInterface(CapSynthesize)
+		if synthErr != nil {
+			return nil, synthErr
+		}
+		iface.Operations[checkKey] = synth.Operations[checkKey]
+		iface.Schemas["BindingSpecVerdict"] = synth.Schemas["BindingSpecVerdict"]
 	}
 	required, ok := capabilityRequirementOperations[cap]
 	if !ok {

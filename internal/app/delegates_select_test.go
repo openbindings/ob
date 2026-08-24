@@ -1,12 +1,37 @@
 package app
 
-import "testing"
+import (
+	"context"
+	"slices"
+	"strings"
+	"testing"
+
+	openbindings "github.com/openbindings/openbindings-go"
+)
 
 func prefOf(v float64) *float64 { return &v }
 
 func TestSelectDelegateFrom(t *testing.T) {
 	cand := func(rec DelegateRecord, builtin bool) delegateCandidate {
-		return delegateCandidate{record: rec, builtin: builtin}
+		return delegateCandidate{
+			record:  rec,
+			builtin: builtin,
+			supportCheck: func(_ context.Context, _ DelegateCapability, bindingSpecs []string) ([]openbindings.BindingSpecVerdict, error) {
+				infos := make([]openbindings.BindingSpecInfo, 0, len(rec.BindingSpecs))
+				for _, info := range rec.BindingSpecs {
+					infos = append(infos, openbindings.BindingSpecInfo{BindingSpec: info.BindingSpec})
+				}
+				return openbindings.CheckBindingSpecs(bindingSpecs, infos), nil
+			},
+		}
+	}
+	selectOne := func(candidates []delegateCandidate, cap DelegateCapability, bindingSpec string) *delegateCandidate {
+		t.Helper()
+		got, err := selectDelegateFrom(t.Context(), candidates, cap, bindingSpec)
+		if err != nil {
+			t.Fatalf("select delegate: %v", err)
+		}
+		return got
 	}
 	self := cand(DelegateRecord{
 		Location: SelfDelegateLocation, Name: "ob",
@@ -28,7 +53,7 @@ func TestSelectDelegateFrom(t *testing.T) {
 	synthOp := capabilityOperation[CapSynthesize]
 
 	t.Run("native format goes to self even when an external also handles it", func(t *testing.T) {
-		got := selectDelegateFrom([]delegateCandidate{self, extInvoke}, CapInvoke, "grpc")
+		got := selectOne([]delegateCandidate{self, extInvoke}, CapInvoke, "grpc")
 		if got == nil || !got.builtin {
 			t.Fatalf("expected self (builtin) for invoke/grpc on a tie, got %+v", got)
 		}
@@ -37,29 +62,57 @@ func TestSelectDelegateFrom(t *testing.T) {
 	t.Run("higher preference beats the builtin tie-break", func(t *testing.T) {
 		preferred := extInvoke
 		preferred.record.Preference = prefOf(5) // user prefers the external for invoke
-		got := selectDelegateFrom([]delegateCandidate{self, preferred}, CapInvoke, "grpc")
+		got := selectOne([]delegateCandidate{self, preferred}, CapInvoke, "grpc")
 		if got == nil || got.builtin {
 			t.Fatalf("expected the higher-preference external, got %+v", got)
 		}
 	})
 
 	t.Run("capability filter: only the synthesize-capable external handles thrift synthesize", func(t *testing.T) {
-		got := selectDelegateFrom([]delegateCandidate{self, extInvoke, extSynth}, CapSynthesize, "thrift")
+		got := selectOne([]delegateCandidate{self, extInvoke, extSynth}, CapSynthesize, "thrift")
 		if got == nil || got.name() != "y" {
 			t.Fatalf("expected the synthesize delegate y for synthesize/thrift, got %+v", got)
 		}
 	})
 
 	t.Run("no candidate handles the format", func(t *testing.T) {
-		if got := selectDelegateFrom([]delegateCandidate{self, extInvoke}, CapInvoke, "cobol"); got != nil {
+		if got := selectOne([]delegateCandidate{self, extInvoke}, CapInvoke, "cobol"); got != nil {
 			t.Fatalf("expected nil when nothing handles the format, got %+v", got)
 		}
 	})
 
 	t.Run("capability present but format absent yields nil", func(t *testing.T) {
 		// extSynth can synthesize, but only thrift — not openapi.
-		if got := selectDelegateFrom([]delegateCandidate{extSynth}, CapSynthesize, "openbindings.openapi@1"); got != nil {
+		if got := selectOne([]delegateCandidate{extSynth}, CapSynthesize, "openbindings.openapi@1"); got != nil {
 			t.Fatalf("expected nil (synthesize-capable but wrong format), got %+v", got)
+		}
+	})
+
+	t.Run("live warrant can support a token omitted from the advisory listing", func(t *testing.T) {
+		hidden := cand(DelegateRecord{
+			Location: "exec:hidden", Name: "hidden",
+			Capabilities: []DelegateCapability{CapInvoke},
+		}, false)
+		hidden.supportCheck = func(_ context.Context, _ DelegateCapability, bindingSpecs []string) ([]openbindings.BindingSpecVerdict, error) {
+			return openbindings.CheckBindingSpecs(bindingSpecs, []openbindings.BindingSpecInfo{{BindingSpec: "hidden@1"}}), nil
+		}
+		got := selectOne([]delegateCandidate{hidden}, CapInvoke, "hidden@1")
+		if got == nil || got.name() != "hidden" {
+			t.Fatalf("expected live support warrant to select hidden delegate, got %+v", got)
+		}
+	})
+
+	t.Run("advisory presence cannot override a live refusal", func(t *testing.T) {
+		refusing := cand(DelegateRecord{
+			Location: "exec:refusing", Name: "refusing",
+			Capabilities: []DelegateCapability{CapInvoke},
+			BindingSpecs: []DelegateBindingSpecInfo{{BindingSpec: "listed@1"}},
+		}, false)
+		refusing.supportCheck = func(_ context.Context, _ DelegateCapability, bindingSpecs []string) ([]openbindings.BindingSpecVerdict, error) {
+			return openbindings.CheckBindingSpecs(bindingSpecs, nil), nil
+		}
+		if got := selectOne([]delegateCandidate{refusing}, CapInvoke, "listed@1"); got != nil {
+			t.Fatalf("expected live refusal to prevent selection, got %+v", got)
 		}
 	})
 
@@ -79,10 +132,10 @@ func TestSelectDelegateFrom(t *testing.T) {
 			OperationPreferences: map[string]float64{invokeOp: 10},
 		}, false)
 		set := []delegateCandidate{x, y}
-		if got := selectDelegateFrom(set, CapSynthesize, "grpc"); got == nil || got.name() != "x" {
+		if got := selectOne(set, CapSynthesize, "grpc"); got == nil || got.name() != "x" {
 			t.Errorf("synthesize/grpc should route to X, got %+v", got)
 		}
-		if got := selectDelegateFrom(set, CapInvoke, "grpc"); got == nil || got.name() != "y" {
+		if got := selectOne(set, CapInvoke, "grpc"); got == nil || got.name() != "y" {
 			t.Errorf("invoke/grpc should route to Y, got %+v", got)
 		}
 	})
@@ -105,4 +158,66 @@ func TestSelectDelegateFrom(t *testing.T) {
 			t.Errorf("expected the delegate-level preference (1) when no entry matches, got %v", got)
 		}
 	})
+}
+
+func TestAvailableBindingSpecsBatchesOneCallPerDelegate(t *testing.T) {
+	type observation struct {
+		calls int
+		input []string
+	}
+	first, second := &observation{}, &observation{}
+	candidate := func(name string, seen *observation, supported string) delegateCandidate {
+		return delegateCandidate{
+			record: DelegateRecord{
+				Location:     "exec:" + name,
+				Name:         name,
+				Capabilities: []DelegateCapability{CapInvoke},
+			},
+			supportCheck: func(_ context.Context, _ DelegateCapability, bindingSpecs []string) ([]openbindings.BindingSpecVerdict, error) {
+				seen.calls++
+				seen.input = append([]string(nil), bindingSpecs...)
+				return openbindings.CheckBindingSpecs(bindingSpecs, []openbindings.BindingSpecInfo{{BindingSpec: supported}}), nil
+			},
+		}
+	}
+
+	got, err := availableBindingSpecs(t.Context(), []delegateCandidate{
+		candidate("first", first, "a@1"),
+		candidate("second", second, "b@1"),
+	}, CapInvoke, []string{"b@1", "a@1", "b@1", "c@1"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	wantInput := []string{"b@1", "a@1", "c@1"}
+	for name, seen := range map[string]*observation{"first": first, "second": second} {
+		if seen.calls != 1 {
+			t.Errorf("%s delegate calls = %d, want 1", name, seen.calls)
+		}
+		if !slices.Equal(seen.input, wantInput) {
+			t.Errorf("%s delegate input = %v, want one deduplicated batch %v", name, seen.input, wantInput)
+		}
+	}
+	if !got["a@1"] || !got["b@1"] || got["c@1"] {
+		t.Errorf("support union = %v, want a@1 and b@1 only", got)
+	}
+}
+
+func TestDelegateMissingSupportQueryFailsLoudly(t *testing.T) {
+	candidate := delegateCandidate{
+		record: DelegateRecord{
+			Location:     "exec:legacy",
+			Name:         "legacy",
+			Capabilities: []DelegateCapability{CapInvoke},
+		},
+		iface: &openbindings.Interface{Operations: map[string]openbindings.Operation{}},
+	}
+	_, err := candidate.checkBindingSpecs(t.Context(), CapInvoke, []string{"a@1"})
+	if err == nil {
+		t.Fatal("expected a delegate without checkBindingSpecs to fail")
+	}
+	for _, want := range []string{"registered without checkBindingSpecs", "re-register", "ob delegate register exec:legacy"} {
+		if !strings.Contains(err.Error(), want) {
+			t.Errorf("error %q does not contain %q", err, want)
+		}
+	}
 }

@@ -21,6 +21,11 @@ import (
 
 func main() {
 	const contractPath = "../../ob.obi.json"
+	if err := app.GenerateBindingSpecSupportContract(contractPath); err != nil {
+		fmt.Fprintln(os.Stderr, "genbound: contract:", err)
+		os.Exit(1)
+	}
+	fmt.Println("genbound: regenerated ob.obi.json")
 
 	// Bound CLI OBI: contract + usage.kdl, carrying the PRISTINE artifact
 	// verbatim as its source (bare usage@ token from the artifact declared min_usage_version,

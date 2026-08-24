@@ -20,6 +20,11 @@
       "selector": "#/paths/~1interfaces~1operations~1bind/post",
       "source": "openapi"
     },
+    "openbindings.ob.checkBindingSpecs.openapi": {
+      "operation": "openbindings.ob.checkBindingSpecs",
+      "selector": "#/paths/~1binding-specs~1check/post",
+      "source": "openapi"
+    },
     "openbindings.ob.codegen.openapi": {
       "operation": "openbindings.ob.codegen",
       "selector": "#/paths/~1interfaces~1codegen/post",
@@ -256,7 +261,7 @@
       "source": "openapi"
     }
   },
-  "description": "The complete interface implemented by ob, the OpenBindings reference tool. One unbound contract describing everything ob does: authoring, inspecting, editing, validating, comparing, and invoking OpenBindings interfaces, plus context storage and environment management. This document carries no bindings or sources; it is the single source of truth from which the per-surface realizations (CLI via usage, server via OpenAPI/AsyncAPI/MCP) are derived, so they cannot drift. Every operation is keyed under ob's own namespace (e.g. openbindings.ob.pullSource). An operation that corresponds to a published OpenBindings interface carries that contract's operation key as an alias (openbindings.ob.setContext carries openbindings.document-store.set), and one operation may correspond to several contracts this way, as listBindingSpecs does.",
+  "description": "The complete interface implemented by ob, the OpenBindings reference tool. One unbound contract describing everything ob does: authoring, inspecting, editing, validating, comparing, and invoking OpenBindings interfaces, plus context storage and environment management. This document carries no bindings or sources; it is the single source of truth from which the per-surface realizations (CLI via usage, server via OpenAPI/AsyncAPI/MCP) are derived, so they cannot drift. Every operation is keyed under ob's own namespace (e.g. openbindings.ob.pullSource). An operation that corresponds to a published OpenBindings interface carries that contract's operation key as an alias (openbindings.ob.setContext carries openbindings.document-store.set), and one operation may correspond to several contracts this way, as listBindingSpecs and checkBindingSpecs do.",
   "name": "ob",
   "openbindings": "0.2.0",
   "operations": {
@@ -303,6 +308,39 @@
       },
       "output": {
         "$ref": "#/schemas/OpenBindingsInterface"
+      },
+      "tags": [
+        "bindings"
+      ]
+    },
+    "openbindings.ob.checkBindingSpecs": {
+      "aliases": [
+        "openbindings.binding-invoker.checkBindingSpecs",
+        "openbindings.interface-synthesizer.checkBindingSpecs"
+      ],
+      "description": "Authoritatively determine support for exact, opaque binding-specification identifier tokens. This is the only operation a consumer may use to make a support decision such as source acceptance, refusal, or delegation. The result contains one verdict per unique input token in first-occurrence order. supported is always a strict boolean; true warrants that this implementation implements the specification the exact string denotes, as published. The result is deterministic for this implementation version and the operation is side-effect free. Internal patterns never extend the warranted set or match future revisions. Future optional verdict fields may annotate a verdict but never qualify supported.",
+      "idempotent": true,
+      "input": {
+        "additionalProperties": false,
+        "properties": {
+          "bindingSpecs": {
+            "description": "Exact, opaque binding-specification identifier tokens to check. The array may be empty.",
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "bindingSpecs"
+        ],
+        "type": "object"
+      },
+      "output": {
+        "items": {
+          "$ref": "#/schemas/BindingSpecVerdict"
+        },
+        "type": "array"
       },
       "tags": [
         "bindings"
@@ -395,7 +433,7 @@
       ]
     },
     "openbindings.ob.getDelegateRequirements": {
-      "description": "Return the exact operation subset a delegate must satisfy to provide an ob capability (invoke → listBindingSpecs + invokeBinding, synthesize → listBindingSpecs + synthesizeInterface, inspect → listBindingSpecs + inspectSource). Definitions are derived from immutable published interfaces bundled with this ob release. Correspondence is per operation, so unrelated operations from the same published interface are not imposed on a delegate.",
+      "description": "Return the exact operation subset a delegate must satisfy to provide an ob capability (invoke → listBindingSpecs + checkBindingSpecs + invokeBinding, synthesize → listBindingSpecs + checkBindingSpecs + synthesizeInterface, inspect → listBindingSpecs + checkBindingSpecs + inspectSource). Definitions are derived from immutable published interfaces bundled with this ob release. Correspondence is per operation, so unrelated operations from the same published interface are not imposed on a delegate.",
       "idempotent": true,
       "input": {
         "$ref": "#/schemas/GetDelegateRequirementsInput"
@@ -471,7 +509,7 @@
         "openbindings.interface-synthesizer.listBindingSpecs",
         "openbindings.source-inspector.listBindingSpecs"
       ],
-      "description": "List the binding specifications this instance can handle, by exact identifier. One operation answers the listBindingSpecs slot of every interface that has one, since the answer is the same regardless of which capability is asking.",
+      "description": "Return an advisory glance at the native binding specifications this instance can name, for display, documentation, and pickers. Presence is a support warrant and absence carries no information; support decisions use checkBindingSpecs. One operation answers the listBindingSpecs slot of every interface that has one.",
       "idempotent": true,
       "output": {
         "items": {
@@ -1368,6 +1406,24 @@
       ],
       "type": "object"
     },
+    "BindingSpecVerdict": {
+      "description": "Authoritative support verdict for one exact binding-specification identifier. Future optional fields may annotate this verdict but never qualify or soften supported.",
+      "properties": {
+        "bindingSpec": {
+          "description": "Exact binding-specification identifier token as supplied by the caller.",
+          "type": "string"
+        },
+        "supported": {
+          "description": "Strict support verdict. True warrants that this implementation implements the specification denoted by the exact bindingSpec string, as published; false is an unqualified refusal.",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "bindingSpec",
+        "supported"
+      ],
+      "type": "object"
+    },
     "CodegenInput": {
       "additionalProperties": false,
       "properties": {
@@ -1846,7 +1902,7 @@
       "type": "object"
     },
     "DelegateCapability": {
-      "description": "One of ob's three binding-specification handling needs, derived from a minimal operation subset of a published interface: invoke (binding-invoker), synthesize (interface-synthesizer), inspect (source-inspector). A delegate offers whichever subsets it satisfies; operations outside a subset remain independent capabilities.",
+      "description": "One of ob's three binding-specification handling needs, derived from a minimal operation subset of published interfaces: invoke (binding-invoker), synthesize (interface-synthesizer), inspect (source-inspector plus the interface-synthesizer support query). A delegate offers whichever subsets it satisfies; operations outside a subset remain independent capabilities.",
       "enum": [
         "invoke",
         "synthesize",

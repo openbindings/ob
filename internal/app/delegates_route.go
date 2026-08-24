@@ -59,7 +59,10 @@ func synthesizeViaDelegate(ctx context.Context, input *synthesize.SynthesizeInpu
 	if format == "" || BuiltinSupportsFormat(format) {
 		return nil, false, nil // native
 	}
-	chosen := selectDelegate(CapSynthesize, format)
+	chosen, selectionErr := selectDelegate(ctx, CapSynthesize, format)
+	if selectionErr != nil {
+		return nil, true, selectionErr
+	}
 	if chosen == nil || chosen.builtin {
 		return nil, false, nil // no delegate; let the native path report the unsupported format
 	}
@@ -89,7 +92,10 @@ func inspectViaDelegate(ctx context.Context, source *openbindings.Source) (ins *
 	if source == nil || source.BindingSpec == "" || BuiltinSupportsFormat(source.BindingSpec) {
 		return nil, false, nil
 	}
-	chosen := selectDelegate(CapInspect, source.BindingSpec)
+	chosen, selectionErr := selectDelegate(ctx, CapInspect, source.BindingSpec)
+	if selectionErr != nil {
+		return nil, true, selectionErr
+	}
 	if chosen == nil || chosen.builtin {
 		return nil, false, nil
 	}

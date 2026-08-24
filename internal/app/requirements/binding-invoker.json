@@ -21,6 +21,24 @@
                 "bindingSpec"
             ]
         },
+        "BindingSpecVerdict": {
+            "type": "object",
+            "description": "Authoritative support verdict for one exact binding-specification identifier. Future optional fields may annotate this verdict but never qualify or soften supported.",
+            "properties": {
+                "bindingSpec": {
+                    "type": "string",
+                    "description": "Exact binding-specification identifier token as supplied by the caller."
+                },
+                "supported": {
+                    "type": "boolean",
+                    "description": "Strict support verdict. True warrants that this implementation implements the specification denoted by the exact bindingSpec string, as published; false is an unqualified refusal."
+                }
+            },
+            "required": [
+                "bindingSpec",
+                "supported"
+            ]
+        },
         "Source": {
             "type": "object",
             "description": "A binding source (binding-specification identifier plus location or content), as an OpenBindings document carries it. Open to extension fields so a document's source entry forwards verbatim.",
@@ -65,7 +83,7 @@
         },
         "ContextRequirement": {
             "type": "object",
-            "description": "One prerequisite that must be satisfied before a binding can be invoked. `type` names the requirement family; the remaining fields are type-specific. A named well-known `auth.*` requirement resolves at BindingContext.credentials[name]: a string for `auth.bearer` and `auth.apiKey`, a username/password object for `auth.basic`, or an OAuth object beginning with accessToken for `auth.oauth2`. Unnamed or unambiguous single-scheme requirements use the corresponding bearerToken, apiKey, basic, or flat OAuth conveniences; historical apiKeys[name] remains accepted for `auth.apiKey`. OAuth requirements may carry flow fields such as grantType, authorizeUrl, tokenUrl, and scopes. The `config.value` family carries a configuration value a binding needs but the artifact does not supply: it carries 'point' and a relative JSON Pointer 'path' (plus optional 'choices') and resolves within BindingContext.configuration. Other families (e.g. 'approval.user', 'account.link') resolve into their own context fields. Resolution architecture and value secrecy beyond the always-secret credential fields are determined by the requirement family, governing binding specification, and caller.",
+            "description": "One prerequisite that must be satisfied before a binding can be invoked. `type` names the requirement family; the remaining fields are type-specific. A named well-known `auth.*` requirement resolves at BindingContext.credentials[name]: a string for `auth.bearer` and `auth.apiKey`, a username/password object for `auth.basic`, or an OAuth object beginning with accessToken for `auth.oauth2`. Unnamed or unambiguous single-scheme requirements use the corresponding bearerToken, apiKey, basic, or flat OAuth conveniences; historical apiKeys[name] remains accepted for `auth.apiKey`. OAuth requirements may carry flow fields such as grantType, authorizeUrl, tokenUrl, and scopes. The `config.value` family carries a configuration value a binding needs but the artifact does not supply: it carries 'point' and a relative JSON Pointer 'path' (plus an optional engine-asserted 'schema') and resolves within BindingContext.configuration. Other families (e.g. 'approval.user', 'account.link') resolve into their own context fields. Resolution architecture and value secrecy beyond the always-secret credential fields are determined by the requirement family, governing binding specification, and caller.",
             "properties": {
                 "type": {
                     "type": "string",
@@ -83,13 +101,11 @@
                 },
                 "path": {
                     "type": "string",
-                    "pattern": "^(|/(?:[^~]|~[01])*(?:/(?:[^~]|~[01])*)*)$",
                     "description": "config.value only: RFC 6901 JSON Pointer relative to configuration[point]. The empty pointer addresses the whole point; '/variables/region' addresses a nested member; '/value' addresses a member literally named value."
                 },
-                "choices": {
-                    "type": "array",
-                    "items": { "type": "string" },
-                    "description": "config.value only: values declared by the source artifact, suitable for rendering as a picker. Whether an off-list value is valid is defined by the governing binding specification: a closed artifact enum is enforced; an advisory list remains advisory."
+                "schema": {
+                    "type": "object",
+                    "description": "config.value only: an engine-asserted JSON Schema for the value addressed by point and path. Derived from the source artifact where the artifact speaks, supplied by the binding-specification implementation where that specification pins a shape, and absent where nothing does; absence means the value is unconstrained. An 'enum' declares the closed admissible set and satisfaction validates against it; 'examples' are advisory suggestions and an off-list value remains valid."
                 },
                 "description": {
                     "type": "string",
@@ -145,12 +161,12 @@
         },
         "InvocationError": {
             "type": "object",
-            "description": "Minimal unsuccessful-completion record carried by an `error` output frame. The frame kind is the portable failure signal. Only codes named by a rule of this interface, its operation-invoker peer, or the governing binding specification have portable semantics; other strings are open extension or implementation identifiers. Codes defined by either invocation interface are reserved to their defined meanings and MUST NOT be redefined by a binding or implementation. Other governed codes SHOULD use collision-resistant identifiers. ERR_EXECUTION_FAILED is the generic fallback when no more specific governed meaning exists; it means only that the interaction completed unsuccessfully, and carries no protocol category, blame, retryability, side-effect, authentication, authorization, or availability semantics.",
+            "description": "Minimal unsuccessful-completion record carried by an `error` output frame. The frame kind is the portable failure signal. Only codes named by a rule of either invocation interface or the governing binding specification have portable semantics; other strings are open extension or implementation identifiers. Codes defined by either invocation interface are reserved to their defined meanings and MUST NOT be redefined by a binding or implementation. Other governed codes SHOULD use collision-resistant identifiers. ERR_EXECUTION_FAILED is the generic fallback when no more specific governed meaning exists; it means only that the interaction completed unsuccessfully, and carries no protocol category, blame, retryability, side-effect, authentication, authorization, or availability semantics. Dispatch state is carried by the code space itself: ERR_REFUSED (and CONTEXT_REQUIRED, its special case with a resolution path) guarantees that no observable interaction side effect occurred, while ERR_EXECUTION_FAILED makes no dispatch-state claim and MUST be treated as possibly dispatched. An implementation MUST NOT emit ERR_REFUSED unless the guarantee holds. Codes encode interaction-boundary facts of this kind, never cause, blame, or protocol category.",
             "properties": {
                 "code": {
                     "type": "string",
                     "minLength": 1,
-                    "description": "Machine-readable error code. This interface owns CONTEXT_REQUIRED, ERR_CANCELLED, ERR_FRAME_PROTOCOL, ERR_TRANSPORT_CLOSED, and ERR_EXECUTION_FAILED."
+                    "description": "Machine-readable error code. The binding-invoker interface owns CONTEXT_REQUIRED, ERR_CANCELLED, ERR_FRAME_PROTOCOL, ERR_TRANSPORT_CLOSED, ERR_REFUSED, and ERR_EXECUTION_FAILED. The operation-invoker interface owns exactly ERR_OPERATION_NOT_FOUND, ERR_BINDING_NOT_FOUND, ERR_BINDING_SELECTION_REQUIRED, ERR_UNKNOWN_SOURCE, ERR_OPERATION_VALIDATION_FAILED, ERR_SCHEMA_UNRESOLVED, and ERR_TRANSFORM_ERROR."
                 },
                 "data": {
                     "description": "Optional portable JSON data associated with the unsuccessful completion. A rule defining `code` may define its structure and semantics; otherwise, the governing binding specification may use it to preserve an opaque application-authored failure value. For CONTEXT_REQUIRED, this is a ContextRequiredDetails object. Presence is significant: an absent member means no portable associated value, while an explicit null is a present JSON null value. Statuses, headers, trailers, envelopes, raw debugging bytes, exception prose, stacks, and implementation evidence do not belong here unless they are themselves application data under an explicit governing rule."
@@ -315,12 +331,38 @@
     },
     "operations": {
         "openbindings.binding-invoker.listBindingSpecs": {
-            "description": "List the binding specifications this invoker supports, by exact identifier.",
+            "description": "Return an advisory glance at binding specifications this invoker can name, for display, documentation, and pickers. Presence is a support warrant, and every listed identifier MUST receive supported: true from checkBindingSpecs. Absence carries no information and MUST NOT be treated as a negative support decision.",
             "idempotent": true,
             "output": {
                 "type": "array",
                 "items": {
                     "$ref": "#/schemas/BindingSpecInfo"
+                }
+            }
+        },
+        "openbindings.binding-invoker.checkBindingSpecs": {
+            "description": "Authoritatively determine support for exact, opaque binding-specification identifier tokens. This is the only operation a consumer may use to make a support decision such as binding selection, refusal, or delegation. The result contains one verdict per unique input token in first-occurrence order. supported is always a strict boolean; true warrants that this implementation implements the specification the exact string denotes, as published. The result is deterministic for a given implementation version and the operation is side-effect free. An internal pattern may compress the warranted set but MUST NOT extend it: an implementation never answers true for a specification it has not implemented and never matches future revisions by prefix or regular expression. Future optional verdict fields may annotate a verdict but never qualify or soften supported.",
+            "idempotent": true,
+            "input": {
+                "type": "object",
+                "properties": {
+                    "bindingSpecs": {
+                        "type": "array",
+                        "items": {
+                            "type": "string"
+                        },
+                        "description": "Exact, opaque binding-specification identifier tokens to check. The array may be empty."
+                    }
+                },
+                "required": [
+                    "bindingSpecs"
+                ],
+                "additionalProperties": false
+            },
+            "output": {
+                "type": "array",
+                "items": {
+                    "$ref": "#/schemas/BindingSpecVerdict"
                 }
             }
         },

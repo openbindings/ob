@@ -217,6 +217,46 @@ func TestDelegateBindingInvoker_NoUsableBinding(t *testing.T) {
 	}
 }
 
+func TestDelegateBindingInvoker_RequiresExactTransportIdentifiers(t *testing.T) {
+	cases := []struct {
+		name       string
+		bindingSpec string
+		location   string
+		wantRetired bool
+	}{
+		{name: "asyncapi future revision", bindingSpec: "openbindings.asyncapi@10", location: "https://example.test/asyncapi.yaml"},
+		{name: "bare asyncapi", bindingSpec: "asyncapi", location: "https://example.test/asyncapi.yaml"},
+		{name: "usage prefix form", bindingSpec: "usage@1", location: "exec:example"},
+		{name: "bare usage", bindingSpec: "usage", location: "exec:example"},
+		{name: "retired wrapper", bindingSpec: "openbindings.usage@0.1.0", location: "exec:example", wantRetired: true},
+		{name: "retired wrapper adjacent", bindingSpec: "openbindings.usage@0.1.0.future", location: "exec:example"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			resolved := delegates.Resolved{
+				Delegate: "exact-test",
+				Location: "exec:exact-test",
+				OBI: &delegates.ResolvedOBI{Interface: openbindings.Interface{
+					Operations: map[string]openbindings.Operation{
+						"invokeBinding": {Aliases: []string{"openbindings.binding-invoker.invokeBinding"}},
+					},
+					Sources: map[string]openbindings.Source{"transport": {BindingSpec: tc.bindingSpec, Location: tc.location}},
+					Bindings: map[string]openbindings.BindingEntry{
+						"invokeBinding.transport": {Operation: "invokeBinding", Source: "transport"},
+					},
+				}},
+			}
+			_, err := DelegateBindingInvoker(resolved)
+			if err == nil {
+				t.Fatalf("prefix-adjacent transport token %q was silently accepted", tc.bindingSpec)
+			}
+			if gotRetired := strings.Contains(err.Error(), "retired") && strings.Contains(err.Error(), "re-register"); gotRetired != tc.wantRetired {
+				t.Errorf("error = %q, retired migration branch = %v, want %v", err, gotRetired, tc.wantRetired)
+			}
+		})
+	}
+}
+
 func TestResolveFrameEndpoint(t *testing.T) {
 	var ts *httptest.Server
 	mux := http.NewServeMux()
@@ -418,16 +458,26 @@ func TestOpInvoke_ExternalDelegateDisplacesElections(t *testing.T) {
 	// The external delegate's own OBI: invokeBinding bound to a usage source
 	// whose bin is the fixture; `binding invoke` takes --input.
 	usageSpec := "min_usage_version \"2.0.0\"\nname \"ext\"\nbin \"" + cliPath + "\"\n" +
-		"cmd \"binding\" subcommand_required=#true {\n  cmd \"invoke\" {\n    flag \"--input <json>\"\n  }\n}\n"
+		"cmd \"binding\" subcommand_required=#true {\n  cmd \"invoke\" {\n    flag \"--input <json>\"\n  }\n}\n" +
+		"cmd \"binding-specs\" subcommand_required=#true {\n  cmd \"check\" {\n    flag \"--input <json>\"\n  }\n}\n"
 	delegateIface := openbindings.Interface{
 		OpenBindings: "0.2.0",
-		Operations:   map[string]openbindings.Operation{"invokeBinding": {Aliases: []string{"openbindings.binding-invoker.invokeBinding"}}},
-		Sources:      map[string]openbindings.Source{"usage": {BindingSpec: "openbindings.usage@1", Content: openbindings.TextContent(usageSpec)}},
+		Operations: map[string]openbindings.Operation{
+			"invokeBinding":     {Aliases: []string{"openbindings.binding-invoker.invokeBinding"}},
+			"checkBindingSpecs": {Aliases: []string{"openbindings.binding-invoker.checkBindingSpecs"}},
+		},
+		Sources: map[string]openbindings.Source{"usage": {BindingSpec: "openbindings.usage@1", Content: openbindings.TextContent(usageSpec)}},
 		Bindings: map[string]openbindings.BindingEntry{
 			"invokeBinding.usage": {
 				Operation:      "invokeBinding",
 				Source:         "usage",
 				Selector:       "binding invoke",
+				InputTransform: &openbindings.TransformOrRef{Inline: `{ "input": $string($$) }`},
+			},
+			"checkBindingSpecs.usage": {
+				Operation:      "checkBindingSpecs",
+				Source:         "usage",
+				Selector:       "binding-specs check",
 				InputTransform: &openbindings.TransformOrRef{Inline: `{ "input": $string($$) }`},
 			},
 		},
@@ -442,6 +492,7 @@ func TestOpInvoke_ExternalDelegateDisplacesElections(t *testing.T) {
 
 	script := "#!/bin/sh\n" +
 		"if [ \"$1\" = \"--openbindings\" ]; then cat " + delegateOBIFile + "; exit 0; fi\n" +
+		"if [ \"$1\" = \"binding-specs\" ] && [ \"$2\" = \"check\" ]; then printf '[{\"bindingSpec\":\"openbindings.usage@1\",\"supported\":true}]\\n'; exit 0; fi\n" +
 		"if [ \"$1\" = \"binding\" ] && [ \"$2\" = \"invoke\" ]; then printf '{\"delegated\":true}\\n'; exit 0; fi\n" +
 		"echo \"unexpected: $*\" >&2; exit 1\n"
 	if err := os.WriteFile(cliPath, []byte(script), 0o755); err != nil {

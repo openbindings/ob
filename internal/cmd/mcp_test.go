@@ -829,6 +829,10 @@ func (e *echoMockInvoker) BindingSpecs() []openbindings.BindingSpecInfo {
 	return []openbindings.BindingSpecInfo{{BindingSpec: "x-mock", Description: "echo mock"}}
 }
 
+func (e *echoMockInvoker) CheckBindingSpecs(bindingSpecs []string) []openbindings.BindingSpecVerdict {
+	return openbindings.CheckBindingSpecs(bindingSpecs, e.BindingSpecs())
+}
+
 type familyEchoInvoker struct {
 	families []string
 }
@@ -839,6 +843,10 @@ func (e *familyEchoInvoker) BindingSpecs() []openbindings.BindingSpecInfo {
 		out = append(out, openbindings.BindingSpecInfo{BindingSpec: family})
 	}
 	return out
+}
+
+func (e *familyEchoInvoker) CheckBindingSpecs(bindingSpecs []string) []openbindings.BindingSpecVerdict {
+	return openbindings.CheckBindingSpecs(bindingSpecs, e.BindingSpecs())
 }
 
 func (e *familyEchoInvoker) InvokeBinding(ctx context.Context, args *invoke.BindingInvocationArgs) invoke.Invocation[any, any] {

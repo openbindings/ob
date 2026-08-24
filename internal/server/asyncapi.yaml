@@ -353,6 +353,19 @@ components:
                 - bindingSpec
                 - preference
             type: object
+        BindingSpecVerdict:
+            description: Authoritative support verdict for one exact binding-specification identifier. Future optional fields may annotate this verdict but never qualify or soften supported.
+            properties:
+                bindingSpec:
+                    description: Exact binding-specification identifier token as supplied by the caller.
+                    type: string
+                supported:
+                    description: Strict support verdict. True warrants that this implementation implements the specification denoted by the exact bindingSpec string, as published; false is an unqualified refusal.
+                    type: boolean
+            required:
+                - bindingSpec
+                - supported
+            type: object
         CodegenInput:
             additionalProperties: false
             properties:
@@ -698,7 +711,7 @@ components:
                 - bindingSpec
             type: object
         DelegateCapability:
-            description: 'One of ob''s three binding-specification handling needs, derived from a minimal operation subset of a published interface: invoke (binding-invoker), synthesize (interface-synthesizer), inspect (source-inspector). A delegate offers whichever subsets it satisfies; operations outside a subset remain independent capabilities.'
+            description: 'One of ob''s three binding-specification handling needs, derived from a minimal operation subset of published interfaces: invoke (binding-invoker), synthesize (interface-synthesizer), inspect (source-inspector plus the interface-synthesizer support query). A delegate offers whichever subsets it satisfies; operations outside a subset remain independent capabilities.'
             enum:
                 - invoke
                 - synthesize

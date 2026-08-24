@@ -73,6 +73,7 @@ func ServeHTTPRoutes() []ServeRoute {
 	return []ServeRoute{
 		{Method: "get", Path: "/describe", Operation: "describe"},
 		{Method: "get", Path: "/binding-specs", Operation: "listBindingSpecs"},
+		{Method: "post", Path: "/binding-specs/check", Operation: "checkBindingSpecs"},
 		{Method: "post", Path: "/interfaces/resolve", Operation: "resolveInterface"},
 		{Method: "post", Path: "/interfaces/synthesize", Operation: "synthesizeInterface"},
 		{Method: "post", Path: "/sources/inspect", Operation: "inspectSource"},

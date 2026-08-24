@@ -1,6 +1,7 @@
 package app
 
 import (
+	"context"
 	"fmt"
 	"strings"
 )
@@ -49,7 +50,15 @@ func ResolveDelegateForBindingSpec(format string) (*ResolveDelegateForBindingSpe
 	var best *delegateCandidate
 	for i := range candidates {
 		c := &candidates[i]
-		if !c.handles(format) {
+		cap, ok := firstCandidateCapability(c)
+		if !ok {
+			continue
+		}
+		verdicts, err := c.checkBindingSpecs(context.Background(), cap, []string{format})
+		if err != nil {
+			return nil, err
+		}
+		if !verdictSupportSet(verdicts)[format] {
 			continue
 		}
 		if best == nil || delegateLevelPreference(c) > delegateLevelPreference(best) {
@@ -67,6 +76,15 @@ func ResolveDelegateForBindingSpec(format string) (*ResolveDelegateForBindingSpe
 		Builtin:      best.builtin,
 		Capabilities: best.record.Capabilities,
 	}, nil
+}
+
+func firstCandidateCapability(c *delegateCandidate) (DelegateCapability, bool) {
+	for _, cap := range DelegateCapabilities {
+		if c.provides(cap) {
+			return cap, true
+		}
+	}
+	return "", false
 }
 
 // delegateLevelPreference is the candidate's delegate-level preference (the
