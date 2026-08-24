@@ -28,8 +28,8 @@ func TestPullSourceInto_CreateOverwritePruneLeaveAuthored(t *testing.T) {
 			"mine": {Description: "hand-authored"},                            // hand-authored: must survive
 		},
 		Bindings: map[string]openbindings.BindingEntry{
-			"getA.api": sourceOwnedBinding(openbindings.BindingEntry{Operation: "getA", Source: "api", Ref: "getA"}),
-			"getB.api": sourceOwnedBinding(openbindings.BindingEntry{Operation: "getB", Source: "api", Ref: "getB"}),
+			"getA.api": sourceOwnedBinding(openbindings.BindingEntry{Operation: "getA", Source: "api", Selector: "getA"}),
+			"getB.api": sourceOwnedBinding(openbindings.BindingEntry{Operation: "getB", Source: "api", Selector: "getB"}),
 		},
 	}
 	derived := DeriveResult{
@@ -38,8 +38,8 @@ func TestPullSourceInto_CreateOverwritePruneLeaveAuthored(t *testing.T) {
 			"getC": {Description: "fresh"}, // add
 		},
 		Bindings: map[string]openbindings.BindingEntry{
-			"getA.api": {Operation: "getA", Source: "api", Ref: "getA"},
-			"getC.api": {Operation: "getC", Source: "api", Ref: "getC"},
+			"getA.api": {Operation: "getA", Source: "api", Selector: "getA"},
+			"getC.api": {Operation: "getC", Source: "api", Selector: "getC"},
 		},
 	}
 
@@ -128,8 +128,8 @@ func TestPullSourceInto_KeepsOtherTransportBinding(t *testing.T) {
 			"getA": sourceOwnedOp(openbindings.Operation{}),
 		},
 		Bindings: map[string]openbindings.BindingEntry{
-			"getA.api":  sourceOwnedBinding(openbindings.BindingEntry{Operation: "getA", Source: "api", Ref: "getA"}),
-			"getA.grpc": sourceOwnedBinding(openbindings.BindingEntry{Operation: "getA", Source: "grpc", Ref: "GetA"}),
+			"getA.api":  sourceOwnedBinding(openbindings.BindingEntry{Operation: "getA", Source: "api", Selector: "getA"}),
+			"getA.grpc": sourceOwnedBinding(openbindings.BindingEntry{Operation: "getA", Source: "grpc", Selector: "GetA"}),
 		},
 	}
 	// 'api' no longer derives getA.
@@ -260,7 +260,7 @@ cmd "hello" help="Say hello" {}
 			"hello.usage": map[string]any{
 				"operation": "hello",
 				"source":    "usage",
-				"ref":       "hello",
+				"selector":  "hello",
 				"x-ob":      map[string]any{},
 			},
 		},
@@ -427,7 +427,7 @@ func TestPullSourceInto_PreservesAuthoredAliases(t *testing.T) {
 			"listPets": {Description: "list"},
 		},
 		Bindings: map[string]openbindings.BindingEntry{
-			"listPets.api": {Operation: "listPets", Source: "api", Ref: "#/paths/~1pets/get"},
+			"listPets.api": {Operation: "listPets", Source: "api", Selector: "#/paths/~1pets/get"},
 		},
 	}
 	var first SourcePullOutput
@@ -492,7 +492,7 @@ func TestPullSourceInto_AuthorRemovedDerivedTagStaysRemoved(t *testing.T) {
 			"getPet": {Tags: []string{"internal", "pets"}},
 		},
 		Bindings: map[string]openbindings.BindingEntry{
-			"getPet.api": {Operation: "getPet", Source: "api", Ref: "#/paths/~1pets~1{id}/get"},
+			"getPet.api": {Operation: "getPet", Source: "api", Selector: "#/paths/~1pets~1{id}/get"},
 		},
 	}
 	var first SourcePullOutput

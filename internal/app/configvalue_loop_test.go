@@ -34,7 +34,7 @@ func multiServerTargetOBI(t *testing.T, docURL string) string {
     "api": {"bindingSpec": "openbindings.openapi@1", "location": %q}
   },
   "bindings": {
-    "read.http": {"operation": "test.read", "source": "api", "ref": "#/paths/~1data/get"}
+    "read.http": {"operation": "test.read", "source": "api", "selector": "#/paths/~1data/get"}
   }
 }`, docURL)
 	path := filepath.Join(t.TempDir(), "multi-server.obi.json")

@@ -418,17 +418,17 @@ func detectSourceDrift(iface *openbindings.Interface, key, obiDir string, ss *So
 	ss.BindingsUpdated = pull.BindingsUpdated
 	ss.BindingsRemoved = pull.BindingsPruned
 
-	derivedRefs := map[string]bool{}
+	derivedSelectors := map[string]bool{}
 	for _, b := range derived.Bindings {
-		derivedRefs[b.Ref] = true
+		derivedSelectors[b.Selector] = true
 	}
 	var custodial []string
 	for _, b := range iface.Bindings {
 		if b.Source != key || IsSourceOwned(b.LosslessFields) {
 			continue // source-owned bindings are handled by the pull pass above
 		}
-		if !derivedRefs[b.Ref] {
-			custodial = append(custodial, fmt.Sprintf("%s → %s (target gone)", b.Operation, b.Ref))
+		if !derivedSelectors[b.Selector] {
+			custodial = append(custodial, fmt.Sprintf("%s → %s (target gone)", b.Operation, b.Selector))
 		}
 	}
 	sort.Strings(custodial)

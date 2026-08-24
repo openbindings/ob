@@ -27,7 +27,7 @@ func InvokeBindingHandle(ctx context.Context, input InvocationInput) invoke.Invo
 	if input.Source.BindingSpec == "" {
 		return invoke.NewErroredInvocation[any, any](invoke.NewInvocationError(invoke.ErrCodeValidationFailed))
 	}
-	if input.Ref == "" {
+	if input.Selector == "" {
 		return invoke.NewErroredInvocation[any, any](invoke.NewInvocationError(invoke.ErrCodeValidationFailed))
 	}
 
@@ -41,7 +41,7 @@ func InvokeBindingHandle(ctx context.Context, input InvocationInput) invoke.Invo
 			Location:    input.Source.Location,
 			Content:     input.Source.Content,
 		},
-		Ref:       input.Ref,
+		Selector:  input.Selector,
 		Context:   bindCtx,
 		Interface: input.Interface,
 	}
@@ -181,8 +181,8 @@ func PrepareBinding(ctx context.Context, input InvocationInput) (*invoke.Context
 	if input.Source.BindingSpec == "" {
 		return nil, fmt.Errorf("source.bindingSpec is required")
 	}
-	if input.Ref == "" {
-		return nil, fmt.Errorf("ref is required")
+	if input.Selector == "" {
+		return nil, fmt.Errorf("selector is required")
 	}
 	if !BuiltinSupportsFormat(input.Source.BindingSpec) {
 		return nil, nil
@@ -193,7 +193,7 @@ func PrepareBinding(ctx context.Context, input InvocationInput) (*invoke.Context
 			Location:    input.Source.Location,
 			Content:     input.Source.Content,
 		},
-		Ref:     input.Ref,
-		Context: input.Context,
+		Selector: input.Selector,
+		Context:  input.Context,
 	})
 }

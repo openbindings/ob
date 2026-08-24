@@ -709,7 +709,7 @@
       ]
     },
     "openbindings.ob.bindOperation": {
-      "description": "Attach a source ref to an existing operation (preserving the operation's key) and return the modified interface. Warns and optionally scaffolds transform stubs on a shape mismatch.",
+      "description": "Attach a source selector to an existing operation (preserving the operation's key) and return the modified interface. Warns and optionally scaffolds transform stubs on a shape mismatch.",
       "input": {
         "$ref": "#/schemas/BindOperationInput"
       },
@@ -1034,9 +1034,9 @@
       "type": "object",
       "description": "A target admitted by the source's governing binding specification that can be framed as an OpenBindings operation. Any included framing is a sound projection of this same target.",
       "properties": {
-        "ref": {
+        "selector": {
           "type": "string",
-          "description": "Reference string a conforming binding entry can use under the governing binding specification."
+          "description": "Selector string a conforming binding entry can use under the governing binding specification."
         },
         "operationKey": {
           "type": "string",
@@ -1047,7 +1047,7 @@
         }
       },
       "required": [
-        "ref"
+        "selector"
       ]
     },
     "Operation": {
@@ -1681,9 +1681,9 @@
         "source": {
           "$ref": "#/schemas/Source"
         },
-        "ref": {
+        "selector": {
           "type": "string",
-          "description": "Reference within the binding source."
+          "description": "Selector within the binding source."
         },
         "context": {
           "$ref": "#/schemas/BindingContext"
@@ -1691,7 +1691,7 @@
       },
       "required": [
         "source",
-        "ref"
+        "selector"
       ],
       "additionalProperties": false
     },
@@ -2615,9 +2615,9 @@
           "type": "string",
           "description": "The source key this binding invokes."
         },
-        "ref": {
+        "selector": {
           "type": "string",
-          "description": "The binding-specification reference into the source."
+          "description": "The binding-specification selector into the source."
         },
         "preference": {
           "type": "number",
@@ -3258,9 +3258,9 @@
           "type": "string",
           "description": "Registered source key."
         },
-        "ref": {
+        "selector": {
           "type": "string",
-          "description": "Source ref (wire identifier) to bind."
+          "description": "Source selector (wire identifier) to bind."
         },
         "preference": {
           "type": "number",
@@ -3287,7 +3287,7 @@
         "interface",
         "operation",
         "source",
-        "ref"
+        "selector"
       ],
       "additionalProperties": false
     },

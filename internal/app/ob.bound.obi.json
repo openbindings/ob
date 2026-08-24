@@ -3,321 +3,321 @@
     "openbindings.ob.addOperation.usage": {
       "inputTransform": "$merge([{\"obi-path\": $string($$.interface), \"key\": $$.key, \"description\": $$.description, \"alias\": $$.aliases, \"tag\": $$.tags, \"input-schema\": $string($$.input), \"output-schema\": $string($$.output)}, $exists($$.idempotent) ? {\"idempotent\": $string($$.idempotent)} : {}])",
       "operation": "openbindings.ob.addOperation",
-      "ref": "operation add",
+      "selector": "operation add",
       "source": "usage"
     },
     "openbindings.ob.addOperationAlias.usage": {
       "inputTransform": "{\"obi-path\": $string($$.interface), \"operation\": $$.operation, \"alias\": $$.aliases}",
       "operation": "openbindings.ob.addOperationAlias",
-      "ref": "operation alias add",
+      "selector": "operation alias add",
       "source": "usage"
     },
     "openbindings.ob.addSource.usage": {
       "inputTransform": "{ \"input\": $string($$) }",
       "operation": "openbindings.ob.addSource",
-      "ref": "source add",
+      "selector": "source add",
       "source": "usage"
     },
     "openbindings.ob.bindOperation.usage": {
-      "inputTransform": "{\"obi-path\": $string($$.interface), \"operation\": $$.operation, \"source\": $$.source, \"ref\": $$.ref, \"preference\": $string($$.preference), \"input-transform\": $$.inputTransform, \"output-transform\": $$.outputTransform, \"transform-stub\": $$.transformStub, \"force\": $$.force}",
+      "inputTransform": "{\"obi-path\": $string($$.interface), \"operation\": $$.operation, \"source\": $$.source, \"selector\": $$.selector, \"preference\": $string($$.preference), \"input-transform\": $$.inputTransform, \"output-transform\": $$.outputTransform, \"transform-stub\": $$.transformStub, \"force\": $$.force}",
       "operation": "openbindings.ob.bindOperation",
-      "ref": "operation bind",
+      "selector": "operation bind",
       "source": "usage"
     },
     "openbindings.ob.codegen.usage": {
       "inputTransform": "{\"source\": $string($$.interface), \"lang\": $$.language, \"package\": $$.package, \"format\": \"json\"}",
       "operation": "openbindings.ob.codegen",
-      "ref": "codegen",
+      "selector": "codegen",
       "source": "usage"
     },
     "openbindings.ob.compareInterfaces.usage": {
       "inputTransform": "{\"baseline\": $string($$.baseline), \"comparison\": $string($$.comparison), \"from-sources\": $$.fromSources, \"only\": $$.only, \"format\": \"json\"}",
       "operation": "openbindings.ob.compareInterfaces",
-      "ref": "diff",
+      "selector": "diff",
       "source": "usage"
     },
     "openbindings.ob.conform.usage": {
       "inputTransform": "{\"interface\": $string($$.interface), \"target-obi\": $string($$.target), \"dry-run\": $$.dryRun, \"yes\": true, \"format\": \"json\"}",
       "operation": "openbindings.ob.conform",
-      "ref": "conform",
+      "selector": "conform",
       "source": "usage"
     },
     "openbindings.ob.demo.usage": {
       "description": "Foreground process: runs until interrupted. Not meaningfully invoked over the exec lane; the binding exists so the bound OBI is complete.",
       "operation": "openbindings.ob.demo",
-      "ref": "demo",
+      "selector": "demo",
       "source": "usage"
     },
     "openbindings.ob.describe.usage": {
       "inputTransform": "$merge([$type($$) = \"object\" ? $$ : {}, {\"format\": \"json\"}])",
       "operation": "openbindings.ob.describe",
-      "ref": "describe",
+      "selector": "describe",
       "source": "usage"
     },
     "openbindings.ob.detachOperation.usage": {
       "inputTransform": "{\"obi-path\": $string($$.interface), \"operation\": $$.operation}",
       "operation": "openbindings.ob.detachOperation",
-      "ref": "operation detach",
+      "selector": "operation detach",
       "source": "usage"
     },
     "openbindings.ob.getContext.usage": {
       "inputTransform": "{\"url\": $$.key, \"format\": \"json\"}",
       "operation": "openbindings.ob.getContext",
-      "ref": "context get",
+      "selector": "context get",
       "source": "usage"
     },
     "openbindings.ob.getDelegateRequirements.usage": {
       "operation": "openbindings.ob.getDelegateRequirements",
-      "ref": "delegate requirements",
+      "selector": "delegate requirements",
       "source": "usage"
     },
     "openbindings.ob.initializeEnvironment.usage": {
       "inputTransform": "$merge([$type($$) = \"object\" ? $$ : {}, {\"format\": \"json\"}])",
       "operation": "openbindings.ob.initializeEnvironment",
-      "ref": "init",
+      "selector": "init",
       "source": "usage"
     },
     "openbindings.ob.inspectSource.usage": {
       "inputTransform": "{ \"input\": $string($$) }",
       "operation": "openbindings.ob.inspectSource",
-      "ref": "inspect",
+      "selector": "inspect",
       "source": "usage"
     },
     "openbindings.ob.invokeBinding.usage": {
       "description": "Unary realization of the frame contract: --input carries the open payload plus at most one inline input value, and outputs print as JSON values — not frames. The bidirectional frame stream rides the frame lane (ob start).",
       "inputTransform": "{ \"input\": $string($$) }",
       "operation": "openbindings.ob.invokeBinding",
-      "ref": "binding invoke",
+      "selector": "binding invoke",
       "source": "usage"
     },
     "openbindings.ob.invokeOperation.usage": {
       "description": "Unary realization of the frame contract: the CLI takes an interface locator, an operation, and at most one --input value, and prints output values — not frames. The bidirectional frame stream rides the frame lane (ob start).",
       "operation": "openbindings.ob.invokeOperation",
-      "ref": "operation invoke",
+      "selector": "operation invoke",
       "source": "usage"
     },
     "openbindings.ob.listBindingSpecs.usage": {
       "inputTransform": "$merge([$type($$) = \"object\" ? $$ : {}, {\"format\": \"json\"}])",
       "operation": "openbindings.ob.listBindingSpecs",
-      "ref": "binding-specs",
+      "selector": "binding-specs",
       "source": "usage"
     },
     "openbindings.ob.listBindings.usage": {
       "inputTransform": "{\"obi-path\": $string($$.interface), \"operation\": $$.operation, \"format\": \"json\"}",
       "operation": "openbindings.ob.listBindings",
-      "ref": "binding list",
+      "selector": "binding list",
       "source": "usage"
     },
     "openbindings.ob.listContexts.usage": {
       "inputTransform": "$merge([$type($$) = \"object\" ? $$ : {}, {\"format\": \"json\"}])",
       "operation": "openbindings.ob.listContexts",
-      "ref": "context list",
+      "selector": "context list",
       "source": "usage"
     },
     "openbindings.ob.listDelegates.usage": {
       "inputTransform": "$merge([$type($$) = \"object\" ? $$ : {}, {\"format\": \"json\"}])",
       "operation": "openbindings.ob.listDelegates",
-      "ref": "delegate list",
+      "selector": "delegate list",
       "source": "usage"
     },
     "openbindings.ob.listOperationAliases.usage": {
       "inputTransform": "{\"obi\": $string($$.interface), \"operation\": $$.operation, \"format\": \"json\"}",
       "operation": "openbindings.ob.listOperationAliases",
-      "ref": "operation alias list",
+      "selector": "operation alias list",
       "source": "usage"
     },
     "openbindings.ob.listOperations.usage": {
       "inputTransform": "{\"obi\": $string($$.interface), \"tag\": $$.tag, \"format\": \"json\"}",
       "operation": "openbindings.ob.listOperations",
-      "ref": "operation list",
+      "selector": "operation list",
       "source": "usage"
     },
     "openbindings.ob.listSources.usage": {
       "inputTransform": "{\"obi-path\": $string($$.interface), \"format\": \"json\"}",
       "operation": "openbindings.ob.listSources",
-      "ref": "source list",
+      "selector": "source list",
       "source": "usage"
     },
     "openbindings.ob.mergeInterfaces.usage": {
       "inputTransform": "{\"target\": $string($$.target), \"source\": $string($$.source), \"from-sources\": $$.fromSources, \"only\": $$.only, \"op\": $$.operations, \"exclude-op\": $$.excludeOperations, \"ops-only\": $$.opsOnly, \"no-bindings\": $$.noBindings, \"no-sources\": $$.noSources, \"yes\": true, \"format\": \"json\"}",
       "operation": "openbindings.ob.mergeInterfaces",
-      "ref": "merge",
+      "selector": "merge",
       "source": "usage"
     },
     "openbindings.ob.newInterface.usage": {
       "inputTransform": "{\"path\": \"-\", \"name\": $$.name, \"version\": $$.version, \"description\": $$.description, \"spec-version\": $$.openbindings}",
       "operation": "openbindings.ob.newInterface",
-      "ref": "new",
+      "selector": "new",
       "source": "usage"
     },
     "openbindings.ob.prepareBinding.usage": {
       "inputTransform": "{ \"input\": $string($$) }",
       "operation": "openbindings.ob.prepareBinding",
-      "ref": "binding prepare",
+      "selector": "binding prepare",
       "source": "usage"
     },
     "openbindings.ob.prepareOperation.usage": {
       "inputTransform": "{\"obi\": $string($$.interface), \"operation\": $$.operation, \"binding\": $$.binding, \"format\": \"json\"}",
       "operation": "openbindings.ob.prepareOperation",
-      "ref": "operation prepare",
+      "selector": "operation prepare",
       "source": "usage"
     },
     "openbindings.ob.pullSource.usage": {
       "inputTransform": "{\"obi-path\": $string($$.interface), \"source-key\": $$.sourceKeys, \"format\": \"json\"}",
       "operation": "openbindings.ob.pullSource",
-      "ref": "source pull",
+      "selector": "source pull",
       "source": "usage"
     },
     "openbindings.ob.purifyInterface.usage": {
       "inputTransform": "{\"obi-path\": $string($$), \"format\": \"json\"}",
       "operation": "openbindings.ob.purifyInterface",
-      "ref": "purify",
+      "selector": "purify",
       "source": "usage"
     },
     "openbindings.ob.registerDelegate.usage": {
       "inputTransform": "$merge([$sift($$, function($v, $k) { $k != \"preference\" }), $exists($$.preference) ? {\"preference\": $string($$.preference)} : {}, {\"format\": \"json\"}])",
       "operation": "openbindings.ob.registerDelegate",
-      "ref": "delegate register",
+      "selector": "delegate register",
       "source": "usage"
     },
     "openbindings.ob.removeContext.usage": {
       "inputTransform": "{\"url\": $$.key, \"format\": \"json\"}",
       "operation": "openbindings.ob.removeContext",
-      "ref": "context remove",
+      "selector": "context remove",
       "source": "usage"
     },
     "openbindings.ob.removeOperation.usage": {
       "inputTransform": "{\"obi-path\": $string($$.interface), \"key\": $$.keys, \"force\": $$.force}",
       "operation": "openbindings.ob.removeOperation",
-      "ref": "operation remove",
+      "selector": "operation remove",
       "source": "usage"
     },
     "openbindings.ob.removeOperationAlias.usage": {
       "inputTransform": "{\"obi-path\": $string($$.interface), \"operation\": $$.operation, \"alias\": $$.aliases}",
       "operation": "openbindings.ob.removeOperationAlias",
-      "ref": "operation alias remove",
+      "selector": "operation alias remove",
       "source": "usage"
     },
     "openbindings.ob.removeSource.usage": {
       "inputTransform": "{\"obi-path\": $string($$.interface), \"key\": $$.key}",
       "operation": "openbindings.ob.removeSource",
-      "ref": "source remove",
+      "selector": "source remove",
       "source": "usage"
     },
     "openbindings.ob.renameOperation.usage": {
       "inputTransform": "{\"obi-path\": $string($$.interface), \"old-key\": $$.oldKey, \"new-key\": $$.newKey}",
       "operation": "openbindings.ob.renameOperation",
-      "ref": "operation rename",
+      "selector": "operation rename",
       "source": "usage"
     },
     "openbindings.ob.reportCompatibility.usage": {
       "inputTransform": "{\"target\": $string($$.target), \"candidate\": $string($$.candidate), \"format\": \"json\"}",
       "operation": "openbindings.ob.reportCompatibility",
       "outputTransform": "$merge([$$, {\"inputs\": {\n\t\t\t\"left\": $merge([$$.inputs.left, {\"source\": \"\", \"uri\": \"\"}]),\n\t\t\t\"right\": $merge([$$.inputs.right, {\"source\": \"\", \"uri\": \"\"}])\n\t\t}}])",
-      "ref": "compat",
+      "selector": "compat",
       "source": "usage"
     },
     "openbindings.ob.reportEnvironmentStatus.usage": {
       "inputTransform": "$merge([$type($$) = \"object\" ? $$ : {}, {\"format\": \"json\"}])",
       "operation": "openbindings.ob.reportEnvironmentStatus",
-      "ref": "environment",
+      "selector": "environment",
       "source": "usage"
     },
     "openbindings.ob.reportInterfaceStatus.usage": {
       "inputTransform": "{\"obi-path\": $string($$.interface), \"format\": \"json\"}",
       "operation": "openbindings.ob.reportInterfaceStatus",
-      "ref": "status",
+      "selector": "status",
       "source": "usage"
     },
     "openbindings.ob.resolveDelegate.usage": {
       "inputTransform": "$merge([$type($$) = \"object\" ? $$ : {}, {\"format\": \"json\"}])",
       "operation": "openbindings.ob.resolveDelegate",
-      "ref": "delegate resolve",
+      "selector": "delegate resolve",
       "source": "usage"
     },
     "openbindings.ob.resolveDelegateForBindingSpec.usage": {
       "inputTransform": "{\"binding-spec\": $$.bindingSpec, \"format\": \"json\"}",
       "operation": "openbindings.ob.resolveDelegateForBindingSpec",
-      "ref": "delegate resolve-binding-spec",
+      "selector": "delegate resolve-binding-spec",
       "source": "usage"
     },
     "openbindings.ob.resolveInterface.usage": {
       "inputTransform": "$merge([$type($$) = \"object\" ? $$ : {}, {\"format\": \"json\"}])",
       "operation": "openbindings.ob.resolveInterface",
-      "ref": "resolve",
+      "selector": "resolve",
       "source": "usage"
     },
     "openbindings.ob.setContext.usage": {
       "inputTransform": "{\"url\": $$.key, \"value\": $string($$.value)}",
       "operation": "openbindings.ob.setContext",
-      "ref": "context set",
+      "selector": "context set",
       "source": "usage"
     },
     "openbindings.ob.setDelegatePreference.usage": {
       "inputTransform": "$merge([$sift($$, function($v, $k) { $k != \"bindingSpec\" and $k != \"preference\" }), $exists($$.bindingSpec) ? {\"binding-spec\": $$.bindingSpec} : {}, $exists($$.preference) ? {\"preference\": $string($$.preference)} : {}, {\"format\": \"json\"}])",
       "operation": "openbindings.ob.setDelegatePreference",
-      "ref": "delegate prefer",
+      "selector": "delegate prefer",
       "source": "usage"
     },
     "openbindings.ob.setMetadata.usage": {
       "inputTransform": "{\"obi-path\": $string($$.interface), \"name\": $$.name, \"version\": $$.version, \"description\": $$.description}",
       "operation": "openbindings.ob.setMetadata",
-      "ref": "meta set",
+      "selector": "meta set",
       "source": "usage"
     },
     "openbindings.ob.setOperation.usage": {
       "inputTransform": "$merge([{\"obi-path\": $string($$.interface), \"operation\": $$.operation, \"description\": $$.description, \"input-schema\": $string($$.input), \"output-schema\": $string($$.output), \"add-tag\": $$.addTags, \"remove-tag\": $$.removeTags, \"own\": $$.own}, $exists($$.idempotent) ? {\"idempotent\": $string($$.idempotent)} : {}, $exists($$.deprecated) ? {\"deprecated\": $string($$.deprecated)} : {}])",
       "operation": "openbindings.ob.setOperation",
-      "ref": "operation set",
+      "selector": "operation set",
       "source": "usage"
     },
     "openbindings.ob.setOperationCodegenName.usage": {
       "inputTransform": "{\"obi-path\": $string($$.interface), \"operation\": $$.operation, \"name\": $$.codegenName, \"clear\": $$.clear}",
       "operation": "openbindings.ob.setOperationCodegenName",
-      "ref": "operation codegen-name",
+      "selector": "operation codegen-name",
       "source": "usage"
     },
     "openbindings.ob.setOperationOutputSchema.usage": {
       "inputTransform": "{\"obi-path\": $string($$.interface), \"operation\": $$.operation, \"schema\": $string($$.outputSchema), \"clear\": $$.clear}",
       "operation": "openbindings.ob.setOperationOutputSchema",
-      "ref": "operation output-schema",
+      "selector": "operation output-schema",
       "source": "usage"
     },
     "openbindings.ob.startMCPServer.usage": {
       "description": "Foreground process: runs until interrupted. Not meaningfully invoked over the exec lane; the binding exists so the bound OBI is complete.",
       "operation": "openbindings.ob.startMCPServer",
-      "ref": "mcp",
+      "selector": "mcp",
       "source": "usage"
     },
     "openbindings.ob.startServer.usage": {
       "description": "Foreground process: runs until interrupted. Not meaningfully invoked over the exec lane; the binding exists so the bound OBI is complete.",
       "operation": "openbindings.ob.startServer",
-      "ref": "start",
+      "selector": "start",
       "source": "usage"
     },
     "openbindings.ob.synthesizeInterface.usage": {
       "inputTransform": "{ \"input\": $string($$) }",
       "operation": "openbindings.ob.synthesizeInterface",
-      "ref": "synthesize",
+      "selector": "synthesize",
       "source": "usage"
     },
     "openbindings.ob.unbindOperation.usage": {
       "inputTransform": "{\"obi-path\": $string($$.interface), \"operation\": $$.operation, \"source\": $$.source, \"binding\": $$.binding}",
       "operation": "openbindings.ob.unbindOperation",
-      "ref": "operation unbind",
+      "selector": "operation unbind",
       "source": "usage"
     },
     "openbindings.ob.unregisterDelegate.usage": {
       "inputTransform": "$merge([$type($$) = \"object\" ? $$ : {}, {\"format\": \"json\"}])",
       "operation": "openbindings.ob.unregisterDelegate",
-      "ref": "delegate unregister",
+      "selector": "delegate unregister",
       "source": "usage"
     },
     "openbindings.ob.validateInterface.usage": {
       "inputTransform": "{\"locator\": $string($$.interface), \"strict\": $$.strict, \"format\": \"json\"}",
       "operation": "openbindings.ob.validateInterface",
       "outputTransform": "$sift($$, function($v, $k) { $k != \"locator\" })",
-      "ref": "validate",
+      "selector": "validate",
       "source": "usage"
     }
   },
@@ -362,7 +362,7 @@
       ]
     },
     "openbindings.ob.bindOperation": {
-      "description": "Attach a source ref to an existing operation (preserving the operation's key) and return the modified interface. Warns and optionally scaffolds transform stubs on a shape mismatch.",
+      "description": "Attach a source selector to an existing operation (preserving the operation's key) and return the modified interface. Warns and optionally scaffolds transform stubs on a shape mismatch.",
       "input": {
         "$ref": "#/schemas/BindOperationInput"
       },
@@ -1191,8 +1191,8 @@
           "description": "Author preference signal (higher = more preferred); this field does not itself select a binding.",
           "type": "number"
         },
-        "ref": {
-          "description": "Source ref (wire identifier) to bind.",
+        "selector": {
+          "description": "Source selector (wire identifier) to bind.",
           "type": "string"
         },
         "source": {
@@ -1208,7 +1208,7 @@
         "interface",
         "operation",
         "source",
-        "ref"
+        "selector"
       ],
       "type": "object"
     },
@@ -1222,13 +1222,13 @@
           "description": "Suggested operation key for this target.",
           "type": "string"
         },
-        "ref": {
-          "description": "Reference string a conforming binding entry can use under the governing binding specification.",
+        "selector": {
+          "description": "Selector string a conforming binding entry can use under the governing binding specification.",
           "type": "string"
         }
       },
       "required": [
-        "ref"
+        "selector"
       ],
       "type": "object"
     },
@@ -1244,8 +1244,8 @@
         "context": {
           "$ref": "#/schemas/BindingContext"
         },
-        "ref": {
-          "description": "Reference within the binding source.",
+        "selector": {
+          "description": "Selector within the binding source.",
           "type": "string"
         },
         "source": {
@@ -1254,7 +1254,7 @@
       },
       "required": [
         "source",
-        "ref"
+        "selector"
       ],
       "type": "object"
     },
@@ -1416,8 +1416,8 @@
           "description": "The author-declared selection preference, when set.",
           "type": "number"
         },
-        "ref": {
-          "description": "The binding-specification reference into the source.",
+        "selector": {
+          "description": "The binding-specification selector into the source.",
           "type": "string"
         },
         "source": {
@@ -3706,7 +3706,7 @@
   "sources": {
     "usage": {
       "bindingSpec": "openbindings.usage@1",
-      "content": "min_usage_version \"2.0.0\"\nname \"ob\"\nbin \"ob\"\nabout \"OpenBindings CLI\"\n\ncmd \"init\" help=\"Initialize an OpenBindings environment (.openbindings/)\" {\n  flag \"--global\" help=\"Initialize the global environment (user config dir)\"\n  flag \"-o --output <path>\" help=\"Write output to file\"\n  flag \"-F --format <format>\" help=\"Output format: json|yaml|text\"\n}\n\ncmd \"environment\" help=\"Show the active OpenBindings environment\" {\n  alias \"env\"\n  flag \"-o --output <path>\" help=\"Write output to file\"\n  flag \"-F --format <format>\" help=\"Output format: json|yaml|text\"\n}\n\ncmd \"status\" help=\"Report an OBI's drift against its sources (read-only)\" {\n  flag \"--exit-code\" help=\"Exit non-zero if any source has drift (CI gate)\"\n  flag \"-o --output <path>\" help=\"Write output to file\"\n  flag \"-F --format <format>\" help=\"Output format: json|yaml|text\"\n  arg \"<obi-path>\" help=\"Path to the OBI file (- for stdin)\"\n}\n\ncmd \"resolve\" help=\"Resolve an OpenBindings interface from a URL or host\" {\n  flag \"-o --output <path>\" help=\"Write output to file (default: derived from host)\"\n  flag \"-F --format <format>\" help=\"Output format: json|yaml|text (json/yaml prints the resolved interface and its origin to stdout instead of writing a file)\"\n  arg \"<address>\" help=\"Base URL or host (e.g. localhost:8080)\"\n}\n\ncmd \"describe\" help=\"Show ob identity and metadata\" {\n  flag \"-o --output <path>\" help=\"Write output to file\"\n  flag \"-F --format <format>\" help=\"Output format: json|yaml|text\"\n}\n\ncmd \"context\" help=\"Manage binding context (credentials, headers, environment)\" subcommand_required=#true {\n  alias \"ctx\" \"contexts\"\n  cmd \"list\" help=\"List all contexts\" {\n    alias \"ls\"\n    flag \"-o --output <path>\" help=\"Write output to file\"\n    flag \"-F --format <format>\" help=\"Output format: json|yaml|text\"\n  }\n  cmd \"get\" help=\"Get context for a target URL (text masks secrets; JSON is the raw payload)\" {\n    flag \"-o --output <path>\" help=\"Write output to file\"\n    flag \"-F --format <format>\" help=\"Output format: json|yaml|text\"\n    arg \"<url>\" help=\"Target URL\"\n  }\n  cmd \"set\" help=\"Set context fields for a target URL\" {\n    flag \"--bearer-token <token>\" help=\"Bearer token (- for stdin)\"\n    flag \"--api-key <key>\" help=\"API key (- for stdin)\"\n    flag \"--basic\" help=\"Set basic auth (prompts for username and password)\"\n    flag \"--token-provider <locator>\" help=\"Pin a token provider for this target: an interface locator whose openbindings.token-provider.mint keeps this context's bearer token minted automatically\"\n    flag \"--token-credential <credential>\" help=\"Durable credential the pinned provider's mint exchanges (- for stdin)\"\n    flag \"--header <header>\" help=\"Add header as \\\"Key: Value\\\" (repeatable)\" var=#true\n    flag \"--cookie <cookie>\" help=\"Add cookie as \\\"Key=Value\\\" (repeatable)\" var=#true\n    flag \"--env <env>\" help=\"Add env var as \\\"VAR=value\\\" (repeatable)\" var=#true\n    flag \"--meta <meta>\" help=\"Add metadata as \\\"key=value\\\" (repeatable)\" var=#true\n    flag \"--config <config>\" help=\"Set a configuration point as \\\"point=value\\\" (value parsed as JSON, bare string fallback; repeatable)\" var=#true\n    flag \"--from-curl <curl>\" help=\"Import context from a curl command string\"\n    flag \"--value <json>\" help=\"Full Context value as JSON (machine lane; full replacement, keyed by <url>, exclusive with field flags; - reads stdin)\"\n    arg \"[url]\" help=\"Target URL\"\n  }\n  cmd \"remove\" help=\"Remove context for a target URL\" {\n    alias \"rm\"\n    flag \"-o --output <path>\" help=\"Write output to file\"\n    flag \"-F --format <format>\" help=\"Output format: json|yaml|text\"\n    arg \"<url>\" help=\"Target URL\"\n  }\n}\n\ncmd \"delegate\" help=\"Manage delegates\" subcommand_required=#true {\n  alias \"delegates\"\n  cmd \"register\" help=\"Register a delegate\" {\n    alias \"add\"\n    flag \"--preference <num>\" help=\"Initial delegate-level selection preference (higher = more preferred)\"\n    flag \"-o --output <path>\" help=\"Write output to file\"\n    flag \"-F --format <format>\" help=\"Output format: json|yaml|text\"\n    arg \"<location>\" help=\"Delegate location (e.g., exec:my-cli, https://api.example.com)\"\n  }\n  cmd \"unregister\" help=\"Unregister a delegate\" {\n    alias \"remove\" \"rm\"\n    flag \"-o --output <path>\" help=\"Write output to file\"\n    flag \"-F --format <format>\" help=\"Output format: json|yaml|text\"\n    arg \"<location>\" help=\"Delegate location\"\n  }\n  cmd \"list\" help=\"List delegates\" {\n    alias \"ls\"\n    flag \"-o --output <path>\" help=\"Write output to file\"\n    flag \"-F --format <format>\" help=\"Output format: json|yaml|text\"\n  }\n  cmd \"resolve\" help=\"Resolve an operation to the delegates that carry it\" {\n    flag \"-o --output <path>\" help=\"Write output to file\"\n    flag \"-F --format <format>\" help=\"Output format: json|yaml|text\"\n    arg \"<operation>\" help=\"Operation identifier to resolve\"\n  }\n  cmd \"resolve-binding-spec\" help=\"Show which delegate ob's routing would select for a binding specification\" {\n    flag \"-o --output <path>\" help=\"Write output to file\"\n    flag \"-F --format <format>\" help=\"Output format: json|yaml|text\"\n    arg \"<binding-spec>\" help=\"Binding specification identifier to resolve\"\n  }\n  cmd \"requirements\" help=\"Print the interface a delegate must correspond to for a capability\" {\n    arg \"<capability>\" help=\"Capability: invoke, synthesize, or inspect\"\n  }\n  cmd \"prefer\" help=\"Set or clear a delegate's selection preference (higher = more preferred)\" {\n    flag \"--operation <op>\" help=\"Scope to one operation identifier\"\n    flag \"--capability <cap>\" help=\"Shorthand for the operation of an ob capability: invoke, synthesize, or inspect\"\n    flag \"--binding-spec <identifier>\" help=\"Scope an operation entry to one binding specification (requires --operation or --capability)\"\n    flag \"--clear\" help=\"Remove the targeted preference entry instead of setting it\"\n    flag \"-o --output <path>\" help=\"Write output to file\"\n    flag \"-F --format <format>\" help=\"Output format: json|yaml|text\"\n    arg \"<location>\" help=\"Delegate location\"\n    arg \"[preference]\" help=\"Preference value (omit with --clear)\"\n  }\n}\n\ncmd \"binding-specs\" help=\"List the binding specifications this ob instance can handle\" {\n  alias \"binding-spec\"\n  flag \"-o --output <path>\" help=\"Write output to file\"\n  flag \"-F --format <format>\" help=\"Output format: json|yaml|text\"\n}\n\ncmd \"new\" help=\"Create an empty OpenBindings interface document\" {\n  flag \"--name <name>\" help=\"Interface name\"\n  flag \"--version <version>\" help=\"Interface version\"\n  flag \"--description <desc>\" help=\"Interface description\"\n  flag \"--spec-version <version>\" help=\"Target OpenBindings spec version (default: latest tested)\"\n  flag \"--force\" help=\"Overwrite an existing file\"\n  flag \"-o --output <path>\" help=\"Write output to file\"\n  flag \"-F --format <format>\" help=\"Output format: json|yaml|text\"\n  arg \"<path>\" help=\"Path for the new OBI file (- writes the document to stdout)\"\n}\n\ncmd \"meta\" help=\"Manage interface-level metadata\" subcommand_required=#true {\n  cmd \"set\" help=\"Edit interface metadata (name, version, description)\" {\n    flag \"--name <name>\" help=\"Set the interface name\"\n    flag \"--version <version>\" help=\"Set the interface version\"\n    flag \"--description <desc>\" help=\"Set the interface description\"\n    flag \"-o --output <path>\" help=\"Write output to file\"\n    flag \"-F --format <format>\" help=\"Output format: json|yaml|text\"\n    arg \"<obi-path>\" help=\"Path to the OBI file (- reads stdin and writes the modified document to stdout)\"\n  }\n}\n\ncmd \"inspect\" help=\"Inspect a binding source and list its bindable targets\" {\n  flag \"--input <json>\" help=\"InspectSourceInput as a JSON string (machine lane; exclusive with <source>)\"\n  flag \"-o --output <path>\" help=\"Write output to file\"\n  flag \"-F --format <format>\" help=\"Output format: json|yaml|text\"\n  arg \"[source]\" help=\"Binding source as [format:]path[?options] (e.g., openapi.json; path - reads the artifact from stdin)\"\n}\n\ncmd \"synthesize\" help=\"Synthesize an interface from binding sources\" {\n  flag \"--name <name>\" help=\"Interface name\"\n  flag \"--version <version>\" help=\"Interface version\"\n  flag \"--description <desc>\" help=\"Interface description\"\n  flag \"--spec-version <version>\" help=\"Target OpenBindings spec version (default: latest tested)\"\n  flag \"--input <json>\" help=\"SynthesizeInterfaceInput as a JSON string (machine lane; exclusive with sources and metadata flags)\"\n  flag \"-o --output <path>\" help=\"Write output to file\"\n  flag \"-F --format <format>\" help=\"Output format: json|yaml|text\"\n  arg \"[source]...\" help=\"Binding sources as [format:]path[?options] (none: empty interface; path - reads the artifact from stdin)\"\n}\n\ncmd \"source\" help=\"Manage source references on an OBI\" subcommand_required=#true {\n  alias \"src\" \"sources\"\n  cmd \"add\" help=\"Register a source reference on an OBI\" {\n    flag \"--input <json>\" help=\"AddSourceInput as a JSON string (machine lane; exclusive with positional arguments and source flags)\"\n    flag \"--key <name>\" help=\"Explicit source key (default: derived from format and path)\"\n    flag \"--resolve <mode>\" help=\"Resolution mode: content (default for local files) or location (default for URLs)\"\n    flag \"--uri <url>\" help=\"Explicit published URI for location mode\"\n    flag \"--delegate <delegate>\" help=\"Delegate to use for this source (skips detection)\"\n    flag \"--description <desc>\" help=\"Human-readable description for this source\"\n    flag \"-y --yes\" help=\"Accept first capable delegate without prompting\"\n    flag \"-o --output <path>\" help=\"Write output to file\"\n    flag \"-F --format <format>\" help=\"Output format: json|yaml|text\"\n    arg \"[obi-path]\" help=\"Path to the OBI file (- reads stdin and writes the modified document to stdout)\"\n    arg \"[source]\" help=\"Source path or bindingSpec:path (e.g., openapi.json or openbindings.usage@1:./cli.kdl)\"\n  }\n  cmd \"pull\" help=\"Derive operations and bindings from registered sources\" {\n    flag \"--pure\" help=\"Strip x-ob metadata from the output (publish-clean); requires -o\"\n    flag \"-o --output <path>\" help=\"Write output to file\"\n    flag \"-F --format <format>\" help=\"Output format: json|yaml|text\"\n    arg \"<obi-path>\" help=\"Path to the OBI file (- reads stdin and writes the modified document to stdout)\"\n    arg \"[source-key]...\" help=\"Sources to pull (default: all)\"\n  }\n  cmd \"list\" help=\"List source references on an OBI\" {\n    alias \"ls\"\n    flag \"-o --output <path>\" help=\"Write output to file\"\n    flag \"-F --format <format>\" help=\"Output format: json|yaml|text\"\n    arg \"<obi-path>\" help=\"Path to the OBI file (- for stdin)\"\n  }\n  cmd \"remove\" help=\"Remove a source reference from an OBI\" {\n    alias \"rm\"\n    flag \"-o --output <path>\" help=\"Write output to file\"\n    flag \"-F --format <format>\" help=\"Output format: json|yaml|text\"\n    arg \"<obi-path>\" help=\"Path to the OBI file (- reads stdin and writes the modified document to stdout)\"\n    arg \"<key>\" help=\"Source key to remove\"\n  }\n}\n\ncmd \"operation\" help=\"Manage and invoke operations on an OBI\" subcommand_required=#true {\n  alias \"op\" \"operations\"\n  cmd \"add\" help=\"Add a new operation to an OBI\" {\n    flag \"--description <desc>\" help=\"Operation description\"\n    flag \"--alias <alias>\" help=\"Correspondence alias: another interface's operation key this operation also answers to (repeatable)\" var=#true\n    flag \"--tag <tag>\" help=\"Operation tag (repeatable)\" var=#true\n    flag \"--input-schema <schema>\" help=\"Input schema: inline JSON, @file, or - for stdin\"\n    flag \"--output-schema <schema>\" help=\"Output schema: inline JSON, @file, or - for stdin\"\n    flag \"--idempotent <bool>\" help=\"Whether the operation is idempotent (true/false)\"\n    flag \"-o --output <path>\" help=\"Write output to file\"\n    flag \"-F --format <format>\" help=\"Output format: json|yaml|text\"\n    arg \"<obi-path>\" help=\"Path to the OBI file (- reads stdin and writes the modified document to stdout)\"\n    arg \"<key>\" help=\"Key for the new operation\"\n  }\n  cmd \"alias\" help=\"Manage an operation's correspondence aliases\" subcommand_required=#true {\n    alias \"aliases\"\n    cmd \"add\" help=\"Add correspondence alias(es) to an operation\" {\n      flag \"-o --output <path>\" help=\"Write output to file\"\n      flag \"-F --format <format>\" help=\"Output format: json|yaml|text\"\n      arg \"<obi-path>\" help=\"Path to the OBI file (- reads stdin and writes the modified document to stdout)\"\n      arg \"<operation>\" help=\"Operation key or identifier\"\n      arg \"<alias>...\" help=\"Correspondence alias(es) to add\"\n    }\n    cmd \"remove\" help=\"Remove correspondence alias(es) from an operation\" {\n      alias \"rm\"\n      flag \"-o --output <path>\" help=\"Write output to file\"\n      flag \"-F --format <format>\" help=\"Output format: json|yaml|text\"\n      arg \"<obi-path>\" help=\"Path to the OBI file (- reads stdin and writes the modified document to stdout)\"\n      arg \"<operation>\" help=\"Operation key or identifier\"\n      arg \"<alias>...\" help=\"Correspondence alias(es) to remove\"\n    }\n    cmd \"list\" help=\"Show the correspondence map (which ops correspond to which interfaces)\" {\n      alias \"ls\"\n      flag \"-o --output <path>\" help=\"Write output to file\"\n      flag \"-F --format <format>\" help=\"Output format: json|yaml|text\"\n      arg \"<obi>\" help=\"OBI locator (file path, URL, exec: reference, or - for stdin)\"\n      arg \"[operation]\" help=\"Scope to a single operation\"\n    }\n  }\n  cmd \"set\" help=\"Edit an existing operation\" {\n    flag \"--description <desc>\" help=\"Set the operation description\"\n    flag \"--idempotent <bool>\" help=\"Set whether the operation is idempotent (true/false)\"\n    flag \"--deprecated <bool>\" help=\"Set whether the operation is deprecated (true/false)\"\n    flag \"--input-schema <schema>\" help=\"Set input schema: inline JSON, @file, or - for stdin\"\n    flag \"--output-schema <schema>\" help=\"Set output schema: inline JSON, @file, or - for stdin\"\n    flag \"--add-tag <tag>\" help=\"Add a tag (repeatable)\" var=#true\n    flag \"--remove-tag <tag>\" help=\"Remove a tag (repeatable)\" var=#true\n    flag \"--own\" help=\"Take ownership of a source-owned operation (detach) before editing\"\n    flag \"-o --output <path>\" help=\"Write output to file\"\n    flag \"-F --format <format>\" help=\"Output format: json|yaml|text\"\n    arg \"<obi-path>\" help=\"Path to the OBI file (- reads stdin and writes the modified document to stdout)\"\n    arg \"<operation>\" help=\"Operation key or identifier\"\n  }\n  cmd \"detach\" help=\"Convert a source-owned operation to hand-authored\" {\n    flag \"-o --output <path>\" help=\"Write output to file\"\n    flag \"-F --format <format>\" help=\"Output format: json|yaml|text\"\n    arg \"<obi-path>\" help=\"Path to the OBI file (- reads stdin and writes the modified document to stdout)\"\n    arg \"<operation>\" help=\"Operation key or identifier\"\n  }\n  cmd \"codegen-name\" help=\"Set the symbol name 'ob codegen' emits for an operation\" {\n    flag \"--clear\" help=\"Remove the codegen-name override\"\n    flag \"-o --output <path>\" help=\"Write output to file\"\n    flag \"-F --format <format>\" help=\"Output format: json|yaml|text\"\n    arg \"<obi-path>\" help=\"Path to the OBI file (- reads stdin and writes the modified document to stdout)\"\n    arg \"<operation>\" help=\"Operation key or identifier\"\n    arg \"[name]\" help=\"New codegen symbol name (omit with --clear)\"\n  }\n  cmd \"output-schema\" help=\"Set an operation's output schema when its source can't declare one\" {\n    flag \"--clear\" help=\"Remove the output-schema override\"\n    flag \"-o --output <path>\" help=\"Write output to file\"\n    flag \"-F --format <format>\" help=\"Output format: json|yaml|text\"\n    arg \"<obi-path>\" help=\"Path to the OBI file (- reads stdin and writes the modified document to stdout)\"\n    arg \"<operation>\" help=\"Operation key or identifier\"\n    arg \"[schema]\" help=\"Output schema: inline JSON, @file, or - for stdin (omit with --clear)\"\n  }\n  cmd \"bind\" help=\"Attach a source ref to an existing operation\" {\n    flag \"--transform-stub\" help=\"Scaffold identity transform stub(s) on shape mismatch\"\n    flag \"--input-transform <jsonata>\" help=\"Inline JSONata transforming operation input to binding input\"\n    flag \"--output-transform <jsonata>\" help=\"Inline JSONata transforming binding output to operation output\"\n    flag \"--preference <num>\" help=\"Author preference signal (higher = more preferred; does not select automatically)\"\n    flag \"--force\" help=\"Overwrite an existing binding for this operation+source (re-point)\"\n    flag \"-o --output <path>\" help=\"Write output to file\"\n    flag \"-F --format <format>\" help=\"Output format: json|yaml|text\"\n    arg \"<obi-path>\" help=\"Path to the OBI file (- reads stdin and writes the modified document to stdout)\"\n    arg \"[operation]\" help=\"Operation key or identifier\"\n    arg \"[source]\" help=\"Source key\"\n    arg \"[ref]\" help=\"Source ref to bind\"\n  }\n  cmd \"unbind\" help=\"Remove a binding from an operation (keep the operation)\" {\n    flag \"-o --output <path>\" help=\"Write output to file\"\n    flag \"-F --format <format>\" help=\"Output format: json|yaml|text\"\n    flag \"--binding <key>\" help=\"Exact binding key to remove (operation and source are not required)\"\n    arg \"<obi-path>\" help=\"Path to the OBI file (- reads stdin and writes the modified document to stdout)\"\n    arg \"[operation]\" help=\"Operation key or identifier\"\n    arg \"[source]\" help=\"Source key whose binding to remove\"\n  }\n  cmd \"invoke\" help=\"Invoke an operation via a binding\" {\n    flag \"--binding <key>\" help=\"Binding key to invoke (operation is derived from the entry)\"\n    flag \"--select-binding <key>\" help=\"Ordered binding choice for this and nested operations (repeatable)\" var=#true\n    flag \"--input <value>\" help=\"Operation input: inline JSON, @file, or - for stdin\"\n    flag \"-v --verbose\" help=\"Show binding key, duration, and any displaced output-schema overrides on stderr\"\n    arg \"<obi>\" help=\"OBI locator (file path, URL, exec: reference, or - for stdin)\"\n    arg \"[operation]\" help=\"Operation key to invoke\"\n  }\n  cmd \"prepare\" help=\"Preflight an operation's required context without invoking it\" {\n    flag \"--binding <key>\" help=\"Binding key to preflight (operation is derived from the entry)\"\n    flag \"--select-binding <key>\" help=\"Ordered binding choice (repeatable)\" var=#true\n    flag \"--configuration <json>\" help=\"Binding-spec configuration object: inline JSON, @file, or - for stdin\"\n    flag \"-o --output <path>\" help=\"Write output to file\"\n    flag \"-F --format <format>\" help=\"Output format: json|yaml|text\"\n    arg \"<obi>\" help=\"OBI locator (file path, URL, exec: reference, or - for stdin)\"\n    arg \"[operation]\" help=\"Operation key to preflight\"\n  }\n  cmd \"list\" help=\"List operations on an OBI\" {\n    alias \"ls\"\n    flag \"--tag <tag>\" help=\"Filter operations by tag\"\n    flag \"-o --output <path>\" help=\"Write output to file\"\n    flag \"-F --format <format>\" help=\"Output format: json|yaml|text\"\n    arg \"<obi>\" help=\"OBI locator (file path, URL, exec: reference, or - for stdin)\"\n  }\n  cmd \"rename\" help=\"Rename an operation and update all references\" {\n    alias \"mv\"\n    flag \"-o --output <path>\" help=\"Write output to file\"\n    flag \"-F --format <format>\" help=\"Output format: json|yaml|text\"\n    arg \"<obi-path>\" help=\"Path to the OBI file (- reads stdin and writes the modified document to stdout)\"\n    arg \"<old-key>\" help=\"Current operation key\"\n    arg \"<new-key>\" help=\"New operation key\"\n  }\n  cmd \"remove\" help=\"Remove operations and their bindings from an OBI\" {\n    alias \"rm\"\n    flag \"--force\" help=\"Remove source-owned operations without warning\"\n    flag \"-o --output <path>\" help=\"Write output to file\"\n    flag \"-F --format <format>\" help=\"Output format: json|yaml|text\"\n    arg \"<obi-path>\" help=\"Path to the OBI file (- reads stdin and writes the modified document to stdout)\"\n    arg \"<key>...\" help=\"Operation keys to remove\"\n  }\n}\n\ncmd \"binding\" help=\"Low-level binding operations\" subcommand_required=#true {\n  cmd \"invoke\" help=\"Invoke a binding directly, below the operation layer\" {\n    flag \"--input <json>\" help=\"Binding input value (with positional args), or a BindingInvocationInput envelope (machine lane)\"\n    arg \"[obi-path]\" help=\"OBI document to resolve the binding from\"\n    arg \"[binding-key]\" help=\"Binding key to invoke (output is exactly what the source returned: decoded, not reshaped by the operation's output transform, and unvalidated)\"\n  }\n  cmd \"prepare\" help=\"Preflight a resolved binding (machine-to-machine)\" {\n    flag \"--input <json>\" help=\"BindingInvocationInput as a JSON string\"\n  }\n  cmd \"list\" help=\"List the bindings an OBI declares (optionally for one operation)\" {\n    alias \"ls\"\n    flag \"-o --output <path>\" help=\"Write output to file\"\n    flag \"-F --format <format>\" help=\"Output format: json|yaml|text\"\n    arg \"<obi-path>\" help=\"Path to the OBI file (- for stdin)\"\n    arg \"[operation]\" help=\"Filter to bindings of one operation\"\n  }\n}\n\ncmd \"diff\" help=\"Structural comparison of two OBIs\" {\n  flag \"--from-sources\" help=\"Compare against what binding sources produce\"\n  flag \"--only <key>\" help=\"Scope to a specific source key (requires --from-sources)\"\n  flag \"-q --quiet\" help=\"Exit code only, no output\"\n  flag \"-o --output <path>\" help=\"Write output to file\"\n  flag \"-F --format <format>\" help=\"Output format: json|yaml|text\"\n  arg \"<baseline>\" help=\"Baseline OBI (file path, URL, exec: locator, or - for stdin)\"\n  arg \"[comparison]\" help=\"Comparison OBI (omit with --from-sources)\"\n}\n\ncmd \"merge\" help=\"Selectively apply changes from one OBI into another\" {\n  flag \"--from-sources\" help=\"Derive from the target's binding sources\"\n  flag \"--only <key>\" help=\"Scope to a specific source key (requires --from-sources)\"\n  flag \"--all\" help=\"Apply all changes (batch mode)\"\n  flag \"--dry-run\" help=\"Preview changes without writing\"\n  flag \"-y --yes\" help=\"Auto-accept all prompts\"\n  flag \"--out <path>\" help=\"Write to alternate path instead of target\"\n  flag \"--op <key>\" help=\"Only merge this operation (repeatable)\" var=#true\n  flag \"--exclude-op <key>\" help=\"Exclude this operation from merge (repeatable)\" var=#true\n  flag \"--ops-only\" help=\"Graft operations only (no bindings or source entries)\"\n  flag \"--no-bindings\" help=\"Don't graft bindings (operations and their sources still come)\"\n  flag \"--no-sources\" help=\"Don't graft source entries (operations and bindings still come)\"\n  flag \"-o --output <path>\" help=\"Write output to file\"\n  flag \"-F --format <format>\" help=\"Output format: json|yaml|text\"\n  arg \"<target>\" help=\"Target OBI to merge into\"\n  arg \"[source]\" help=\"Source OBI (omit with --from-sources)\"\n}\n\ncmd \"validate\" help=\"Validate an OpenBindings interface document\" {\n  flag \"-q --quiet\" help=\"Exit code only, no output\"\n  flag \"--strict\" help=\"Additionally reject unknown (non-x-) fields\"\n  flag \"-o --output <path>\" help=\"Write output to file\"\n  flag \"-F --format <format>\" help=\"Output format: json|yaml|text\"\n  arg \"<locator>\" help=\"File path, HTTP(S) URL, exec: locator, or - for stdin\"\n}\n\ncmd \"compat\" help=\"Check interface conformance between two interfaces\" {\n  flag \"-q --quiet\" help=\"Exit code only, no output\"\n  flag \"-o --output <path>\" help=\"Write output to file\"\n  flag \"-F --format <format>\" help=\"Output format: json|yaml|text\"\n  arg \"<target>\" help=\"Target interface (locator, or - for stdin)\"\n  arg \"<candidate>\" help=\"Candidate interface (locator)\"\n}\n\ncmd \"conform\" help=\"Scaffold or update operations so the target corresponds to another interface\" {\n  flag \"-y --yes\" help=\"Auto-accept all scaffolding and replacements\"\n  flag \"--dry-run\" help=\"Preview changes without modifying files\"\n  flag \"-o --output <path>\" help=\"Write output to file\"\n  flag \"-F --format <format>\" help=\"Output format: json|yaml|text\"\n  arg \"<interface>\" help=\"Reference interface to correspond to (locator)\"\n  arg \"<target-obi>\" help=\"Target OBI to scaffold into\"\n}\n\ncmd \"purify\" help=\"Strip x-ob vendor metadata, yielding a spec-only interface\" {\n  flag \"--check\" help=\"Check purity without writing: exit 1 and list x-ob locations if anything would be stripped\"\n  flag \"-o --output <path>\" help=\"Write output to file\"\n  flag \"-F --format <format>\" help=\"Output format: json|yaml|text\"\n  arg \"<obi-path>\" help=\"Interface to purify (file path, or - for stdin)\"\n}\n\ncmd \"codegen\" help=\"Generate a typed invoker from an interface\" {\n  flag \"-l --lang <language>\" help=\"Target language: typescript or go (required)\"\n  flag \"-o --output <path>\" help=\"Output file path (default: stdout)\"\n  flag \"--package <name>\" help=\"Go package name (default: derived from interface name)\"\n  flag \"-F --format <format>\" help=\"Output format: text (raw code, default) | json|yaml (CodegenOutput envelope)\"\n  arg \"<source>\" help=\"Interface to generate from (file path, URL, or - for stdin)\"\n}\n\ncmd \"mcp\" help=\"Serve an interface or raw artifact as an MCP server\" {\n  flag \"--transport <transport>\" help=\"Transport: stdio or http (default: stdio)\"\n  flag \"--port <port>\" help=\"HTTP port (when transport is http, default: 8080)\"\n  flag \"--name <name>\" help=\"MCP server name (default: ob-mcp)\"\n  flag \"--token <token>\" help=\"Bearer token for authenticating to target servers (also: OB_TOKEN)\"\n  flag \"--token-file <path>\" help=\"Read Bearer token from file\"\n  flag \"--tool-timeout <duration>\" help=\"Bound on a single bridged tool call (MCP tools are request-scoped; a subscription-style operation cannot complete as a tool)\"\n  flag \"--context <json>\" help=\"Invocation context JSON object or @file (credentials, headers, cookies, extensions)\"\n  flag \"--configuration <json>\" help=\"Binding-spec configuration JSON object or @file\"\n  flag \"--select-binding <binding>\" help=\"Ordered binding choice for this and nested operations (repeatable)\" var=#true\n  flag \"--require-complete-coverage\" help=\"Refuse synthesized raw artifacts unless coverage is exhaustive and fully represented\"\n  flag \"--coverage-report <path>\" help=\"Write synthesis coverage evidence to a JSON file\"\n  arg \"<interface-or-artifact>\" help=\"OBI locator or raw artifact to expose as an MCP server\"\n}\n\ncmd \"start\" help=\"Start a local server exposing ob operations (HTTP, WebSocket)\" {\n  flag \"-p --port <port>\" help=\"Port to listen on (default: 20290 = 0x4F42, ASCII OB)\"\n  flag \"--strict-port\" help=\"Fail instead of falling back to a nearby port when --port is busy\"\n  flag \"--allow-origin <origin>\" help=\"Allowed CORS origin (repeatable)\" var=#true\n  flag \"--token <token>\" help=\"Pre-shared session token (also: OB_START_TOKEN env var)\"\n  flag \"--token-file <path>\" help=\"Write session token to file instead of stderr\"\n  flag \"--tls\" help=\"Also serve HTTPS using a local CA (does not modify system trust)\"\n  flag \"--trust-local-ca\" help=\"Install the local HTTPS CA into system trust (implies --tls; may prompt)\"\n  flag \"--open\" help=\"Open the authenticated workbench in the default browser\"\n  flag \"-v --verbose\" help=\"Show request and invocation logs\"\n}\n\ncmd \"demo\" help=\"Start the OpenBlendings demo server (one interface, six protocols)\" {\n  flag \"-p --port <port>\" help=\"HTTP server port (default: 8080)\"\n  flag \"--grpc-port <port>\" help=\"gRPC server port (default: 9090)\"\n}\n"
+      "content": "min_usage_version \"2.0.0\"\nname \"ob\"\nbin \"ob\"\nabout \"OpenBindings CLI\"\n\ncmd \"init\" help=\"Initialize an OpenBindings environment (.openbindings/)\" {\n  flag \"--global\" help=\"Initialize the global environment (user config dir)\"\n  flag \"-o --output <path>\" help=\"Write output to file\"\n  flag \"-F --format <format>\" help=\"Output format: json|yaml|text\"\n}\n\ncmd \"environment\" help=\"Show the active OpenBindings environment\" {\n  alias \"env\"\n  flag \"-o --output <path>\" help=\"Write output to file\"\n  flag \"-F --format <format>\" help=\"Output format: json|yaml|text\"\n}\n\ncmd \"status\" help=\"Report an OBI's drift against its sources (read-only)\" {\n  flag \"--exit-code\" help=\"Exit non-zero if any source has drift (CI gate)\"\n  flag \"-o --output <path>\" help=\"Write output to file\"\n  flag \"-F --format <format>\" help=\"Output format: json|yaml|text\"\n  arg \"<obi-path>\" help=\"Path to the OBI file (- for stdin)\"\n}\n\ncmd \"resolve\" help=\"Resolve an OpenBindings interface from a URL or host\" {\n  flag \"-o --output <path>\" help=\"Write output to file (default: derived from host)\"\n  flag \"-F --format <format>\" help=\"Output format: json|yaml|text (json/yaml prints the resolved interface and its origin to stdout instead of writing a file)\"\n  arg \"<address>\" help=\"Base URL or host (e.g. localhost:8080)\"\n}\n\ncmd \"describe\" help=\"Show ob identity and metadata\" {\n  flag \"-o --output <path>\" help=\"Write output to file\"\n  flag \"-F --format <format>\" help=\"Output format: json|yaml|text\"\n}\n\ncmd \"context\" help=\"Manage binding context (credentials, headers, environment)\" subcommand_required=#true {\n  alias \"ctx\" \"contexts\"\n  cmd \"list\" help=\"List all contexts\" {\n    alias \"ls\"\n    flag \"-o --output <path>\" help=\"Write output to file\"\n    flag \"-F --format <format>\" help=\"Output format: json|yaml|text\"\n  }\n  cmd \"get\" help=\"Get context for a target URL (text masks secrets; JSON is the raw payload)\" {\n    flag \"-o --output <path>\" help=\"Write output to file\"\n    flag \"-F --format <format>\" help=\"Output format: json|yaml|text\"\n    arg \"<url>\" help=\"Target URL\"\n  }\n  cmd \"set\" help=\"Set context fields for a target URL\" {\n    flag \"--bearer-token <token>\" help=\"Bearer token (- for stdin)\"\n    flag \"--api-key <key>\" help=\"API key (- for stdin)\"\n    flag \"--basic\" help=\"Set basic auth (prompts for username and password)\"\n    flag \"--token-provider <locator>\" help=\"Pin a token provider for this target: an interface locator whose openbindings.token-provider.mint keeps this context's bearer token minted automatically\"\n    flag \"--token-credential <credential>\" help=\"Durable credential the pinned provider's mint exchanges (- for stdin)\"\n    flag \"--header <header>\" help=\"Add header as \\\"Key: Value\\\" (repeatable)\" var=#true\n    flag \"--cookie <cookie>\" help=\"Add cookie as \\\"Key=Value\\\" (repeatable)\" var=#true\n    flag \"--env <env>\" help=\"Add env var as \\\"VAR=value\\\" (repeatable)\" var=#true\n    flag \"--meta <meta>\" help=\"Add metadata as \\\"key=value\\\" (repeatable)\" var=#true\n    flag \"--config <config>\" help=\"Set a configuration point as \\\"point=value\\\" (value parsed as JSON, bare string fallback; repeatable)\" var=#true\n    flag \"--from-curl <curl>\" help=\"Import context from a curl command string\"\n    flag \"--value <json>\" help=\"Full Context value as JSON (machine lane; full replacement, keyed by <url>, exclusive with field flags; - reads stdin)\"\n    arg \"[url]\" help=\"Target URL\"\n  }\n  cmd \"remove\" help=\"Remove context for a target URL\" {\n    alias \"rm\"\n    flag \"-o --output <path>\" help=\"Write output to file\"\n    flag \"-F --format <format>\" help=\"Output format: json|yaml|text\"\n    arg \"<url>\" help=\"Target URL\"\n  }\n}\n\ncmd \"delegate\" help=\"Manage delegates\" subcommand_required=#true {\n  alias \"delegates\"\n  cmd \"register\" help=\"Register a delegate\" {\n    alias \"add\"\n    flag \"--preference <num>\" help=\"Initial delegate-level selection preference (higher = more preferred)\"\n    flag \"-o --output <path>\" help=\"Write output to file\"\n    flag \"-F --format <format>\" help=\"Output format: json|yaml|text\"\n    arg \"<location>\" help=\"Delegate location (e.g., exec:my-cli, https://api.example.com)\"\n  }\n  cmd \"unregister\" help=\"Unregister a delegate\" {\n    alias \"remove\" \"rm\"\n    flag \"-o --output <path>\" help=\"Write output to file\"\n    flag \"-F --format <format>\" help=\"Output format: json|yaml|text\"\n    arg \"<location>\" help=\"Delegate location\"\n  }\n  cmd \"list\" help=\"List delegates\" {\n    alias \"ls\"\n    flag \"-o --output <path>\" help=\"Write output to file\"\n    flag \"-F --format <format>\" help=\"Output format: json|yaml|text\"\n  }\n  cmd \"resolve\" help=\"Resolve an operation to the delegates that carry it\" {\n    flag \"-o --output <path>\" help=\"Write output to file\"\n    flag \"-F --format <format>\" help=\"Output format: json|yaml|text\"\n    arg \"<operation>\" help=\"Operation identifier to resolve\"\n  }\n  cmd \"resolve-binding-spec\" help=\"Show which delegate ob's routing would select for a binding specification\" {\n    flag \"-o --output <path>\" help=\"Write output to file\"\n    flag \"-F --format <format>\" help=\"Output format: json|yaml|text\"\n    arg \"<binding-spec>\" help=\"Binding specification identifier to resolve\"\n  }\n  cmd \"requirements\" help=\"Print the interface a delegate must correspond to for a capability\" {\n    arg \"<capability>\" help=\"Capability: invoke, synthesize, or inspect\"\n  }\n  cmd \"prefer\" help=\"Set or clear a delegate's selection preference (higher = more preferred)\" {\n    flag \"--operation <op>\" help=\"Scope to one operation identifier\"\n    flag \"--capability <cap>\" help=\"Shorthand for the operation of an ob capability: invoke, synthesize, or inspect\"\n    flag \"--binding-spec <identifier>\" help=\"Scope an operation entry to one binding specification (requires --operation or --capability)\"\n    flag \"--clear\" help=\"Remove the targeted preference entry instead of setting it\"\n    flag \"-o --output <path>\" help=\"Write output to file\"\n    flag \"-F --format <format>\" help=\"Output format: json|yaml|text\"\n    arg \"<location>\" help=\"Delegate location\"\n    arg \"[preference]\" help=\"Preference value (omit with --clear)\"\n  }\n}\n\ncmd \"binding-specs\" help=\"List the binding specifications this ob instance can handle\" {\n  alias \"binding-spec\"\n  flag \"-o --output <path>\" help=\"Write output to file\"\n  flag \"-F --format <format>\" help=\"Output format: json|yaml|text\"\n}\n\ncmd \"new\" help=\"Create an empty OpenBindings interface document\" {\n  flag \"--name <name>\" help=\"Interface name\"\n  flag \"--version <version>\" help=\"Interface version\"\n  flag \"--description <desc>\" help=\"Interface description\"\n  flag \"--spec-version <version>\" help=\"Target OpenBindings spec version (default: latest tested)\"\n  flag \"--force\" help=\"Overwrite an existing file\"\n  flag \"-o --output <path>\" help=\"Write output to file\"\n  flag \"-F --format <format>\" help=\"Output format: json|yaml|text\"\n  arg \"<path>\" help=\"Path for the new OBI file (- writes the document to stdout)\"\n}\n\ncmd \"meta\" help=\"Manage interface-level metadata\" subcommand_required=#true {\n  cmd \"set\" help=\"Edit interface metadata (name, version, description)\" {\n    flag \"--name <name>\" help=\"Set the interface name\"\n    flag \"--version <version>\" help=\"Set the interface version\"\n    flag \"--description <desc>\" help=\"Set the interface description\"\n    flag \"-o --output <path>\" help=\"Write output to file\"\n    flag \"-F --format <format>\" help=\"Output format: json|yaml|text\"\n    arg \"<obi-path>\" help=\"Path to the OBI file (- reads stdin and writes the modified document to stdout)\"\n  }\n}\n\ncmd \"inspect\" help=\"Inspect a binding source and list its bindable targets\" {\n  flag \"--input <json>\" help=\"InspectSourceInput as a JSON string (machine lane; exclusive with <source>)\"\n  flag \"-o --output <path>\" help=\"Write output to file\"\n  flag \"-F --format <format>\" help=\"Output format: json|yaml|text\"\n  arg \"[source]\" help=\"Binding source as [format:]path[?options] (e.g., openapi.json; path - reads the artifact from stdin)\"\n}\n\ncmd \"synthesize\" help=\"Synthesize an interface from binding sources\" {\n  flag \"--name <name>\" help=\"Interface name\"\n  flag \"--version <version>\" help=\"Interface version\"\n  flag \"--description <desc>\" help=\"Interface description\"\n  flag \"--spec-version <version>\" help=\"Target OpenBindings spec version (default: latest tested)\"\n  flag \"--input <json>\" help=\"SynthesizeInterfaceInput as a JSON string (machine lane; exclusive with sources and metadata flags)\"\n  flag \"-o --output <path>\" help=\"Write output to file\"\n  flag \"-F --format <format>\" help=\"Output format: json|yaml|text\"\n  arg \"[source]...\" help=\"Binding sources as [format:]path[?options] (none: empty interface; path - reads the artifact from stdin)\"\n}\n\ncmd \"source\" help=\"Manage source references on an OBI\" subcommand_required=#true {\n  alias \"src\" \"sources\"\n  cmd \"add\" help=\"Register a source reference on an OBI\" {\n    flag \"--input <json>\" help=\"AddSourceInput as a JSON string (machine lane; exclusive with positional arguments and source flags)\"\n    flag \"--key <name>\" help=\"Explicit source key (default: derived from format and path)\"\n    flag \"--resolve <mode>\" help=\"Resolution mode: content (default for local files) or location (default for URLs)\"\n    flag \"--uri <url>\" help=\"Explicit published URI for location mode\"\n    flag \"--delegate <delegate>\" help=\"Delegate to use for this source (skips detection)\"\n    flag \"--description <desc>\" help=\"Human-readable description for this source\"\n    flag \"-y --yes\" help=\"Accept first capable delegate without prompting\"\n    flag \"-o --output <path>\" help=\"Write output to file\"\n    flag \"-F --format <format>\" help=\"Output format: json|yaml|text\"\n    arg \"[obi-path]\" help=\"Path to the OBI file (- reads stdin and writes the modified document to stdout)\"\n    arg \"[source]\" help=\"Source path or bindingSpec:path (e.g., openapi.json or openbindings.usage@1:./cli.kdl)\"\n  }\n  cmd \"pull\" help=\"Derive operations and bindings from registered sources\" {\n    flag \"--pure\" help=\"Strip x-ob metadata from the output (publish-clean); requires -o\"\n    flag \"-o --output <path>\" help=\"Write output to file\"\n    flag \"-F --format <format>\" help=\"Output format: json|yaml|text\"\n    arg \"<obi-path>\" help=\"Path to the OBI file (- reads stdin and writes the modified document to stdout)\"\n    arg \"[source-key]...\" help=\"Sources to pull (default: all)\"\n  }\n  cmd \"list\" help=\"List source references on an OBI\" {\n    alias \"ls\"\n    flag \"-o --output <path>\" help=\"Write output to file\"\n    flag \"-F --format <format>\" help=\"Output format: json|yaml|text\"\n    arg \"<obi-path>\" help=\"Path to the OBI file (- for stdin)\"\n  }\n  cmd \"remove\" help=\"Remove a source reference from an OBI\" {\n    alias \"rm\"\n    flag \"-o --output <path>\" help=\"Write output to file\"\n    flag \"-F --format <format>\" help=\"Output format: json|yaml|text\"\n    arg \"<obi-path>\" help=\"Path to the OBI file (- reads stdin and writes the modified document to stdout)\"\n    arg \"<key>\" help=\"Source key to remove\"\n  }\n}\n\ncmd \"operation\" help=\"Manage and invoke operations on an OBI\" subcommand_required=#true {\n  alias \"op\" \"operations\"\n  cmd \"add\" help=\"Add a new operation to an OBI\" {\n    flag \"--description <desc>\" help=\"Operation description\"\n    flag \"--alias <alias>\" help=\"Correspondence alias: another interface's operation key this operation also answers to (repeatable)\" var=#true\n    flag \"--tag <tag>\" help=\"Operation tag (repeatable)\" var=#true\n    flag \"--input-schema <schema>\" help=\"Input schema: inline JSON, @file, or - for stdin\"\n    flag \"--output-schema <schema>\" help=\"Output schema: inline JSON, @file, or - for stdin\"\n    flag \"--idempotent <bool>\" help=\"Whether the operation is idempotent (true/false)\"\n    flag \"-o --output <path>\" help=\"Write output to file\"\n    flag \"-F --format <format>\" help=\"Output format: json|yaml|text\"\n    arg \"<obi-path>\" help=\"Path to the OBI file (- reads stdin and writes the modified document to stdout)\"\n    arg \"<key>\" help=\"Key for the new operation\"\n  }\n  cmd \"alias\" help=\"Manage an operation's correspondence aliases\" subcommand_required=#true {\n    alias \"aliases\"\n    cmd \"add\" help=\"Add correspondence alias(es) to an operation\" {\n      flag \"-o --output <path>\" help=\"Write output to file\"\n      flag \"-F --format <format>\" help=\"Output format: json|yaml|text\"\n      arg \"<obi-path>\" help=\"Path to the OBI file (- reads stdin and writes the modified document to stdout)\"\n      arg \"<operation>\" help=\"Operation key or identifier\"\n      arg \"<alias>...\" help=\"Correspondence alias(es) to add\"\n    }\n    cmd \"remove\" help=\"Remove correspondence alias(es) from an operation\" {\n      alias \"rm\"\n      flag \"-o --output <path>\" help=\"Write output to file\"\n      flag \"-F --format <format>\" help=\"Output format: json|yaml|text\"\n      arg \"<obi-path>\" help=\"Path to the OBI file (- reads stdin and writes the modified document to stdout)\"\n      arg \"<operation>\" help=\"Operation key or identifier\"\n      arg \"<alias>...\" help=\"Correspondence alias(es) to remove\"\n    }\n    cmd \"list\" help=\"Show the correspondence map (which ops correspond to which interfaces)\" {\n      alias \"ls\"\n      flag \"-o --output <path>\" help=\"Write output to file\"\n      flag \"-F --format <format>\" help=\"Output format: json|yaml|text\"\n      arg \"<obi>\" help=\"OBI locator (file path, URL, exec: reference, or - for stdin)\"\n      arg \"[operation]\" help=\"Scope to a single operation\"\n    }\n  }\n  cmd \"set\" help=\"Edit an existing operation\" {\n    flag \"--description <desc>\" help=\"Set the operation description\"\n    flag \"--idempotent <bool>\" help=\"Set whether the operation is idempotent (true/false)\"\n    flag \"--deprecated <bool>\" help=\"Set whether the operation is deprecated (true/false)\"\n    flag \"--input-schema <schema>\" help=\"Set input schema: inline JSON, @file, or - for stdin\"\n    flag \"--output-schema <schema>\" help=\"Set output schema: inline JSON, @file, or - for stdin\"\n    flag \"--add-tag <tag>\" help=\"Add a tag (repeatable)\" var=#true\n    flag \"--remove-tag <tag>\" help=\"Remove a tag (repeatable)\" var=#true\n    flag \"--own\" help=\"Take ownership of a source-owned operation (detach) before editing\"\n    flag \"-o --output <path>\" help=\"Write output to file\"\n    flag \"-F --format <format>\" help=\"Output format: json|yaml|text\"\n    arg \"<obi-path>\" help=\"Path to the OBI file (- reads stdin and writes the modified document to stdout)\"\n    arg \"<operation>\" help=\"Operation key or identifier\"\n  }\n  cmd \"detach\" help=\"Convert a source-owned operation to hand-authored\" {\n    flag \"-o --output <path>\" help=\"Write output to file\"\n    flag \"-F --format <format>\" help=\"Output format: json|yaml|text\"\n    arg \"<obi-path>\" help=\"Path to the OBI file (- reads stdin and writes the modified document to stdout)\"\n    arg \"<operation>\" help=\"Operation key or identifier\"\n  }\n  cmd \"codegen-name\" help=\"Set the symbol name 'ob codegen' emits for an operation\" {\n    flag \"--clear\" help=\"Remove the codegen-name override\"\n    flag \"-o --output <path>\" help=\"Write output to file\"\n    flag \"-F --format <format>\" help=\"Output format: json|yaml|text\"\n    arg \"<obi-path>\" help=\"Path to the OBI file (- reads stdin and writes the modified document to stdout)\"\n    arg \"<operation>\" help=\"Operation key or identifier\"\n    arg \"[name]\" help=\"New codegen symbol name (omit with --clear)\"\n  }\n  cmd \"output-schema\" help=\"Set an operation's output schema when its source can't declare one\" {\n    flag \"--clear\" help=\"Remove the output-schema override\"\n    flag \"-o --output <path>\" help=\"Write output to file\"\n    flag \"-F --format <format>\" help=\"Output format: json|yaml|text\"\n    arg \"<obi-path>\" help=\"Path to the OBI file (- reads stdin and writes the modified document to stdout)\"\n    arg \"<operation>\" help=\"Operation key or identifier\"\n    arg \"[schema]\" help=\"Output schema: inline JSON, @file, or - for stdin (omit with --clear)\"\n  }\n  cmd \"bind\" help=\"Attach a source selector to an existing operation\" {\n    flag \"--transform-stub\" help=\"Scaffold identity transform stub(s) on shape mismatch\"\n    flag \"--input-transform <jsonata>\" help=\"Inline JSONata transforming operation input to binding input\"\n    flag \"--output-transform <jsonata>\" help=\"Inline JSONata transforming binding output to operation output\"\n    flag \"--preference <num>\" help=\"Author preference signal (higher = more preferred; does not select automatically)\"\n    flag \"--force\" help=\"Overwrite an existing binding for this operation+source (re-point)\"\n    flag \"-o --output <path>\" help=\"Write output to file\"\n    flag \"-F --format <format>\" help=\"Output format: json|yaml|text\"\n    arg \"<obi-path>\" help=\"Path to the OBI file (- reads stdin and writes the modified document to stdout)\"\n    arg \"[operation]\" help=\"Operation key or identifier\"\n    arg \"[source]\" help=\"Source key\"\n    arg \"[selector]\" help=\"Source selector to bind\"\n  }\n  cmd \"unbind\" help=\"Remove a binding from an operation (keep the operation)\" {\n    flag \"-o --output <path>\" help=\"Write output to file\"\n    flag \"-F --format <format>\" help=\"Output format: json|yaml|text\"\n    flag \"--binding <key>\" help=\"Exact binding key to remove (operation and source are not required)\"\n    arg \"<obi-path>\" help=\"Path to the OBI file (- reads stdin and writes the modified document to stdout)\"\n    arg \"[operation]\" help=\"Operation key or identifier\"\n    arg \"[source]\" help=\"Source key whose binding to remove\"\n  }\n  cmd \"invoke\" help=\"Invoke an operation via a binding\" {\n    flag \"--binding <key>\" help=\"Binding key to invoke (operation is derived from the entry)\"\n    flag \"--select-binding <key>\" help=\"Ordered binding choice for this and nested operations (repeatable)\" var=#true\n    flag \"--input <value>\" help=\"Operation input: inline JSON, @file, or - for stdin\"\n    flag \"-v --verbose\" help=\"Show binding key, duration, and any displaced output-schema overrides on stderr\"\n    arg \"<obi>\" help=\"OBI locator (file path, URL, exec: reference, or - for stdin)\"\n    arg \"[operation]\" help=\"Operation key to invoke\"\n  }\n  cmd \"prepare\" help=\"Preflight an operation's required context without invoking it\" {\n    flag \"--binding <key>\" help=\"Binding key to preflight (operation is derived from the entry)\"\n    flag \"--select-binding <key>\" help=\"Ordered binding choice (repeatable)\" var=#true\n    flag \"--configuration <json>\" help=\"Binding-spec configuration object: inline JSON, @file, or - for stdin\"\n    flag \"-o --output <path>\" help=\"Write output to file\"\n    flag \"-F --format <format>\" help=\"Output format: json|yaml|text\"\n    arg \"<obi>\" help=\"OBI locator (file path, URL, exec: reference, or - for stdin)\"\n    arg \"[operation]\" help=\"Operation key to preflight\"\n  }\n  cmd \"list\" help=\"List operations on an OBI\" {\n    alias \"ls\"\n    flag \"--tag <tag>\" help=\"Filter operations by tag\"\n    flag \"-o --output <path>\" help=\"Write output to file\"\n    flag \"-F --format <format>\" help=\"Output format: json|yaml|text\"\n    arg \"<obi>\" help=\"OBI locator (file path, URL, exec: reference, or - for stdin)\"\n  }\n  cmd \"rename\" help=\"Rename an operation and update all references\" {\n    alias \"mv\"\n    flag \"-o --output <path>\" help=\"Write output to file\"\n    flag \"-F --format <format>\" help=\"Output format: json|yaml|text\"\n    arg \"<obi-path>\" help=\"Path to the OBI file (- reads stdin and writes the modified document to stdout)\"\n    arg \"<old-key>\" help=\"Current operation key\"\n    arg \"<new-key>\" help=\"New operation key\"\n  }\n  cmd \"remove\" help=\"Remove operations and their bindings from an OBI\" {\n    alias \"rm\"\n    flag \"--force\" help=\"Remove source-owned operations without warning\"\n    flag \"-o --output <path>\" help=\"Write output to file\"\n    flag \"-F --format <format>\" help=\"Output format: json|yaml|text\"\n    arg \"<obi-path>\" help=\"Path to the OBI file (- reads stdin and writes the modified document to stdout)\"\n    arg \"<key>...\" help=\"Operation keys to remove\"\n  }\n}\n\ncmd \"binding\" help=\"Low-level binding operations\" subcommand_required=#true {\n  cmd \"invoke\" help=\"Invoke a binding directly, below the operation layer\" {\n    flag \"--input <json>\" help=\"Binding input value (with positional args), or a BindingInvocationInput envelope (machine lane)\"\n    arg \"[obi-path]\" help=\"OBI document to resolve the binding from\"\n    arg \"[binding-key]\" help=\"Binding key to invoke (output is exactly what the source returned: decoded, not reshaped by the operation's output transform, and unvalidated)\"\n  }\n  cmd \"prepare\" help=\"Preflight a resolved binding (machine-to-machine)\" {\n    flag \"--input <json>\" help=\"BindingInvocationInput as a JSON string\"\n  }\n  cmd \"list\" help=\"List the bindings an OBI declares (optionally for one operation)\" {\n    alias \"ls\"\n    flag \"-o --output <path>\" help=\"Write output to file\"\n    flag \"-F --format <format>\" help=\"Output format: json|yaml|text\"\n    arg \"<obi-path>\" help=\"Path to the OBI file (- for stdin)\"\n    arg \"[operation]\" help=\"Filter to bindings of one operation\"\n  }\n}\n\ncmd \"diff\" help=\"Structural comparison of two OBIs\" {\n  flag \"--from-sources\" help=\"Compare against what binding sources produce\"\n  flag \"--only <key>\" help=\"Scope to a specific source key (requires --from-sources)\"\n  flag \"-q --quiet\" help=\"Exit code only, no output\"\n  flag \"-o --output <path>\" help=\"Write output to file\"\n  flag \"-F --format <format>\" help=\"Output format: json|yaml|text\"\n  arg \"<baseline>\" help=\"Baseline OBI (file path, URL, exec: locator, or - for stdin)\"\n  arg \"[comparison]\" help=\"Comparison OBI (omit with --from-sources)\"\n}\n\ncmd \"merge\" help=\"Selectively apply changes from one OBI into another\" {\n  flag \"--from-sources\" help=\"Derive from the target's binding sources\"\n  flag \"--only <key>\" help=\"Scope to a specific source key (requires --from-sources)\"\n  flag \"--all\" help=\"Apply all changes (batch mode)\"\n  flag \"--dry-run\" help=\"Preview changes without writing\"\n  flag \"-y --yes\" help=\"Auto-accept all prompts\"\n  flag \"--out <path>\" help=\"Write to alternate path instead of target\"\n  flag \"--op <key>\" help=\"Only merge this operation (repeatable)\" var=#true\n  flag \"--exclude-op <key>\" help=\"Exclude this operation from merge (repeatable)\" var=#true\n  flag \"--ops-only\" help=\"Graft operations only (no bindings or source entries)\"\n  flag \"--no-bindings\" help=\"Don't graft bindings (operations and their sources still come)\"\n  flag \"--no-sources\" help=\"Don't graft source entries (operations and bindings still come)\"\n  flag \"-o --output <path>\" help=\"Write output to file\"\n  flag \"-F --format <format>\" help=\"Output format: json|yaml|text\"\n  arg \"<target>\" help=\"Target OBI to merge into\"\n  arg \"[source]\" help=\"Source OBI (omit with --from-sources)\"\n}\n\ncmd \"validate\" help=\"Validate an OpenBindings interface document\" {\n  flag \"-q --quiet\" help=\"Exit code only, no output\"\n  flag \"--strict\" help=\"Additionally reject unknown (non-x-) fields\"\n  flag \"-o --output <path>\" help=\"Write output to file\"\n  flag \"-F --format <format>\" help=\"Output format: json|yaml|text\"\n  arg \"<locator>\" help=\"File path, HTTP(S) URL, exec: locator, or - for stdin\"\n}\n\ncmd \"compat\" help=\"Check interface conformance between two interfaces\" {\n  flag \"-q --quiet\" help=\"Exit code only, no output\"\n  flag \"-o --output <path>\" help=\"Write output to file\"\n  flag \"-F --format <format>\" help=\"Output format: json|yaml|text\"\n  arg \"<target>\" help=\"Target interface (locator, or - for stdin)\"\n  arg \"<candidate>\" help=\"Candidate interface (locator)\"\n}\n\ncmd \"conform\" help=\"Scaffold or update operations so the target corresponds to another interface\" {\n  flag \"-y --yes\" help=\"Auto-accept all scaffolding and replacements\"\n  flag \"--dry-run\" help=\"Preview changes without modifying files\"\n  flag \"-o --output <path>\" help=\"Write output to file\"\n  flag \"-F --format <format>\" help=\"Output format: json|yaml|text\"\n  arg \"<interface>\" help=\"Reference interface to correspond to (locator)\"\n  arg \"<target-obi>\" help=\"Target OBI to scaffold into\"\n}\n\ncmd \"purify\" help=\"Strip x-ob vendor metadata, yielding a spec-only interface\" {\n  flag \"--check\" help=\"Check purity without writing: exit 1 and list x-ob locations if anything would be stripped\"\n  flag \"-o --output <path>\" help=\"Write output to file\"\n  flag \"-F --format <format>\" help=\"Output format: json|yaml|text\"\n  arg \"<obi-path>\" help=\"Interface to purify (file path, or - for stdin)\"\n}\n\ncmd \"codegen\" help=\"Generate a typed invoker from an interface\" {\n  flag \"-l --lang <language>\" help=\"Target language: typescript or go (required)\"\n  flag \"-o --output <path>\" help=\"Output file path (default: stdout)\"\n  flag \"--package <name>\" help=\"Go package name (default: derived from interface name)\"\n  flag \"-F --format <format>\" help=\"Output format: text (raw code, default) | json|yaml (CodegenOutput envelope)\"\n  arg \"<source>\" help=\"Interface to generate from (file path, URL, or - for stdin)\"\n}\n\ncmd \"mcp\" help=\"Serve an interface or raw artifact as an MCP server\" {\n  flag \"--transport <transport>\" help=\"Transport: stdio or http (default: stdio)\"\n  flag \"--port <port>\" help=\"HTTP port (when transport is http, default: 8080)\"\n  flag \"--name <name>\" help=\"MCP server name (default: ob-mcp)\"\n  flag \"--token <token>\" help=\"Bearer token for authenticating to target servers (also: OB_TOKEN)\"\n  flag \"--token-file <path>\" help=\"Read Bearer token from file\"\n  flag \"--tool-timeout <duration>\" help=\"Bound on a single bridged tool call (MCP tools are request-scoped; a subscription-style operation cannot complete as a tool)\"\n  flag \"--context <json>\" help=\"Invocation context JSON object or @file (credentials, headers, cookies, extensions)\"\n  flag \"--configuration <json>\" help=\"Binding-spec configuration JSON object or @file\"\n  flag \"--select-binding <binding>\" help=\"Ordered binding choice for this and nested operations (repeatable)\" var=#true\n  flag \"--require-complete-coverage\" help=\"Refuse synthesized raw artifacts unless coverage is exhaustive and fully represented\"\n  flag \"--coverage-report <path>\" help=\"Write synthesis coverage evidence to a JSON file\"\n  arg \"<interface-or-artifact>\" help=\"OBI locator or raw artifact to expose as an MCP server\"\n}\n\ncmd \"start\" help=\"Start a local server exposing ob operations (HTTP, WebSocket)\" {\n  flag \"-p --port <port>\" help=\"Port to listen on (default: 20290 = 0x4F42, ASCII OB)\"\n  flag \"--strict-port\" help=\"Fail instead of falling back to a nearby port when --port is busy\"\n  flag \"--allow-origin <origin>\" help=\"Allowed CORS origin (repeatable)\" var=#true\n  flag \"--token <token>\" help=\"Pre-shared session token (also: OB_START_TOKEN env var)\"\n  flag \"--token-file <path>\" help=\"Write session token to file instead of stderr\"\n  flag \"--tls\" help=\"Also serve HTTPS using a local CA (does not modify system trust)\"\n  flag \"--trust-local-ca\" help=\"Install the local HTTPS CA into system trust (implies --tls; may prompt)\"\n  flag \"--open\" help=\"Open the authenticated workbench in the default browser\"\n  flag \"-v --verbose\" help=\"Show request and invocation logs\"\n}\n\ncmd \"demo\" help=\"Start the OpenBlendings demo server (one interface, six protocols)\" {\n  flag \"-p --port <port>\" help=\"HTTP server port (default: 8080)\"\n  flag \"--grpc-port <port>\" help=\"gRPC server port (default: 9090)\"\n}\n"
     }
   },
   "version": "0.1.0"

@@ -157,8 +157,8 @@ components:
                 preference:
                     description: Author preference signal (higher = more preferred); this field does not itself select a binding.
                     type: number
-                ref:
-                    description: Source ref (wire identifier) to bind.
+                selector:
+                    description: Source selector (wire identifier) to bind.
                     type: string
                 source:
                     description: Registered source key.
@@ -170,7 +170,7 @@ components:
                 - interface
                 - operation
                 - source
-                - ref
+                - selector
             type: object
         BindableTarget:
             description: A target admitted by the source's governing binding specification that can be framed as an OpenBindings operation. Any included framing is a sound projection of this same target.
@@ -180,11 +180,11 @@ components:
                 operationKey:
                     description: Suggested operation key for this target.
                     type: string
-                ref:
-                    description: Reference string a conforming binding entry can use under the governing binding specification.
+                selector:
+                    description: Selector string a conforming binding entry can use under the governing binding specification.
                     type: string
             required:
-                - ref
+                - selector
             type: object
         BindingContext:
             additionalProperties: true
@@ -196,14 +196,14 @@ components:
             properties:
                 context:
                     $ref: '#/components/schemas/BindingContext'
-                ref:
-                    description: Reference within the binding source.
+                selector:
+                    description: Selector within the binding source.
                     type: string
                 source:
                     $ref: '#/components/schemas/Source'
             required:
                 - source
-                - ref
+                - selector
             type: object
         BindingInvokerInputFrame:
             description: 'One frame from the caller into invokeBinding. The caller streams a sequence: exactly one `open` frame first (carrying the BindingInvocationInput), then zero or more `input` frames carrying values to deliver to the underlying binding, then exactly one `close` frame signaling no more input.'
@@ -312,8 +312,8 @@ components:
                 preference:
                     description: The author-declared selection preference, when set.
                     type: number
-                ref:
-                    description: The binding-specification reference into the source.
+                selector:
+                    description: The binding-specification selector into the source.
                     type: string
                 source:
                     description: The source key this binding invokes.

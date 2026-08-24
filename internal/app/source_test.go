@@ -230,7 +230,7 @@ func TestSourceRemove_CleansUpBindings(t *testing.T) {
 			},
 		},
 		"bindings": map[string]any{
-			"greet.myApi": map[string]any{"operation": "greet", "source": "myApi", "ref": "GET /greet"},
+			"greet.myApi": map[string]any{"operation": "greet", "source": "myApi", "selector": "GET /greet"},
 		},
 	}
 	obiPath := writeInterface(t, dir, "my.obi.json", obiData)
@@ -277,9 +277,9 @@ func TestSourceRemove_WarnsUnboundOps(t *testing.T) {
 			},
 		},
 		"bindings": map[string]any{
-			"greet.rest":   map[string]any{"operation": "greet", "source": "rest", "ref": "GET /greet"},
-			"greet.events": map[string]any{"operation": "greet", "source": "events", "ref": "#/greet"},
-			"goodbye.rest": map[string]any{"operation": "goodbye", "source": "rest", "ref": "GET /goodbye"},
+			"greet.rest":   map[string]any{"operation": "greet", "source": "rest", "selector": "GET /greet"},
+			"greet.events": map[string]any{"operation": "greet", "source": "events", "selector": "#/greet"},
+			"goodbye.rest": map[string]any{"operation": "goodbye", "source": "rest", "selector": "GET /goodbye"},
 		},
 	}
 	obiPath := writeInterface(t, dir, "my.obi.json", obiData)

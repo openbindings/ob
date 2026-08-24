@@ -227,7 +227,7 @@ func serveBindingFrameStream(ctx context.Context, cancel context.CancelFunc, con
 		return
 	}
 
-	logger.Info("bindings/invoke (frames)", "format", open.Input.Source.BindingSpec, "ref", open.Input.Ref)
+	logger.Info("bindings/invoke (frames)", "format", open.Input.Source.BindingSpec, "selector", open.Input.Selector)
 
 	inv := app.InvokeBindingHandle(ctx, app.InvocationInput{
 		Source: app.InvokeSource{
@@ -235,8 +235,8 @@ func serveBindingFrameStream(ctx context.Context, cancel context.CancelFunc, con
 			Location:    open.Input.Source.Location,
 			Content:     open.Input.Source.Content,
 		},
-		Ref:     open.Input.Ref,
-		Context: open.Input.Context,
+		Selector: open.Input.Selector,
+		Context:  open.Input.Context,
 	})
 	driveFrameStream(ctx, cancel, conn, logger, writer, inv)
 }
@@ -459,7 +459,7 @@ func handleBindingPrepare(logger *slog.Logger) http.HandlerFunc {
 			return
 		}
 
-		logger.Info("bindings/prepare", "format", input.Source.BindingSpec, "ref", input.Ref)
+		logger.Info("bindings/prepare", "format", input.Source.BindingSpec, "selector", input.Selector)
 
 		details, perr := app.PrepareBinding(r.Context(), app.InvocationInput{
 			Source: app.InvokeSource{
@@ -467,8 +467,8 @@ func handleBindingPrepare(logger *slog.Logger) http.HandlerFunc {
 				Location:    input.Source.Location,
 				Content:     input.Source.Content,
 			},
-			Ref:     input.Ref,
-			Context: input.Context,
+			Selector: input.Selector,
+			Context:  input.Context,
 		})
 		if perr != nil {
 			writeErrorJSON(w, http.StatusBadRequest, "preflight_failed", perr.Error())

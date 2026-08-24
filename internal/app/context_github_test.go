@@ -117,7 +117,7 @@ func TestContextGitHub_OperationInvokerDriven(t *testing.T) {
     "getAuthenticatedUser.openapi": {
       "operation": "getAuthenticatedUser",
       "source": "openapi",
-      "ref": "#/paths/~1user/get"
+      "selector": "#/paths/~1user/get"
     }
   }
 }`
@@ -252,9 +252,9 @@ func TestContextGitHub_SecuritySchemeApplication(t *testing.T) {
 			BindingSpec: "openbindings.openapi@1",
 			Location:    "file://" + specPath,
 		},
-		Ref:     "#/paths/~1user/get",
-		Input:   nil,
-		Context: map[string]any{"bearerToken": testGitHubToken},
+		Selector: "#/paths/~1user/get",
+		Input:    nil,
+		Context:  map[string]any{"bearerToken": testGitHubToken},
 	}
 
 	result := InvokeOperationWithContext(context.Background(), execInput)
@@ -316,7 +316,7 @@ func TestContextGitHub_NoCredentialsFails(t *testing.T) {
 			BindingSpec: "openbindings.openapi@1",
 			Location:    "file://" + specPath,
 		},
-		Ref: "#/paths/~1user/get",
+		Selector: "#/paths/~1user/get",
 	}
 
 	result := InvokeOperationWithContext(context.Background(), execInput)

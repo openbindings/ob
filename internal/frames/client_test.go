@@ -72,8 +72,8 @@ func mustWrite(t *testing.T, ctx context.Context, conn *websocket.Conn, frame Ou
 
 func testInput() *BindingInvocationInput {
 	return &BindingInvocationInput{
-		Source: InvokeSource{BindingSpec: "openbindings.openapi@1", Location: "https://x/openapi.yaml"},
-		Ref:    "#/paths/~1t/get",
+		Source:   InvokeSource{BindingSpec: "openbindings.openapi@1", Location: "https://x/openapi.yaml"},
+		Selector: "#/paths/~1t/get",
 	}
 }
 
@@ -82,7 +82,7 @@ func TestInvoke_UnaryRoundTrip(t *testing.T) {
 	// output, complete.
 	ts := frameServer(t, func(ctx context.Context, conn *websocket.Conn, in <-chan InputFrame) {
 		open := <-in
-		if open.Kind != KindOpen || open.Input.Ref != "#/paths/~1t/get" {
+		if open.Kind != KindOpen || open.Input.Selector != "#/paths/~1t/get" {
 			t.Errorf("expected open frame, got %#v", open)
 		}
 		input := <-in

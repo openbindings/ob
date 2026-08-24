@@ -47,9 +47,9 @@ type InvokeSource struct {
 // BindingInvocationInput is the payload of the open frame (and the input of
 // prepareBinding): the binding to invoke plus opaque runtime context.
 type BindingInvocationInput struct {
-	Source  InvokeSource   `json:"source"`
-	Ref     string         `json:"ref"`
-	Context map[string]any `json:"context,omitempty"`
+	Source   InvokeSource   `json:"source"`
+	Selector string         `json:"selector"`
+	Context  map[string]any `json:"context,omitempty"`
 }
 
 // OperationInvocationInput is the payload of invokeOperation's open frame.
@@ -317,7 +317,7 @@ func DecodeInvocationInput(raw json.RawMessage) (*BindingInvocationInput, error)
 	}
 	for k := range fields {
 		switch k {
-		case "source", "ref", "context":
+		case "source", "selector", "context":
 		default:
 			return nil, protocolErrorf("open frame: unknown input property %q", k)
 		}
@@ -325,8 +325,8 @@ func DecodeInvocationInput(raw json.RawMessage) (*BindingInvocationInput, error)
 	if _, ok := fields["source"]; !ok {
 		return nil, protocolErrorf("open frame: input.source is required")
 	}
-	if _, ok := fields["ref"]; !ok {
-		return nil, protocolErrorf("open frame: input.ref is required")
+	if _, ok := fields["selector"]; !ok {
+		return nil, protocolErrorf("open frame: input.selector is required")
 	}
 
 	var srcFields map[string]json.RawMessage

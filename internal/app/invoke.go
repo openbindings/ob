@@ -36,11 +36,11 @@ type InvokeSource struct {
 }
 
 // InvocationInput is the app-level invocation carrier for both lanes:
-// a raw binding invocation (source+ref) or an operation-resolved one
+// a raw binding invocation (source+selector) or an operation-resolved one
 // (Interface/Binding populated).
 type InvocationInput struct {
 	Source    InvokeSource            `json:"source"`
-	Ref       string                  `json:"ref"`
+	Selector  string                  `json:"selector"`
 	Input     any                     `json:"input,omitempty"`
 	Context   map[string]any          `json:"context,omitempty"`
 	Interface *openbindings.Interface `json:"interface,omitempty"`
@@ -642,7 +642,7 @@ func invokeOnInterface(ctx context.Context, iface *openbindings.Interface, opKey
 
 	lowLevel := InvocationInput{
 		Source:      InvokeSource{BindingSpec: es.BindingSpec, Location: es.Location, Content: es.Content},
-		Ref:         resolved.binding.Ref,
+		Selector:    resolved.binding.Selector,
 		Input:       resolved.input,
 		Context:     callerContext,
 		Interface:   iface,
@@ -803,7 +803,7 @@ func PrepareInterfaceOperation(ctx context.Context, iface *openbindings.Interfac
 
 	return PrepareBinding(ctx, InvocationInput{
 		Source:      InvokeSource{BindingSpec: es.BindingSpec, Location: es.Location, Content: es.Content},
-		Ref:         resolved.binding.Ref,
+		Selector:    resolved.binding.Selector,
 		Context:     callerContext,
 		Interface:   iface,
 		Binding:     resolved.binding,
@@ -973,9 +973,9 @@ func SubscribeOBIOperationDirect(ctx context.Context, binding *openbindings.Bind
 	invoker := DefaultInvoker()
 	invokeBinding := func(ctx context.Context, ctxData map[string]any) invoke.Invocation[any, any] {
 		return invoker.InvokeBinding(ctx, &invoke.BindingInvocationArgs{
-			Source:  es,
-			Ref:     binding.Ref,
-			Context: ctxData,
+			Source:   es,
+			Selector: binding.Selector,
+			Context:  ctxData,
 		})
 	}
 	// Builtin in-process invoker: trusted (no guard).
@@ -1031,11 +1031,11 @@ func InvokeOperationWithContext(ctx context.Context, input InvocationInput) Invo
 			},
 		}
 	}
-	if input.Ref == "" {
+	if input.Selector == "" {
 		return InvocationResult{
 			Error: &Error{
 				Code:    "invalid_input",
-				Message: "ref is required",
+				Message: "selector is required",
 			},
 		}
 	}
@@ -1088,8 +1088,8 @@ func SubscribeOperationWithContext(ctx context.Context, input InvocationInput) (
 	if input.Source.BindingSpec == "" {
 		return nil, fmt.Errorf("source.bindingSpec is required")
 	}
-	if input.Ref == "" {
-		return nil, fmt.Errorf("ref is required")
+	if input.Selector == "" {
+		return nil, fmt.Errorf("selector is required")
 	}
 
 	if !BuiltinSupportsFormat(input.Source.BindingSpec) {
@@ -1104,7 +1104,7 @@ func SubscribeOperationWithContext(ctx context.Context, input InvocationInput) (
 				Location:    input.Source.Location,
 				Content:     input.Source.Content,
 			},
-			Ref:         input.Ref,
+			Selector:    input.Selector,
 			Context:     ctxData,
 			Interface:   input.Interface,
 			Binding:     input.Binding,
@@ -1130,7 +1130,7 @@ func invokeViaBuiltin(ctx context.Context, input InvocationInput) InvocationResu
 				Location:    input.Source.Location,
 				Content:     input.Source.Content,
 			},
-			Ref:         input.Ref,
+			Selector:    input.Selector,
 			Context:     ctxData,
 			Interface:   input.Interface,
 			Binding:     input.Binding,
@@ -1197,8 +1197,8 @@ func invokeViaExternalDelegate(ctx context.Context, resolved delegates.Resolved,
 				Location:    input.Source.Location,
 				Content:     input.Source.Content,
 			},
-			Ref:     input.Ref,
-			Context: ctxData,
+			Selector: input.Selector,
+			Context:  ctxData,
 		})
 	}
 	// Delegate path: the invoker is untrusted. Guard credential provisioning

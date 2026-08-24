@@ -25,7 +25,7 @@ const sourceOwnedFixture = `{
     "getThing": {"description": "d", "output": {"type": "object"}, "x-ob": {"base": {"description": "d"}}}
   },
   "bindings": {
-    "getThing.api": {"operation": "getThing", "source": "api", "ref": "#/paths/thing/get", "x-ob": {"base": {}}}
+    "getThing.api": {"operation": "getThing", "source": "api", "selector": "#/paths/thing/get", "x-ob": {"base": {}}}
   }
 }`
 
@@ -38,9 +38,9 @@ func TestPurifyGraphMatchesStripAllXOB(t *testing.T) {
 		t.Fatal(err)
 	}
 	result := app.InvokeOperationWithContext(context.Background(), app.InvocationInput{
-		Source: app.InvokeSource{BindingSpec: "openbindings.operation-graph@1", Content: json.RawMessage(purifyGraph)},
-		Ref:    "#/graphs/purify",
-		Input:  doc,
+		Source:   app.InvokeSource{BindingSpec: "openbindings.operation-graph@1", Content: json.RawMessage(purifyGraph)},
+		Selector: "#/graphs/purify",
+		Input:    doc,
 	})
 	if result.Error != nil {
 		t.Fatalf("purify graph invocation failed: %s", result.Error.Message)

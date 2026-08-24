@@ -91,7 +91,7 @@ func TestCrossSurfaceConformance(t *testing.T) {
 			"ping.api": map[string]any{
 				"operation": "ping",
 				"source":    "api",
-				"ref":       "#/paths/~1ping/get",
+				"selector":  "#/paths/~1ping/get",
 			},
 		},
 		"x-ob": map[string]any{"transient": true},
@@ -251,7 +251,7 @@ func TestCrossSurfaceConformance(t *testing.T) {
 			{short: "bindOperation", input: func() any {
 				return map[string]any{
 					"interface": doc, "operation": "pong", "source": "api",
-					"ref": "#/paths/~1ping/get", "preference": 5,
+					"selector": "#/paths/~1ping/get", "preference": 5,
 				}
 			}},
 			{short: "unbindOperation", input: func() any {

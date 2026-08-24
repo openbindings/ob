@@ -42,7 +42,7 @@ The useful separation is:
 ```text
 what a capability means       what is consumed         how it is realized
 ──────────────────────────    ─────────────────────    ───────────────────────
-operation key, aliases,       dependency key,         source, bindingSpec, ref,
+operation key, aliases,       dependency key,         source, bindingSpec, selector,
 per-value schemas             operation, bindingSpecs transforms, interaction
 ```
 
@@ -131,7 +131,7 @@ address.
 ### Binding
 
 A binding connects one operation to one source and identifies a target through
-`ref` when the binding specification requires one. It may carry input and
+`selector` when the binding specification requires one. It may carry input and
 output transforms that bridge value-shape differences. A transform does not
 redefine transport lifecycle or repair an interaction that the binding
 specification cannot represent.
@@ -140,7 +140,7 @@ specification cannot represent.
 
 A binding specification gives one source family stable OpenBindings meaning.
 It owns accepted source representations, address semantics, `content`,
-composition of `content` and `location`, `ref` syntax and resolution, target
+composition of `content` and `location`, `selector` syntax and resolution, target
 identity, interaction mechanics, operation-boundary correspondence, and
 success classification.
 
@@ -189,7 +189,7 @@ Use this ownership model when specifications appear to overlap:
 | Is the OBI structurally conformant? How do OBI-defined references resolve? | Core OpenBindings specification |
 | What does an operation's input or output value mean at its caller-facing boundary? | The operation contract in the OBI |
 | Which operation does a dependency consume, and which binding-specification identifiers does it permit? | The dependency declaration in the OBI |
-| What source forms are accepted? What does `ref` identify? How is the interaction performed and classified? | The named binding specification |
+| What source forms are accepted? What does `selector` identify? How is the interaction performed and classified? | The named binding specification |
 | What does an incorporated OpenAPI, protobuf, GraphQL, MCP, or other declaration mean? | The incorporated upstream authority, as scoped by the binding specification |
 | How is a dependency satisfied? Which provider or binding should be selected? Where are credentials stored? Should values be runtime-validated? How are retries, caching, and policy handled? | The implementation or consuming application |
 
@@ -297,7 +297,7 @@ equivalent, or hiding protocol behavior that callers actually need to control.
 4. Load the exact binding specification named by the source.
 5. Acquire and interpret the source using its `content`, `location`, and
    composition rules.
-6. Resolve the binding's `ref` and any required interpretation choices.
+6. Resolve the binding's `selector` and any required interpretation choices.
 7. Obtain credentials or other prerequisites through runtime context without
    mutating them into the OBI. Context carries what the manifestation
    requires, never what an operation is about: an operation whose subject
@@ -483,14 +483,14 @@ captured.
     "createTask.http": {
       "operation": "createTask",
       "source": "tasksApi",
-      "ref": "#/paths/~1tasks/post"
+      "selector": "#/paths/~1tasks/post"
     }
   }
 }
 ```
 
 The operation owns the caller-facing values. The OpenAPI source owns its HTTP
-declarations. `openbindings.openapi@1` explains how the `ref` resolves, how
+declarations. `openbindings.openapi@1` explains how the `selector` resolves, how
 values map to the HTTP exchange, and which outcomes produce successful output
 values. An invoker supplies runtime context and transport policy. None of those
 layers should silently take authority from another.

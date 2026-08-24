@@ -408,7 +408,7 @@ func handleBindOperation(w http.ResponseWriter, r *http.Request) {
 		Interface       *openbindings.Interface `json:"interface"`
 		Operation       string                  `json:"operation"`
 		Source          string                  `json:"source"`
-		Ref             string                  `json:"ref"`
+		Selector        string                  `json:"selector"`
 		Preference      *float64                `json:"preference,omitempty"`
 		InputTransform  string                  `json:"inputTransform,omitempty"`
 		OutputTransform string                  `json:"outputTransform,omitempty"`
@@ -420,7 +420,7 @@ func handleBindOperation(w http.ResponseWriter, r *http.Request) {
 	}
 	result, err := editInterfaceFile(body.Interface, func(path string) error {
 		_, err := app.OperationBind(app.OperationBindInput{
-			OBIPath: path, Op: body.Operation, Source: body.Source, Ref: body.Ref,
+			OBIPath: path, Op: body.Operation, Source: body.Source, Selector: body.Selector,
 			Preference: body.Preference, InputTransform: body.InputTransform,
 			OutputTransform: body.OutputTransform, TransformStub: body.TransformStub, Force: body.Force,
 		})

@@ -16,8 +16,8 @@ func TestBindingList(t *testing.T) {
 	  "operations": { "getWidget": {}, "listAll": {} },
 	  "sources": { "api": { "bindingSpec": "openbindings.openapi@1", "content": {} } },
 	  "bindings": {
-	    "getWidget.api": { "operation": "getWidget", "source": "api", "ref": "#/paths/~1widget/get" },
-	    "listAll.api":   { "operation": "listAll", "source": "api", "ref": "#/paths/~1all/get", "deprecated": true }
+	    "getWidget.api": { "operation": "getWidget", "source": "api", "selector": "#/paths/~1widget/get" },
+	    "listAll.api":   { "operation": "listAll", "source": "api", "selector": "#/paths/~1all/get", "deprecated": true }
 	  }
 	}`
 	if err := os.WriteFile(obiPath, []byte(doc), 0o644); err != nil {

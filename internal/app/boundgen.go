@@ -128,7 +128,7 @@ var bindingNoteByShort = map[string]string{
 // unbound contract's operations (keys, aliases, schemas — authoritative for
 // operation identity) bound to the PRISTINE usage.kdl (the bare jdx
 // artifact IS the source — no wrapper; specification + configuration =
-// complete invocation). Refs are the format's own grammar (space-separated
+// complete invocation). Selectors are the format's own grammar (space-separated
 // command paths from CommandByShort). The wire elections the artifact
 // cannot express (JSON machine lane, diff(1) exits, filter routing) are
 // CONSUMER CONFIGURATION: ob's own site-guarded hook table
@@ -227,7 +227,7 @@ func GenerateBoundCLI(contractPath, usagePath string) (*openbindings.Interface, 
 		"detachOperation":          `{"obi-path": $string($$.interface), "operation": $$.operation}`,
 		"renameOperation":          `{"obi-path": $string($$.interface), "old-key": $$.oldKey, "new-key": $$.newKey}`,
 		"removeOperation":          `{"obi-path": $string($$.interface), "key": $$.keys, "force": $$.force}`,
-		"bindOperation":            `{"obi-path": $string($$.interface), "operation": $$.operation, "source": $$.source, "ref": $$.ref, "preference": $string($$.preference), "input-transform": $$.inputTransform, "output-transform": $$.outputTransform, "transform-stub": $$.transformStub, "force": $$.force}`,
+		"bindOperation":            `{"obi-path": $string($$.interface), "operation": $$.operation, "source": $$.source, "selector": $$.selector, "preference": $string($$.preference), "input-transform": $$.inputTransform, "output-transform": $$.outputTransform, "transform-stub": $$.transformStub, "force": $$.force}`,
 		"unbindOperation":          `{"obi-path": $string($$.interface), "operation": $$.operation, "source": $$.source, "binding": $$.binding}`,
 		"addOperationAlias":        `{"obi-path": $string($$.interface), "operation": $$.operation, "alias": $$.aliases}`,
 		"removeOperationAlias":     `{"obi-path": $string($$.interface), "operation": $$.operation, "alias": $$.aliases}`,
@@ -302,7 +302,7 @@ func GenerateBoundCLI(contractPath, usagePath string) (*openbindings.Interface, 
 		be := openbindings.BindingEntry{
 			Operation:   key,
 			Source:      "usage",
-			Ref:         cmdPath, // the format's own grammar: the command path
+			Selector:    cmdPath, // the format's own selector grammar: the command path
 			Description: bindingNoteByShort[short],
 		}
 		if adaptation, ok := adaptationByShort[short]; ok {
@@ -456,7 +456,7 @@ func GenerateBoundServe(contractPath, openapiPath, existingServePath, servedBase
 		}
 	}
 
-	// HTTP (openapi) bindings — ref derived from openapi.yaml.
+	// HTTP (openapi) bindings — selector derived from openapi.yaml.
 	pathInputTransforms := map[string]string{
 		"getContext":    `{ "url": key }`,
 		"setContext":    `{ "url": key, "payload": value }`,
@@ -479,7 +479,7 @@ func GenerateBoundServe(contractPath, openapiPath, existingServePath, servedBase
 		}
 		// Begin with the artifact synthesizer's complete binding contract. In
 		// particular, revision-6 whole-value bodies require its binding-private
-		// route transform; rebuilding only operation/source/ref would silently
+		// route transform; rebuilding only operation/source/selector would silently
 		// discard the information needed for faithful invocation.
 		be := b
 		be.Operation = opKey
@@ -499,7 +499,7 @@ func GenerateBoundServe(contractPath, openapiPath, existingServePath, servedBase
 	for _, stream := range ServeStreamRoutes() {
 		invKey := "openbindings.ob." + stream.Operation
 		if include(invKey) {
-			be := openbindings.BindingEntry{Operation: invKey, Source: "asyncapi", Ref: "#/operations/" + stream.Operation}
+			be := openbindings.BindingEntry{Operation: invKey, Source: "asyncapi", Selector: "#/operations/" + stream.Operation}
 			carry(invKey, stream.Operation, "asyncapi", &be)
 			bound.Bindings[invKey+".asyncapi"] = be
 		}

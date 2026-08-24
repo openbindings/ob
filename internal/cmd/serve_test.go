@@ -930,7 +930,7 @@ func echoOperationInterface() *openbindings.Interface {
 			"mock": {BindingSpec: "mock-echo@1.0", Location: "mock://test"},
 		},
 		Bindings: map[string]openbindings.BindingEntry{
-			"echo.mock": {Operation: "echo", Source: "mock", Ref: "#/echo"},
+			"echo.mock": {Operation: "echo", Source: "mock", Selector: "#/echo"},
 		},
 	}
 }
@@ -942,12 +942,12 @@ func sendFrame(t *testing.T, ctx context.Context, conn *websocket.Conn, frame ma
 	}
 }
 
-func openFrame(format, location, ref string) map[string]any {
+func openFrame(format, location, selector string) map[string]any {
 	return map[string]any{
 		"kind": "open",
 		"input": map[string]any{
-			"source": map[string]any{"bindingSpec": format, "location": location},
-			"ref":    ref,
+			"source":   map[string]any{"bindingSpec": format, "location": location},
+			"selector": selector,
 		},
 	}
 }
@@ -993,7 +993,7 @@ func TestServeBindingInvoke_POSTRemoved(t *testing.T) {
 	ts := testEnv(t)
 	defer ts.Close()
 
-	resp, err := authedPost(ts.URL+"/bindings/invoke", "test-token", `{"source":{"bindingSpec":"openbindings.openapi@1","location":"x"},"ref":"#/paths/~1health/get"}`)
+	resp, err := authedPost(ts.URL+"/bindings/invoke", "test-token", `{"source":{"bindingSpec":"openbindings.openapi@1","location":"x"},"selector":"#/paths/~1health/get"}`)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1187,9 +1187,9 @@ func TestServeBindingInvoke_WS_UnknownOpenPropertyRejected(t *testing.T) {
 	sendFrame(t, ctx, conn, map[string]any{
 		"kind": "open",
 		"input": map[string]any{
-			"source": map[string]any{"bindingSpec": "openbindings.openapi@1", "location": "x"},
-			"ref":    "#/paths/~1test/get",
-			"input":  map[string]any{"limit": 10},
+			"source":   map[string]any{"bindingSpec": "openbindings.openapi@1", "location": "x"},
+			"selector": "#/paths/~1test/get",
+			"input":    map[string]any{"limit": 10},
 		},
 	})
 
@@ -1516,8 +1516,8 @@ func TestServeBindingInvoke_FrameRoundTripViaClient(t *testing.T) {
 	}
 
 	inv := frames.Invoke(ctx, dial, &frames.BindingInvocationInput{
-		Source: frames.InvokeSource{BindingSpec: "mock-echo@1.0", Location: "mock://test"},
-		Ref:    "#/test",
+		Source:   frames.InvokeSource{BindingSpec: "mock-echo@1.0", Location: "mock://test"},
+		Selector: "#/test",
 	})
 	if err := inv.Write(ctx, "ping"); err != nil {
 		t.Fatalf("write: %v", err)
@@ -1562,7 +1562,7 @@ func TestServeBindingPrepare_UnknownPropertyRejected(t *testing.T) {
 	defer ts.Close()
 
 	resp, err := authedPost(ts.URL+"/bindings/prepare", "test-token",
-		`{"source":{"bindingSpec":"openbindings.openapi@1","location":"x"},"ref":"#/paths/~1t/get","input":{}}`)
+		`{"source":{"bindingSpec":"openbindings.openapi@1","location":"x"},"selector":"#/paths/~1t/get","input":{}}`)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1580,7 +1580,7 @@ func TestServeBindingPrepare_AcceptsExtensibleSource(t *testing.T) {
 	ts := testEnv(t)
 	defer ts.Close()
 	resp, err := authedPost(ts.URL+"/bindings/prepare", "test-token",
-		`{"source":{"bindingSpec":"mock-echo@1.0","location":"mock://test","x-driver":{"mode":"fast"}},"ref":"#/test"}`)
+		`{"source":{"bindingSpec":"mock-echo@1.0","location":"mock://test","x-driver":{"mode":"fast"}},"selector":"#/test"}`)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1595,7 +1595,7 @@ func TestServeBindingPrepare_RequiresSourceCarrier(t *testing.T) {
 	ts := testEnv(t)
 	defer ts.Close()
 	resp, err := authedPost(ts.URL+"/bindings/prepare", "test-token",
-		`{"source":{"bindingSpec":"openbindings.openapi@1"},"ref":"#/test"}`)
+		`{"source":{"bindingSpec":"openbindings.openapi@1"},"selector":"#/test"}`)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1674,7 +1674,7 @@ func TestServeBindingPrepare_NullForFormatWithoutPreparer(t *testing.T) {
 	defer ts.Close()
 
 	resp, err := authedPost(ts.URL+"/bindings/prepare", "test-token",
-		`{"source": {"bindingSpec":"mock-echo@1.0","location":"mock://test"},"ref":"#/test"}`)
+		`{"source": {"bindingSpec":"mock-echo@1.0","location":"mock://test"},"selector":"#/test"}`)
 	if err != nil {
 		t.Fatal(err)
 	}

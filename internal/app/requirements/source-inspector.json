@@ -83,9 +83,9 @@
             "type": "object",
             "description": "A target admitted by the source's governing binding specification that can be framed as an OpenBindings operation. Any included framing is a sound projection of this same target.",
             "properties": {
-                "ref": {
+                "selector": {
                     "type": "string",
-                    "description": "Reference string a conforming binding entry can use under the governing binding specification."
+                    "description": "Selector string a conforming binding entry can use under the governing binding specification."
                 },
                 "operationKey": {
                     "type": "string",
@@ -96,7 +96,7 @@
                 }
             },
             "required": [
-                "ref"
+                "selector"
             ]
         },
         "InspectSourceInput": {

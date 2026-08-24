@@ -2,257 +2,257 @@
   "bindings": {
     "openbindings.ob.addOperation.openapi": {
       "operation": "openbindings.ob.addOperation",
-      "ref": "#/paths/~1interfaces~1operations~1add/post",
+      "selector": "#/paths/~1interfaces~1operations~1add/post",
       "source": "openapi"
     },
     "openbindings.ob.addOperationAlias.openapi": {
       "operation": "openbindings.ob.addOperationAlias",
-      "ref": "#/paths/~1interfaces~1operations~1aliases~1add/post",
+      "selector": "#/paths/~1interfaces~1operations~1aliases~1add/post",
       "source": "openapi"
     },
     "openbindings.ob.addSource.openapi": {
       "operation": "openbindings.ob.addSource",
-      "ref": "#/paths/~1interfaces~1sources~1add/post",
+      "selector": "#/paths/~1interfaces~1sources~1add/post",
       "source": "openapi"
     },
     "openbindings.ob.bindOperation.openapi": {
       "operation": "openbindings.ob.bindOperation",
-      "ref": "#/paths/~1interfaces~1operations~1bind/post",
+      "selector": "#/paths/~1interfaces~1operations~1bind/post",
       "source": "openapi"
     },
     "openbindings.ob.codegen.openapi": {
       "operation": "openbindings.ob.codegen",
-      "ref": "#/paths/~1interfaces~1codegen/post",
+      "selector": "#/paths/~1interfaces~1codegen/post",
       "source": "openapi"
     },
     "openbindings.ob.compareInterfaces.openapi": {
       "operation": "openbindings.ob.compareInterfaces",
-      "ref": "#/paths/~1interfaces~1compare/post",
+      "selector": "#/paths/~1interfaces~1compare/post",
       "source": "openapi"
     },
     "openbindings.ob.conform.openapi": {
       "operation": "openbindings.ob.conform",
-      "ref": "#/paths/~1interfaces~1conform/post",
+      "selector": "#/paths/~1interfaces~1conform/post",
       "source": "openapi"
     },
     "openbindings.ob.describe.openapi": {
       "operation": "openbindings.ob.describe",
-      "ref": "#/paths/~1describe/get",
+      "selector": "#/paths/~1describe/get",
       "source": "openapi"
     },
     "openbindings.ob.detachOperation.openapi": {
       "operation": "openbindings.ob.detachOperation",
-      "ref": "#/paths/~1interfaces~1operations~1detach/post",
+      "selector": "#/paths/~1interfaces~1operations~1detach/post",
       "source": "openapi"
     },
     "openbindings.ob.getContext.openapi": {
       "inputTransform": "{ \"url\": key }",
       "operation": "openbindings.ob.getContext",
-      "ref": "#/paths/~1contexts~1{url}/get",
+      "selector": "#/paths/~1contexts~1{url}/get",
       "source": "openapi"
     },
     "openbindings.ob.getDelegateRequirements.openapi": {
       "operation": "openbindings.ob.getDelegateRequirements",
-      "ref": "#/paths/~1delegate-requirements~1{capability}/get",
+      "selector": "#/paths/~1delegate-requirements~1{capability}/get",
       "source": "openapi"
     },
     "openbindings.ob.initializeEnvironment.openapi": {
       "operation": "openbindings.ob.initializeEnvironment",
-      "ref": "#/paths/~1environment~1initialize/post",
+      "selector": "#/paths/~1environment~1initialize/post",
       "source": "openapi"
     },
     "openbindings.ob.inspectSource.openapi": {
       "operation": "openbindings.ob.inspectSource",
-      "ref": "#/paths/~1sources~1inspect/post",
+      "selector": "#/paths/~1sources~1inspect/post",
       "source": "openapi"
     },
     "openbindings.ob.invokeBinding.asyncapi": {
       "operation": "openbindings.ob.invokeBinding",
-      "ref": "#/operations/invokeBinding",
+      "selector": "#/operations/invokeBinding",
       "source": "asyncapi"
     },
     "openbindings.ob.invokeOperation.asyncapi": {
       "operation": "openbindings.ob.invokeOperation",
-      "ref": "#/operations/invokeOperation",
+      "selector": "#/operations/invokeOperation",
       "source": "asyncapi"
     },
     "openbindings.ob.listBindingSpecs.openapi": {
       "operation": "openbindings.ob.listBindingSpecs",
-      "ref": "#/paths/~1binding-specs/get",
+      "selector": "#/paths/~1binding-specs/get",
       "source": "openapi"
     },
     "openbindings.ob.listBindings.openapi": {
       "operation": "openbindings.ob.listBindings",
-      "ref": "#/paths/~1interfaces~1bindings~1list/post",
+      "selector": "#/paths/~1interfaces~1bindings~1list/post",
       "source": "openapi"
     },
     "openbindings.ob.listContexts.openapi": {
       "operation": "openbindings.ob.listContexts",
-      "ref": "#/paths/~1contexts/get",
+      "selector": "#/paths/~1contexts/get",
       "source": "openapi"
     },
     "openbindings.ob.listDelegates.openapi": {
       "operation": "openbindings.ob.listDelegates",
-      "ref": "#/paths/~1delegates/get",
+      "selector": "#/paths/~1delegates/get",
       "source": "openapi"
     },
     "openbindings.ob.listOperationAliases.openapi": {
       "operation": "openbindings.ob.listOperationAliases",
-      "ref": "#/paths/~1interfaces~1operations~1aliases~1list/post",
+      "selector": "#/paths/~1interfaces~1operations~1aliases~1list/post",
       "source": "openapi"
     },
     "openbindings.ob.listOperations.openapi": {
       "operation": "openbindings.ob.listOperations",
-      "ref": "#/paths/~1interfaces~1operations~1list/post",
+      "selector": "#/paths/~1interfaces~1operations~1list/post",
       "source": "openapi"
     },
     "openbindings.ob.listSources.openapi": {
       "operation": "openbindings.ob.listSources",
-      "ref": "#/paths/~1interfaces~1sources~1list/post",
+      "selector": "#/paths/~1interfaces~1sources~1list/post",
       "source": "openapi"
     },
     "openbindings.ob.mergeInterfaces.openapi": {
       "operation": "openbindings.ob.mergeInterfaces",
-      "ref": "#/paths/~1interfaces~1merge/post",
+      "selector": "#/paths/~1interfaces~1merge/post",
       "source": "openapi"
     },
     "openbindings.ob.newInterface.openapi": {
       "operation": "openbindings.ob.newInterface",
-      "ref": "#/paths/~1interfaces/post",
+      "selector": "#/paths/~1interfaces/post",
       "source": "openapi"
     },
     "openbindings.ob.prepareBinding.openapi": {
       "operation": "openbindings.ob.prepareBinding",
-      "ref": "#/paths/~1bindings~1prepare/post",
+      "selector": "#/paths/~1bindings~1prepare/post",
       "source": "openapi"
     },
     "openbindings.ob.prepareOperation.openapi": {
       "inputTransform": "{ \"input\": $$ }",
       "operation": "openbindings.ob.prepareOperation",
-      "ref": "#/paths/~1operations~1prepare/post",
+      "selector": "#/paths/~1operations~1prepare/post",
       "source": "openapi"
     },
     "openbindings.ob.pullSource.openapi": {
       "operation": "openbindings.ob.pullSource",
-      "ref": "#/paths/~1interfaces~1sources~1pull/post",
+      "selector": "#/paths/~1interfaces~1sources~1pull/post",
       "source": "openapi"
     },
     "openbindings.ob.purifyInterface.openapi": {
       "inputTransform": "[{\"$openbindings\":\"openbindings.openapi@1\",\"value\":({ \"payload\": $$ }),\"parameters\":[],\"body\":{\"whole\":\"payload\"}}]",
       "operation": "openbindings.ob.purifyInterface",
-      "ref": "#/paths/~1interfaces~1purify/post",
+      "selector": "#/paths/~1interfaces~1purify/post",
       "source": "openapi"
     },
     "openbindings.ob.registerDelegate.openapi": {
       "operation": "openbindings.ob.registerDelegate",
-      "ref": "#/paths/~1delegates~1register/post",
+      "selector": "#/paths/~1delegates~1register/post",
       "source": "openapi"
     },
     "openbindings.ob.removeContext.openapi": {
       "inputTransform": "{ \"url\": key }",
       "operation": "openbindings.ob.removeContext",
-      "ref": "#/paths/~1contexts~1{url}/delete",
+      "selector": "#/paths/~1contexts~1{url}/delete",
       "source": "openapi"
     },
     "openbindings.ob.removeOperation.openapi": {
       "operation": "openbindings.ob.removeOperation",
-      "ref": "#/paths/~1interfaces~1operations~1remove/post",
+      "selector": "#/paths/~1interfaces~1operations~1remove/post",
       "source": "openapi"
     },
     "openbindings.ob.removeOperationAlias.openapi": {
       "operation": "openbindings.ob.removeOperationAlias",
-      "ref": "#/paths/~1interfaces~1operations~1aliases~1remove/post",
+      "selector": "#/paths/~1interfaces~1operations~1aliases~1remove/post",
       "source": "openapi"
     },
     "openbindings.ob.removeSource.openapi": {
       "operation": "openbindings.ob.removeSource",
-      "ref": "#/paths/~1interfaces~1sources~1remove/post",
+      "selector": "#/paths/~1interfaces~1sources~1remove/post",
       "source": "openapi"
     },
     "openbindings.ob.renameOperation.openapi": {
       "operation": "openbindings.ob.renameOperation",
-      "ref": "#/paths/~1interfaces~1operations~1rename/post",
+      "selector": "#/paths/~1interfaces~1operations~1rename/post",
       "source": "openapi"
     },
     "openbindings.ob.reportCompatibility.openapi": {
       "operation": "openbindings.ob.reportCompatibility",
-      "ref": "#/paths/~1interfaces~1compatibility/post",
+      "selector": "#/paths/~1interfaces~1compatibility/post",
       "source": "openapi"
     },
     "openbindings.ob.reportEnvironmentStatus.openapi": {
       "operation": "openbindings.ob.reportEnvironmentStatus",
-      "ref": "#/paths/~1environment/get",
+      "selector": "#/paths/~1environment/get",
       "source": "openapi"
     },
     "openbindings.ob.reportInterfaceStatus.openapi": {
       "operation": "openbindings.ob.reportInterfaceStatus",
-      "ref": "#/paths/~1interfaces~1status/post",
+      "selector": "#/paths/~1interfaces~1status/post",
       "source": "openapi"
     },
     "openbindings.ob.resolveDelegate.openapi": {
       "operation": "openbindings.ob.resolveDelegate",
-      "ref": "#/paths/~1delegates~1resolve~1{operation}/get",
+      "selector": "#/paths/~1delegates~1resolve~1{operation}/get",
       "source": "openapi"
     },
     "openbindings.ob.resolveDelegateForBindingSpec.openapi": {
       "operation": "openbindings.ob.resolveDelegateForBindingSpec",
-      "ref": "#/paths/~1delegates~1resolve-binding-spec/post",
+      "selector": "#/paths/~1delegates~1resolve-binding-spec/post",
       "source": "openapi"
     },
     "openbindings.ob.resolveInterface.openapi": {
       "operation": "openbindings.ob.resolveInterface",
-      "ref": "#/paths/~1interfaces~1resolve/post",
+      "selector": "#/paths/~1interfaces~1resolve/post",
       "source": "openapi"
     },
     "openbindings.ob.setContext.openapi": {
       "inputTransform": "[{\"$openbindings\":\"openbindings.openapi@1\",\"value\":({ \"url\": key, \"payload\": value }),\"parameters\":[{\"in\":\"path\",\"name\":\"url\",\"field\":\"url\"}],\"body\":{\"whole\":\"payload\"}}]",
       "operation": "openbindings.ob.setContext",
-      "ref": "#/paths/~1contexts~1{url}/put",
+      "selector": "#/paths/~1contexts~1{url}/put",
       "source": "openapi"
     },
     "openbindings.ob.setDelegatePreference.openapi": {
       "operation": "openbindings.ob.setDelegatePreference",
-      "ref": "#/paths/~1delegates~1preference/post",
+      "selector": "#/paths/~1delegates~1preference/post",
       "source": "openapi"
     },
     "openbindings.ob.setMetadata.openapi": {
       "operation": "openbindings.ob.setMetadata",
-      "ref": "#/paths/~1interfaces~1metadata/post",
+      "selector": "#/paths/~1interfaces~1metadata/post",
       "source": "openapi"
     },
     "openbindings.ob.setOperation.openapi": {
       "operation": "openbindings.ob.setOperation",
-      "ref": "#/paths/~1interfaces~1operations~1set/post",
+      "selector": "#/paths/~1interfaces~1operations~1set/post",
       "source": "openapi"
     },
     "openbindings.ob.setOperationCodegenName.openapi": {
       "operation": "openbindings.ob.setOperationCodegenName",
-      "ref": "#/paths/~1interfaces~1operations~1codegen-name/post",
+      "selector": "#/paths/~1interfaces~1operations~1codegen-name/post",
       "source": "openapi"
     },
     "openbindings.ob.setOperationOutputSchema.openapi": {
       "operation": "openbindings.ob.setOperationOutputSchema",
-      "ref": "#/paths/~1interfaces~1operations~1output-schema/post",
+      "selector": "#/paths/~1interfaces~1operations~1output-schema/post",
       "source": "openapi"
     },
     "openbindings.ob.synthesizeInterface.openapi": {
       "operation": "openbindings.ob.synthesizeInterface",
-      "ref": "#/paths/~1interfaces~1synthesize/post",
+      "selector": "#/paths/~1interfaces~1synthesize/post",
       "source": "openapi"
     },
     "openbindings.ob.unbindOperation.openapi": {
       "operation": "openbindings.ob.unbindOperation",
-      "ref": "#/paths/~1interfaces~1operations~1unbind/post",
+      "selector": "#/paths/~1interfaces~1operations~1unbind/post",
       "source": "openapi"
     },
     "openbindings.ob.unregisterDelegate.openapi": {
       "operation": "openbindings.ob.unregisterDelegate",
-      "ref": "#/paths/~1delegates~1unregister/post",
+      "selector": "#/paths/~1delegates~1unregister/post",
       "source": "openapi"
     },
     "openbindings.ob.validateInterface.openapi": {
       "operation": "openbindings.ob.validateInterface",
-      "ref": "#/paths/~1interfaces~1validate/post",
+      "selector": "#/paths/~1interfaces~1validate/post",
       "source": "openapi"
     }
   },
@@ -297,7 +297,7 @@
       ]
     },
     "openbindings.ob.bindOperation": {
-      "description": "Attach a source ref to an existing operation (preserving the operation's key) and return the modified interface. Warns and optionally scaffolds transform stubs on a shape mismatch.",
+      "description": "Attach a source selector to an existing operation (preserving the operation's key) and return the modified interface. Warns and optionally scaffolds transform stubs on a shape mismatch.",
       "input": {
         "$ref": "#/schemas/BindOperationInput"
       },
@@ -1086,8 +1086,8 @@
           "description": "Author preference signal (higher = more preferred); this field does not itself select a binding.",
           "type": "number"
         },
-        "ref": {
-          "description": "Source ref (wire identifier) to bind.",
+        "selector": {
+          "description": "Source selector (wire identifier) to bind.",
           "type": "string"
         },
         "source": {
@@ -1103,7 +1103,7 @@
         "interface",
         "operation",
         "source",
-        "ref"
+        "selector"
       ],
       "type": "object"
     },
@@ -1117,13 +1117,13 @@
           "description": "Suggested operation key for this target.",
           "type": "string"
         },
-        "ref": {
-          "description": "Reference string a conforming binding entry can use under the governing binding specification.",
+        "selector": {
+          "description": "Selector string a conforming binding entry can use under the governing binding specification.",
           "type": "string"
         }
       },
       "required": [
-        "ref"
+        "selector"
       ],
       "type": "object"
     },
@@ -1139,8 +1139,8 @@
         "context": {
           "$ref": "#/schemas/BindingContext"
         },
-        "ref": {
-          "description": "Reference within the binding source.",
+        "selector": {
+          "description": "Selector within the binding source.",
           "type": "string"
         },
         "source": {
@@ -1149,7 +1149,7 @@
       },
       "required": [
         "source",
-        "ref"
+        "selector"
       ],
       "type": "object"
     },
@@ -1311,8 +1311,8 @@
           "description": "The author-declared selection preference, when set.",
           "type": "number"
         },
-        "ref": {
-          "description": "The binding-specification reference into the source.",
+        "selector": {
+          "description": "The binding-specification selector into the source.",
           "type": "string"
         },
         "source": {

@@ -103,7 +103,7 @@ func DelegateBindingInvoker(resolved delegates.Resolved) (invoke.BindingInvoker,
 			delegate: resolved.Delegate,
 			format:   resolved.Format,
 			docURL:   iface.Sources[frameBinding.Source].Location,
-			ref:      frameBinding.Ref,
+			selector: frameBinding.Selector,
 		}, nil
 	case cliBinding != nil:
 		return &delegateCLIInvoker{
@@ -140,7 +140,7 @@ type delegateFrameInvoker struct {
 	delegate string
 	format   string
 	docURL   string // the delegate's AsyncAPI document
-	ref      string // e.g. #/operations/invokeBinding
+	selector string // e.g. #/operations/invokeBinding
 }
 
 func (d *delegateFrameInvoker) BindingSpecs() []openbindings.BindingSpecInfo {
@@ -154,7 +154,7 @@ func (d *delegateFrameInvoker) InvokeBinding(ctx context.Context, args *invoke.B
 			Location:    args.Source.Location,
 			Content:     args.Source.Content,
 		},
-		Ref: args.Ref,
+		Selector: args.Selector,
 		// Caller's per-call context only. ob does not pre-load the store for
 		// delegate formats (PrepareBinding returns nil for them), so a delegate,
 		// like any interface client, raises CONTEXT_REQUIRED for what it needs and
@@ -170,7 +170,7 @@ func (d *delegateFrameInvoker) InvokeBinding(ctx context.Context, args *invoke.B
 // host's key and presented as a bearer on the upgrade request — it never
 // mixes with the downstream context carried by the open frame.
 func (d *delegateFrameInvoker) dial(ctx context.Context) (*websocket.Conn, *invoke.InvocationError) {
-	endpoint, err := resolveFrameEndpoint(ctx, d.docURL, d.ref)
+	endpoint, err := resolveFrameEndpoint(ctx, d.docURL, d.selector)
 	if err != nil {
 		return nil, &invoke.InvocationError{
 			Code: invoke.ErrCodeSourceConfigError,
@@ -205,14 +205,14 @@ func (d *delegateFrameInvoker) dial(ctx context.Context) (*websocket.Conn, *invo
 const maxFrameBytes = 2 << 20 // 2 MiB
 
 // resolveFrameEndpoint fetches the delegate's AsyncAPI document and derives
-// the ws(s) URL of the operation the ref names. Everything AsyncAPI —
-// document parsing, the ref grammar (ASYNC-D-03), and the pinned
+// the ws(s) URL of the operation the selector names. Everything AsyncAPI —
+// document parsing, the selector grammar (ASYNC-D-03), and the pinned
 // server-selection and address rules (openbindings.asyncapi@1 §9.2,
 // ASYNC-P-04) — lives behind the SDK's format seam
 // (asyncapi.ParseDocument / Document.ResolveEndpoint), never re-derived
 // here. What stays on this side is ob's own: fetching the document (the
 // frame lane's timeout and size policy) and spelling the upgrade scheme.
-func resolveFrameEndpoint(ctx context.Context, docURL, ref string) (string, error) {
+func resolveFrameEndpoint(ctx context.Context, docURL, selector string) (string, error) {
 	data, err := fetchFrameDoc(ctx, docURL)
 	if err != nil {
 		return "", err
@@ -221,9 +221,9 @@ func resolveFrameEndpoint(ctx context.Context, docURL, ref string) (string, erro
 	if err != nil {
 		return "", fmt.Errorf("parsing AsyncAPI document %s: %w", docURL, err)
 	}
-	endpoint, err := doc.ResolveEndpoint(ref, nil)
+	endpoint, err := doc.ResolveEndpoint(selector, nil)
 	if err != nil {
-		return "", fmt.Errorf("resolving %s in %s: %w", ref, docURL, err)
+		return "", fmt.Errorf("resolving %s in %s: %w", selector, docURL, err)
 	}
 
 	// The frame lane is a WebSocket lane: an http(s)-protocol server takes
@@ -347,9 +347,9 @@ func (d *delegateCLIInvoker) InvokeBinding(ctx context.Context, args *invoke.Bin
 				Location:    args.Source.Location,
 				Content:     args.Source.Content,
 			},
-			Ref:     args.Ref,
-			Input:   input,
-			Context: args.Context,
+			Selector: args.Selector,
+			Input:    input,
+			Context:  args.Context,
 		}
 		if d.binding.InputTransform != nil {
 			transformed, tErr := ApplyTransform(d.iface.Transforms, d.binding.InputTransform, payload)
@@ -370,9 +370,9 @@ func (d *delegateCLIInvoker) InvokeBinding(ctx context.Context, args *invoke.Bin
 			return
 		}
 		inner := delegateExecInvoker(d.delegate).InvokeBinding(ctx, &invoke.BindingInvocationArgs{
-			Source:  es,
-			Ref:     d.binding.Ref,
-			Context: args.Context,
+			Source:   es,
+			Selector: d.binding.Selector,
+			Context:  args.Context,
 		})
 		_ = inner.Write(ctx, payload)
 		_ = inner.Close()

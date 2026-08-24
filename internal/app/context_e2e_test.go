@@ -146,7 +146,7 @@ func TestContextE2E_AutoResolution(t *testing.T) {
 			"listPets.petstore": {
 				Operation: "listPets",
 				Source:    "petstore",
-				Ref:       "#/paths/~1pets/get",
+				Selector:  "#/paths/~1pets/get",
 			},
 		},
 	}
@@ -260,7 +260,7 @@ func TestContextE2E_NoContextReturnsEmptyResolvedBinding(t *testing.T) {
 			"hello.usage": {
 				Operation: "hello",
 				Source:    "usage",
-				Ref:       "hello",
+				Selector:  "hello",
 			},
 		},
 	}

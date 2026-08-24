@@ -22,7 +22,7 @@ An OpenBindings Interface (OBI) is a JSON document that defines operations and b
     "getUser.rest": {
       "operation": "getUser",
       "source": "rest",
-      "ref": "#/paths/~1users~1{id}/get"
+      "selector": "#/paths/~1users~1{id}/get"
     }
   }
 }
@@ -32,7 +32,7 @@ An OpenBindings Interface (OBI) is a JSON document that defines operations and b
 
 - **Operation**: the portable contract — a named unit of capability with input/output JSON Schemas, independent of any protocol
 - **Source**: carries or points at a source artifact (OpenAPI doc, proto file, MCP server) under a named binding specification (`bindingSpec`)
-- **Binding**: links one operation to one source at a specific entry point (`ref`), optionally with a transform
+- **Binding**: links one operation to one source at a specific entry point (`selector`), optionally with a transform
 - **Alias**: an additional name for an operation, equal in standing to its key; by adopting a published interface's operation name as its key or an alias, an operation **corresponds to** that operation. The claim is an author assertion — it does not establish compatibility, ownership, or trust (OBI-T-12 resolves keys and aliases identically)
 
 ## Binding Specifications
@@ -47,14 +47,14 @@ implementation-defined rather than portable meaning under the identifier. The
 `openbindings.*` candidates choose close upstream deference and must close such
 gaps before publication.
 
-| Format | `bindingSpec` identifier | `ref` shape |
+| Format | `bindingSpec` identifier | `selector` shape |
 |--------|--------------------------|-------------|
 | OpenAPI | `openbindings.openapi@1` | JSON Pointer to the operation object: `#/paths/~1users~1{id}/get` |
 | AsyncAPI | `openbindings.asyncapi@1` | JSON Pointer: `#/operations/sendMessage` |
 | gRPC | `openbindings.grpc@1` | `<fully-qualified-service>/<method>` |
 | Connect | `openbindings.connect@1` | `<fully-qualified-service>/<method>` |
 | MCP | `openbindings.mcp@1` | `tools/<name>` for tools declaring `outputSchema` |
-| usage (CLI) | `openbindings.usage@1` | space-separated command path (absent `ref` = root) |
+| usage (CLI) | `openbindings.usage@1` | space-separated command path (absent `selector` = root) |
 | GraphQL | `openbindings.graphql@1` (latest) | `query/<field>` or `mutation/<field>` |
 | GraphQL | `openbindings.graphql@1` (compatibility) | `query/<field>`, `mutation/<field>`, or `subscription/<field>` |
 | Operation Graph | `openbindings.operation-graph@1` | JSON Pointer to a graph definition |

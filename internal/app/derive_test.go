@@ -13,7 +13,7 @@ func TestRemapBindingKeysPreservesSynthesizedBindingContract(t *testing.T) {
 	original := openbindings.BindingEntry{
 		Operation:       "putThing",
 		Source:          "openapi",
-		Ref:             "#/paths/~1things/put",
+		Selector:        "#/paths/~1things/put",
 		Preference:      &preference,
 		Description:     "preserve me",
 		Deprecated:      true,
@@ -26,7 +26,7 @@ func TestRemapBindingKeysPreservesSynthesizedBindingContract(t *testing.T) {
 	if !ok {
 		t.Fatalf("remapped binding missing: %#v", got)
 	}
-	if remapped.Source != "service" || remapped.Operation != original.Operation || remapped.Ref != original.Ref {
+	if remapped.Source != "service" || remapped.Operation != original.Operation || remapped.Selector != original.Selector {
 		t.Fatalf("binding identity was not remapped narrowly: %#v", remapped)
 	}
 	if remapped.InputTransform != inputTransform || remapped.OutputTransform != outputTransform ||

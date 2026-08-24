@@ -67,8 +67,8 @@ func RunCLIOpenBindings(path string, timeout time.Duration) (openbindings.Interf
 // probeFormatsFromInterface executes the listBindingSpecs binding from an interface.
 func probeFormatsFromInterface(path string, timeout time.Duration, iface openbindings.Interface) ([]string, error) {
 	var (
-		formatsRef string
-		sourceKey  string
+		formatsSelector string
+		sourceKey       string
 	)
 	// Resolve by name against the flat key+aliases namespace (OBI-T-12):
 	// the delegate's spec-listing operation carries the contract key as an
@@ -79,12 +79,12 @@ func probeFormatsFromInterface(path string, timeout time.Duration, iface openbin
 	}
 	for _, b := range iface.Bindings {
 		if b.Operation == opKey {
-			formatsRef = b.Ref
+			formatsSelector = b.Selector
 			sourceKey = b.Source
 			break
 		}
 	}
-	if formatsRef == "" || sourceKey == "" {
+	if formatsSelector == "" || sourceKey == "" {
 		return nil, fmt.Errorf("missing binding for %s", opKey)
 	}
 	src, ok := iface.Sources[sourceKey]
@@ -97,7 +97,7 @@ func probeFormatsFromInterface(path string, timeout time.Duration, iface openbin
 
 	// The ref is the format's own grammar: a space-separated command path
 	// — the argv prefix directly.
-	args := strings.Fields(formatsRef)
+	args := strings.Fields(formatsSelector)
 	if len(args) == 0 {
 		return nil, fmt.Errorf("empty formats command ref")
 	}

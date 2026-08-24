@@ -168,12 +168,12 @@ func applyTagChanges(tags, add, remove []string) []string {
 
 // --- Bind / Unbind ---
 
-// OperationBindInput holds input for attaching a source ref to an operation.
+// OperationBindInput holds input for attaching a source selector to an operation.
 type OperationBindInput struct {
 	OBIPath         string
 	Op              string
 	Source          string
-	Ref             string
+	Selector        string
 	Preference      *float64
 	TransformStub   bool
 	InputTransform  string
@@ -186,7 +186,7 @@ type OperationBindOutput struct {
 	BindingKey   string   `json:"bindingKey"`
 	Operation    string   `json:"operation"`
 	Source       string   `json:"source"`
-	Ref          string   `json:"ref"`
+	Selector     string   `json:"selector"`
 	ShapeMatched bool     `json:"shapeMatched"`
 	Warnings     []string `json:"warnings,omitempty"`
 }
@@ -201,7 +201,7 @@ func (o OperationBindOutput) Render() string {
 	sb.WriteString(s.Dim.Render(" → "))
 	sb.WriteString(o.Source)
 	sb.WriteString(s.Dim.Render(" · "))
-	sb.WriteString(o.Ref)
+	sb.WriteString(o.Selector)
 	for _, w := range o.Warnings {
 		sb.WriteString("\n  ")
 		sb.WriteString(s.Warning.Render("warning: " + w))
@@ -209,9 +209,9 @@ func (o OperationBindOutput) Render() string {
 	return sb.String()
 }
 
-// OperationBind attaches a source ref to an existing operation (the
+// OperationBind attaches a source selector to an existing operation (the
 // contract-keyed wire-up). The operation's key is preserved; the source's wire
-// identifier lives in the binding's Ref. On a shape mismatch it warns and, with
+// identifier lives in the binding's Selector. On a shape mismatch it warns and, with
 // TransformStub, scaffolds identity transforms for the author to complete.
 func OperationBind(input OperationBindInput) (OperationBindOutput, error) {
 	iface, err := loadInterfaceFile(input.OBIPath)
@@ -236,31 +236,31 @@ func OperationBind(input OperationBindInput) (OperationBindOutput, error) {
 		return OperationBindOutput{}, fmt.Errorf("operation %q already has a binding to source %q; pass --force to re-point it", key, input.Source)
 	}
 
-	out := OperationBindOutput{BindingKey: bindingKey, Operation: key, Source: input.Source, Ref: input.Ref, ShapeMatched: true}
+	out := OperationBindOutput{BindingKey: bindingKey, Operation: key, Source: input.Source, Selector: input.Selector, ShapeMatched: true}
 
-	// Best-effort: derive the source's targets to validate the ref and compare
+	// Best-effort: derive the source's targets to validate the selector and compare
 	// shapes. Derivation failure is advisory, not fatal.
-	var refIn, refOut any
-	refFound := false
+	var selIn, selOut any
+	selFound := false
 	if derived, derr := DeriveFromSource(src, input.Source, filepath.Dir(input.OBIPath)); derr == nil {
 		for _, b := range derived.Bindings {
-			if b.Ref != input.Ref {
+			if b.Selector != input.Selector {
 				continue
 			}
-			refFound = true
+			selFound = true
 			if dop, ok := derived.Operations[b.Operation]; ok {
-				refIn, refOut = dop.Input, dop.Output
+				selIn, selOut = dop.Input, dop.Output
 			}
 			break
 		}
-		if !refFound {
-			out.Warnings = append(out.Warnings, fmt.Sprintf("ref %q not found among source %q targets", input.Ref, input.Source))
+		if !selFound {
+			out.Warnings = append(out.Warnings, fmt.Sprintf("selector %q not found among source %q targets", input.Selector, input.Source))
 		}
 	} else {
-		out.Warnings = append(out.Warnings, fmt.Sprintf("could not derive source %q to validate ref: %v", input.Source, derr))
+		out.Warnings = append(out.Warnings, fmt.Sprintf("could not derive source %q to validate selector: %v", input.Source, derr))
 	}
 
-	be := openbindings.BindingEntry{Operation: key, Source: input.Source, Ref: input.Ref, Preference: input.Preference}
+	be := openbindings.BindingEntry{Operation: key, Source: input.Source, Selector: input.Selector, Preference: input.Preference}
 
 	// Explicit transforms take precedence; otherwise shape-check and optionally stub.
 	if input.InputTransform != "" {
@@ -269,13 +269,13 @@ func OperationBind(input OperationBindInput) (OperationBindOutput, error) {
 	if input.OutputTransform != "" {
 		be.OutputTransform = &openbindings.TransformOrRef{Inline: input.OutputTransform}
 	}
-	if refFound {
-		inMatch := schemaValueEqual(op.Input, refIn)
-		outMatch := schemaValueEqual(op.Output, refOut)
+	if selFound {
+		inMatch := schemaValueEqual(op.Input, selIn)
+		outMatch := schemaValueEqual(op.Output, selOut)
 		if !inMatch || !outMatch {
 			out.ShapeMatched = false
 			out.Warnings = append(out.Warnings, fmt.Sprintf(
-				"operation %q and ref %q shapes differ; a transform is needed to bridge them", key, input.Ref))
+				"operation %q and selector %q shapes differ; a transform is needed to bridge them", key, input.Selector))
 			if input.TransformStub {
 				if !inMatch && be.InputTransform == nil {
 					be.InputTransform = &openbindings.TransformOrRef{Inline: "$"}
