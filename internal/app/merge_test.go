@@ -49,7 +49,7 @@ func donorWithBindingAndSource(t *testing.T, dir string) string {
 		"openbindings": "0.2.0", "name": "Contract", "version": "0.1.0",
 		"operations": map[string]any{"getThing": map[string]any{"input": map[string]any{"type": "object"}}},
 		"sources":    map[string]any{"donorSrc": map[string]any{"bindingSpec": "openbindings.openapi@1", "location": "x.yaml"}},
-		"bindings":   map[string]any{"getThing.donorSrc": map[string]any{"operation": "getThing", "source": "donorSrc", "ref": "getThing"}},
+		"bindings":   map[string]any{"getThing.donorSrc": map[string]any{"operation": "getThing", "source": "donorSrc", "selector": "getThing"}},
 	})
 }
 
@@ -228,7 +228,7 @@ func TestMerge_RemoveBinding(t *testing.T) {
 			"goodbye": map[string]any{},
 		},
 		"bindings": map[string]any{
-			"goodbye.mySource": map[string]any{"operation": "goodbye", "source": "mySource", "ref": "bye"},
+			"goodbye.mySource": map[string]any{"operation": "goodbye", "source": "mySource", "selector": "bye"},
 		},
 	}
 	target := writeInterface(t, dir, "target.json", targetData)

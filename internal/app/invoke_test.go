@@ -84,7 +84,7 @@ func TestDefaultBindingForOp_NoBindings(t *testing.T) {
 func TestDefaultBindingForOp_SingleMatch(t *testing.T) {
 	iface := &openbindings.Interface{
 		Bindings: map[string]openbindings.BindingEntry{
-			"listPets.usage1": {Operation: "listPets", Source: "usage1", Ref: "list pets"},
+			"listPets.usage1": {Operation: "listPets", Source: "usage1", Selector: "list pets"},
 		},
 	}
 	key, got, err := DefaultBindingForOp("listPets", iface)
@@ -94,8 +94,8 @@ func TestDefaultBindingForOp_SingleMatch(t *testing.T) {
 	if got == nil {
 		t.Fatal("expected binding, got nil")
 	}
-	if got.Ref != "list pets" {
-		t.Errorf("expected ref 'list pets', got %q", got.Ref)
+	if got.Selector != "list pets" {
+		t.Errorf("expected ref 'list pets', got %q", got.Selector)
 	}
 	if key != "listPets.usage1" {
 		t.Errorf("expected key 'listPets.usage1', got %q", key)
@@ -119,8 +119,8 @@ func TestDefaultBindingForOp_PreferenceDoesNotResolveAmbiguity(t *testing.T) {
 	hi := 10.0
 	iface := &openbindings.Interface{
 		Bindings: map[string]openbindings.BindingEntry{
-			"listPets.backup":  {Operation: "listPets", Source: "backup", Ref: "backup-ref", Preference: &lo},
-			"listPets.primary": {Operation: "listPets", Source: "primary", Ref: "primary-ref", Preference: &hi},
+			"listPets.backup":  {Operation: "listPets", Source: "backup", Selector: "backup-ref", Preference: &lo},
+			"listPets.primary": {Operation: "listPets", Source: "primary", Selector: "primary-ref", Preference: &hi},
 		},
 	}
 	_, got, err := DefaultBindingForOp("listPets", iface)
@@ -136,8 +136,8 @@ func TestDefaultBindingForOp_NilAndExplicitPreferenceRemainAmbiguous(t *testing.
 	explicit := 5.0
 	iface := &openbindings.Interface{
 		Bindings: map[string]openbindings.BindingEntry{
-			"listPets.explicit": {Operation: "listPets", Source: "explicit", Ref: "e", Preference: &explicit},
-			"listPets.default":  {Operation: "listPets", Source: "default", Ref: "d"},
+			"listPets.explicit": {Operation: "listPets", Source: "explicit", Selector: "e", Preference: &explicit},
+			"listPets.default":  {Operation: "listPets", Source: "default", Selector: "d"},
 		},
 	}
 	_, got, err := DefaultBindingForOp("listPets", iface)
@@ -161,9 +161,9 @@ func TestResolveBindingAndSource_OrderedCallerSelection(t *testing.T) {
 			"b": {BindingSpec: "openbindings.openapi@1", Location: "https://example.test/b.json"},
 		},
 		Bindings: map[string]openbindings.BindingEntry{
-			"listPets.a": {Operation: "listPets", Source: "a", Ref: "#/paths/~1pets/get"},
-			"listPets.b": {Operation: "listPets", Source: "b", Ref: "#/paths/~1pets/get"},
-			"other.a":    {Operation: "other", Source: "a", Ref: "#/paths/~1other/get"},
+			"listPets.a": {Operation: "listPets", Source: "a", Selector: "#/paths/~1pets/get"},
+			"listPets.b": {Operation: "listPets", Source: "b", Selector: "#/paths/~1pets/get"},
+			"other.a":    {Operation: "other", Source: "a", Selector: "#/paths/~1other/get"},
 		},
 	}
 	context := map[string]any{
@@ -294,7 +294,7 @@ func TestInvokeOBIOperation_BindingKeyResolvesOperation(t *testing.T) {
 			"listPets.usage1": map[string]any{
 				"operation": "listPets",
 				"source":    "usage1",
-				"ref":       "list pets",
+				"selector":  "list pets",
 			},
 		},
 	})
@@ -352,7 +352,7 @@ func TestInvokeOBIOperation_InputTransformError(t *testing.T) {
 			"listPets.usage1": map[string]any{
 				"operation":      "listPets",
 				"source":         "usage1",
-				"ref":            "list pets",
+				"selector":       "list pets",
 				"inputTransform": "$$$$invalid$$$$",
 			},
 		},
@@ -471,7 +471,7 @@ func TestInvokeOBIOperation_InvalidInputNeverReachesWire(t *testing.T) {
 			},
 		},
 		"bindings": map[string]any{
-			"createOrder.api": map[string]any{"operation": "createOrder", "source": "api", "ref": "#/paths/~1orders/post"},
+			"createOrder.api": map[string]any{"operation": "createOrder", "source": "api", "selector": "#/paths/~1orders/post"},
 		},
 	})
 

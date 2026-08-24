@@ -115,7 +115,7 @@ func TestOperationRename_Basic(t *testing.T) {
 			"hello": map[string]any{"description": "Say hello"},
 		},
 		"bindings": map[string]any{
-			"hello.usage": map[string]any{"operation": "hello", "source": "usage", "ref": "hello"},
+			"hello.usage": map[string]any{"operation": "hello", "source": "usage", "selector": "hello"},
 		},
 	}
 	obiPath := writeInterface(t, dir, "test.obi.json", obiData)

@@ -161,7 +161,7 @@ func TestWireConformance_ExecLane(t *testing.T) {
 			"s": map[string]any{"bindingSpec": "openbindings.openapi@1", "location": "https://example.com/openapi.yaml"},
 		},
 		"bindings": map[string]any{
-			"ping.s": map[string]any{"operation": "ping", "source": "s", "ref": "#/paths/~1ping/get"},
+			"ping.s": map[string]any{"operation": "ping", "source": "s", "selector": "#/paths/~1ping/get"},
 		},
 	}
 	docB := map[string]any{
@@ -348,7 +348,7 @@ func TestWireConformance_ExecLane(t *testing.T) {
 				"bindingSpec": "openbindings.operation-graph@1",
 				"content":     map[string]any{"graphs": map[string]any{"echo": map[string]any{"openbindings.operation-graph": "0.2.0", "nodes": map[string]any{"in": map[string]any{"type": "input"}, "out": map[string]any{"type": "output"}}, "edges": []any{map[string]any{"from": "in", "to": "out"}}}}},
 			},
-			"ref": "#/graphs/echo",
+			"selector": "#/graphs/echo",
 		}, func(t *testing.T, output any) {
 			if output != nil {
 				t.Errorf("expected null (no context required for a pure graph), got %#v", output)
@@ -586,11 +586,11 @@ func TestWireConformance_ExecLane(t *testing.T) {
 			}
 		}},
 		{"bindOperation", "openbindings.ob.bindOperation", func() any {
-			ref, _ := child(t, doc, "bindings", "getPing.api")["ref"].(string)
-			if ref == "" {
-				t.Fatalf("no derived binding to take the ref from: %#v", doc["bindings"])
+			selector, _ := child(t, doc, "bindings", "getPing.api")["selector"].(string)
+			if selector == "" {
+				t.Fatalf("no derived binding to take the selector from: %#v", doc["bindings"])
 			}
-			return map[string]any{"interface": doc, "operation": "pong", "source": "api", "ref": ref}
+			return map[string]any{"interface": doc, "operation": "pong", "source": "api", "selector": selector}
 		}, func(t *testing.T, out any) {
 			doc = child(t, out)
 			if _, bound := child(t, doc, "bindings")["pong.api"]; !bound {

@@ -75,7 +75,7 @@ func bindFixture(t *testing.T, withBinding bool) string {
 	}
 	if withBinding {
 		data["bindings"] = map[string]any{
-			"greet.api": map[string]any{"operation": "greet", "source": "api", "ref": "old"},
+			"greet.api": map[string]any{"operation": "greet", "source": "api", "selector": "old"},
 		}
 	}
 	return writeInterface(t, t.TempDir(), "t.obi.json", data)
@@ -83,7 +83,7 @@ func bindFixture(t *testing.T, withBinding bool) string {
 
 func TestOperationBind_Basic(t *testing.T) {
 	obiPath := bindFixture(t, false)
-	result, err := OperationBind(OperationBindInput{OBIPath: obiPath, Op: "greet", Source: "api", Ref: "getGreeting"})
+	result, err := OperationBind(OperationBindInput{OBIPath: obiPath, Op: "greet", Source: "api", Selector: "getGreeting"})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -92,14 +92,14 @@ func TestOperationBind_Basic(t *testing.T) {
 	}
 	iface, _ := loadInterfaceFile(obiPath)
 	be, ok := iface.Bindings["greet.api"]
-	if !ok || be.Operation != "greet" || be.Ref != "getGreeting" {
+	if !ok || be.Operation != "greet" || be.Selector != "getGreeting" {
 		t.Errorf("binding not created correctly: %+v", be)
 	}
 }
 
 func TestOperationBind_OpNotFound(t *testing.T) {
 	obiPath := bindFixture(t, false)
-	if _, err := OperationBind(OperationBindInput{OBIPath: obiPath, Op: "ghost", Source: "api", Ref: "x"}); err == nil {
+	if _, err := OperationBind(OperationBindInput{OBIPath: obiPath, Op: "ghost", Source: "api", Selector: "x"}); err == nil {
 		t.Fatal("expected error: operation not found")
 	}
 }
@@ -107,21 +107,21 @@ func TestOperationBind_OpNotFound(t *testing.T) {
 func TestOperationBind_SourceNotRegistered(t *testing.T) {
 	dir := t.TempDir()
 	obiPath := writeInterface(t, dir, "t.obi.json", minimalInterface(map[string]any{"greet": map[string]any{}}))
-	if _, err := OperationBind(OperationBindInput{OBIPath: obiPath, Op: "greet", Source: "api", Ref: "x"}); err == nil {
+	if _, err := OperationBind(OperationBindInput{OBIPath: obiPath, Op: "greet", Source: "api", Selector: "x"}); err == nil {
 		t.Fatal("expected error: source not registered")
 	}
 }
 
 func TestOperationBind_ExistingWithoutForce(t *testing.T) {
 	obiPath := bindFixture(t, true)
-	if _, err := OperationBind(OperationBindInput{OBIPath: obiPath, Op: "greet", Source: "api", Ref: "new"}); err == nil {
+	if _, err := OperationBind(OperationBindInput{OBIPath: obiPath, Op: "greet", Source: "api", Selector: "new"}); err == nil {
 		t.Fatal("expected error: existing binding without --force")
 	}
-	if _, err := OperationBind(OperationBindInput{OBIPath: obiPath, Op: "greet", Source: "api", Ref: "new", Force: true}); err != nil {
+	if _, err := OperationBind(OperationBindInput{OBIPath: obiPath, Op: "greet", Source: "api", Selector: "new", Force: true}); err != nil {
 		t.Fatalf("unexpected error with --force: %v", err)
 	}
 	iface, _ := loadInterfaceFile(obiPath)
-	if iface.Bindings["greet.api"].Ref != "new" {
+	if iface.Bindings["greet.api"].Selector != "new" {
 		t.Error("--force should re-point the binding ref to new")
 	}
 }
@@ -161,7 +161,7 @@ func TestOperationUnbindBinding_ArbitraryKey(t *testing.T) {
 		"api": {BindingSpec: "example.api@1", Content: []byte(`{}`)},
 	}
 	iface.Bindings = map[string]openbindings.BindingEntry{
-		"friendly-name": {Operation: "greet", Source: "api", Ref: "#/greet"},
+		"friendly-name": {Operation: "greet", Source: "api", Selector: "#/greet"},
 	}
 	if err := WriteInterfaceFile(obiPath, iface); err != nil {
 		t.Fatal(err)

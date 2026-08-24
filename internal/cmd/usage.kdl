@@ -271,7 +271,7 @@ cmd "operation" help="Manage and invoke operations on an OBI" subcommand_require
     arg "<operation>" help="Operation key or identifier"
     arg "[schema]" help="Output schema: inline JSON, @file, or - for stdin (omit with --clear)"
   }
-  cmd "bind" help="Attach a source ref to an existing operation" {
+  cmd "bind" help="Attach a source selector to an existing operation" {
     flag "--transform-stub" help="Scaffold identity transform stub(s) on shape mismatch"
     flag "--input-transform <jsonata>" help="Inline JSONata transforming operation input to binding input"
     flag "--output-transform <jsonata>" help="Inline JSONata transforming binding output to operation output"
@@ -282,7 +282,7 @@ cmd "operation" help="Manage and invoke operations on an OBI" subcommand_require
     arg "<obi-path>" help="Path to the OBI file (- reads stdin and writes the modified document to stdout)"
     arg "[operation]" help="Operation key or identifier"
     arg "[source]" help="Source key"
-    arg "[ref]" help="Source ref to bind"
+    arg "[selector]" help="Source selector to bind"
   }
   cmd "unbind" help="Remove a binding from an operation (keep the operation)" {
     flag "-o --output <path>" help="Write output to file"

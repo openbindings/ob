@@ -18,6 +18,18 @@ ship as part of 0.2.0.
 
 ### Changed
 
+- **The binding member `ref` is renamed `selector`.** Every surface that
+  carries the member follows the core rename: OBI documents
+  (`bindings[*].selector`), the binding-invoker wire contract
+  (`BindingInvocationInput.selector` on the frame lane, `/bindings/invoke`
+  and `/bindings/prepare`), the `operation bind` CLI surface
+  (`ob op bind <obi> [operation] [source] [selector]`), the serve editing
+  route (`bindOperation` input), binding listings, and source inspection
+  (`BindableTarget.selector`). No compatibility alias: documents and
+  callers using `ref` must rename the member. The `x-ob.ref` source
+  provenance field (a pull path, not a selector) is unchanged, as are
+  JSON Schema `$ref` and transform `$ref` references.
+
 - **OpenAPI auto-detection now selects current `openbindings.openapi@1`.**
   Exact schema-omitted OAS 3.0 non-JSON request and response representations
   cross the protocol-independent boundary as canonical Base64. The CLI keeps

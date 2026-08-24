@@ -177,7 +177,7 @@ Both strip `ob`'s internal metadata (`x-ob` fields), producing a spec-only OBI s
 An OBI is a JSON document with:
 - **operations** — what the interface can do (methods, events, with input/output schemas)
 - **sources** — where the binding artifacts live (OpenAPI specs, proto files, usage specs, etc.)
-- **bindings** — which operation is exposed through which source, and how to find it (`ref`)
+- **bindings** — which operation is exposed through which source, and how to find it (`selector`)
 - **schemas / transforms** — shared shapes and JSONata reshaping referenced by operations and bindings (optional)
 
 OBIs are format-agnostic. The same operation can be bound to an OpenAPI endpoint, a gRPC method, an MCP tool, and a CLI command simultaneously. Authentication is deliberately absent from the document: credentials and other prerequisites are negotiated at invocation time and stored as context (see `ob context`).
@@ -448,7 +448,7 @@ ob source pull interface.json -o dist/interface.json --pure # publish clean
 | `ob operation list <obi>` | List operations |
 | `ob operation add <obi> <name>` | Add a hand-authored operation |
 | `ob operation set <obi> <operation>` | Edit an operation's fields |
-| `ob operation bind/unbind <obi> …` | Wire an operation to a source ref, or remove the binding |
+| `ob operation bind/unbind <obi> …` | Wire an operation to a source selector, or remove the binding |
 | `ob operation alias <obi> …` | Manage an operation's correspondence aliases |
 | `ob operation rename/remove/detach <obi> …` | Rename, remove, or detach operations |
 | `ob operation codegen-name <obi> <operation> [name]` | Set/clear the symbol name `ob codegen` emits for an operation |
@@ -588,7 +588,7 @@ curl -X POST http://localhost:20290/bindings/prepare \
   -H "Content-Type: application/json" \
   -d '{
     "source": { "bindingSpec": "openbindings.openapi@1", "location": "https://api.example.com/openapi.json" },
-    "ref":    "#/paths/~1users/get"
+    "selector": "#/paths/~1users/get"
   }'
 ```
 
@@ -606,7 +606,7 @@ curl -X POST http://localhost:20290/bindings/prepare \
    selects only `openbindings.frames.v1`; it never echoes the credential
    protocol. Tokens in URL query parameters are rejected so credentials do not
    leak into logs or copied links.
-2. Client streams input frames: exactly one `{"kind": "open", "input": {source, ref, context?}}` first, then zero or more `{"kind": "input", "value": …}`, then one `{"kind": "close"}`.
+2. Client streams input frames: exactly one `{"kind": "open", "input": {source, selector, context?}}` first, then zero or more `{"kind": "input", "value": …}`, then one `{"kind": "close"}`.
 3. Server streams output frames: zero or more `{"kind": "output", "value": …}`, an `{"kind": "input_closed"}` once the binding stops accepting input (later `input` frames are ignored; the invocation continues), and exactly one terminal frame — `{"kind": "complete"}` or `{"kind": "error", "error": {code, data?}}` — after which the connection closes.
 
 Missing runtime context surfaces as a terminal `error` with code `CONTEXT_REQUIRED` whose `data` enumerates the requirements, before any output and any side effect; resolve it (typically via `/contexts`) and retry. `POST /bindings/prepare` reports the same requirements proactively when they are statically knowable.

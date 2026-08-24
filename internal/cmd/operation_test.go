@@ -24,7 +24,7 @@ func TestOperationUnbind_ExactBindingKey(t *testing.T) {
 	    "friendly-name": {
 	      "operation": "greet",
 	      "source": "api",
-	      "ref": "#/greet"
+	      "selector": "#/greet"
 	    }
 	  }
 	}`

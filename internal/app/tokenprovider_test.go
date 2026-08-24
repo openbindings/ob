@@ -72,7 +72,7 @@ func providerOBI(t *testing.T, srvURL string) string {
     }
   },
   "bindings": {
-    "mint.http": {"operation": "test.mint", "source": "api", "ref": "#/paths/~1mint/post"}
+    "mint.http": {"operation": "test.mint", "source": "api", "selector": "#/paths/~1mint/post"}
   }
 }`, srvURL)
 	path := filepath.Join(t.TempDir(), "provider.obi.json")
@@ -127,7 +127,7 @@ func bearerMintProviderOBI(t *testing.T, srvURL string) string {
     }
   },
   "bindings": {
-    "mint.http": {"operation": "test.mint", "source": "api", "ref": "#/paths/~1mint/post"}
+    "mint.http": {"operation": "test.mint", "source": "api", "selector": "#/paths/~1mint/post"}
   }
 }`, srvURL)
 	path := filepath.Join(t.TempDir(), "bearer-provider.obi.json")
@@ -158,7 +158,7 @@ func locatedMintProviderOBI(t *testing.T, docURL string) string {
     "api": {"bindingSpec": "openbindings.openapi@1", "location": %q}
   },
   "bindings": {
-    "mint.http": {"operation": "test.mint", "source": "api", "ref": "#/paths/~1mint/post"}
+    "mint.http": {"operation": "test.mint", "source": "api", "selector": "#/paths/~1mint/post"}
   }
 }`, docURL)
 	path := filepath.Join(t.TempDir(), "located-provider.obi.json")
@@ -205,7 +205,7 @@ func targetOBI(t *testing.T, srvURL string) string {
     }
   },
   "bindings": {
-    "read.http": {"operation": "test.read", "source": "api", "ref": "#/paths/~1data/get"}
+    "read.http": {"operation": "test.read", "source": "api", "selector": "#/paths/~1data/get"}
   }
 }`, srvURL)
 	path := filepath.Join(t.TempDir(), "target.obi.json")

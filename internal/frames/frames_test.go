@@ -19,10 +19,10 @@ func TestInputFrameRoundTrip(t *testing.T) {
 		{
 			name: "open",
 			frame: Open(&BindingInvocationInput{
-				Source: InvokeSource{BindingSpec: "openbindings.openapi@1", Location: "https://x/openapi.yaml"},
-				Ref:    "#/paths/~1t/get",
+				Source:   InvokeSource{BindingSpec: "openbindings.openapi@1", Location: "https://x/openapi.yaml"},
+				Selector: "#/paths/~1t/get",
 			}),
-			want: `{"kind":"open","input":{"source":{"bindingSpec":"openbindings.openapi@1","location":"https://x/openapi.yaml"},"ref":"#/paths/~1t/get"}}`,
+			want: `{"kind":"open","input":{"source":{"bindingSpec":"openbindings.openapi@1","location":"https://x/openapi.yaml"},"selector":"#/paths/~1t/get"}}`,
 		},
 		{
 			name:  "input",
@@ -73,11 +73,11 @@ func TestInputFrameStrictDecode(t *testing.T) {
 		{"non-string kind", `{"kind":5}`},
 		{"not an object", `[1,2]`},
 		{"open without input", `{"kind":"open"}`},
-		{"open with legacy input sibling", `{"kind":"open","input":{"source":{"format":"f","location":"x"},"ref":"r","input":{}}}`},
-		{"open with legacy bearerToken", `{"kind":"open","input":{"source":{"format":"f","location":"x"},"ref":"r","bearerToken":"t"}}`},
-		{"open without ref", `{"kind":"open","input":{"source":{"format":"f","location":"x"}}}`},
-		{"open without source format", `{"kind":"open","input":{"source":{"location":"x"},"ref":"r"}}`},
-		{"open without source carrier", `{"kind":"open","input":{"source":{"bindingSpec":"f"},"ref":"r"}}`},
+		{"open with legacy input sibling", `{"kind":"open","input":{"source":{"format":"f","location":"x"},"selector":"r","input":{}}}`},
+		{"open with legacy bearerToken", `{"kind":"open","input":{"source":{"format":"f","location":"x"},"selector":"r","bearerToken":"t"}}`},
+		{"open without selector", `{"kind":"open","input":{"source":{"format":"f","location":"x"}}}`},
+		{"open without source format", `{"kind":"open","input":{"source":{"location":"x"},"selector":"r"}}`},
+		{"open without source carrier", `{"kind":"open","input":{"source":{"bindingSpec":"f"},"selector":"r"}}`},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -98,7 +98,7 @@ func TestBindingOpenAcceptsExtensibleSource(t *testing.T) {
 	// Source is deliberately open in the OBI contract. Transport-irrelevant
 	// extension fields must not turn an otherwise valid open frame into a
 	// protocol violation.
-	raw := `{"kind":"open","input":{"source":{"bindingSpec":"f","location":"x","binary":"b","x-driver":{"mode":"fast"}},"ref":"r"}}`
+	raw := `{"kind":"open","input":{"source":{"bindingSpec":"f","location":"x","binary":"b","x-driver":{"mode":"fast"}},"selector":"r"}}`
 	var frame InputFrame
 	if err := json.Unmarshal([]byte(raw), &frame); err != nil {
 		t.Fatalf("extensible Source was rejected: %v", err)

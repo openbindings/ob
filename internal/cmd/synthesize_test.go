@@ -135,7 +135,7 @@ func TestInspectMachineLane(t *testing.T) {
 	}
 	var inspection struct {
 		Targets []struct {
-			Ref string `json:"ref"`
+			Selector string `json:"selector"`
 		} `json:"targets"`
 	}
 	if err := json.Unmarshal(data, &inspection); err != nil {
@@ -412,7 +412,7 @@ func TestInspectStdinSource(t *testing.T) {
 	}
 	var inspection struct {
 		Targets []struct {
-			Ref string `json:"ref"`
+			Selector string `json:"selector"`
 		} `json:"targets"`
 	}
 	if err := json.Unmarshal(data, &inspection); err != nil {

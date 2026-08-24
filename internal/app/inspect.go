@@ -27,13 +27,13 @@ func RenderSourceInspection(format, location string, ins *synthesize.SourceInspe
 	for _, t := range ins.Targets {
 		sb.WriteString("\n\n  ")
 		if t.OperationKey != "" {
-			// A suggested key headlines the entry, with the ref beneath it.
+			// A suggested key headlines the entry, with the selector beneath it.
 			sb.WriteString(s.Key.Render(t.OperationKey))
 			sb.WriteString("\n    ")
-			sb.WriteString(s.Dim.Render(t.Ref))
+			sb.WriteString(s.Dim.Render(t.Selector))
 		} else {
-			// No suggested key: the ref is the entry.
-			sb.WriteString(s.Key.Render(t.Ref))
+			// No suggested key: the selector is the entry.
+			sb.WriteString(s.Key.Render(t.Selector))
 		}
 		if t.Operation != nil && t.Operation.Description != "" {
 			sb.WriteString("\n    ")

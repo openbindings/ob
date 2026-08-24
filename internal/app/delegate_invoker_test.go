@@ -88,7 +88,7 @@ func TestDelegateFrameInvoker_UnaryRoundTrip(t *testing.T) {
 
 		open := readFrame()
 		if open.Kind != frames.KindOpen || open.Input == nil ||
-			open.Input.Source.BindingSpec != "thrift@1.0" || open.Input.Ref != "Service/method" {
+			open.Input.Source.BindingSpec != "thrift@1.0" || open.Input.Selector != "Service/method" {
 			t.Errorf("unexpected open frame: %#v", open)
 		}
 		input := readFrame()
@@ -111,7 +111,7 @@ func TestDelegateFrameInvoker_UnaryRoundTrip(t *testing.T) {
 				"asyncapi": {BindingSpec: "openbindings.asyncapi@1", Location: ts.URL + "/asyncapi.yaml"},
 			},
 			map[string]openbindings.BindingEntry{
-				"invokeBinding.asyncapi": {Operation: "invokeBinding", Ref: "#/operations/invokeBinding", Source: "asyncapi"},
+				"invokeBinding.asyncapi": {Operation: "invokeBinding", Selector: "#/operations/invokeBinding", Source: "asyncapi"},
 			},
 		),
 	}
@@ -126,8 +126,8 @@ func TestDelegateFrameInvoker_UnaryRoundTrip(t *testing.T) {
 
 	ctx := t.Context()
 	inv := invoker.InvokeBinding(ctx, &invoke.BindingInvocationArgs{
-		Source: invoke.InvocationSource{BindingSpec: "thrift@1.0", Location: "service.thrift"},
-		Ref:    "Service/method",
+		Source:   invoke.InvocationSource{BindingSpec: "thrift@1.0", Location: "service.thrift"},
+		Selector: "Service/method",
 	})
 	if werr := inv.Write(ctx, "ping"); werr != nil {
 		t.Fatalf("write: %v", werr)
@@ -159,8 +159,8 @@ func TestDelegateBindingInvoker_PrefersFramesOverCLI(t *testing.T) {
 				"usage":    {BindingSpec: "openbindings.usage@1", Location: "exec:test-delegate --usage-spec"},
 			},
 			map[string]openbindings.BindingEntry{
-				"invokeBinding.asyncapi": {Operation: "invokeBinding", Ref: "#/operations/invokeBinding", Source: "asyncapi"},
-				"invokeBinding.usage":    {Operation: "invokeBinding", Ref: "binding invoke", Source: "usage"},
+				"invokeBinding.asyncapi": {Operation: "invokeBinding", Selector: "#/operations/invokeBinding", Source: "asyncapi"},
+				"invokeBinding.usage":    {Operation: "invokeBinding", Selector: "binding invoke", Source: "usage"},
 			},
 		),
 	}
@@ -185,8 +185,8 @@ func TestDelegateBindingInvoker_CLIWhenAsyncAPIUnreachable(t *testing.T) {
 				"usage":    {BindingSpec: "openbindings.usage@1", Location: "exec:test-delegate --usage-spec"},
 			},
 			map[string]openbindings.BindingEntry{
-				"invokeBinding.asyncapi": {Operation: "invokeBinding", Ref: "#/operations/invokeBinding", Source: "asyncapi"},
-				"invokeBinding.usage":    {Operation: "invokeBinding", Ref: "binding invoke", Source: "usage"},
+				"invokeBinding.asyncapi": {Operation: "invokeBinding", Selector: "#/operations/invokeBinding", Source: "asyncapi"},
+				"invokeBinding.usage":    {Operation: "invokeBinding", Selector: "binding invoke", Source: "usage"},
 			},
 		),
 	}
@@ -208,7 +208,7 @@ func TestDelegateBindingInvoker_NoUsableBinding(t *testing.T) {
 				"openapi": {BindingSpec: "openbindings.openapi@1", Location: "http://localhost:1/openapi.yaml"},
 			},
 			map[string]openbindings.BindingEntry{
-				"invokeBinding.openapi": {Operation: "invokeBinding", Ref: "#/paths/~1bindings~1invoke/post", Source: "openapi"},
+				"invokeBinding.openapi": {Operation: "invokeBinding", Selector: "#/paths/~1bindings~1invoke/post", Source: "openapi"},
 			},
 		),
 	}
@@ -266,7 +266,7 @@ func TestDelegateBindingInvoker_MatchesKeyOrAlias(t *testing.T) {
 						"usage": {BindingSpec: "openbindings.usage@1", Content: openbindings.TextContent("bin \"acme\"\ncmd \"binding\" subcommand_required=#true { cmd \"invoke\" { flag \"--input <json>\" } }")},
 					},
 					Bindings: map[string]openbindings.BindingEntry{
-						tc.key + ".usage": {Operation: tc.key, Source: "usage", Ref: "binding invoke"},
+						tc.key + ".usage": {Operation: tc.key, Source: "usage", Selector: "binding invoke"},
 					},
 				}},
 			}
@@ -343,7 +343,7 @@ exit 1
 				"openbindings.ob.invokeBinding.usage": {
 					Operation:      "openbindings.ob.invokeBinding",
 					Source:         "usage",
-					Ref:            "binding invoke",
+					Selector:       "binding invoke",
 					InputTransform: &openbindings.TransformOrRef{Inline: `{ "input": $string($$) }`},
 				},
 			},
@@ -360,8 +360,8 @@ exit 1
 
 	ctx := t.Context()
 	inv := invoker.InvokeBinding(ctx, &invoke.BindingInvocationArgs{
-		Source: invoke.InvocationSource{BindingSpec: "thrift@1.0", Location: "service.thrift"},
-		Ref:    "Service/method",
+		Source:   invoke.InvocationSource{BindingSpec: "thrift@1.0", Location: "service.thrift"},
+		Selector: "Service/method",
 	})
 	if werr := inv.Write(ctx, map[string]any{"limit": 10}); werr != nil {
 		t.Fatalf("write: %v", werr)
@@ -387,8 +387,8 @@ exit 1
 	if !ok {
 		t.Fatalf("no received payload in %#v", v)
 	}
-	if received["ref"] != "Service/method" {
-		t.Errorf("ref = %v, want Service/method", received["ref"])
+	if received["selector"] != "Service/method" {
+		t.Errorf("ref = %v, want Service/method", received["selector"])
 	}
 	src, _ := received["source"].(map[string]any)
 	if src["bindingSpec"] != "thrift@1.0" || src["location"] != "service.thrift" {
@@ -427,7 +427,7 @@ func TestOpInvoke_ExternalDelegateDisplacesElections(t *testing.T) {
 			"invokeBinding.usage": {
 				Operation:      "invokeBinding",
 				Source:         "usage",
-				Ref:            "binding invoke",
+				Selector:       "binding invoke",
 				InputTransform: &openbindings.TransformOrRef{Inline: `{ "input": $string($$) }`},
 			},
 		},
@@ -456,7 +456,7 @@ func TestOpInvoke_ExternalDelegateDisplacesElections(t *testing.T) {
 		Operations:   map[string]openbindings.Operation{"openbindings.ob.validateInterface": {}},
 		Sources:      map[string]openbindings.Source{"usage": {BindingSpec: "openbindings.usage@1", Location: "exec:" + cliPath}},
 		Bindings: map[string]openbindings.BindingEntry{
-			"openbindings.ob.validateInterface.usage": {Operation: "openbindings.ob.validateInterface", Source: "usage", Ref: "validate"},
+			"openbindings.ob.validateInterface.usage": {Operation: "openbindings.ob.validateInterface", Source: "usage", Selector: "validate"},
 		},
 	}
 	invokedFile := filepath.Join(dir, "invoked.obi.json")

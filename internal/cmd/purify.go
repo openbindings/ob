@@ -59,9 +59,9 @@ gate a registry or CI pre-publish step needs (gofmt -l style).`,
 			}
 
 			result := app.InvokeOperationWithContext(context.Background(), app.InvocationInput{
-				Source: app.InvokeSource{BindingSpec: "openbindings.operation-graph@1", Content: json.RawMessage(purifyGraph)},
-				Ref:    "#/graphs/purify",
-				Input:  doc,
+				Source:   app.InvokeSource{BindingSpec: "openbindings.operation-graph@1", Content: json.RawMessage(purifyGraph)},
+				Selector: "#/graphs/purify",
+				Input:    doc,
 			})
 			if result.Error != nil {
 				return app.ExitResult{Code: 1, Message: result.Error.Message, ToStderr: true}

@@ -232,9 +232,9 @@ func renderKeyGroup(sb *strings.Builder, s styles, label string, updated, added 
 	sb.WriteString(strings.Join(parts, ", "))
 }
 
-// SourceRefs returns the sorted, unique bindable refs a registered source
-// exposes — the candidates for `operation bind`.
-func SourceRefs(obiPath, sourceKey string) ([]string, error) {
+// SourceSelectors returns the sorted, unique bindable selectors a registered
+// source exposes — the candidates for `operation bind`.
+func SourceSelectors(obiPath, sourceKey string) ([]string, error) {
 	iface, err := loadInterfaceFile(obiPath)
 	if err != nil {
 		return nil, fmt.Errorf("load OBI: %w", err)
@@ -248,15 +248,15 @@ func SourceRefs(obiPath, sourceKey string) ([]string, error) {
 		return nil, fmt.Errorf("derive source %q: %w", sourceKey, err)
 	}
 	seen := map[string]bool{}
-	var refs []string
+	var selectors []string
 	for _, b := range derived.Bindings {
-		if b.Ref != "" && !seen[b.Ref] {
-			seen[b.Ref] = true
-			refs = append(refs, b.Ref)
+		if b.Selector != "" && !seen[b.Selector] {
+			seen[b.Selector] = true
+			selectors = append(selectors, b.Selector)
 		}
 	}
-	sort.Strings(refs)
-	return refs, nil
+	sort.Strings(selectors)
+	return selectors, nil
 }
 
 // SourcePull re-derives operations and bindings from registered sources,

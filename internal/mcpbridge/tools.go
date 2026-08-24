@@ -102,7 +102,7 @@ func drainOperation(ctx context.Context, call invoke.Invocation[any, any], input
 
 // RegisterInterface maps a single OBI's operations to MCP primitives on the
 // given server. Operations with MCP bindings are registered as the correct
-// primitive type based on binding ref prefix (tools/, resources/, resourceTemplates/, prompts/);
+// primitive type based on binding selector prefix (tools/, resources/, resourceTemplates/, prompts/);
 // operations without MCP bindings are registered as tools. Tool/resource names
 // are the operation key, sanitized to the protocol's charset (see toolNames) —
 // the bridge does not namespace by interface: federating multiple services is
@@ -168,10 +168,10 @@ func RegisterInterfaceWithReport(
 			nativeMCP = false
 			binding = mcpBinding{kind: "tools"}
 		}
-		ref, kind := binding.ref, binding.kind
+		selector, kind := binding.selector, binding.kind
 		name := names[opKey]
 		if nativeMCP && kind == "tools" {
-			name = strings.TrimPrefix(ref, "tools/")
+			name = strings.TrimPrefix(selector, "tools/")
 		}
 
 		switch kind {
@@ -274,13 +274,13 @@ func sanitizeName(s string) string {
 }
 
 // findMCPBinding looks for an MCP binding for the given operation and returns
-// the ref value and the entity kind (tools, resources, prompts). If no MCP
+// the selector value and the entity kind (tools, resources, prompts). If no MCP
 // binding exists, returns ("", "tools").
 type mcpBinding struct {
-	entry  openbindings.BindingEntry
-	source openbindings.Source
-	ref    string
-	kind   string
+	entry    openbindings.BindingEntry
+	source   openbindings.Source
+	selector string
+	kind     string
 }
 
 func findMCPBindingDetails(iface *openbindings.Interface, opKey string) (mcpBinding, bool) {
@@ -298,19 +298,19 @@ func findMCPBindingDetails(iface *openbindings.Interface, opKey string) (mcpBind
 		if src.BindingSpec != MCPBindingSpec {
 			continue
 		}
-		// Found an MCP binding. Parse the ref prefix. resourceTemplates/ is
+		// Found an MCP binding. Parse the selector prefix. resourceTemplates/ is
 		// checked before resources/ for clarity (the two cannot prefix-collide).
 		for _, prefix := range []string{"resourceTemplates/", "resources/", "prompts/", "tools/"} {
-			if strings.HasPrefix(be.Ref, prefix) {
+			if strings.HasPrefix(be.Selector, prefix) {
 				candidate = mcpBinding{
-					entry: be, source: src, ref: be.Ref,
+					entry: be, source: src, selector: be.Selector,
 					kind: strings.TrimSuffix(prefix, "/"),
 				}
 				break
 			}
 		}
 		if candidate.kind == "" {
-			candidate = mcpBinding{entry: be, source: src, ref: be.Ref, kind: "tools"}
+			candidate = mcpBinding{entry: be, source: src, selector: be.Selector, kind: "tools"}
 		}
 	}
 	// Re-emitting a protocol-native primitive also commits the invocation to
@@ -325,9 +325,9 @@ func findMCPBindingDetails(iface *openbindings.Interface, opKey string) (mcpBind
 	return mcpBinding{kind: "tools"}, false
 }
 
-func findMCPBinding(iface *openbindings.Interface, opKey string) (ref string, kind string) {
+func findMCPBinding(iface *openbindings.Interface, opKey string) (selector string, kind string) {
 	binding, _ := findMCPBindingDetails(iface, opKey)
-	return binding.ref, binding.kind
+	return binding.selector, binding.kind
 }
 
 func registerTool(
@@ -352,7 +352,7 @@ func registerTool(
 	}
 	if nativeMCP {
 		descriptor.OutputSchema = nil
-		if pinned := pinnedTool(binding.source.Content, strings.TrimPrefix(binding.ref, "tools/")); pinned != nil {
+		if pinned := pinnedTool(binding.source.Content, strings.TrimPrefix(binding.selector, "tools/")); pinned != nil {
 			descriptor = pinned
 		} else if outputSchema := toolStructuredOutputSchema(op.Output); outputSchema != nil {
 			descriptor.OutputSchema = outputSchema
@@ -438,11 +438,11 @@ func registerTool(
 
 		if nativeMCP {
 			if !nativeFinal {
-				return nil, fmt.Errorf("MCP binding %q emitted %d final application values; exactly one is required", binding.ref, len(genericResult.Outputs))
+				return nil, fmt.Errorf("MCP binding %q emitted %d final application values; exactly one is required", binding.selector, len(genericResult.Outputs))
 			}
 			data, err := json.Marshal(lastData)
 			if err != nil {
-				return nil, fmt.Errorf("MCP binding %q returned an application value that cannot be encoded: %w", binding.ref, err)
+				return nil, fmt.Errorf("MCP binding %q returned an application value that cannot be encoded: %w", binding.selector, err)
 			}
 			return &mcp.CallToolResult{
 				Content:           []mcp.Content{&mcp.TextContent{Text: string(data)}},
@@ -464,7 +464,7 @@ func registerStaticResource(
 	baseContext map[string]any,
 	opts RegisterOptions,
 ) {
-	uri := strings.TrimPrefix(binding.ref, "resources/")
+	uri := strings.TrimPrefix(binding.selector, "resources/")
 	descriptor := &mcp.Resource{
 		URI:         uri,
 		Name:        name,
@@ -479,18 +479,18 @@ func registerStaticResource(
 		call := invoke.Invoke(ctx, invoker, iface,
 			invoke.NewOperationSignature[any, any](opKey),
 			invoke.WithContext(baseContext))
-		// A static MCP resource's URI lives in the binding ref. The binding
+		// A static MCP resource's URI lives in the binding selector. The binding
 		// intentionally takes no OpenBindings input value.
 		drained := drainOperation(ctx, call, operationInput{}, opKey, opts.deadline())
 		if drained.Error != nil {
 			return nil, fmt.Errorf("%s", drained.Error.Code)
 		}
 		if len(drained.Outputs) != 1 {
-			return nil, fmt.Errorf("MCP binding %q emitted %d results; exactly one ReadResourceResult is required", binding.ref, len(drained.Outputs))
+			return nil, fmt.Errorf("MCP binding %q emitted %d results; exactly one ReadResourceResult is required", binding.selector, len(drained.Outputs))
 		}
 		result := &mcp.ReadResourceResult{}
 		if err := remarshal(drained.Outputs[0], result); err != nil {
-			return nil, fmt.Errorf("MCP binding %q returned an invalid ReadResourceResult: %w", binding.ref, err)
+			return nil, fmt.Errorf("MCP binding %q returned an invalid ReadResourceResult: %w", binding.selector, err)
 		}
 		return result, nil
 	})
@@ -507,7 +507,7 @@ func registerResourceTemplate(
 	baseContext map[string]any,
 	opts RegisterOptions,
 ) {
-	uriTemplate := strings.TrimPrefix(binding.ref, "resourceTemplates/")
+	uriTemplate := strings.TrimPrefix(binding.selector, "resourceTemplates/")
 	descriptor := &mcp.ResourceTemplate{
 		URITemplate: uriTemplate,
 		Name:        name,
@@ -542,7 +542,7 @@ func registerPrompt(
 	baseContext map[string]any,
 	opts RegisterOptions,
 ) {
-	promptName := strings.TrimPrefix(binding.ref, "prompts/")
+	promptName := strings.TrimPrefix(binding.selector, "prompts/")
 
 	descriptor := pinnedPrompt(binding.source.Content, promptName)
 	if descriptor == nil {
@@ -584,14 +584,14 @@ func registerPrompt(
 			return nil, fmt.Errorf("%s", drained.Error.Code)
 		}
 		if len(drained.Outputs) != 1 {
-			return nil, fmt.Errorf("MCP binding %q emitted %d results; exactly one GetPromptResult is required", binding.ref, len(drained.Outputs))
+			return nil, fmt.Errorf("MCP binding %q emitted %d results; exactly one GetPromptResult is required", binding.selector, len(drained.Outputs))
 		}
 
 		// The operation invoker returns the prompt result as an object with
 		// "messages" and optional "description".
 		result := &mcp.GetPromptResult{}
 		if err := remarshal(drained.Outputs[0], result); err != nil {
-			return nil, fmt.Errorf("MCP binding %q returned an invalid GetPromptResult: %w", binding.ref, err)
+			return nil, fmt.Errorf("MCP binding %q returned an invalid GetPromptResult: %w", binding.selector, err)
 		}
 		return result, nil
 	})

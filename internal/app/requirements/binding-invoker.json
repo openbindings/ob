@@ -168,9 +168,9 @@
                 "source": {
                     "$ref": "#/schemas/Source"
                 },
-                "ref": {
+                "selector": {
                     "type": "string",
-                    "description": "Reference within the binding source."
+                    "description": "Selector within the binding source."
                 },
                 "context": {
                     "$ref": "#/schemas/BindingContext"
@@ -178,7 +178,7 @@
             },
             "required": [
                 "source",
-                "ref"
+                "selector"
             ],
             "additionalProperties": false
         },

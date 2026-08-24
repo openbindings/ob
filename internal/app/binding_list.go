@@ -13,7 +13,7 @@ type BindingListEntry struct {
 	Key             string   `json:"key"`
 	Operation       string   `json:"operation"`
 	Source          string   `json:"source"`
-	Ref             string   `json:"ref,omitempty"`
+	Selector        string   `json:"selector,omitempty"`
 	Preference      *float64 `json:"preference,omitempty"`
 	Deprecated      bool     `json:"deprecated,omitempty"`
 	InputTransform  bool     `json:"inputTransform,omitempty"`
@@ -41,7 +41,7 @@ func BindingList(obiPath, opFilter string) (BindingListOutput, error) {
 			Key:             key,
 			Operation:       b.Operation,
 			Source:          b.Source,
-			Ref:             b.Ref,
+			Selector:        b.Selector,
 			Preference:      b.Preference,
 			Deprecated:      b.Deprecated,
 			InputTransform:  b.InputTransform != nil,
@@ -67,8 +67,8 @@ func (o BindingListOutput) Render() string {
 		sb.WriteString(" ")
 		sb.WriteString(s.Key.Render(b.Key))
 		sb.WriteString(s.Dim.Render(fmt.Sprintf("  %s → %s", b.Operation, b.Source)))
-		if b.Ref != "" {
-			sb.WriteString(s.Dim.Render(" " + b.Ref))
+		if b.Selector != "" {
+			sb.WriteString(s.Dim.Render(" " + b.Selector))
 		}
 		var tags []string
 		if b.Deprecated {

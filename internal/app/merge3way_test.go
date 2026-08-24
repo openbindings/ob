@@ -397,13 +397,13 @@ func TestMergeBinding_NilBase_PreservesLocalOnlyFields(t *testing.T) {
 	local := openbindings.BindingEntry{
 		Operation:   "getMe",
 		Source:      "openapi",
-		Ref:         "#/paths/~1v0~1account~1me/get",
+		Selector:    "#/paths/~1v0~1account~1me/get",
 		Description: "hand-authored note",
 	}
 	source := openbindings.BindingEntry{
 		Operation: "getMe",
 		Source:    "openapi",
-		Ref:       "#/paths/~1v0~1account~1me/get",
+		Selector:  "#/paths/~1v0~1account~1me/get",
 	}
 
 	merged, _, err := MergeBinding(nil, local, source)
@@ -416,8 +416,8 @@ func TestMergeBinding_NilBase_PreservesLocalOnlyFields(t *testing.T) {
 		t.Errorf("expected local description preserved, got %q", merged.Description)
 	}
 	// ref is in both → source wins (but matches anyway).
-	if merged.Ref != "#/paths/~1v0~1account~1me/get" {
-		t.Errorf("expected ref preserved, got %q", merged.Ref)
+	if merged.Selector != "#/paths/~1v0~1account~1me/get" {
+		t.Errorf("expected ref preserved, got %q", merged.Selector)
 	}
 }
 

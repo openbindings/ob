@@ -59,13 +59,13 @@ func TestGenerateBoundServe_BindsServedSurface(t *testing.T) {
 		t.Error("did not expect a bare short-name operation key")
 	}
 	// HTTP ref derives from openapi.yaml; key is <op>.openapi.
-	if b, ok := serve.Bindings["openbindings.ob.describe.openapi"]; !ok || b.Source != "openapi" || b.Ref == "" {
+	if b, ok := serve.Bindings["openbindings.ob.describe.openapi"]; !ok || b.Source != "openapi" || b.Selector == "" {
 		t.Errorf("expected an openapi binding for describe, got %+v (present=%v)", b, ok)
 	}
 	// Both cardinality-agnostic invokers are bound over WS (asyncapi).
 	for _, stream := range ServeStreamRoutes() {
 		key := "openbindings.ob." + stream.Operation + ".asyncapi"
-		if b, ok := serve.Bindings[key]; !ok || b.Ref != "#/operations/"+stream.Operation {
+		if b, ok := serve.Bindings[key]; !ok || b.Selector != "#/operations/"+stream.Operation {
 			t.Errorf("expected asyncapi %s binding, got %+v (present=%v)", stream.Operation, b, ok)
 		}
 	}
@@ -202,7 +202,7 @@ func TestGenerateBoundCLI_BindsOpsByShortName(t *testing.T) {
 	if !ok {
 		t.Fatal("expected a usage binding for describe")
 	}
-	if b.Operation != "openbindings.ob.describe" || b.Source != "usage" || b.Ref != "describe" {
+	if b.Operation != "openbindings.ob.describe" || b.Source != "usage" || b.Selector != "describe" {
 		t.Errorf("unexpected binding: %+v", b)
 	}
 	// The usage source is the PRISTINE artifact embedded as content (not a
@@ -260,8 +260,8 @@ func TestGenerateBoundCLI_AttachesWireInputTransforms(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 	wire := map[string]any{
-		"source": map[string]any{"bindingSpec": "openbindings.openapi@1", "location": "api.yaml"},
-		"ref":    "#/x",
+		"source":   map[string]any{"bindingSpec": "openbindings.openapi@1", "location": "api.yaml"},
+		"selector": "#/x",
 	}
 	for _, short := range []string{"addSource", "invokeBinding", "prepareBinding", "synthesizeInterface", "inspectSource"} {
 		key := "openbindings.ob." + short + ".usage"
@@ -294,7 +294,7 @@ func TestGenerateBoundCLI_AttachesWireInputTransforms(t *testing.T) {
 			t.Errorf("%s: --input payload is not JSON: %v", key, uerr)
 			continue
 		}
-		if roundTrip["ref"] != "#/x" {
+		if roundTrip["selector"] != "#/x" {
 			t.Errorf("%s: payload did not round-trip: %#v", key, roundTrip)
 		}
 	}

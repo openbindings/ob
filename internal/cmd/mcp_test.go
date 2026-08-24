@@ -380,7 +380,7 @@ func TestMCPCommand_BridgesInterfaceToTools(t *testing.T) {
 			},
 		},
 		Bindings: map[string]openbindings.BindingEntry{
-			"echo.mock": {Operation: "echo", Source: "mock", Ref: "test"},
+			"echo.mock": {Operation: "echo", Source: "mock", Selector: "test"},
 		},
 		Sources: map[string]openbindings.Source{
 			"mock": {BindingSpec: "x-mock"},
@@ -538,7 +538,7 @@ func TestMCPGenericProjection_BindingFamilyNeutral(t *testing.T) {
 					"source": {BindingSpec: family, Location: "https://example.invalid"},
 				},
 				Bindings: map[string]openbindings.BindingEntry{
-					"echo.source": {Operation: "echo", Source: "source", Ref: "echo"},
+					"echo.source": {Operation: "echo", Source: "source", Selector: "echo"},
 				},
 			}
 

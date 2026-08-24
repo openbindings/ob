@@ -841,16 +841,16 @@ func newOperationBindCmd() *cobra.Command {
 		force           bool
 	)
 	cmd := &cobra.Command{
-		Use:   "bind <obi-path> [operation] [source] [ref]",
-		Short: "Attach a source ref to an existing operation",
-		Long: `Attach a registered source's ref to an existing operation — the
+		Use:   "bind <obi-path> [operation] [source] [selector]",
+		Short: "Attach a source selector to an existing operation",
+		Long: `Attach a registered source's selector to an existing operation — the
 contract-keyed wire-up. The operation keeps its key; the source's wire
-identifier lives in the binding's ref.
+identifier lives in the binding's selector.
 
-When operation, source, or ref are omitted, you are prompted to pick them
-(operation → source → ref). When all are given, it runs without prompts.
+When operation, source, or selector are omitted, you are prompted to pick them
+(operation → source → selector). When all are given, it runs without prompts.
 
-On a shape mismatch between the operation and the ref, it warns; with
+On a shape mismatch between the operation and the selector, it warns; with
 --transform-stub it scaffolds identity transform stubs ($) for you to
 complete. Use --force to re-point an existing binding.
 
@@ -864,7 +864,7 @@ Examples:
 		Args: cobra.RangeArgs(1, 4),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			obiPath := args[0]
-			var op, source, ref string
+			var op, source, selector string
 			if len(args) > 1 {
 				op = args[1]
 			}
@@ -872,11 +872,11 @@ Examples:
 				source = args[2]
 			}
 			if len(args) > 3 {
-				ref = args[3]
+				selector = args[3]
 			}
-			if op == "" || source == "" || ref == "" {
+			if op == "" || source == "" || selector == "" {
 				var err error
-				op, source, ref, err = pickBindArgs(obiPath, op, source, ref)
+				op, source, selector, err = pickBindArgs(obiPath, op, source, selector)
 				if err != nil {
 					return app.ExitResult{Code: 2, Message: err.Error(), ToStderr: true}
 				}
@@ -885,7 +885,7 @@ Examples:
 				OBIPath:         obiPath,
 				Op:              op,
 				Source:          source,
-				Ref:             ref,
+				Selector:        selector,
 				TransformStub:   transformStub,
 				InputTransform:  inputTransform,
 				OutputTransform: outputTransform,
@@ -952,12 +952,12 @@ Examples:
 	return cmd
 }
 
-// pickBindArgs interactively fills any missing operation/source/ref for
+// pickBindArgs interactively fills any missing operation/source/selector for
 // `operation bind`. It requires a TTY; on a non-interactive stdin it returns an
 // error directing the caller to supply all three positionally.
-func pickBindArgs(obiPath, op, source, ref string) (string, string, string, error) {
+func pickBindArgs(obiPath, op, source, selector string) (string, string, string, error) {
 	if !term.IsTerminal(int(os.Stdin.Fd())) {
-		return "", "", "", fmt.Errorf("operation, source, and ref are required (no TTY for interactive selection)")
+		return "", "", "", fmt.Errorf("operation, source, and selector are required (no TTY for interactive selection)")
 	}
 	if op == "" {
 		ops, err := app.OperationList(obiPath, "")
@@ -995,25 +995,25 @@ func pickBindArgs(obiPath, op, source, ref string) (string, string, string, erro
 			return "", "", "", err
 		}
 	}
-	if ref == "" {
-		refs, err := app.SourceRefs(obiPath, source)
+	if selector == "" {
+		selectors, err := app.SourceSelectors(obiPath, source)
 		if err != nil {
 			return "", "", "", err
 		}
-		if len(refs) == 0 {
-			return "", "", "", fmt.Errorf("source %q exposes no bindable refs", source)
+		if len(selectors) == 0 {
+			return "", "", "", fmt.Errorf("source %q exposes no bindable selectors", source)
 		}
-		opts := make([]huh.Option[string], len(refs))
-		for i, r := range refs {
+		opts := make([]huh.Option[string], len(selectors))
+		for i, r := range selectors {
 			opts[i] = huh.NewOption(r, r)
 		}
 		if err := huh.NewForm(huh.NewGroup(
-			huh.NewSelect[string]().Title("Ref").Options(opts...).Value(&ref),
+			huh.NewSelect[string]().Title("Selector").Options(opts...).Value(&selector),
 		)).Run(); err != nil {
 			return "", "", "", err
 		}
 	}
-	return op, source, ref, nil
+	return op, source, selector, nil
 }
 
 func newOperationCodegenNameCmd() *cobra.Command {

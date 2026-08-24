@@ -32,8 +32,8 @@ func TestRegisterInterface_ToolsFromNonMCPBindings(t *testing.T) {
 			"rest": {BindingSpec: "openbindings.openapi@1", Location: "./api.yaml"},
 		},
 		Bindings: map[string]openbindings.BindingEntry{
-			"listPets.rest": {Operation: "listPets", Source: "rest", Ref: "#/paths/~1pets/get"},
-			"getPet.rest":   {Operation: "getPet", Source: "rest", Ref: "#/paths/~1pets~1{id}/get"},
+			"listPets.rest": {Operation: "listPets", Source: "rest", Selector: "#/paths/~1pets/get"},
+			"getPet.rest":   {Operation: "getPet", Source: "rest", Selector: "#/paths/~1pets~1{id}/get"},
 		},
 	}
 	srv := gomcp.NewServer(&gomcp.Implementation{Name: "test"}, nil)
@@ -58,7 +58,7 @@ func TestRegisterInterface_ResourceFromMCPBinding(t *testing.T) {
 			"readSpec.mcp": {
 				Operation: "readSpec",
 				Source:    "mcpServer",
-				Ref:       "resources/openbindings://spec/quick-reference.md",
+				Selector:  "resources/openbindings://spec/quick-reference.md",
 			},
 		},
 	}
@@ -92,7 +92,7 @@ func TestRegisterInterface_PromptFromMCPBinding(t *testing.T) {
 			"codeReview.mcp": {
 				Operation: "codeReview",
 				Source:    "mcpServer",
-				Ref:       "prompts/code_review",
+				Selector:  "prompts/code_review",
 			},
 		},
 	}
@@ -117,9 +117,9 @@ func TestRegisterInterface_MixedPrimitives(t *testing.T) {
 			"mcpServer": {BindingSpec: MCPBindingSpec, Location: "http://localhost:8080"},
 		},
 		Bindings: map[string]openbindings.BindingEntry{
-			"callTool.mcp":    {Operation: "callTool", Source: "mcpServer", Ref: "tools/callTool"},
-			"readDoc.mcp":     {Operation: "readDoc", Source: "mcpServer", Ref: "resources/file:///doc.md"},
-			"askQuestion.mcp": {Operation: "askQuestion", Source: "mcpServer", Ref: "prompts/ask"},
+			"callTool.mcp":    {Operation: "callTool", Source: "mcpServer", Selector: "tools/callTool"},
+			"readDoc.mcp":     {Operation: "readDoc", Source: "mcpServer", Selector: "resources/file:///doc.md"},
+			"askQuestion.mcp": {Operation: "askQuestion", Source: "mcpServer", Selector: "prompts/ask"},
 		},
 	}
 	srv := gomcp.NewServer(&gomcp.Implementation{Name: "test"}, nil)
@@ -158,7 +158,7 @@ func TestFindMCPBinding_NoMCPSource(t *testing.T) {
 			"rest": {BindingSpec: "openbindings.openapi@1"},
 		},
 		Bindings: map[string]openbindings.BindingEntry{
-			"op.rest": {Operation: "op", Source: "rest", Ref: "#/paths/~1op/get"},
+			"op.rest": {Operation: "op", Source: "rest", Selector: "#/paths/~1op/get"},
 		},
 	}
 	_, kind := findMCPBinding(iface, "op")
@@ -173,7 +173,7 @@ func TestFindMCPBinding_RequiresExactBindingSpecIdentifier(t *testing.T) {
 			"legacy": {BindingSpec: "mcp"},
 		},
 		Bindings: map[string]openbindings.BindingEntry{
-			"doc.legacy": {Operation: "doc", Source: "legacy", Ref: "resources/file:///readme.md"},
+			"doc.legacy": {Operation: "doc", Source: "legacy", Selector: "resources/file:///readme.md"},
 		},
 	}
 	ref, kind := findMCPBinding(iface, "doc")
@@ -189,8 +189,8 @@ func TestFindMCPBinding_DoesNotInventChoiceForMultiBindingOperation(t *testing.T
 			"http": {BindingSpec: "openbindings.openapi@1"},
 		},
 		Bindings: map[string]openbindings.BindingEntry{
-			"doc.mcp":  {Operation: "doc", Source: "mcp", Ref: "resources/file:///readme.md"},
-			"doc.http": {Operation: "doc", Source: "http", Ref: "#/paths/~1readme/get"},
+			"doc.mcp":  {Operation: "doc", Source: "mcp", Selector: "resources/file:///readme.md"},
+			"doc.http": {Operation: "doc", Source: "http", Selector: "#/paths/~1readme/get"},
 		},
 	}
 	ref, kind := findMCPBinding(iface, "doc")
@@ -205,7 +205,7 @@ func TestFindMCPBinding_ResourceRef(t *testing.T) {
 			"mcp": {BindingSpec: MCPBindingSpec},
 		},
 		Bindings: map[string]openbindings.BindingEntry{
-			"doc.mcp": {Operation: "doc", Source: "mcp", Ref: "resources/file:///readme.md"},
+			"doc.mcp": {Operation: "doc", Source: "mcp", Selector: "resources/file:///readme.md"},
 		},
 	}
 	ref, kind := findMCPBinding(iface, "doc")
@@ -223,7 +223,7 @@ func TestFindMCPBinding_ResourceTemplateRef(t *testing.T) {
 			"mcp": {BindingSpec: MCPBindingSpec},
 		},
 		Bindings: map[string]openbindings.BindingEntry{
-			"log.mcp": {Operation: "log", Source: "mcp", Ref: "resourceTemplates/file:///logs/{date}"},
+			"log.mcp": {Operation: "log", Source: "mcp", Selector: "resourceTemplates/file:///logs/{date}"},
 		},
 	}
 	ref, kind := findMCPBinding(iface, "log")
@@ -444,7 +444,7 @@ func TestDrainOperation_UnboundedStreamHitsDeadline(t *testing.T) {
 		Operations:   map[string]openbindings.Operation{"orderUpdates": {Description: "subscription"}},
 		Sources:      map[string]openbindings.Source{"s": {BindingSpec: "test-stream", Location: "https://example.com/stream"}},
 		Bindings: map[string]openbindings.BindingEntry{
-			"orderUpdates.s": {Operation: "orderUpdates", Source: "s", Ref: "updates"},
+			"orderUpdates.s": {Operation: "orderUpdates", Source: "s", Selector: "updates"},
 		},
 	}
 

@@ -365,134 +365,134 @@
     "getMenu.restApi": {
       "operation": "getMenu",
       "source": "restApi",
-      "ref": "#/paths/~1api~1menu/get",
+      "selector": "#/paths/~1api~1menu/get",
       "preference": 30
     },
     "getMenu.mcpServer": {
       "operation": "getMenu",
       "source": "mcpServer",
-      "ref": "tools/getMenu",
+      "selector": "tools/getMenu",
       "preference": 20
     },
     "getMenu.grpcServer": {
       "operation": "getMenu",
       "source": "grpcServer",
-      "ref": "blend.CoffeeShop/GetMenu",
+      "selector": "blend.CoffeeShop/GetMenu",
       "preference": 10
     },
     "placeOrder.restApi": {
       "operation": "placeOrder",
       "source": "restApi",
-      "ref": "#/paths/~1api~1orders/post",
+      "selector": "#/paths/~1api~1orders/post",
       "preference": 30
     },
     "placeOrder.mcpServer": {
       "operation": "placeOrder",
       "source": "mcpServer",
-      "ref": "tools/placeOrder",
+      "selector": "tools/placeOrder",
       "preference": 20
     },
     "placeOrder.grpcServer": {
       "operation": "placeOrder",
       "source": "grpcServer",
-      "ref": "blend.CoffeeShop/PlaceOrder",
+      "selector": "blend.CoffeeShop/PlaceOrder",
       "preference": 10
     },
     "getOrderStatus.restApi": {
       "operation": "getOrderStatus",
       "source": "restApi",
-      "ref": "#/paths/~1api~1orders~1{orderId}/get",
+      "selector": "#/paths/~1api~1orders~1{orderId}/get",
       "preference": 30
     },
     "getOrderStatus.mcpServer": {
       "operation": "getOrderStatus",
       "source": "mcpServer",
-      "ref": "tools/getOrderStatus",
+      "selector": "tools/getOrderStatus",
       "preference": 20
     },
     "getOrderStatus.grpcServer": {
       "operation": "getOrderStatus",
       "source": "grpcServer",
-      "ref": "blend.CoffeeShop/GetOrderStatus",
+      "selector": "blend.CoffeeShop/GetOrderStatus",
       "preference": 10
     },
     "cancelOrder.restApi": {
       "operation": "cancelOrder",
       "source": "restApi",
-      "ref": "#/paths/~1api~1orders~1{orderId}~1cancel/post",
+      "selector": "#/paths/~1api~1orders~1{orderId}~1cancel/post",
       "preference": 30
     },
     "cancelOrder.mcpServer": {
       "operation": "cancelOrder",
       "source": "mcpServer",
-      "ref": "tools/cancelOrder",
+      "selector": "tools/cancelOrder",
       "preference": 20
     },
     "cancelOrder.grpcServer": {
       "operation": "cancelOrder",
       "source": "grpcServer",
-      "ref": "blend.CoffeeShop/CancelOrder",
+      "selector": "blend.CoffeeShop/CancelOrder",
       "preference": 10
     },
     "getMenu.connectServer": {
       "operation": "getMenu",
       "source": "connectServer",
-      "ref": "blend.CoffeeShop/GetMenu",
+      "selector": "blend.CoffeeShop/GetMenu",
       "inputTransform": "{}",
       "preference": 5
     },
     "placeOrder.connectServer": {
       "operation": "placeOrder",
       "source": "connectServer",
-      "ref": "blend.CoffeeShop/PlaceOrder",
+      "selector": "blend.CoffeeShop/PlaceOrder",
       "preference": 5
     },
     "getOrderStatus.connectServer": {
       "operation": "getOrderStatus",
       "source": "connectServer",
-      "ref": "blend.CoffeeShop/GetOrderStatus",
+      "selector": "blend.CoffeeShop/GetOrderStatus",
       "preference": 5
     },
     "cancelOrder.connectServer": {
       "operation": "cancelOrder",
       "source": "connectServer",
-      "ref": "blend.CoffeeShop/CancelOrder",
+      "selector": "blend.CoffeeShop/CancelOrder",
       "preference": 5
     },
     "getMenu.graphqlServer": {
       "operation": "getMenu",
       "source": "graphqlServer",
-      "ref": "query/getMenu",
+      "selector": "query/getMenu",
       "preference": 1
     },
     "placeOrder.graphqlServer": {
       "operation": "placeOrder",
       "source": "graphqlServer",
-      "ref": "mutation/placeOrder",
+      "selector": "mutation/placeOrder",
       "preference": 1
     },
     "getOrderStatus.graphqlServer": {
       "operation": "getOrderStatus",
       "source": "graphqlServer",
-      "ref": "mutation/getOrderStatus",
+      "selector": "mutation/getOrderStatus",
       "preference": 1
     },
     "cancelOrder.graphqlServer": {
       "operation": "cancelOrder",
       "source": "graphqlServer",
-      "ref": "mutation/cancelOrder",
+      "selector": "mutation/cancelOrder",
       "preference": 1
     },
     "orderUpdates.grpcServer": {
       "operation": "orderUpdates",
       "source": "grpcServer",
-      "ref": "blend.CoffeeShop/OrderUpdates",
+      "selector": "blend.CoffeeShop/OrderUpdates",
       "preference": 10
     },
     "placeAndTrack.graph": {
       "operation": "placeAndTrack",
       "source": "placeAndTrackGraph",
-      "ref": "#/graphs/placeAndTrack",
+      "selector": "#/graphs/placeAndTrack",
       "description": "Composed operation: places an order and tracks it via live event stream"
     }
   }
