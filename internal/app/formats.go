@@ -155,8 +155,8 @@ func uniqueSortedFormats(in []BindingSpecInfo) []BindingSpecInfo {
 }
 
 // SpecFamily extracts the lowercase family name from a binding-specification
-// identifier ("openbindings.openapi@1" → "openapi"; a pre-promotion draft
-// token passes through). Identifiers themselves stay exact
+// identifier. The four exact OpenAPI sibling identifiers share the "openapi"
+// family for source naming and auto-detection de-duplication. Identifiers stay exact
 // and opaque for matching (core §6); this is dispatch/display convenience.
 func SpecFamily(identifier string) string {
 	name := strings.TrimSpace(identifier)
@@ -164,5 +164,9 @@ func SpecFamily(identifier string) string {
 		name = name[:at]
 	}
 	name = strings.TrimPrefix(name, "openbindings.")
+	switch name {
+	case "openapi-2.0", "openapi-3.0", "openapi-3.1", "openapi-3.2":
+		name = "openapi"
+	}
 	return strings.ToLower(name)
 }

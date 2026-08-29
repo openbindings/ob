@@ -21,7 +21,7 @@ const probeTimeout = 5 * time.Second
 type DelegateClaim struct {
 	DelegateName   string // human-friendly name (e.g. "ob", "acme-openapi")
 	DelegateID     string // identifier stored in x-ob.delegate: "ob" for builtin, location for external
-	BindingSpec    string // exact identifier, e.g. "openbindings.openapi@1"
+	BindingSpec    string // exact identifier, e.g. "openbindings.openapi-3.1@1"
 	OperationCount int
 	BindingCount   int
 }
@@ -38,10 +38,9 @@ func DetectSourceCandidates(location string) ([]DelegateClaim, error) {
 	}
 
 	var claims []DelegateClaim
-	// A built-in may retain older exact identifiers for compatibility. Its
-	// advertised order is its default preference (current before legacy), so
-	// auto-detection keeps the first successful revision in one family while
-	// explicit identifiers remain exact everywhere else.
+	// Each OpenAPI sibling claims only its own artifact edition. Auto-detection
+	// keeps the first successful exact identifier in one family while explicit
+	// identifiers remain exact everywhere else.
 	claimedFamilies := map[string]bool{}
 	for _, fi := range DefaultSynthesizer().BindingSpecs() {
 		family := SpecFamily(fi.BindingSpec)
@@ -55,7 +54,7 @@ func DetectSourceCandidates(location string) ([]DelegateClaim, error) {
 	}
 
 	if len(claims) == 0 {
-		return nil, fmt.Errorf("could not detect the format of %q; specify it explicitly (e.g. openbindings.openapi@1:%s)", location, location)
+		return nil, fmt.Errorf("could not detect the format of %q; specify it explicitly (e.g. openbindings.openapi-3.1@1:%s)", location, location)
 	}
 
 	return claims, nil
@@ -70,7 +69,7 @@ func DetectSourceCandidates(location string) ([]DelegateClaim, error) {
 func detectCandidatesFromBytes(data []byte) ([]DelegateClaim, error) {
 	var claims []DelegateClaim
 	// See DetectSourceCandidates: one automatic claim per binding family;
-	// callers can still request any advertised legacy identifier explicitly.
+	// callers can still request any exact sibling identifier explicitly.
 	claimedFamilies := map[string]bool{}
 	for _, fi := range DefaultSynthesizer().BindingSpecs() {
 		family := SpecFamily(fi.BindingSpec)
@@ -88,7 +87,7 @@ func detectCandidatesFromBytes(data []byte) ([]DelegateClaim, error) {
 	}
 
 	if len(claims) == 0 {
-		return nil, fmt.Errorf("could not detect the format of the stdin artifact; specify it explicitly (e.g. openbindings.openapi@1:-)")
+		return nil, fmt.Errorf("could not detect the format of the stdin artifact; specify it explicitly (e.g. openbindings.openapi-3.1@1:-)")
 	}
 
 	return claims, nil

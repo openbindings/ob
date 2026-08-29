@@ -211,7 +211,7 @@ func TestSourcePull_SkipsHandAuthored(t *testing.T) {
 		"operations":   map[string]any{},
 		"sources": map[string]any{
 			"manual": map[string]any{
-				"bindingSpec": "openbindings.openapi@1",
+				"bindingSpec": "openbindings.openapi-3.1@1",
 				"location":    "https://api.example.com/openapi.json",
 				// No x-ob — hand-authored.
 			},
@@ -526,7 +526,7 @@ func TestNeedsLiveDiscovery_ClassifiesByRefShape(t *testing.T) {
 		{"grpc", "localhost:9090", true},
 		{"grpc", "internal.host:8443", true},
 		{"openbindings.mcp@1", "https://mcp.example.com", true},
-		{"openbindings.openapi@1", "./openapi.json", false},
+		{"openbindings.openapi-3.1@1", "./openapi.json", false},
 		{"openbindings.usage@1", "./cli.usage.kdl", false},
 	}
 	for _, c := range cases {
@@ -618,7 +618,7 @@ func TestSourcePull_EmbedLane_ReconstructedBaseOverlay(t *testing.T) {
 	}
 
 	iface, err := SynthesizeInterface(SynthesizeInterfaceInput{
-		Sources: []SynthesizeInterfaceSource{{BindingSpec: "openbindings.openapi@1", Location: specPath}},
+		Sources: []SynthesizeInterfaceSource{{BindingSpec: "openbindings.openapi-3.1@1", Location: specPath}},
 		Name:    "t",
 	})
 	if err != nil {

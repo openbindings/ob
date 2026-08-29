@@ -40,7 +40,7 @@ func TestSynthesizeMachineLane(t *testing.T) {
 	}
 	outPath := filepath.Join(dir, "out.obi.json")
 
-	input := fmt.Sprintf(`{"sources":[{"bindingSpec":"openbindings.openapi@1","location":%q}],"name":"Machine"}`, specPath)
+	input := fmt.Sprintf(`{"sources":[{"bindingSpec":"openbindings.openapi-3.1@1","location":%q}],"name":"Machine"}`, specPath)
 	if err := runOB(t, "synthesize", "--input", input, "-o", outPath); err != nil {
 		t.Fatalf("synthesize --input: %v", err)
 	}
@@ -71,7 +71,7 @@ func TestSynthesizeMachineLane_ContentSource(t *testing.T) {
 	dir := t.TempDir()
 	outPath := filepath.Join(dir, "out.obi.json")
 
-	input := fmt.Sprintf(`{"sources":[{"bindingSpec":"openbindings.openapi@1","content":%s}]}`, tinyOpenAPI)
+	input := fmt.Sprintf(`{"sources":[{"bindingSpec":"openbindings.openapi-3.1@1","content":%s}]}`, tinyOpenAPI)
 	if err := runOB(t, "synthesize", "--input", input, "-o", outPath); err != nil {
 		t.Fatalf("synthesize --input (content source): %v", err)
 	}
@@ -122,7 +122,7 @@ func TestInspectMachineLane(t *testing.T) {
 	}
 	outPath := filepath.Join(dir, "inspection.json")
 
-	input := fmt.Sprintf(`{"source":{"bindingSpec":"openbindings.openapi@1","location":%q}}`, specPath)
+	input := fmt.Sprintf(`{"source":{"bindingSpec":"openbindings.openapi-3.1@1","location":%q}}`, specPath)
 	if err := runOB(t, "inspect", "--input", input, "-o", outPath); err != nil {
 		t.Fatalf("inspect --input: %v", err)
 	}
@@ -189,10 +189,10 @@ func TestSynthesizeStdinSource(t *testing.T) {
 	// ?name=api pins the source key on both lanes so operations and bindings
 	// come out identical.
 	if err := runOBWithStdin(t, strings.NewReader(tinyOpenAPI),
-		"synthesize", "openbindings.openapi@1:-?name=api", "-o", stdinOut); err != nil {
+		"synthesize", "openbindings.openapi-3.1@1:-?name=api", "-o", stdinOut); err != nil {
 		t.Fatalf("synthesize from stdin: %v", err)
 	}
-	if err := runOB(t, "synthesize", "openbindings.openapi@1:"+specPath+"?name=api", "-o", fileOut); err != nil {
+	if err := runOB(t, "synthesize", "openbindings.openapi-3.1@1:"+specPath+"?name=api", "-o", fileOut); err != nil {
 		t.Fatalf("synthesize from file: %v", err)
 	}
 
@@ -251,7 +251,7 @@ func TestSynthesizeStdinSource_OutputLocation(t *testing.T) {
 	published := "https://example.com/openapi.json"
 	outPath := filepath.Join(t.TempDir(), "out.obi.json")
 	if err := runOBWithStdin(t, strings.NewReader(tinyOpenAPI),
-		"synthesize", "openbindings.openapi@1:-?name=api&outputLocation="+published, "-o", outPath); err != nil {
+		"synthesize", "openbindings.openapi-3.1@1:-?name=api&outputLocation="+published, "-o", outPath); err != nil {
 		t.Fatalf("synthesize from stdin: %v", err)
 	}
 
@@ -292,7 +292,7 @@ func TestSynthesizeStdinSource_OutputLocation(t *testing.T) {
 func TestSynthesizeInputContentOutputLocation(t *testing.T) {
 	published := "https://example.com/openapi.json"
 	outPath := filepath.Join(t.TempDir(), "out.obi.json")
-	input := `{"sources":[{"bindingSpec":"openbindings.openapi@1","name":"api","content":` + tinyOpenAPI + `,"outputLocation":"` + published + `"}]}`
+	input := `{"sources":[{"bindingSpec":"openbindings.openapi-3.1@1","name":"api","content":` + tinyOpenAPI + `,"outputLocation":"` + published + `"}]}`
 	if err := runOB(t, "synthesize", "--input", input, "-o", outPath); err != nil {
 		t.Fatalf("synthesize --input: %v", err)
 	}
@@ -349,8 +349,8 @@ func TestSynthesizeStdinSource_DetectsFormat(t *testing.T) {
 	if _, ok := doc.Operations["listThings"]; !ok {
 		t.Errorf("expected operation listThings, got %v", keysOf(doc.Operations))
 	}
-	if src, ok := doc.Sources["openapi"]; !ok || src.BindingSpec != "openbindings.openapi@1" {
-		t.Errorf("expected a detected openbindings.openapi@1 source under key %q, got %v", "openapi", doc.Sources)
+	if src, ok := doc.Sources["openapi"]; !ok || src.BindingSpec != "openbindings.openapi-3.1@1" {
+		t.Errorf("expected a detected openbindings.openapi-3.1@1 source under key %q, got %v", "openapi", doc.Sources)
 	}
 }
 
@@ -371,7 +371,7 @@ func TestSynthesizeStdinSource_UndetectableRefused(t *testing.T) {
 // source in the same invocation is a usage error, not a silent empty parse.
 func TestSynthesizeStdinSource_SingleUse(t *testing.T) {
 	err := runOBWithStdin(t, strings.NewReader(tinyOpenAPI),
-		"synthesize", "openbindings.openapi@1:-", "openbindings.usage@1:-")
+		"synthesize", "openbindings.openapi-3.1@1:-", "openbindings.usage@1:-")
 	er, ok := err.(app.ExitResult)
 	if !ok || er.Code != 2 {
 		t.Fatalf("expected usage error (code 2), got %v", err)
@@ -402,7 +402,7 @@ func TestSynthesizeStdinSource_ContentOnlyFamilyRefused(t *testing.T) {
 func TestInspectStdinSource(t *testing.T) {
 	outPath := filepath.Join(t.TempDir(), "inspection.json")
 	if err := runOBWithStdin(t, strings.NewReader(tinyOpenAPI),
-		"inspect", "openbindings.openapi@1:-", "-F", "json", "-o", outPath); err != nil {
+		"inspect", "openbindings.openapi-3.1@1:-", "-F", "json", "-o", outPath); err != nil {
 		t.Fatalf("inspect from stdin: %v", err)
 	}
 

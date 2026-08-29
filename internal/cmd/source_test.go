@@ -23,7 +23,7 @@ func TestSourcePullOutputPath(t *testing.T) {
 	if _, err := app.NewInterface(app.NewInterfaceInput{Path: obiPath, Name: "t"}); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := app.SourceAdd(app.SourceAddInput{OBIPath: obiPath, Format: "openbindings.openapi@1", Location: filepath.Join(dir, "openapi.json"), Key: "api"}); err != nil {
+	if _, err := app.SourceAdd(app.SourceAddInput{OBIPath: obiPath, Format: "openbindings.openapi-3.1@1", Location: filepath.Join(dir, "openapi.json"), Key: "api"}); err != nil {
 		t.Fatal(err)
 	}
 

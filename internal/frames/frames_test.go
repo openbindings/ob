@@ -19,10 +19,10 @@ func TestInputFrameRoundTrip(t *testing.T) {
 		{
 			name: "open",
 			frame: Open(&BindingInvocationInput{
-				Source:   InvokeSource{BindingSpec: "openbindings.openapi@1", Location: "https://x/openapi.yaml"},
+				Source:   InvokeSource{BindingSpec: "openbindings.openapi-3.1@1", Location: "https://x/openapi.yaml"},
 				Selector: "#/paths/~1t/get",
 			}),
-			want: `{"kind":"open","input":{"source":{"bindingSpec":"openbindings.openapi@1","location":"https://x/openapi.yaml"},"selector":"#/paths/~1t/get"}}`,
+			want: `{"kind":"open","input":{"source":{"bindingSpec":"openbindings.openapi-3.1@1","location":"https://x/openapi.yaml"},"selector":"#/paths/~1t/get"}}`,
 		},
 		{
 			name:  "input",

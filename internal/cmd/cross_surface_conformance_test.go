@@ -83,7 +83,7 @@ func TestCrossSurfaceConformance(t *testing.T) {
 		},
 		"sources": map[string]any{
 			"api": map[string]any{
-				"bindingSpec": "openbindings.openapi@1",
+				"bindingSpec": "openbindings.openapi-3.1@1",
 				"location":    "https://example.com/openapi.yaml",
 			},
 		},
@@ -152,15 +152,15 @@ func TestCrossSurfaceConformance(t *testing.T) {
 		{name: "describe", short: "describe"},
 		{name: "binding specs", short: "listBindingSpecs"},
 		{name: "check binding specs", short: "checkBindingSpecs", input: map[string]any{
-			"bindingSpecs": []any{"openbindings.openapi@1", "unknown@1", "openbindings.openapi@1"},
+			"bindingSpecs": []any{"openbindings.openapi-3.1@1", "unknown@1", "openbindings.openapi-3.1@1"},
 		}},
 		{name: "inspect embedded source", short: "inspectSource", input: map[string]any{"source": map[string]any{
-			"bindingSpec": "openbindings.openapi@1", "content": openAPISource,
+			"bindingSpec": "openbindings.openapi-3.1@1", "content": openAPISource,
 		}}},
 		{name: "synthesize embedded source", short: "synthesizeInterface", input: map[string]any{
 			"name": "Surface synthesis",
 			"sources": []any{map[string]any{
-				"bindingSpec": "openbindings.openapi@1", "name": "api", "content": openAPISource,
+				"bindingSpec": "openbindings.openapi-3.1@1", "name": "api", "content": openAPISource,
 			}},
 		}},
 		{name: "inspect embedded GraphQL source", short: "inspectSource", input: map[string]any{"source": map[string]any{
@@ -180,7 +180,7 @@ func TestCrossSurfaceConformance(t *testing.T) {
 		{name: "add embedded source", short: "addSource", input: map[string]any{
 			"interface": map[string]any{"openbindings": "0.2.0", "name": "Surface source", "operations": map[string]any{}},
 			"source": map[string]any{
-				"bindingSpec": "openbindings.openapi@1", "name": "api", "content": openAPISource,
+				"bindingSpec": "openbindings.openapi-3.1@1", "name": "api", "content": openAPISource,
 			},
 		}},
 		{name: "validate", short: "validateInterface", input: map[string]any{"interface": docA, "strict": true}},
@@ -210,7 +210,7 @@ func TestCrossSurfaceConformance(t *testing.T) {
 			"operations":   map[string]any{},
 			"sources": map[string]any{
 				"api": map[string]any{
-					"bindingSpec": "openbindings.openapi@1",
+					"bindingSpec": "openbindings.openapi-3.1@1",
 					"content":     openAPISource,
 				},
 			},
@@ -416,7 +416,12 @@ func invokeServedContractOperation(
 		app.DefaultInvoker(),
 		served,
 		signature,
-		invoke.WithContext(map[string]any{"bearerToken": "test-token"}),
+		invoke.WithContext(map[string]any{
+			"bearerToken": "test-token",
+			"configuration": map[string]any{
+				"security": map[string]any{"index": 1},
+			},
+		}),
 	)
 	if input != nil {
 		if err := invocation.Write(ctx, input); err != nil {
@@ -435,7 +440,7 @@ func invokeServedContractOperation(
 			break
 		}
 		if err != nil {
-			t.Fatalf("%s serve output: %v", operation, err)
+			t.Fatalf("%s serve output: %#v", operation, err)
 		}
 		validateContractOutput(t, *served, operation, output)
 		outputs = append(outputs, output)

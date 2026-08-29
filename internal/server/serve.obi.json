@@ -1,41 +1,49 @@
 {
   "bindings": {
     "openbindings.ob.addOperation.openapi": {
+      "inputTransform": "($parameters := {}; $bodyObject := $merge([$sift($,function($value,$key){$key != \"aliases\" and $key != \"description\" and $key != \"idempotent\" and $key != \"input\" and $key != \"interface\" and $key != \"key\" and $key != \"output\" and $key != \"tags\"}),{\"aliases\":$lookup($,\"aliases\"),\"description\":$lookup($,\"description\"),\"idempotent\":$lookup($,\"idempotent\"),\"input\":$lookup($,\"input\"),\"interface\":$lookup($,\"interface\"),\"key\":$lookup($,\"key\"),\"output\":$lookup($,\"output\"),\"tags\":$lookup($,\"tags\")}]); {\"parameters\":$count($keys($parameters)) > 0 ? $parameters : $lookup({},\"__openbindings_absent\"),\"body\":($exists($lookup($,\"aliases\")) or $exists($lookup($,\"description\")) or $exists($lookup($,\"idempotent\")) or $exists($lookup($,\"input\")) or $exists($lookup($,\"interface\")) or $exists($lookup($,\"key\")) or $exists($lookup($,\"output\")) or $exists($lookup($,\"tags\")) or $count($keys($sift($,function($value,$key){$key != \"aliases\" and $key != \"description\" and $key != \"idempotent\" and $key != \"input\" and $key != \"interface\" and $key != \"key\" and $key != \"output\" and $key != \"tags\"}))) > 0 or true) ? $bodyObject : $lookup({},\"__openbindings_absent\")})",
       "operation": "openbindings.ob.addOperation",
       "selector": "#/paths/~1interfaces~1operations~1add/post",
       "source": "openapi"
     },
     "openbindings.ob.addOperationAlias.openapi": {
+      "inputTransform": "($parameters := {}; $bodyObject := $merge([$sift($,function($value,$key){$key != \"aliases\" and $key != \"interface\" and $key != \"operation\"}),{\"aliases\":$lookup($,\"aliases\"),\"interface\":$lookup($,\"interface\"),\"operation\":$lookup($,\"operation\")}]); {\"parameters\":$count($keys($parameters)) > 0 ? $parameters : $lookup({},\"__openbindings_absent\"),\"body\":($exists($lookup($,\"aliases\")) or $exists($lookup($,\"interface\")) or $exists($lookup($,\"operation\")) or $count($keys($sift($,function($value,$key){$key != \"aliases\" and $key != \"interface\" and $key != \"operation\"}))) > 0 or true) ? $bodyObject : $lookup({},\"__openbindings_absent\")})",
       "operation": "openbindings.ob.addOperationAlias",
       "selector": "#/paths/~1interfaces~1operations~1aliases~1add/post",
       "source": "openapi"
     },
     "openbindings.ob.addSource.openapi": {
+      "inputTransform": "($parameters := {}; $bodyObject := $merge([$sift($,function($value,$key){$key != \"interface\" and $key != \"source\"}),{\"interface\":$lookup($,\"interface\"),\"source\":$lookup($,\"source\")}]); {\"parameters\":$count($keys($parameters)) > 0 ? $parameters : $lookup({},\"__openbindings_absent\"),\"body\":($exists($lookup($,\"interface\")) or $exists($lookup($,\"source\")) or $count($keys($sift($,function($value,$key){$key != \"interface\" and $key != \"source\"}))) > 0 or true) ? $bodyObject : $lookup({},\"__openbindings_absent\")})",
       "operation": "openbindings.ob.addSource",
       "selector": "#/paths/~1interfaces~1sources~1add/post",
       "source": "openapi"
     },
     "openbindings.ob.bindOperation.openapi": {
+      "inputTransform": "($parameters := {}; $bodyObject := $merge([$sift($,function($value,$key){$key != \"force\" and $key != \"inputTransform\" and $key != \"interface\" and $key != \"operation\" and $key != \"outputTransform\" and $key != \"preference\" and $key != \"selector\" and $key != \"source\" and $key != \"transformStub\"}),{\"force\":$lookup($,\"force\"),\"inputTransform\":$lookup($,\"inputTransform\"),\"interface\":$lookup($,\"interface\"),\"operation\":$lookup($,\"operation\"),\"outputTransform\":$lookup($,\"outputTransform\"),\"preference\":$lookup($,\"preference\"),\"selector\":$lookup($,\"selector\"),\"source\":$lookup($,\"source\"),\"transformStub\":$lookup($,\"transformStub\")}]); {\"parameters\":$count($keys($parameters)) > 0 ? $parameters : $lookup({},\"__openbindings_absent\"),\"body\":($exists($lookup($,\"force\")) or $exists($lookup($,\"inputTransform\")) or $exists($lookup($,\"interface\")) or $exists($lookup($,\"operation\")) or $exists($lookup($,\"outputTransform\")) or $exists($lookup($,\"preference\")) or $exists($lookup($,\"selector\")) or $exists($lookup($,\"source\")) or $exists($lookup($,\"transformStub\")) or $count($keys($sift($,function($value,$key){$key != \"force\" and $key != \"inputTransform\" and $key != \"interface\" and $key != \"operation\" and $key != \"outputTransform\" and $key != \"preference\" and $key != \"selector\" and $key != \"source\" and $key != \"transformStub\"}))) > 0 or true) ? $bodyObject : $lookup({},\"__openbindings_absent\")})",
       "operation": "openbindings.ob.bindOperation",
       "selector": "#/paths/~1interfaces~1operations~1bind/post",
       "source": "openapi"
     },
     "openbindings.ob.checkBindingSpecs.openapi": {
+      "inputTransform": "($parameters := {}; $bodyObject := $merge([$sift($,function($value,$key){$key != \"bindingSpecs\"}),{\"bindingSpecs\":$lookup($,\"bindingSpecs\")}]); {\"parameters\":$count($keys($parameters)) > 0 ? $parameters : $lookup({},\"__openbindings_absent\"),\"body\":($exists($lookup($,\"bindingSpecs\")) or $count($keys($sift($,function($value,$key){$key != \"bindingSpecs\"}))) > 0 or true) ? $bodyObject : $lookup({},\"__openbindings_absent\")})",
       "operation": "openbindings.ob.checkBindingSpecs",
       "selector": "#/paths/~1binding-specs~1check/post",
       "source": "openapi"
     },
     "openbindings.ob.codegen.openapi": {
+      "inputTransform": "($parameters := {}; $bodyObject := $merge([$sift($,function($value,$key){$key != \"interface\" and $key != \"language\" and $key != \"package\"}),{\"interface\":$lookup($,\"interface\"),\"language\":$lookup($,\"language\"),\"package\":$lookup($,\"package\")}]); {\"parameters\":$count($keys($parameters)) > 0 ? $parameters : $lookup({},\"__openbindings_absent\"),\"body\":($exists($lookup($,\"interface\")) or $exists($lookup($,\"language\")) or $exists($lookup($,\"package\")) or $count($keys($sift($,function($value,$key){$key != \"interface\" and $key != \"language\" and $key != \"package\"}))) > 0 or true) ? $bodyObject : $lookup({},\"__openbindings_absent\")})",
       "operation": "openbindings.ob.codegen",
       "selector": "#/paths/~1interfaces~1codegen/post",
       "source": "openapi"
     },
     "openbindings.ob.compareInterfaces.openapi": {
+      "inputTransform": "($parameters := {}; $bodyObject := $merge([$sift($,function($value,$key){$key != \"baseline\" and $key != \"comparison\" and $key != \"fromSources\" and $key != \"only\"}),{\"baseline\":$lookup($,\"baseline\"),\"comparison\":$lookup($,\"comparison\"),\"fromSources\":$lookup($,\"fromSources\"),\"only\":$lookup($,\"only\")}]); {\"parameters\":$count($keys($parameters)) > 0 ? $parameters : $lookup({},\"__openbindings_absent\"),\"body\":($exists($lookup($,\"baseline\")) or $exists($lookup($,\"comparison\")) or $exists($lookup($,\"fromSources\")) or $exists($lookup($,\"only\")) or $count($keys($sift($,function($value,$key){$key != \"baseline\" and $key != \"comparison\" and $key != \"fromSources\" and $key != \"only\"}))) > 0 or true) ? $bodyObject : $lookup({},\"__openbindings_absent\")})",
       "operation": "openbindings.ob.compareInterfaces",
       "selector": "#/paths/~1interfaces~1compare/post",
       "source": "openapi"
     },
     "openbindings.ob.conform.openapi": {
+      "inputTransform": "($parameters := {}; $bodyObject := $merge([$sift($,function($value,$key){$key != \"dryRun\" and $key != \"interface\" and $key != \"target\"}),{\"dryRun\":$lookup($,\"dryRun\"),\"interface\":$lookup($,\"interface\"),\"target\":$lookup($,\"target\")}]); {\"parameters\":$count($keys($parameters)) > 0 ? $parameters : $lookup({},\"__openbindings_absent\"),\"body\":($exists($lookup($,\"dryRun\")) or $exists($lookup($,\"interface\")) or $exists($lookup($,\"target\")) or $count($keys($sift($,function($value,$key){$key != \"dryRun\" and $key != \"interface\" and $key != \"target\"}))) > 0 or true) ? $bodyObject : $lookup({},\"__openbindings_absent\")})",
       "operation": "openbindings.ob.conform",
       "selector": "#/paths/~1interfaces~1conform/post",
       "source": "openapi"
@@ -46,27 +54,31 @@
       "source": "openapi"
     },
     "openbindings.ob.detachOperation.openapi": {
+      "inputTransform": "($parameters := {}; $bodyObject := $merge([$sift($,function($value,$key){$key != \"interface\" and $key != \"operation\"}),{\"interface\":$lookup($,\"interface\"),\"operation\":$lookup($,\"operation\")}]); {\"parameters\":$count($keys($parameters)) > 0 ? $parameters : $lookup({},\"__openbindings_absent\"),\"body\":($exists($lookup($,\"interface\")) or $exists($lookup($,\"operation\")) or $count($keys($sift($,function($value,$key){$key != \"interface\" and $key != \"operation\"}))) > 0 or true) ? $bodyObject : $lookup({},\"__openbindings_absent\")})",
       "operation": "openbindings.ob.detachOperation",
       "selector": "#/paths/~1interfaces~1operations~1detach/post",
       "source": "openapi"
     },
     "openbindings.ob.getContext.openapi": {
-      "inputTransform": "{ \"url\": key }",
+      "inputTransform": "({ \"url\": key }).(($parameters := {\"url\":$lookup($,\"url\")}; $bodyObject := {}; {\"parameters\":$count($keys($parameters)) > 0 ? $parameters : $lookup({},\"__openbindings_absent\"),\"body\":$lookup({},\"__openbindings_absent\")}))",
       "operation": "openbindings.ob.getContext",
       "selector": "#/paths/~1contexts~1{url}/get",
       "source": "openapi"
     },
     "openbindings.ob.getDelegateRequirements.openapi": {
+      "inputTransform": "($parameters := {\"capability\":$lookup($,\"capability\")}; $bodyObject := {}; {\"parameters\":$count($keys($parameters)) > 0 ? $parameters : $lookup({},\"__openbindings_absent\"),\"body\":$lookup({},\"__openbindings_absent\")})",
       "operation": "openbindings.ob.getDelegateRequirements",
       "selector": "#/paths/~1delegate-requirements~1{capability}/get",
       "source": "openapi"
     },
     "openbindings.ob.initializeEnvironment.openapi": {
+      "inputTransform": "($parameters := {}; $bodyObject := $merge([$sift($,function($value,$key){$key != \"global\"}),{\"global\":$lookup($,\"global\")}]); {\"parameters\":$count($keys($parameters)) > 0 ? $parameters : $lookup({},\"__openbindings_absent\"),\"body\":($exists($lookup($,\"global\")) or $count($keys($sift($,function($value,$key){$key != \"global\"}))) > 0 or true) ? $bodyObject : $lookup({},\"__openbindings_absent\")})",
       "operation": "openbindings.ob.initializeEnvironment",
       "selector": "#/paths/~1environment~1initialize/post",
       "source": "openapi"
     },
     "openbindings.ob.inspectSource.openapi": {
+      "inputTransform": "($parameters := {}; $bodyObject := $merge([$sift($,function($value,$key){$key != \"source\"}),{\"source\":$lookup($,\"source\")}]); {\"parameters\":$count($keys($parameters)) > 0 ? $parameters : $lookup({},\"__openbindings_absent\"),\"body\":($exists($lookup($,\"source\")) or $count($keys($sift($,function($value,$key){$key != \"source\"}))) > 0 or true) ? $bodyObject : $lookup({},\"__openbindings_absent\")})",
       "operation": "openbindings.ob.inspectSource",
       "selector": "#/paths/~1sources~1inspect/post",
       "source": "openapi"
@@ -87,6 +99,7 @@
       "source": "openapi"
     },
     "openbindings.ob.listBindings.openapi": {
+      "inputTransform": "($parameters := {}; $bodyObject := $merge([$sift($,function($value,$key){$key != \"interface\" and $key != \"operation\"}),{\"interface\":$lookup($,\"interface\"),\"operation\":$lookup($,\"operation\")}]); {\"parameters\":$count($keys($parameters)) > 0 ? $parameters : $lookup({},\"__openbindings_absent\"),\"body\":($exists($lookup($,\"interface\")) or $exists($lookup($,\"operation\")) or $count($keys($sift($,function($value,$key){$key != \"interface\" and $key != \"operation\"}))) > 0 or true) ? $bodyObject : $lookup({},\"__openbindings_absent\")})",
       "operation": "openbindings.ob.listBindings",
       "selector": "#/paths/~1interfaces~1bindings~1list/post",
       "source": "openapi"
@@ -102,84 +115,97 @@
       "source": "openapi"
     },
     "openbindings.ob.listOperationAliases.openapi": {
+      "inputTransform": "($parameters := {}; $bodyObject := $merge([$sift($,function($value,$key){$key != \"interface\" and $key != \"operation\"}),{\"interface\":$lookup($,\"interface\"),\"operation\":$lookup($,\"operation\")}]); {\"parameters\":$count($keys($parameters)) > 0 ? $parameters : $lookup({},\"__openbindings_absent\"),\"body\":($exists($lookup($,\"interface\")) or $exists($lookup($,\"operation\")) or $count($keys($sift($,function($value,$key){$key != \"interface\" and $key != \"operation\"}))) > 0 or true) ? $bodyObject : $lookup({},\"__openbindings_absent\")})",
       "operation": "openbindings.ob.listOperationAliases",
       "selector": "#/paths/~1interfaces~1operations~1aliases~1list/post",
       "source": "openapi"
     },
     "openbindings.ob.listOperations.openapi": {
+      "inputTransform": "($parameters := {}; $bodyObject := $merge([$sift($,function($value,$key){$key != \"interface\" and $key != \"tag\"}),{\"interface\":$lookup($,\"interface\"),\"tag\":$lookup($,\"tag\")}]); {\"parameters\":$count($keys($parameters)) > 0 ? $parameters : $lookup({},\"__openbindings_absent\"),\"body\":($exists($lookup($,\"interface\")) or $exists($lookup($,\"tag\")) or $count($keys($sift($,function($value,$key){$key != \"interface\" and $key != \"tag\"}))) > 0 or true) ? $bodyObject : $lookup({},\"__openbindings_absent\")})",
       "operation": "openbindings.ob.listOperations",
       "selector": "#/paths/~1interfaces~1operations~1list/post",
       "source": "openapi"
     },
     "openbindings.ob.listSources.openapi": {
+      "inputTransform": "($parameters := {}; $bodyObject := $merge([$sift($,function($value,$key){$key != \"interface\"}),{\"interface\":$lookup($,\"interface\")}]); {\"parameters\":$count($keys($parameters)) > 0 ? $parameters : $lookup({},\"__openbindings_absent\"),\"body\":($exists($lookup($,\"interface\")) or $count($keys($sift($,function($value,$key){$key != \"interface\"}))) > 0 or true) ? $bodyObject : $lookup({},\"__openbindings_absent\")})",
       "operation": "openbindings.ob.listSources",
       "selector": "#/paths/~1interfaces~1sources~1list/post",
       "source": "openapi"
     },
     "openbindings.ob.mergeInterfaces.openapi": {
+      "inputTransform": "($parameters := {}; $bodyObject := $merge([$sift($,function($value,$key){$key != \"excludeOperations\" and $key != \"fromSources\" and $key != \"noBindings\" and $key != \"noSources\" and $key != \"only\" and $key != \"operations\" and $key != \"opsOnly\" and $key != \"source\" and $key != \"target\"}),{\"excludeOperations\":$lookup($,\"excludeOperations\"),\"fromSources\":$lookup($,\"fromSources\"),\"noBindings\":$lookup($,\"noBindings\"),\"noSources\":$lookup($,\"noSources\"),\"only\":$lookup($,\"only\"),\"operations\":$lookup($,\"operations\"),\"opsOnly\":$lookup($,\"opsOnly\"),\"source\":$lookup($,\"source\"),\"target\":$lookup($,\"target\")}]); {\"parameters\":$count($keys($parameters)) > 0 ? $parameters : $lookup({},\"__openbindings_absent\"),\"body\":($exists($lookup($,\"excludeOperations\")) or $exists($lookup($,\"fromSources\")) or $exists($lookup($,\"noBindings\")) or $exists($lookup($,\"noSources\")) or $exists($lookup($,\"only\")) or $exists($lookup($,\"operations\")) or $exists($lookup($,\"opsOnly\")) or $exists($lookup($,\"source\")) or $exists($lookup($,\"target\")) or $count($keys($sift($,function($value,$key){$key != \"excludeOperations\" and $key != \"fromSources\" and $key != \"noBindings\" and $key != \"noSources\" and $key != \"only\" and $key != \"operations\" and $key != \"opsOnly\" and $key != \"source\" and $key != \"target\"}))) > 0 or true) ? $bodyObject : $lookup({},\"__openbindings_absent\")})",
       "operation": "openbindings.ob.mergeInterfaces",
       "selector": "#/paths/~1interfaces~1merge/post",
       "source": "openapi"
     },
     "openbindings.ob.newInterface.openapi": {
+      "inputTransform": "($parameters := {}; $bodyObject := $merge([$sift($,function($value,$key){$key != \"description\" and $key != \"name\" and $key != \"openbindings\" and $key != \"version\"}),{\"description\":$lookup($,\"description\"),\"name\":$lookup($,\"name\"),\"openbindings\":$lookup($,\"openbindings\"),\"version\":$lookup($,\"version\")}]); {\"parameters\":$count($keys($parameters)) > 0 ? $parameters : $lookup({},\"__openbindings_absent\"),\"body\":($exists($lookup($,\"description\")) or $exists($lookup($,\"name\")) or $exists($lookup($,\"openbindings\")) or $exists($lookup($,\"version\")) or $count($keys($sift($,function($value,$key){$key != \"description\" and $key != \"name\" and $key != \"openbindings\" and $key != \"version\"}))) > 0 or true) ? $bodyObject : $lookup({},\"__openbindings_absent\")})",
       "operation": "openbindings.ob.newInterface",
       "selector": "#/paths/~1interfaces/post",
       "source": "openapi"
     },
     "openbindings.ob.prepareBinding.openapi": {
+      "inputTransform": "($parameters := {}; $bodyObject := $merge([$sift($,function($value,$key){$key != \"context\" and $key != \"selector\" and $key != \"source\"}),{\"context\":$lookup($,\"context\"),\"selector\":$lookup($,\"selector\"),\"source\":$lookup($,\"source\")}]); {\"parameters\":$count($keys($parameters)) > 0 ? $parameters : $lookup({},\"__openbindings_absent\"),\"body\":($exists($lookup($,\"context\")) or $exists($lookup($,\"selector\")) or $exists($lookup($,\"source\")) or $count($keys($sift($,function($value,$key){$key != \"context\" and $key != \"selector\" and $key != \"source\"}))) > 0 or true) ? $bodyObject : $lookup({},\"__openbindings_absent\")})",
       "operation": "openbindings.ob.prepareBinding",
       "selector": "#/paths/~1bindings~1prepare/post",
       "source": "openapi"
     },
     "openbindings.ob.prepareOperation.openapi": {
-      "inputTransform": "{ \"input\": $$ }",
+      "inputTransform": "({ \"payload\": $$ }).(($parameters := {}; $bodyObject := {}; {\"parameters\":$count($keys($parameters)) > 0 ? $parameters : $lookup({},\"__openbindings_absent\"),\"body\":$exists($lookup($,\"payload\")) ? $lookup($,\"payload\") : ((false) ? $bodyObject : $lookup({},\"__openbindings_absent\"))}))",
       "operation": "openbindings.ob.prepareOperation",
       "selector": "#/paths/~1operations~1prepare/post",
       "source": "openapi"
     },
     "openbindings.ob.pullSource.openapi": {
+      "inputTransform": "($parameters := {}; $bodyObject := $merge([$sift($,function($value,$key){$key != \"interface\" and $key != \"sourceKeys\"}),{\"interface\":$lookup($,\"interface\"),\"sourceKeys\":$lookup($,\"sourceKeys\")}]); {\"parameters\":$count($keys($parameters)) > 0 ? $parameters : $lookup({},\"__openbindings_absent\"),\"body\":($exists($lookup($,\"interface\")) or $exists($lookup($,\"sourceKeys\")) or $count($keys($sift($,function($value,$key){$key != \"interface\" and $key != \"sourceKeys\"}))) > 0 or true) ? $bodyObject : $lookup({},\"__openbindings_absent\")})",
       "operation": "openbindings.ob.pullSource",
       "selector": "#/paths/~1interfaces~1sources~1pull/post",
       "source": "openapi"
     },
     "openbindings.ob.purifyInterface.openapi": {
-      "inputTransform": "[{\"$openbindings\":\"openbindings.openapi@1\",\"value\":({ \"payload\": $$ }),\"parameters\":[],\"body\":{\"whole\":\"payload\"}}]",
+      "inputTransform": "({ \"payload\": $$ }).(($parameters := {}; $bodyObject := {}; {\"parameters\":$count($keys($parameters)) > 0 ? $parameters : $lookup({},\"__openbindings_absent\"),\"body\":$exists($lookup($,\"payload\")) ? $lookup($,\"payload\") : ((false) ? $bodyObject : $lookup({},\"__openbindings_absent\"))}))",
       "operation": "openbindings.ob.purifyInterface",
       "selector": "#/paths/~1interfaces~1purify/post",
       "source": "openapi"
     },
     "openbindings.ob.registerDelegate.openapi": {
+      "inputTransform": "($parameters := {}; $bodyObject := $merge([$sift($,function($value,$key){$key != \"location\" and $key != \"preference\"}),{\"location\":$lookup($,\"location\"),\"preference\":$lookup($,\"preference\")}]); {\"parameters\":$count($keys($parameters)) > 0 ? $parameters : $lookup({},\"__openbindings_absent\"),\"body\":($exists($lookup($,\"location\")) or $exists($lookup($,\"preference\")) or $count($keys($sift($,function($value,$key){$key != \"location\" and $key != \"preference\"}))) > 0 or true) ? $bodyObject : $lookup({},\"__openbindings_absent\")})",
       "operation": "openbindings.ob.registerDelegate",
       "selector": "#/paths/~1delegates~1register/post",
       "source": "openapi"
     },
     "openbindings.ob.removeContext.openapi": {
-      "inputTransform": "{ \"url\": key }",
+      "inputTransform": "({ \"url\": key }).(($parameters := {\"url\":$lookup($,\"url\")}; $bodyObject := {}; {\"parameters\":$count($keys($parameters)) > 0 ? $parameters : $lookup({},\"__openbindings_absent\"),\"body\":$lookup({},\"__openbindings_absent\")}))",
       "operation": "openbindings.ob.removeContext",
       "selector": "#/paths/~1contexts~1{url}/delete",
       "source": "openapi"
     },
     "openbindings.ob.removeOperation.openapi": {
+      "inputTransform": "($parameters := {}; $bodyObject := $merge([$sift($,function($value,$key){$key != \"force\" and $key != \"interface\" and $key != \"keys\"}),{\"force\":$lookup($,\"force\"),\"interface\":$lookup($,\"interface\"),\"keys\":$lookup($,\"keys\")}]); {\"parameters\":$count($keys($parameters)) > 0 ? $parameters : $lookup({},\"__openbindings_absent\"),\"body\":($exists($lookup($,\"force\")) or $exists($lookup($,\"interface\")) or $exists($lookup($,\"keys\")) or $count($keys($sift($,function($value,$key){$key != \"force\" and $key != \"interface\" and $key != \"keys\"}))) > 0 or true) ? $bodyObject : $lookup({},\"__openbindings_absent\")})",
       "operation": "openbindings.ob.removeOperation",
       "selector": "#/paths/~1interfaces~1operations~1remove/post",
       "source": "openapi"
     },
     "openbindings.ob.removeOperationAlias.openapi": {
+      "inputTransform": "($parameters := {}; $bodyObject := $merge([$sift($,function($value,$key){$key != \"aliases\" and $key != \"interface\" and $key != \"operation\"}),{\"aliases\":$lookup($,\"aliases\"),\"interface\":$lookup($,\"interface\"),\"operation\":$lookup($,\"operation\")}]); {\"parameters\":$count($keys($parameters)) > 0 ? $parameters : $lookup({},\"__openbindings_absent\"),\"body\":($exists($lookup($,\"aliases\")) or $exists($lookup($,\"interface\")) or $exists($lookup($,\"operation\")) or $count($keys($sift($,function($value,$key){$key != \"aliases\" and $key != \"interface\" and $key != \"operation\"}))) > 0 or true) ? $bodyObject : $lookup({},\"__openbindings_absent\")})",
       "operation": "openbindings.ob.removeOperationAlias",
       "selector": "#/paths/~1interfaces~1operations~1aliases~1remove/post",
       "source": "openapi"
     },
     "openbindings.ob.removeSource.openapi": {
+      "inputTransform": "($parameters := {}; $bodyObject := $merge([$sift($,function($value,$key){$key != \"interface\" and $key != \"key\"}),{\"interface\":$lookup($,\"interface\"),\"key\":$lookup($,\"key\")}]); {\"parameters\":$count($keys($parameters)) > 0 ? $parameters : $lookup({},\"__openbindings_absent\"),\"body\":($exists($lookup($,\"interface\")) or $exists($lookup($,\"key\")) or $count($keys($sift($,function($value,$key){$key != \"interface\" and $key != \"key\"}))) > 0 or true) ? $bodyObject : $lookup({},\"__openbindings_absent\")})",
       "operation": "openbindings.ob.removeSource",
       "selector": "#/paths/~1interfaces~1sources~1remove/post",
       "source": "openapi"
     },
     "openbindings.ob.renameOperation.openapi": {
+      "inputTransform": "($parameters := {}; $bodyObject := $merge([$sift($,function($value,$key){$key != \"interface\" and $key != \"newKey\" and $key != \"oldKey\"}),{\"interface\":$lookup($,\"interface\"),\"newKey\":$lookup($,\"newKey\"),\"oldKey\":$lookup($,\"oldKey\")}]); {\"parameters\":$count($keys($parameters)) > 0 ? $parameters : $lookup({},\"__openbindings_absent\"),\"body\":($exists($lookup($,\"interface\")) or $exists($lookup($,\"newKey\")) or $exists($lookup($,\"oldKey\")) or $count($keys($sift($,function($value,$key){$key != \"interface\" and $key != \"newKey\" and $key != \"oldKey\"}))) > 0 or true) ? $bodyObject : $lookup({},\"__openbindings_absent\")})",
       "operation": "openbindings.ob.renameOperation",
       "selector": "#/paths/~1interfaces~1operations~1rename/post",
       "source": "openapi"
     },
     "openbindings.ob.reportCompatibility.openapi": {
+      "inputTransform": "($parameters := {}; $bodyObject := $merge([$sift($,function($value,$key){$key != \"candidate\" and $key != \"target\"}),{\"candidate\":$lookup($,\"candidate\"),\"target\":$lookup($,\"target\")}]); {\"parameters\":$count($keys($parameters)) > 0 ? $parameters : $lookup({},\"__openbindings_absent\"),\"body\":($exists($lookup($,\"candidate\")) or $exists($lookup($,\"target\")) or $count($keys($sift($,function($value,$key){$key != \"candidate\" and $key != \"target\"}))) > 0 or true) ? $bodyObject : $lookup({},\"__openbindings_absent\")})",
       "operation": "openbindings.ob.reportCompatibility",
       "selector": "#/paths/~1interfaces~1compatibility/post",
       "source": "openapi"
@@ -190,72 +216,85 @@
       "source": "openapi"
     },
     "openbindings.ob.reportInterfaceStatus.openapi": {
+      "inputTransform": "($parameters := {}; $bodyObject := $merge([$sift($,function($value,$key){$key != \"interface\"}),{\"interface\":$lookup($,\"interface\")}]); {\"parameters\":$count($keys($parameters)) > 0 ? $parameters : $lookup({},\"__openbindings_absent\"),\"body\":($exists($lookup($,\"interface\")) or $count($keys($sift($,function($value,$key){$key != \"interface\"}))) > 0 or true) ? $bodyObject : $lookup({},\"__openbindings_absent\")})",
       "operation": "openbindings.ob.reportInterfaceStatus",
       "selector": "#/paths/~1interfaces~1status/post",
       "source": "openapi"
     },
     "openbindings.ob.resolveDelegate.openapi": {
+      "inputTransform": "($parameters := {\"operation\":$lookup($,\"operation\")}; $bodyObject := {}; {\"parameters\":$count($keys($parameters)) > 0 ? $parameters : $lookup({},\"__openbindings_absent\"),\"body\":$lookup({},\"__openbindings_absent\")})",
       "operation": "openbindings.ob.resolveDelegate",
       "selector": "#/paths/~1delegates~1resolve~1{operation}/get",
       "source": "openapi"
     },
     "openbindings.ob.resolveDelegateForBindingSpec.openapi": {
+      "inputTransform": "($parameters := {}; $bodyObject := $merge([$sift($,function($value,$key){$key != \"bindingSpec\"}),{\"bindingSpec\":$lookup($,\"bindingSpec\")}]); {\"parameters\":$count($keys($parameters)) > 0 ? $parameters : $lookup({},\"__openbindings_absent\"),\"body\":($exists($lookup($,\"bindingSpec\")) or $count($keys($sift($,function($value,$key){$key != \"bindingSpec\"}))) > 0 or true) ? $bodyObject : $lookup({},\"__openbindings_absent\")})",
       "operation": "openbindings.ob.resolveDelegateForBindingSpec",
       "selector": "#/paths/~1delegates~1resolve-binding-spec/post",
       "source": "openapi"
     },
     "openbindings.ob.resolveInterface.openapi": {
+      "inputTransform": "($parameters := {}; $bodyObject := $merge([$sift($,function($value,$key){$key != \"address\"}),{\"address\":$lookup($,\"address\")}]); {\"parameters\":$count($keys($parameters)) > 0 ? $parameters : $lookup({},\"__openbindings_absent\"),\"body\":($exists($lookup($,\"address\")) or $count($keys($sift($,function($value,$key){$key != \"address\"}))) > 0 or true) ? $bodyObject : $lookup({},\"__openbindings_absent\")})",
       "operation": "openbindings.ob.resolveInterface",
       "selector": "#/paths/~1interfaces~1resolve/post",
       "source": "openapi"
     },
     "openbindings.ob.setContext.openapi": {
-      "inputTransform": "[{\"$openbindings\":\"openbindings.openapi@1\",\"value\":({ \"url\": key, \"payload\": value }),\"parameters\":[{\"in\":\"path\",\"name\":\"url\",\"field\":\"url\"}],\"body\":{\"whole\":\"payload\"}}]",
+      "inputTransform": "({ \"url\": key, \"payload\": value }).(($parameters := {\"url\":$lookup($,\"url\")}; $bodyObject := {}; {\"parameters\":$count($keys($parameters)) > 0 ? $parameters : $lookup({},\"__openbindings_absent\"),\"body\":$exists($lookup($,\"payload\")) ? $lookup($,\"payload\") : ((false) ? $bodyObject : $lookup({},\"__openbindings_absent\"))}))",
       "operation": "openbindings.ob.setContext",
       "selector": "#/paths/~1contexts~1{url}/put",
       "source": "openapi"
     },
     "openbindings.ob.setDelegatePreference.openapi": {
+      "inputTransform": "($parameters := {}; $bodyObject := $merge([$sift($,function($value,$key){$key != \"bindingSpec\" and $key != \"location\" and $key != \"operation\" and $key != \"preference\"}),{\"bindingSpec\":$lookup($,\"bindingSpec\"),\"location\":$lookup($,\"location\"),\"operation\":$lookup($,\"operation\"),\"preference\":$lookup($,\"preference\")}]); {\"parameters\":$count($keys($parameters)) > 0 ? $parameters : $lookup({},\"__openbindings_absent\"),\"body\":($exists($lookup($,\"bindingSpec\")) or $exists($lookup($,\"location\")) or $exists($lookup($,\"operation\")) or $exists($lookup($,\"preference\")) or $count($keys($sift($,function($value,$key){$key != \"bindingSpec\" and $key != \"location\" and $key != \"operation\" and $key != \"preference\"}))) > 0 or true) ? $bodyObject : $lookup({},\"__openbindings_absent\")})",
       "operation": "openbindings.ob.setDelegatePreference",
       "selector": "#/paths/~1delegates~1preference/post",
       "source": "openapi"
     },
     "openbindings.ob.setMetadata.openapi": {
+      "inputTransform": "($parameters := {}; $bodyObject := $merge([$sift($,function($value,$key){$key != \"description\" and $key != \"interface\" and $key != \"name\" and $key != \"version\"}),{\"description\":$lookup($,\"description\"),\"interface\":$lookup($,\"interface\"),\"name\":$lookup($,\"name\"),\"version\":$lookup($,\"version\")}]); {\"parameters\":$count($keys($parameters)) > 0 ? $parameters : $lookup({},\"__openbindings_absent\"),\"body\":($exists($lookup($,\"description\")) or $exists($lookup($,\"interface\")) or $exists($lookup($,\"name\")) or $exists($lookup($,\"version\")) or $count($keys($sift($,function($value,$key){$key != \"description\" and $key != \"interface\" and $key != \"name\" and $key != \"version\"}))) > 0 or true) ? $bodyObject : $lookup({},\"__openbindings_absent\")})",
       "operation": "openbindings.ob.setMetadata",
       "selector": "#/paths/~1interfaces~1metadata/post",
       "source": "openapi"
     },
     "openbindings.ob.setOperation.openapi": {
+      "inputTransform": "($parameters := {}; $bodyObject := $merge([$sift($,function($value,$key){$key != \"addTags\" and $key != \"deprecated\" and $key != \"description\" and $key != \"idempotent\" and $key != \"input\" and $key != \"interface\" and $key != \"operation\" and $key != \"output\" and $key != \"own\" and $key != \"removeTags\"}),{\"addTags\":$lookup($,\"addTags\"),\"deprecated\":$lookup($,\"deprecated\"),\"description\":$lookup($,\"description\"),\"idempotent\":$lookup($,\"idempotent\"),\"input\":$lookup($,\"input\"),\"interface\":$lookup($,\"interface\"),\"operation\":$lookup($,\"operation\"),\"output\":$lookup($,\"output\"),\"own\":$lookup($,\"own\"),\"removeTags\":$lookup($,\"removeTags\")}]); {\"parameters\":$count($keys($parameters)) > 0 ? $parameters : $lookup({},\"__openbindings_absent\"),\"body\":($exists($lookup($,\"addTags\")) or $exists($lookup($,\"deprecated\")) or $exists($lookup($,\"description\")) or $exists($lookup($,\"idempotent\")) or $exists($lookup($,\"input\")) or $exists($lookup($,\"interface\")) or $exists($lookup($,\"operation\")) or $exists($lookup($,\"output\")) or $exists($lookup($,\"own\")) or $exists($lookup($,\"removeTags\")) or $count($keys($sift($,function($value,$key){$key != \"addTags\" and $key != \"deprecated\" and $key != \"description\" and $key != \"idempotent\" and $key != \"input\" and $key != \"interface\" and $key != \"operation\" and $key != \"output\" and $key != \"own\" and $key != \"removeTags\"}))) > 0 or true) ? $bodyObject : $lookup({},\"__openbindings_absent\")})",
       "operation": "openbindings.ob.setOperation",
       "selector": "#/paths/~1interfaces~1operations~1set/post",
       "source": "openapi"
     },
     "openbindings.ob.setOperationCodegenName.openapi": {
+      "inputTransform": "($parameters := {}; $bodyObject := $merge([$sift($,function($value,$key){$key != \"clear\" and $key != \"codegenName\" and $key != \"interface\" and $key != \"operation\"}),{\"clear\":$lookup($,\"clear\"),\"codegenName\":$lookup($,\"codegenName\"),\"interface\":$lookup($,\"interface\"),\"operation\":$lookup($,\"operation\")}]); {\"parameters\":$count($keys($parameters)) > 0 ? $parameters : $lookup({},\"__openbindings_absent\"),\"body\":($exists($lookup($,\"clear\")) or $exists($lookup($,\"codegenName\")) or $exists($lookup($,\"interface\")) or $exists($lookup($,\"operation\")) or $count($keys($sift($,function($value,$key){$key != \"clear\" and $key != \"codegenName\" and $key != \"interface\" and $key != \"operation\"}))) > 0 or true) ? $bodyObject : $lookup({},\"__openbindings_absent\")})",
       "operation": "openbindings.ob.setOperationCodegenName",
       "selector": "#/paths/~1interfaces~1operations~1codegen-name/post",
       "source": "openapi"
     },
     "openbindings.ob.setOperationOutputSchema.openapi": {
+      "inputTransform": "($parameters := {}; $bodyObject := $merge([$sift($,function($value,$key){$key != \"clear\" and $key != \"interface\" and $key != \"operation\" and $key != \"outputSchema\"}),{\"clear\":$lookup($,\"clear\"),\"interface\":$lookup($,\"interface\"),\"operation\":$lookup($,\"operation\"),\"outputSchema\":$lookup($,\"outputSchema\")}]); {\"parameters\":$count($keys($parameters)) > 0 ? $parameters : $lookup({},\"__openbindings_absent\"),\"body\":($exists($lookup($,\"clear\")) or $exists($lookup($,\"interface\")) or $exists($lookup($,\"operation\")) or $exists($lookup($,\"outputSchema\")) or $count($keys($sift($,function($value,$key){$key != \"clear\" and $key != \"interface\" and $key != \"operation\" and $key != \"outputSchema\"}))) > 0 or true) ? $bodyObject : $lookup({},\"__openbindings_absent\")})",
       "operation": "openbindings.ob.setOperationOutputSchema",
       "selector": "#/paths/~1interfaces~1operations~1output-schema/post",
       "source": "openapi"
     },
     "openbindings.ob.synthesizeInterface.openapi": {
+      "inputTransform": "($parameters := {}; $bodyObject := $merge([$sift($,function($value,$key){$key != \"description\" and $key != \"name\" and $key != \"openbindingsVersion\" and $key != \"sources\" and $key != \"version\"}),{\"description\":$lookup($,\"description\"),\"name\":$lookup($,\"name\"),\"openbindingsVersion\":$lookup($,\"openbindingsVersion\"),\"sources\":$lookup($,\"sources\"),\"version\":$lookup($,\"version\")}]); {\"parameters\":$count($keys($parameters)) > 0 ? $parameters : $lookup({},\"__openbindings_absent\"),\"body\":($exists($lookup($,\"description\")) or $exists($lookup($,\"name\")) or $exists($lookup($,\"openbindingsVersion\")) or $exists($lookup($,\"sources\")) or $exists($lookup($,\"version\")) or $count($keys($sift($,function($value,$key){$key != \"description\" and $key != \"name\" and $key != \"openbindingsVersion\" and $key != \"sources\" and $key != \"version\"}))) > 0 or true) ? $bodyObject : $lookup({},\"__openbindings_absent\")})",
       "operation": "openbindings.ob.synthesizeInterface",
       "selector": "#/paths/~1interfaces~1synthesize/post",
       "source": "openapi"
     },
     "openbindings.ob.unbindOperation.openapi": {
+      "inputTransform": "($parameters := {}; $bodyObject := $merge([$sift($,function($value,$key){$key != \"binding\" and $key != \"interface\" and $key != \"operation\" and $key != \"source\"}),{\"binding\":$lookup($,\"binding\"),\"interface\":$lookup($,\"interface\"),\"operation\":$lookup($,\"operation\"),\"source\":$lookup($,\"source\")}]); {\"parameters\":$count($keys($parameters)) > 0 ? $parameters : $lookup({},\"__openbindings_absent\"),\"body\":($exists($lookup($,\"binding\")) or $exists($lookup($,\"interface\")) or $exists($lookup($,\"operation\")) or $exists($lookup($,\"source\")) or $count($keys($sift($,function($value,$key){$key != \"binding\" and $key != \"interface\" and $key != \"operation\" and $key != \"source\"}))) > 0 or true) ? $bodyObject : $lookup({},\"__openbindings_absent\")})",
       "operation": "openbindings.ob.unbindOperation",
       "selector": "#/paths/~1interfaces~1operations~1unbind/post",
       "source": "openapi"
     },
     "openbindings.ob.unregisterDelegate.openapi": {
+      "inputTransform": "($parameters := {}; $bodyObject := $merge([$sift($,function($value,$key){$key != \"location\"}),{\"location\":$lookup($,\"location\")}]); {\"parameters\":$count($keys($parameters)) > 0 ? $parameters : $lookup({},\"__openbindings_absent\"),\"body\":($exists($lookup($,\"location\")) or $count($keys($sift($,function($value,$key){$key != \"location\"}))) > 0 or true) ? $bodyObject : $lookup({},\"__openbindings_absent\")})",
       "operation": "openbindings.ob.unregisterDelegate",
       "selector": "#/paths/~1delegates~1unregister/post",
       "source": "openapi"
     },
     "openbindings.ob.validateInterface.openapi": {
+      "inputTransform": "($parameters := {}; $bodyObject := $merge([$sift($,function($value,$key){$key != \"interface\" and $key != \"strict\"}),{\"interface\":$lookup($,\"interface\"),\"strict\":$lookup($,\"strict\")}]); {\"parameters\":$count($keys($parameters)) > 0 ? $parameters : $lookup({},\"__openbindings_absent\"),\"body\":($exists($lookup($,\"interface\")) or $exists($lookup($,\"strict\")) or $count($keys($sift($,function($value,$key){$key != \"interface\" and $key != \"strict\"}))) > 0 or true) ? $bodyObject : $lookup({},\"__openbindings_absent\")})",
       "operation": "openbindings.ob.validateInterface",
       "selector": "#/paths/~1interfaces~1validate/post",
       "source": "openapi"
@@ -1369,7 +1408,7 @@
       "description": "Information about a supported binding specification.",
       "properties": {
         "bindingSpec": {
-          "description": "Binding specification identifier, exact and opaque (e.g., openbindings.openapi@1, openbindings.mcp@1).",
+          "description": "Binding specification identifier, exact and opaque (e.g., openbindings.openapi-3.1@1, openbindings.mcp@1).",
           "type": "string"
         },
         "description": {
@@ -3660,7 +3699,7 @@
       "location": "http://127.0.0.1:20290/asyncapi.yaml"
     },
     "openapi": {
-      "bindingSpec": "openbindings.openapi@1",
+      "bindingSpec": "openbindings.openapi-3.1@1",
       "location": "http://127.0.0.1:20290/openapi.yaml"
     }
   },

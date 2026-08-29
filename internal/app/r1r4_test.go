@@ -34,13 +34,13 @@ func TestOperationKeyForName_ResolvesAlias(t *testing.T) {
 // are not.
 func TestIsDraftBindingSpec(t *testing.T) {
 	cases := map[string]bool{
-		"graphql":                true,
-		"future-binding@^1.0.0":  true,
-		"openbindings.graphql@1": false,
-		"openbindings.openapi@1": false,
-		"openbindings.grpc@1":    false,
-		"openbindings@0.2.0":     false, // core version marker, not a binding spec
-		"acme.grpc@1":            false, // namespaced third-party identifier
+		"graphql":                    true,
+		"future-binding@^1.0.0":      true,
+		"openbindings.graphql@1":     false,
+		"openbindings.openapi-3.1@1": false,
+		"openbindings.grpc@1":        false,
+		"openbindings@0.2.0":         false, // core version marker, not a binding spec
+		"acme.grpc@1":                false, // namespaced third-party identifier
 	}
 	for tok, want := range cases {
 		if got := isDraftBindingSpec(tok); got != want {

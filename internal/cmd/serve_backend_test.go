@@ -18,7 +18,12 @@ func invokeServedOperation(t *testing.T, ctx context.Context, iface *openbinding
 	t.Helper()
 	sig := invoke.NewOperationSignature[any, any]("openbindings.ob." + operation)
 	inv := invoke.Invoke(ctx, app.DefaultInvoker(), iface, sig,
-		invoke.WithContext(map[string]any{"bearerToken": "test-token"}))
+		invoke.WithContext(map[string]any{
+			"bearerToken": "test-token",
+			"configuration": map[string]any{
+				"security": map[string]any{"index": 1},
+			},
+		}))
 	if input != nil {
 		if err := inv.Write(ctx, input); err != nil {
 			t.Fatalf("%s write: %v", operation, err)

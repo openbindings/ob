@@ -31,11 +31,11 @@ import (
 // enforced.
 func TestResolveSourceLocation_RelativeRefusedEveryLane(t *testing.T) {
 	fileLane := openbindings.Source{
-		BindingSpec: "openbindings.openapi@1",
+		BindingSpec: "openbindings.openapi-3.1@1",
 		Location:    "./openapi.json",
 	}
 	contentLane := openbindings.Source{
-		BindingSpec: "openbindings.openapi@1",
+		BindingSpec: "openbindings.openapi-3.1@1",
 		Location:    "./openapi.json",
 		Content:     json.RawMessage(`{"openapi":"3.1.0"}`),
 	}
@@ -157,8 +157,8 @@ func TestResolveBindingAndSource_OrderedCallerSelection(t *testing.T) {
 			"other":    {},
 		},
 		Sources: map[string]openbindings.Source{
-			"a": {BindingSpec: "openbindings.openapi@1", Location: "https://example.test/a.json"},
-			"b": {BindingSpec: "openbindings.openapi@1", Location: "https://example.test/b.json"},
+			"a": {BindingSpec: "openbindings.openapi-3.1@1", Location: "https://example.test/a.json"},
+			"b": {BindingSpec: "openbindings.openapi-3.1@1", Location: "https://example.test/b.json"},
 		},
 		Bindings: map[string]openbindings.BindingEntry{
 			"listPets.a": {Operation: "listPets", Source: "a", Selector: "#/paths/~1pets/get"},
@@ -442,7 +442,7 @@ func TestInvokeOBIOperation_InvalidInputNeverReachesWire(t *testing.T) {
 		},
 		"sources": map[string]any{
 			"api": map[string]any{
-				"bindingSpec": "openbindings.openapi@1",
+				"bindingSpec": "openbindings.openapi-3.0@1",
 				"content": map[string]any{
 					"openapi": "3.0.3",
 					"info":    map[string]any{"title": "t", "version": "1"},

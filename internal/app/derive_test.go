@@ -8,7 +8,7 @@ import (
 
 func TestRemapBindingKeysPreservesSynthesizedBindingContract(t *testing.T) {
 	preference := 2.0
-	inputTransform := &openbindings.TransformOrRef{Inline: `[{"$openbindings":"openbindings.openapi@1","value":$,"parameters":[],"body":{"whole":"payload"}}]`}
+	inputTransform := &openbindings.TransformOrRef{Inline: `{"body":$}`}
 	outputTransform := &openbindings.TransformOrRef{Inline: `result`}
 	original := openbindings.BindingEntry{
 		Operation:       "putThing",
@@ -52,7 +52,7 @@ func TestDetectCrossSourceDrift_NoDrift(t *testing.T) {
 		},
 		{
 			key:    "sourceB",
-			format: "openbindings.openapi@1",
+			format: "openbindings.openapi-3.1@1",
 			result: DeriveResult{
 				Operations: map[string]openbindings.Operation{
 					"greet": {
@@ -74,7 +74,7 @@ func TestDetectCrossSourceDrift_SchemaDiffers(t *testing.T) {
 	perSource := []perSourceDerivation{
 		{
 			key:    "restApi",
-			format: "openbindings.openapi@1",
+			format: "openbindings.openapi-3.1@1",
 			result: DeriveResult{
 				Operations: map[string]openbindings.Operation{
 					"createUser": {
@@ -159,7 +159,7 @@ func TestDetectCrossSourceDrift_DisjointOperations(t *testing.T) {
 		},
 		{
 			key:    "sourceB",
-			format: "openbindings.openapi@1",
+			format: "openbindings.openapi-3.1@1",
 			result: DeriveResult{
 				Operations: map[string]openbindings.Operation{
 					"farewell": {},
@@ -178,7 +178,7 @@ func TestDeriveFromAllSources_OnlySourceFilter(t *testing.T) {
 	iface := &openbindings.Interface{
 		Sources: map[string]openbindings.Source{
 			"src1": {BindingSpec: "openbindings.usage@1", Location: "cli.kdl"},
-			"src2": {BindingSpec: "openbindings.openapi@1", Location: "api.json"},
+			"src2": {BindingSpec: "openbindings.openapi-3.1@1", Location: "api.json"},
 		},
 	}
 

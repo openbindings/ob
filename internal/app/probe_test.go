@@ -29,7 +29,7 @@ func TestResolveInterfaceDetailed_LocalRawArtifactRetainsCoverage(t *testing.T) 
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !resolved.Synthesized || resolved.SourceBindingSpec != openapibinding.BindingSpec {
+	if !resolved.Synthesized || resolved.SourceBindingSpec != openapibinding.BindingSpecOpenAPI30 {
 		t.Fatalf("raw artifact was not identified as synthesized OpenAPI: %#v", resolved)
 	}
 	if resolved.Coverage == nil {

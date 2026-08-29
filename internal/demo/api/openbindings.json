@@ -259,7 +259,7 @@
   },
   "sources": {
     "restApi": {
-      "bindingSpec": "openbindings.openapi@1",
+      "bindingSpec": "openbindings.openapi-3.1@1",
       "location": "http://localhost:8080/openapi.json",
       "description": "REST API \u2014 the mobile ordering app calls this"
     },
@@ -384,6 +384,7 @@
       "operation": "placeOrder",
       "source": "restApi",
       "selector": "#/paths/~1api~1orders/post",
+      "inputTransform": "($parameters := {}; $bodyObject := $merge([$sift($,function($value,$key){$key != \"customer\" and $key != \"drink\" and $key != \"size\"}),{\"customer\":$lookup($,\"customer\"),\"drink\":$lookup($,\"drink\"),\"size\":$lookup($,\"size\")}]); {\"parameters\":$count($keys($parameters)) > 0 ? $parameters : $lookup({},\"__openbindings_absent\"),\"body\":($exists($lookup($,\"customer\")) or $exists($lookup($,\"drink\")) or $exists($lookup($,\"size\")) or $count($keys($sift($,function($value,$key){$key != \"customer\" and $key != \"drink\" and $key != \"size\"}))) > 0 or true) ? $bodyObject : $lookup({},\"__openbindings_absent\")})",
       "preference": 30
     },
     "placeOrder.mcpServer": {
@@ -402,6 +403,7 @@
       "operation": "getOrderStatus",
       "source": "restApi",
       "selector": "#/paths/~1api~1orders~1{orderId}/get",
+      "inputTransform": "($parameters := {\"orderId\":$lookup($,\"orderId\")}; $bodyObject := {}; {\"parameters\":$count($keys($parameters)) > 0 ? $parameters : $lookup({},\"__openbindings_absent\"),\"body\":$lookup({},\"__openbindings_absent\")})",
       "preference": 30
     },
     "getOrderStatus.mcpServer": {
@@ -420,6 +422,7 @@
       "operation": "cancelOrder",
       "source": "restApi",
       "selector": "#/paths/~1api~1orders~1{orderId}~1cancel/post",
+      "inputTransform": "($parameters := {\"orderId\":$lookup($,\"orderId\")}; $bodyObject := {}; {\"parameters\":$count($keys($parameters)) > 0 ? $parameters : $lookup({},\"__openbindings_absent\"),\"body\":$lookup({},\"__openbindings_absent\")})",
       "preference": 30
     },
     "cancelOrder.mcpServer": {

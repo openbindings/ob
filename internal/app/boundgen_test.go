@@ -74,13 +74,16 @@ func TestGenerateBoundServe_BindsServedSurface(t *testing.T) {
 	if _, ok := serve.Sources["mcp"]; ok {
 		t.Error("did not expect an mcp source (MCP is bridged, not served)")
 	}
+	if got := serve.Sources["openapi"].BindingSpec; got != "openbindings.openapi-3.1@1" {
+		t.Errorf("served OpenAPI source bindingSpec = %q, want 3.1 sibling", got)
+	}
 	for bk, be := range serve.Bindings {
 		if be.Source == "mcp" {
 			t.Errorf("did not expect an mcp binding, got %q", bk)
 		}
 	}
 	// Hand-tuned transforms survive the short-name → contract-key rekey, and
-	// revision-6 whole-value bodies retain the synthesizer's private route tuple.
+	// the synthesizer's envelope transforms remain composed after them.
 	for _, short := range []string{"getContext", "setContext", "removeContext", "purifyInterface"} {
 		if b := serve.Bindings["openbindings.ob."+short+".openapi"]; b.InputTransform == nil {
 			t.Errorf("expected %s.openapi path/body inputTransform", short)
@@ -94,24 +97,25 @@ func TestGenerateBoundServe_BindsServedSurface(t *testing.T) {
 		{
 			short: "purifyInterface",
 			input: map[string]any{"name": "example"},
-			want: []any{map[string]any{
-				"$openbindings": "openbindings.openapi@1",
-				"value":         map[string]any{"payload": map[string]any{"name": "example"}},
-				"parameters":    []any{},
-				"body":          map[string]any{"whole": "payload"},
-			}},
+			want:  map[string]any{"body": map[string]any{"name": "example"}},
 		},
 		{
 			short: "setContext",
 			input: map[string]any{"key": "https://example.test", "value": map[string]any{"metadata": map[string]any{"tenant": "a"}}},
-			want: []any{map[string]any{
-				"$openbindings": "openbindings.openapi@1",
-				"value": map[string]any{
-					"url":     "https://example.test",
-					"payload": map[string]any{"metadata": map[string]any{"tenant": "a"}},
-				},
-				"parameters": []any{map[string]any{"in": "path", "name": "url", "field": "url"}},
-				"body":       map[string]any{"whole": "payload"},
+			want: map[string]any{
+				"parameters": map[string]any{"url": "https://example.test"},
+				"body":       map[string]any{"metadata": map[string]any{"tenant": "a"}},
+			},
+		},
+		{
+			short: "prepareOperation",
+			input: map[string]any{
+				"interface": map[string]any{"openbindings": "0.2.0", "operations": map[string]any{}},
+				"operation": "example",
+			},
+			want: map[string]any{"body": map[string]any{
+				"interface": map[string]any{"openbindings": "0.2.0", "operations": map[string]any{}},
+				"operation": "example",
 			}},
 		},
 	}
@@ -260,7 +264,7 @@ func TestGenerateBoundCLI_AttachesWireInputTransforms(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 	wire := map[string]any{
-		"source":   map[string]any{"bindingSpec": "openbindings.openapi@1", "location": "api.yaml"},
+		"source":   map[string]any{"bindingSpec": "openbindings.openapi-3.1@1", "location": "api.yaml"},
 		"selector": "#/x",
 	}
 	for _, short := range []string{"addSource", "invokeBinding", "prepareBinding", "synthesizeInterface", "inspectSource"} {

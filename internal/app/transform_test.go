@@ -49,7 +49,7 @@ func TestApplyTransform_FullSynthesizeInterfaceInput(t *testing.T) {
 				"location":    "./cli.kdl",
 			},
 			map[string]any{
-				"bindingSpec": "openbindings.openapi@1",
+				"bindingSpec": "openbindings.openapi-3.1@1",
 				"location":    "./api.yaml",
 				"embed":       true,
 			},
@@ -92,8 +92,8 @@ func TestApplyTransform_FullSynthesizeInterfaceInput(t *testing.T) {
 	if args[0] != "openbindings.usage@1:./cli.kdl" {
 		t.Errorf("expected openbindings.usage@1:./cli.kdl, got %v", args[0])
 	}
-	if args[1] != "openbindings.openapi@1:./api.yaml?embed" {
-		t.Errorf("expected openbindings.openapi@1:./api.yaml?embed, got %v", args[1])
+	if args[1] != "openbindings.openapi-3.1@1:./api.yaml?embed" {
+		t.Errorf("expected openbindings.openapi-3.1@1:./api.yaml?embed, got %v", args[1])
 	}
 }
 

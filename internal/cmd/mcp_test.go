@@ -504,7 +504,7 @@ func TestMCPCommand_BridgesInterfaceToTools(t *testing.T) {
 // same OpenBindings value, the MCP projection is identical.
 func TestMCPGenericProjection_BindingFamilyNeutral(t *testing.T) {
 	families := []string{
-		"openbindings.openapi@1",
+		"openbindings.openapi-3.1@1",
 		"openbindings.graphql@1",
 		"openbindings.graphql@1",
 		"openbindings.grpc@1",
@@ -638,7 +638,7 @@ func TestMCPGenericProjection_OpenAPISynthesizedDifferential(t *testing.T) {
 	synthesized, err := openapibinding.NewSynthesizer().SynthesizeInterfaceWithCoverage(
 		context.Background(),
 		&synthesize.SynthesizeInput{Sources: []synthesize.SynthesizeSource{{
-			BindingSpec: openapibinding.BindingSpec,
+			BindingSpec: openapibinding.BindingSpecOpenAPI31,
 			Content:     openbindings.TextContent(artifact),
 		}}},
 	)
@@ -649,7 +649,10 @@ func TestMCPGenericProjection_OpenAPISynthesizedDifferential(t *testing.T) {
 		t.Fatalf("unexpected synthesis coverage: %#v", synthesized.Coverage)
 	}
 
-	invoker := invoke.NewOperationInvoker(openapibinding.NewInvoker())
+	// The OpenAPI synthesizer emits the ordinary Core JSONata transform that
+	// lowers the synthesized operation value into the public caller envelope.
+	// Exercise it through ob's production invoker, which owns the evaluator.
+	invoker := app.DefaultInvoker()
 	input := map[string]any{"id": "42"}
 	direct := invoke.Invoke(context.Background(), invoker, synthesized.Interface,
 		invoke.NewOperationSignature[any, any]("getPet"))

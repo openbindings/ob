@@ -16,7 +16,7 @@ An OpenBindings Interface (OBI) is a JSON document that defines operations and b
     }
   },
   "sources": {
-    "rest": { "bindingSpec": "openbindings.openapi@1", "location": "https://api.example.com/openapi.yaml" }
+    "rest": { "bindingSpec": "openbindings.openapi-3.1@1", "location": "https://api.example.com/openapi.yaml" }
   },
   "bindings": {
     "getUser.rest": {
@@ -49,7 +49,10 @@ gaps before publication.
 
 | Format | `bindingSpec` identifier | `selector` shape |
 |--------|--------------------------|-------------|
-| OpenAPI | `openbindings.openapi@1` | JSON Pointer to the operation object: `#/paths/~1users~1{id}/get` |
+| OpenAPI 2.0 | `openbindings.openapi-2.0@1` | JSON Pointer to the operation object: `#/paths/~1users~1{id}/get` |
+| OpenAPI 3.0 | `openbindings.openapi-3.0@1` | JSON Pointer to the operation object: `#/paths/~1users~1{id}/get` |
+| OpenAPI 3.1 | `openbindings.openapi-3.1@1` | JSON Pointer to the operation object: `#/paths/~1users~1{id}/get` |
+| OpenAPI 3.2 | `openbindings.openapi-3.2@1` | JSON Pointer to the operation object: `#/paths/~1users~1{id}/get` |
 | AsyncAPI | `openbindings.asyncapi@1` | JSON Pointer: `#/operations/sendMessage` |
 | gRPC | `openbindings.grpc@1` | `<fully-qualified-service>/<method>` |
 | Connect | `openbindings.connect@1` | `<fully-qualified-service>/<method>` |
@@ -58,6 +61,11 @@ gaps before publication.
 | GraphQL | `openbindings.graphql@1` (latest) | `query/<field>` or `mutation/<field>` |
 | GraphQL | `openbindings.graphql@1` (compatibility) | `query/<field>`, `mutation/<field>`, or `subscription/<field>` |
 | Operation Graph | `openbindings.operation-graph@1` | JSON Pointer to a graph definition |
+
+The four OpenAPI siblings accept Swagger 2.0, OpenAPI 3.0.0–3.0.4,
+3.1.0–3.1.2, and 3.2.0 respectively. Their SDK adapters use the standalone
+OpenAPI client engine. Synthesized OpenAPI bindings emit an `inputTransform`
+that maps the operation input to the `{parameters?, body?}` caller envelope.
 
 ## Transforms
 

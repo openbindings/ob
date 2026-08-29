@@ -205,7 +205,7 @@ func TestDelegateBindingInvoker_NoUsableBinding(t *testing.T) {
 		Delegate: "test-delegate",
 		OBI: delegateOBI(
 			map[string]openbindings.Source{
-				"openapi": {BindingSpec: "openbindings.openapi@1", Location: "http://localhost:1/openapi.yaml"},
+				"openapi": {BindingSpec: "openbindings.openapi-3.1@1", Location: "http://localhost:1/openapi.yaml"},
 			},
 			map[string]openbindings.BindingEntry{
 				"invokeBinding.openapi": {Operation: "invokeBinding", Selector: "#/paths/~1bindings~1invoke/post", Source: "openapi"},
@@ -219,9 +219,9 @@ func TestDelegateBindingInvoker_NoUsableBinding(t *testing.T) {
 
 func TestDelegateBindingInvoker_RequiresExactTransportIdentifiers(t *testing.T) {
 	cases := []struct {
-		name       string
+		name        string
 		bindingSpec string
-		location   string
+		location    string
 		wantRetired bool
 	}{
 		{name: "asyncapi future revision", bindingSpec: "openbindings.asyncapi@10", location: "https://example.test/asyncapi.yaml"},
