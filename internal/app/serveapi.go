@@ -90,19 +90,7 @@ func ServeHTTPRoutes() []ServeRoute {
 		{Method: "post", Path: "/interfaces/compare", Operation: "compareInterfaces"},
 		{Method: "post", Path: "/interfaces/compatibility", Operation: "reportCompatibility"},
 		{Method: "post", Path: "/bindings/prepare", Operation: "prepareBinding"},
-		// openbindings.openapi@1 flattens top-level request-object properties
-		// and intentionally refuses a top-level conditional schema.
-		// OperationInvocationInput has an operation-vs-binding oneOf, so the
-		// HTTP artifact carries it under one transport-only `input` property;
-		// the generated binding unwraps that property with an input transform.
-		{Method: "post", Path: "/operations/prepare", Operation: "prepareOperation", BodySchema: map[string]any{
-			"type": "object",
-			"properties": map[string]any{
-				"input": map[string]any{"$ref": "#/schemas/OperationInvocationInput"},
-			},
-			"required":             []any{"input"},
-			"additionalProperties": false,
-		}},
+		{Method: "post", Path: "/operations/prepare", Operation: "prepareOperation"},
 		{Method: "get", Path: "/contexts/{url}", RuntimePath: "/contexts/{url...}", Operation: "getContext", PathParam: "url"},
 		{Method: "put", Path: "/contexts/{url}", RuntimePath: "/contexts/{url...}", Operation: "setContext", PathParam: "url", BodySchema: map[string]any{"$ref": "#/components/schemas/BindingContext"}, Success: 204},
 		{Method: "delete", Path: "/contexts/{url}", RuntimePath: "/contexts/{url...}", Operation: "removeContext", PathParam: "url", Success: 204},

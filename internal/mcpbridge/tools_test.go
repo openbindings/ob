@@ -29,7 +29,7 @@ func TestRegisterInterface_ToolsFromNonMCPBindings(t *testing.T) {
 			"getPet":   {Description: "Get a pet"},
 		},
 		Sources: map[string]openbindings.Source{
-			"rest": {BindingSpec: "openbindings.openapi@1", Location: "./api.yaml"},
+			"rest": {BindingSpec: "openbindings.openapi-3.1@1", Location: "./api.yaml"},
 		},
 		Bindings: map[string]openbindings.BindingEntry{
 			"listPets.rest": {Operation: "listPets", Source: "rest", Selector: "#/paths/~1pets/get"},
@@ -37,7 +37,7 @@ func TestRegisterInterface_ToolsFromNonMCPBindings(t *testing.T) {
 		},
 	}
 	srv := gomcp.NewServer(&gomcp.Implementation{Name: "test"}, nil)
-	invoker := newRegistrationTestInvoker("openbindings.openapi@1")
+	invoker := newRegistrationTestInvoker("openbindings.openapi-3.1@1")
 	count := RegisterInterface(srv, iface, invoker, nil, RegisterOptions{})
 	if count != 2 {
 		t.Fatalf("expected 2 primitives, got %d", count)
@@ -159,7 +159,7 @@ func (i *registrationTestInvoker) InvokeBinding(ctx context.Context, _ *invoke.B
 func TestFindMCPBinding_NoMCPSource(t *testing.T) {
 	iface := &openbindings.Interface{
 		Sources: map[string]openbindings.Source{
-			"rest": {BindingSpec: "openbindings.openapi@1"},
+			"rest": {BindingSpec: "openbindings.openapi-3.1@1"},
 		},
 		Bindings: map[string]openbindings.BindingEntry{
 			"op.rest": {Operation: "op", Source: "rest", Selector: "#/paths/~1op/get"},
@@ -190,7 +190,7 @@ func TestFindMCPBinding_DoesNotInventChoiceForMultiBindingOperation(t *testing.T
 	iface := &openbindings.Interface{
 		Sources: map[string]openbindings.Source{
 			"mcp":  {BindingSpec: MCPBindingSpec},
-			"http": {BindingSpec: "openbindings.openapi@1"},
+			"http": {BindingSpec: "openbindings.openapi-3.1@1"},
 		},
 		Bindings: map[string]openbindings.BindingEntry{
 			"doc.mcp":  {Operation: "doc", Source: "mcp", Selector: "resources/file:///readme.md"},

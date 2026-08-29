@@ -19,7 +19,7 @@ const sourceOwnedFixture = `{
   "version": "0.1.0",
   "x-ob": {"obVersion": "0.1.0"},
   "sources": {
-    "api": {"bindingSpec": "openbindings.openapi@1", "location": "http://example.test/openapi.json", "x-ob": {"ref": "http://example.test/openapi.json"}}
+    "api": {"bindingSpec": "openbindings.openapi-3.1@1", "location": "http://example.test/openapi.json", "x-ob": {"ref": "http://example.test/openapi.json"}}
   },
   "operations": {
     "getThing": {"description": "d", "output": {"type": "object"}, "x-ob": {"base": {"description": "d"}}}

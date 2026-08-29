@@ -140,7 +140,7 @@ func TestContextE2E_AutoResolution(t *testing.T) {
 			"listPets": {},
 		},
 		Sources: map[string]openbindings.Source{
-			"petstore": {BindingSpec: "openbindings.openapi@1", Location: "https://petstore.swagger.io/v2/swagger.json"},
+			"petstore": {BindingSpec: "openbindings.openapi-2.0@1", Location: "https://petstore.swagger.io/v2/swagger.json"},
 		},
 		Bindings: map[string]openbindings.BindingEntry{
 			"listPets.petstore": {

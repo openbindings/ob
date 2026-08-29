@@ -387,7 +387,19 @@ func GenerateBoundServe(contractPath, openapiPath, existingServePath, servedBase
 		return nil, fmt.Errorf("load existing serve OBI: %w", err)
 	}
 
-	httpDerived, err := DeriveFromSource(openbindings.Source{BindingSpec: openapiformat.BindingSpec, Location: openapiPath}, "openapi", "")
+	openAPIContent, err := os.ReadFile(openapiPath)
+	if err != nil {
+		return nil, fmt.Errorf("read openapi: %w", err)
+	}
+	// The served artifact uses a deployment-time URL placeholder. The strict
+	// OpenAPI siblings require a concrete target during synthesis, and this
+	// generator already owns the default served target used by the bound OBI.
+	resolvedOpenAPI := strings.ReplaceAll(string(openAPIContent), "${OB_SERVER_URL}", servedBaseURL)
+	httpDerived, err := DeriveFromSource(openbindings.Source{
+		BindingSpec: openapiformat.BindingSpecOpenAPI31,
+		Location:    openapiPath,
+		Content:     openbindings.TextContent(resolvedOpenAPI),
+	}, "openapi", "")
 	if err != nil {
 		return nil, fmt.Errorf("derive openapi: %w", err)
 	}
@@ -413,7 +425,7 @@ func GenerateBoundServe(contractPath, openapiPath, existingServePath, servedBase
 	// from the format packages, never the prior file, so regeneration
 	// self-heals vocabulary migrations.
 	servedSpecs := map[string]string{
-		"openapi":  openapiformat.BindingSpec,
+		"openapi":  openapiformat.BindingSpecOpenAPI31,
 		"asyncapi": asyncapiformat.BindingSpec,
 	}
 	for key, src := range existing.Sources {
@@ -463,26 +475,25 @@ func GenerateBoundServe(contractPath, openapiPath, existingServePath, servedBase
 		"getContext":    `{ "url": key }`,
 		"setContext":    `{ "url": key, "payload": value }`,
 		"removeContext": `{ "url": key }`,
-		// Revision 6 retains this explicitly dynamic object as one application
-		// value. The public ob contract already uses the object itself as the
-		// operation input, so adapt it to the synthesized source-facing field
-		// before the binding-private route tuple is produced.
+		// Composition in OperationInvocationInput makes the synthesizer expose
+		// the request representation through its whole-body field. The public ob
+		// contract already is that body, so adapt it before applying the emitted
+		// caller-envelope transform.
+		"prepareOperation": `{ "payload": $$ }`,
+		// The public ob contract uses this dynamic object as the operation input;
+		// adapt it to the source-facing whole-body field before the OpenAPI
+		// envelope transform is applied.
 		"purifyInterface": `{ "payload": $$ }`,
-		// The HTTP artifact wraps the conditional OperationInvocationInput so
-		// the OpenAPI revision-1 flattened model has one declaration-defined
-		// surface. This transform preserves the public operation's direct
-		// input shape across that transport adaptation.
-		"prepareOperation": `{ "input": $$ }`,
 	}
 	for _, b := range httpDerived.Bindings {
 		opKey := "openbindings.ob." + b.Operation
 		if !include(opKey) {
 			continue
 		}
-		// Begin with the artifact synthesizer's complete binding contract. In
-		// particular, revision-6 whole-value bodies require its binding-private
-		// route transform; rebuilding only operation/source/selector would silently
-		// discard the information needed for faithful invocation.
+		// Begin with the artifact synthesizer's complete binding contract. Its
+		// emitted input transform lowers the synthesized flat operation value into
+		// the public OpenAPI caller envelope; rebuilding only operation/source/
+		// selector would silently discard faithful path/body routing.
 		be := b
 		be.Operation = opKey
 		be.Source = "openapi"
@@ -511,11 +522,11 @@ func GenerateBoundServe(contractPath, openapiPath, existingServePath, servedBase
 }
 
 // composeSourceInputTransform applies a contract-to-source adaptation before
-// an artifact synthesizer's binding-private input transform. Current OpenAPI
-// route transforms are inline JSONata constructors whose value member is the
-// source-facing application object. Keeping the composition here lets the
-// bound ob contract retain its own protocol-neutral operation schemas without
-// reimplementing the binding specification's route descriptor.
+// an artifact synthesizer's input transform. The OpenAPI family emits ordinary
+// Core JSONata that lowers a flat synthesized operation value into the public
+// {parameters?, body?} caller envelope. JSONata path composition evaluates the
+// emitted transform with the adapted value as its context, so ob does not
+// reproduce any binding-specification routing rules.
 func composeSourceInputTransform(adaptation string, sourceTransform *openbindings.TransformOrRef) (*openbindings.TransformOrRef, error) {
 	if sourceTransform == nil {
 		return &openbindings.TransformOrRef{Inline: adaptation}, nil
@@ -523,12 +534,7 @@ func composeSourceInputTransform(adaptation string, sourceTransform *openbinding
 	if sourceTransform.IsRef() {
 		return nil, fmt.Errorf("cannot compose a referenced source transform")
 	}
-	const valueSlot = `"value":$`
-	if strings.Count(sourceTransform.Inline, valueSlot) != 1 {
-		return nil, fmt.Errorf("source transform does not contain one canonical value slot")
-	}
-	inline := strings.Replace(sourceTransform.Inline, valueSlot, `"value":(`+adaptation+`)`, 1)
-	return &openbindings.TransformOrRef{Inline: inline}, nil
+	return &openbindings.TransformOrRef{Inline: `(` + adaptation + `).(` + sourceTransform.Inline + `)`}, nil
 }
 
 // routesByShort routes document-valued POST-transform fields off argv:

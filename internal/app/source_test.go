@@ -136,7 +136,7 @@ func TestSourceList_WithSources(t *testing.T) {
 		"operations":   map[string]any{},
 		"sources": map[string]any{
 			"restApi": map[string]any{
-				"bindingSpec": "openbindings.openapi@1",
+				"bindingSpec": "openbindings.openapi-3.1@1",
 				"location":    "api.yaml",
 			},
 			"cliSpec": map[string]any{
@@ -174,7 +174,7 @@ func TestSourceRemove_Basic(t *testing.T) {
 		"operations":   map[string]any{},
 		"sources": map[string]any{
 			"myApi": map[string]any{
-				"bindingSpec": "openbindings.openapi@1",
+				"bindingSpec": "openbindings.openapi-3.1@1",
 				"location":    "api.yaml",
 			},
 		},
@@ -225,7 +225,7 @@ func TestSourceRemove_CleansUpBindings(t *testing.T) {
 		},
 		"sources": map[string]any{
 			"myApi": map[string]any{
-				"bindingSpec": "openbindings.openapi@1",
+				"bindingSpec": "openbindings.openapi-3.1@1",
 				"location":    "api.yaml",
 			},
 		},
@@ -268,7 +268,7 @@ func TestSourceRemove_WarnsUnboundOps(t *testing.T) {
 		},
 		"sources": map[string]any{
 			"rest": map[string]any{
-				"bindingSpec": "openbindings.openapi@1",
+				"bindingSpec": "openbindings.openapi-3.1@1",
 				"location":    "api.yaml",
 			},
 			"events": map[string]any{
@@ -341,7 +341,7 @@ func TestSourceAdd_RelativePath(t *testing.T) {
 func TestSourceList_RenderOutput(t *testing.T) {
 	output := SourceListOutput{
 		{Key: "cliSpec", Source: openbindings.Source{BindingSpec: "openbindings.usage@1", Location: "cli.kdl"}},
-		{Key: "restApi", Source: openbindings.Source{BindingSpec: "openbindings.openapi@1", Location: "api.yaml"}},
+		{Key: "restApi", Source: openbindings.Source{BindingSpec: "openbindings.openapi-3.1@1", Location: "api.yaml"}},
 	}
 
 	rendered := output.Render()
@@ -439,7 +439,7 @@ func TestSourceAdd_URIKeepsLocationMode(t *testing.T) {
 
 	result, err := SourceAdd(SourceAddInput{
 		OBIPath:  obiPath,
-		Format:   "openbindings.openapi@1",
+		Format:   "openbindings.openapi-3.1@1",
 		Location: artifactPath,
 		URI:      "https://cdn.example.com/api.json",
 	})
@@ -470,7 +470,7 @@ func TestSourceAdd_URLFetchEmbed(t *testing.T) {
 
 	result, err := SourceAdd(SourceAddInput{
 		OBIPath:  obiPath,
-		Format:   "openbindings.openapi@1",
+		Format:   "openbindings.openapi-3.1@1",
 		Location: srv.URL + "/openapi.json",
 		Key:      "api",
 		Resolve:  ResolveModeContent,
@@ -506,7 +506,7 @@ func TestSourceAdd_URLDefaultsToLocation(t *testing.T) {
 
 	result, err := SourceAdd(SourceAddInput{
 		OBIPath:  obiPath,
-		Format:   "openbindings.openapi@1",
+		Format:   "openbindings.openapi-3.1@1",
 		Location: srv.URL + "/openapi.json",
 		Key:      "api",
 	})

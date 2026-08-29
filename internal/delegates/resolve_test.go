@@ -11,7 +11,7 @@ func TestSupportsFormat_ExactIdentifier(t *testing.T) {
 		want     bool
 	}{
 		{"openbindings.usage@1", "openbindings.usage@1", true},
-		{"openbindings.openapi@1", "openbindings.usage@1", false},
+		{"openbindings.openapi-3.1@1", "openbindings.usage@1", false},
 		{"usage", "openbindings.usage@1", false},
 		{"usage@^2.0.0", "usage@2.1.0", false},
 	}

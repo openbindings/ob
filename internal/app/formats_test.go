@@ -2,6 +2,7 @@ package app
 
 import (
 	"slices"
+	"strings"
 	"testing"
 )
 
@@ -25,6 +26,32 @@ func TestCheckBindingSpecsExactOrderedAndDeduplicated(t *testing.T) {
 	}
 	if got[2].BindingSpec != adjacent || got[2].Supported {
 		t.Errorf("prefix-adjacent token verdict = %+v, want exact-match refusal", got[2])
+	}
+}
+
+func TestOpenAPISiblingsAreExactNativeWarrants(t *testing.T) {
+	want := []string{
+		"openbindings.openapi-2.0@1",
+		"openbindings.openapi-3.0@1",
+		"openbindings.openapi-3.1@1",
+		"openbindings.openapi-3.2@1",
+	}
+	listed := map[string]bool{}
+	for _, info := range ListBindingSpecs() {
+		listed[info.BindingSpec] = true
+	}
+	for _, bindingSpec := range want {
+		if !listed[bindingSpec] {
+			t.Errorf("native binding-spec list is missing %q", bindingSpec)
+		}
+		if family := SpecFamily(bindingSpec); family != "openapi" {
+			t.Errorf("SpecFamily(%q) = %q, want openapi", bindingSpec, family)
+		}
+	}
+	legacy := strings.Join([]string{"openbindings.openapi", "@1"}, "")
+	verdicts := CheckBindingSpecs([]string{legacy})
+	if len(verdicts) != 1 || verdicts[0].Supported {
+		t.Fatalf("removed OpenAPI token verdict = %+v, want exact refusal", verdicts)
 	}
 }
 

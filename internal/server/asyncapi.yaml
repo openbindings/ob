@@ -327,7 +327,7 @@ components:
             description: Information about a supported binding specification.
             properties:
                 bindingSpec:
-                    description: Binding specification identifier, exact and opaque (e.g., openbindings.openapi@1, openbindings.mcp@1).
+                    description: Binding specification identifier, exact and opaque (e.g., openbindings.openapi-3.1@1, openbindings.mcp@1).
                     type: string
                 description:
                     description: Human-readable description of this binding specification.

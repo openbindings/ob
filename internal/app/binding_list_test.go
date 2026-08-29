@@ -14,7 +14,7 @@ func TestBindingList(t *testing.T) {
 	doc := `{
 	  "openbindings": "0.2.0",
 	  "operations": { "getWidget": {}, "listAll": {} },
-	  "sources": { "api": { "bindingSpec": "openbindings.openapi@1", "content": {} } },
+	  "sources": { "api": { "bindingSpec": "openbindings.openapi-3.1@1", "content": {} } },
 	  "bindings": {
 	    "getWidget.api": { "operation": "getWidget", "source": "api", "selector": "#/paths/~1widget/get" },
 	    "listAll.api":   { "operation": "listAll", "source": "api", "selector": "#/paths/~1all/get", "deprecated": true }

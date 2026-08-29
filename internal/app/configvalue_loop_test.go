@@ -31,7 +31,7 @@ func multiServerTargetOBI(t *testing.T, docURL string) string {
     }
   },
   "sources": {
-    "api": {"bindingSpec": "openbindings.openapi@1", "location": %q}
+    "api": {"bindingSpec": "openbindings.openapi-3.1@1", "location": %q}
   },
   "bindings": {
     "read.http": {"operation": "test.read", "source": "api", "selector": "#/paths/~1data/get"}

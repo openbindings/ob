@@ -1014,7 +1014,7 @@ func TestServeBindingInvoke_POSTRemoved(t *testing.T) {
 	ts := testEnv(t)
 	defer ts.Close()
 
-	resp, err := authedPost(ts.URL+"/bindings/invoke", "test-token", `{"source":{"bindingSpec":"openbindings.openapi@1","location":"x"},"selector":"#/paths/~1health/get"}`)
+	resp, err := authedPost(ts.URL+"/bindings/invoke", "test-token", `{"source":{"bindingSpec":"openbindings.openapi-3.1@1","location":"x"},"selector":"#/paths/~1health/get"}`)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1208,7 +1208,7 @@ func TestServeBindingInvoke_WS_UnknownOpenPropertyRejected(t *testing.T) {
 	sendFrame(t, ctx, conn, map[string]any{
 		"kind": "open",
 		"input": map[string]any{
-			"source":   map[string]any{"bindingSpec": "openbindings.openapi@1", "location": "x"},
+			"source":   map[string]any{"bindingSpec": "openbindings.openapi-3.1@1", "location": "x"},
 			"selector": "#/paths/~1test/get",
 			"input":    map[string]any{"limit": 10},
 		},
@@ -1583,7 +1583,7 @@ func TestServeBindingPrepare_UnknownPropertyRejected(t *testing.T) {
 	defer ts.Close()
 
 	resp, err := authedPost(ts.URL+"/bindings/prepare", "test-token",
-		`{"source":{"bindingSpec":"openbindings.openapi@1","location":"x"},"selector":"#/paths/~1t/get","input":{}}`)
+		`{"source":{"bindingSpec":"openbindings.openapi-3.1@1","location":"x"},"selector":"#/paths/~1t/get","input":{}}`)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1616,7 +1616,7 @@ func TestServeBindingPrepare_RequiresSourceCarrier(t *testing.T) {
 	ts := testEnv(t)
 	defer ts.Close()
 	resp, err := authedPost(ts.URL+"/bindings/prepare", "test-token",
-		`{"source":{"bindingSpec":"openbindings.openapi@1"},"selector":"#/test"}`)
+		`{"source":{"bindingSpec":"openbindings.openapi-3.1@1"},"selector":"#/test"}`)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1667,11 +1667,11 @@ func TestDecodeRequestRejectsOversizedBody(t *testing.T) {
 }
 
 func TestRelativeTrackedSourceRefs(t *testing.T) {
-	relative := openbindings.Source{BindingSpec: "openbindings.openapi@1"}
+	relative := openbindings.Source{BindingSpec: "openbindings.openapi-3.1@1"}
 	if err := app.SetSourceMeta(&relative, app.SourceMeta{Ref: "specs/openapi.yaml"}); err != nil {
 		t.Fatal(err)
 	}
-	absolute := openbindings.Source{BindingSpec: "openbindings.openapi@1"}
+	absolute := openbindings.Source{BindingSpec: "openbindings.openapi-3.1@1"}
 	if err := app.SetSourceMeta(&absolute, app.SourceMeta{Ref: "https://example.com/openapi.yaml"}); err != nil {
 		t.Fatal(err)
 	}

@@ -2449,13 +2449,7 @@ paths:
                 content:
                     application/json:
                         schema:
-                            additionalProperties: false
-                            properties:
-                                input:
-                                    $ref: '#/components/schemas/OperationInvocationInput'
-                            required:
-                                - input
-                            type: object
+                            $ref: '#/components/schemas/OperationInvocationInput'
                 required: true
             responses:
                 "200":
@@ -2817,7 +2811,7 @@ components:
             description: Information about a supported binding specification.
             properties:
                 bindingSpec:
-                    description: Binding specification identifier, exact and opaque (e.g., openbindings.openapi@1, openbindings.mcp@1).
+                    description: Binding specification identifier, exact and opaque (e.g., openbindings.openapi-3.1@1, openbindings.mcp@1).
                     type: string
                 description:
                     description: Human-readable description of this binding specification.

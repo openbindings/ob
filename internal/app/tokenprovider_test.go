@@ -44,7 +44,7 @@ func providerOBI(t *testing.T, srvURL string) string {
   },
   "sources": {
     "api": {
-      "bindingSpec": "openbindings.openapi@1",
+      "bindingSpec": "openbindings.openapi-3.1@1",
       "content": {
         "openapi": "3.1.0",
         "info": {"title": "Test Provider", "version": "0.0.1"},
@@ -72,7 +72,7 @@ func providerOBI(t *testing.T, srvURL string) string {
     }
   },
   "bindings": {
-    "mint.http": {"operation": "test.mint", "source": "api", "selector": "#/paths/~1mint/post"}
+    "mint.http": {"operation": "test.mint", "source": "api", "selector": "#/paths/~1mint/post", "inputTransform": "{\"body\":$}"}
   }
 }`, srvURL)
 	path := filepath.Join(t.TempDir(), "provider.obi.json")
@@ -102,7 +102,7 @@ func bearerMintProviderOBI(t *testing.T, srvURL string) string {
   },
   "sources": {
     "api": {
-      "bindingSpec": "openbindings.openapi@1",
+      "bindingSpec": "openbindings.openapi-3.1@1",
       "content": {
         "openapi": "3.1.0",
         "info": {"title": "Bearer-Secured Provider", "version": "0.0.1"},
@@ -127,7 +127,7 @@ func bearerMintProviderOBI(t *testing.T, srvURL string) string {
     }
   },
   "bindings": {
-    "mint.http": {"operation": "test.mint", "source": "api", "selector": "#/paths/~1mint/post"}
+    "mint.http": {"operation": "test.mint", "source": "api", "selector": "#/paths/~1mint/post", "inputTransform": "{\"body\":$}"}
   }
 }`, srvURL)
 	path := filepath.Join(t.TempDir(), "bearer-provider.obi.json")
@@ -155,10 +155,10 @@ func locatedMintProviderOBI(t *testing.T, docURL string) string {
     }
   },
   "sources": {
-    "api": {"bindingSpec": "openbindings.openapi@1", "location": %q}
+    "api": {"bindingSpec": "openbindings.openapi-3.1@1", "location": %q}
   },
   "bindings": {
-    "mint.http": {"operation": "test.mint", "source": "api", "selector": "#/paths/~1mint/post"}
+    "mint.http": {"operation": "test.mint", "source": "api", "selector": "#/paths/~1mint/post", "inputTransform": "{\"body\":$}"}
   }
 }`, docURL)
 	path := filepath.Join(t.TempDir(), "located-provider.obi.json")
@@ -184,7 +184,7 @@ func targetOBI(t *testing.T, srvURL string) string {
   },
   "sources": {
     "api": {
-      "bindingSpec": "openbindings.openapi@1",
+      "bindingSpec": "openbindings.openapi-3.1@1",
       "content": {
         "openapi": "3.1.0",
         "info": {"title": "Test Target", "version": "0.0.1"},

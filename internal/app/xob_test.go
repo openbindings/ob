@@ -210,7 +210,7 @@ func TestParseContentForEmbed(t *testing.T) {
 		{
 			name:       "JSON format returns object",
 			data:       `{"key": "value"}`,
-			format:     "openbindings.openapi@1",
+			format:     "openbindings.openapi-3.1@1",
 			wantString: false,
 		},
 		{

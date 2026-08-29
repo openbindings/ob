@@ -158,7 +158,7 @@ func TestWireConformance_ExecLane(t *testing.T) {
 			"pong": map[string]any{},
 		},
 		"sources": map[string]any{
-			"s": map[string]any{"bindingSpec": "openbindings.openapi@1", "location": "https://example.com/openapi.yaml"},
+			"s": map[string]any{"bindingSpec": "openbindings.openapi-3.1@1", "location": "https://example.com/openapi.yaml"},
 		},
 		"bindings": map[string]any{
 			"ping.s": map[string]any{"operation": "ping", "source": "s", "selector": "#/paths/~1ping/get"},
@@ -208,7 +208,7 @@ func TestWireConformance_ExecLane(t *testing.T) {
 		{"describe", "openbindings.ob.describe", nil, nil},
 		{"listBindingSpecs", "openbindings.ob.listBindingSpecs", nil, nil},
 		{"checkBindingSpecs", "openbindings.ob.checkBindingSpecs", map[string]any{
-			"bindingSpecs": []any{"openbindings.openapi@1", "unknown@1", "openbindings.openapi@1"},
+			"bindingSpecs": []any{"openbindings.openapi-3.1@1", "unknown@1", "openbindings.openapi-3.1@1"},
 		}, nil},
 		{"initializeEnvironment", "openbindings.ob.initializeEnvironment", map[string]any{"global": true}, nil},
 		{"reportEnvironmentStatus", "openbindings.ob.reportEnvironmentStatus", nil, nil},
@@ -333,7 +333,7 @@ func TestWireConformance_ExecLane(t *testing.T) {
 		// transport cannot carry the frame grammar, so they are excluded
 		// like cohort F, with the note stamped on their binding entries.
 		{"inspectSource", "openbindings.ob.inspectSource", map[string]any{
-			"source": map[string]any{"bindingSpec": "openbindings.openapi@1", "location": "openapi.json"},
+			"source": map[string]any{"bindingSpec": "openbindings.openapi-3.1@1", "location": "openapi.json"},
 		}, func(t *testing.T, output any) {
 			m, _ := output.(map[string]any)
 			if targets, _ := m["targets"].([]any); len(targets) != 1 {
@@ -342,7 +342,7 @@ func TestWireConformance_ExecLane(t *testing.T) {
 		}},
 		{"synthesizeInterface", "openbindings.ob.synthesizeInterface", map[string]any{
 			"name":    "synth-fixture",
-			"sources": []any{map[string]any{"bindingSpec": "openbindings.openapi@1", "location": "openapi.json"}},
+			"sources": []any{map[string]any{"bindingSpec": "openbindings.openapi-3.1@1", "location": "openapi.json"}},
 		}, func(t *testing.T, output any) {
 			m, _ := output.(map[string]any)
 			ops, _ := m["operations"].(map[string]any)
@@ -560,7 +560,7 @@ func TestWireConformance_ExecLane(t *testing.T) {
 		}},
 		{"addSource", "openbindings.ob.addSource", func() any {
 			return map[string]any{"interface": doc, "source": map[string]any{
-				"bindingSpec": "openbindings.openapi@1",
+				"bindingSpec": "openbindings.openapi-3.1@1",
 				"location":    "openapi.json",
 				"name":        "api",
 				"description": "Wire fixture API",
@@ -568,7 +568,7 @@ func TestWireConformance_ExecLane(t *testing.T) {
 		}, func(t *testing.T, out any) {
 			doc = child(t, out)
 			src := child(t, doc, "sources", "api")
-			if src["bindingSpec"] != "openbindings.openapi@1" || src["description"] != "Wire fixture API" {
+			if src["bindingSpec"] != "openbindings.openapi-3.1@1" || src["description"] != "Wire fixture API" {
 				t.Errorf("expected the registered source back, got %#v", src)
 			}
 		}},

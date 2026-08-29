@@ -58,7 +58,7 @@ func TestOpenAPICandidateCollisionSurvivesOBTransformRuntime(t *testing.T) {
 	synthesis, err := openapibinding.NewSynthesizer().SynthesizeInterfaceWithCoverage(
 		context.Background(),
 		&synthesize.SynthesizeInput{Sources: []synthesize.SynthesizeSource{{
-			BindingSpec: openapibinding.BindingSpec,
+			BindingSpec: openapibinding.BindingSpecOpenAPI31,
 			Content:     openbindings.TextContent(artifact),
 		}}},
 	)

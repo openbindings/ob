@@ -161,7 +161,7 @@ implementations is evidence for the specification community to tighten a later
 revision, define a permitted set, or expose a named interpretation choice.
 
 Project-published identifiers use integer revisions such as
-`openbindings.openapi@1`. That revision identifies the binding specification,
+`openbindings.openapi-3.1@1`. That revision identifies the binding specification,
 not the core OpenBindings version and not the OpenAPI edition. Accepted
 artifact editions identify themselves inside their artifacts and are listed by
 the binding specification.
@@ -475,7 +475,7 @@ captured.
   },
   "sources": {
     "tasksApi": {
-      "bindingSpec": "openbindings.openapi@1",
+      "bindingSpec": "openbindings.openapi-3.1@1",
       "location": "https://example.com/openapi.json"
     }
   },
@@ -490,7 +490,7 @@ captured.
 ```
 
 The operation owns the caller-facing values. The OpenAPI source owns its HTTP
-declarations. `openbindings.openapi@1` explains how the `selector` resolves, how
+declarations. `openbindings.openapi-3.1@1` explains how the `selector` resolves, how
 values map to the HTTP exchange, and which outcomes produce successful output
 values. An invoker supplies runtime context and transport policy. None of those
 layers should silently take authority from another.

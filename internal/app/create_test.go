@@ -40,7 +40,7 @@ func TestParseSource_WithOptions(t *testing.T) {
 }
 
 func TestParseSource_OutputLocation(t *testing.T) {
-	src, err := ParseSource("openbindings.openapi@1:/tmp/spec.json?outputLocation=./spec.json")
+	src, err := ParseSource("openbindings.openapi-3.1@1:/tmp/spec.json?outputLocation=./spec.json")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -173,7 +173,7 @@ func TestDeriveSourceKey_NoStutter(t *testing.T) {
 }
 
 func TestDeriveSourceKey_FallbackIndex(t *testing.T) {
-	src := SynthesizeInterfaceSource{BindingSpec: "openbindings.openapi@1", Location: "/project/this-is-a-very-long-filename-that-exceeds-twenty-chars.json"}
+	src := SynthesizeInterfaceSource{BindingSpec: "openbindings.openapi-3.1@1", Location: "/project/this-is-a-very-long-filename-that-exceeds-twenty-chars.json"}
 	key := DeriveSourceKey(src, 2)
 	if key != "openapi2" {
 		t.Errorf("key = %q, want %q", key, "openapi2")
@@ -196,7 +196,7 @@ func TestEmbedLane_JSONFormat(t *testing.T) {
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	result, err := ParseContentForEmbed(raw, "openbindings.openapi@1")
+	result, err := ParseContentForEmbed(raw, "openbindings.openapi-3.1@1")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -325,7 +325,7 @@ const tinyOpenAPIApp = `{"openapi":"3.1.0","info":{"title":"Tiny","version":"1.0
 // x-ob.uri only on content sources (an accidental split).
 func TestSynthesizeInterface_ContentSourceOutputLocation(t *testing.T) {
 	published := "https://example.com/openapi.json"
-	content, err := ParseContentForEmbed([]byte(tinyOpenAPIApp), "openbindings.openapi@1")
+	content, err := ParseContentForEmbed([]byte(tinyOpenAPIApp), "openbindings.openapi-3.1@1")
 	if err != nil {
 		t.Fatalf("parse content: %v", err)
 	}
@@ -333,7 +333,7 @@ func TestSynthesizeInterface_ContentSourceOutputLocation(t *testing.T) {
 	iface, err := SynthesizeInterface(SynthesizeInterfaceInput{
 		Sources: []SynthesizeInterfaceSource{
 			{
-				BindingSpec:    "openbindings.openapi@1",
+				BindingSpec:    "openbindings.openapi-3.1@1",
 				Name:           "api",
 				Content:        content,
 				OutputLocation: published,
@@ -374,7 +374,7 @@ func TestSynthesizeInterface_ContentSourceOutputLocation(t *testing.T) {
 // (resolveSourceLocation, see invoke_test.go), which covers content-lane
 // entries through the same spec-level location field.
 func TestSynthesizeInterface_ContentSourceOutputLocationRelative(t *testing.T) {
-	content, err := ParseContentForEmbed([]byte(tinyOpenAPIApp), "openbindings.openapi@1")
+	content, err := ParseContentForEmbed([]byte(tinyOpenAPIApp), "openbindings.openapi-3.1@1")
 	if err != nil {
 		t.Fatalf("parse content: %v", err)
 	}
@@ -382,7 +382,7 @@ func TestSynthesizeInterface_ContentSourceOutputLocationRelative(t *testing.T) {
 	iface, err := SynthesizeInterface(SynthesizeInterfaceInput{
 		Sources: []SynthesizeInterfaceSource{
 			{
-				BindingSpec:    "openbindings.openapi@1",
+				BindingSpec:    "openbindings.openapi-3.1@1",
 				Name:           "api",
 				Content:        content,
 				OutputLocation: "./openapi.json",
