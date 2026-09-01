@@ -22,6 +22,15 @@ type DeriveResult struct {
 	// set to sourceKey. Keyed by binding name.
 	Bindings map[string]openbindings.BindingEntry
 
+	// Dependencies are the consumption points derived from the source, keyed
+	// by dependency name. A synthesizer emits one for every inbound unit it
+	// represents -- an OpenAPI callback or webhook, whose operation the
+	// described component CONSUMES rather than serves (Core Section 5.6).
+	// Dropping them here left the emitted OBI with an unbound operation and
+	// no statement that it is a consumption point, which is the one fact that
+	// distinguishes it from an operation nothing has bound yet.
+	Dependencies map[string]openbindings.DependencyEntry
+
 	// Metadata from the derived interface (Name, Description, Version).
 	// May be empty if the source doesn't provide metadata.
 	Name        string
@@ -178,10 +187,11 @@ func remapBindingKeys(bindings map[string]openbindings.BindingEntry, sourceKey s
 // into a DeriveResult, remapping binding source keys to the actual source key.
 func remapBindings(iface openbindings.Interface, sourceKey string) DeriveResult {
 	return DeriveResult{
-		Operations:  iface.Operations,
-		Bindings:    remapBindingKeys(iface.Bindings, sourceKey),
-		Name:        iface.Name,
-		Description: iface.Description,
-		Version:     iface.Version,
+		Operations:   iface.Operations,
+		Bindings:     remapBindingKeys(iface.Bindings, sourceKey),
+		Dependencies: iface.Dependencies,
+		Name:         iface.Name,
+		Description:  iface.Description,
+		Version:      iface.Version,
 	}
 }

@@ -3051,13 +3051,18 @@
         },
         "bindings": {
           "$ref": "#/schemas/ProvenanceKeys"
+        },
+        "dependencies": {
+          "$ref": "#/schemas/ProvenanceKeys",
+          "description": "Consumption points the document declares, split by provenance. A dependency is the opposite relationship to a binding: a realization this document CONSUMES rather than provides."
         }
       },
       "required": [
         "obiVersion",
         "sources",
         "operations",
-        "bindings"
+        "bindings",
+        "dependencies"
       ],
       "additionalProperties": false
     },
