@@ -69,6 +69,10 @@ type OBIStatusOutput struct {
 	Sources    []SourceStatus `json:"sources"`
 	Operations ProvenanceKeys `json:"operations"`
 	Bindings   ProvenanceKeys `json:"bindings"`
+	// Dependencies are the document's consumption points. Reported beside
+	// bindings because they are the opposite relationship: a binding is a
+	// realization this document PROVIDES, a dependency one it CONSUMES.
+	Dependencies ProvenanceKeys `json:"dependencies"`
 }
 
 // HasDrift reports whether any tracked source is out of sync (the source would
@@ -161,6 +165,9 @@ func (o OBIStatusOutput) Render() string {
 
 	// Bindings.
 	renderProvenanceSection(&sb, s, "Bindings", o.Bindings)
+
+	// Dependencies.
+	renderProvenanceSection(&sb, s, "Dependencies", o.Dependencies)
 
 	// Sync summary. Unreachable pull paths are their own class: a pull from
 	// here can never act on them, so the pull advice would be a lie.
@@ -366,13 +373,26 @@ func OBIStatus(input OBIStatusInput) (OBIStatusOutput, error) {
 	sort.Strings(binds.SourceOwned)
 	sort.Strings(binds.HandAuthored)
 
+	// Classify dependencies by provenance.
+	var deps ProvenanceKeys
+	for key, d := range iface.Dependencies {
+		if IsSourceOwned(d.LosslessFields) {
+			deps.SourceOwned = append(deps.SourceOwned, key)
+		} else {
+			deps.HandAuthored = append(deps.HandAuthored, key)
+		}
+	}
+	sort.Strings(deps.SourceOwned)
+	sort.Strings(deps.HandAuthored)
+
 	return OBIStatusOutput{
-		Name:       iface.Name,
-		Version:    iface.Version,
-		OBIVersion: iface.OpenBindings,
-		Sources:    sources,
-		Operations: ops,
-		Bindings:   binds,
+		Name:         iface.Name,
+		Version:      iface.Version,
+		OBIVersion:   iface.OpenBindings,
+		Sources:      sources,
+		Operations:   ops,
+		Bindings:     binds,
+		Dependencies: deps,
 	}, nil
 }
 

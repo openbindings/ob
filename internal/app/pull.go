@@ -167,7 +167,14 @@ type SourcePullOutput struct {
 	BindingsAdded     []string `json:"bindingsAdded,omitempty"`
 	BindingsUpdated   []string `json:"bindingsUpdated,omitempty"`
 	BindingsPruned    []string `json:"bindingsPruned,omitempty"`
-	Warnings          []string `json:"warnings,omitempty"`
+	// Dependencies are the source's derived consumption points. They are
+	// reported separately from bindings because they are the opposite
+	// relationship: a binding is a realization this document PROVIDES, a
+	// dependency is one it CONSUMES (Core Section 5.6).
+	DependenciesAdded   []string `json:"dependenciesAdded,omitempty"`
+	DependenciesUpdated []string `json:"dependenciesUpdated,omitempty"`
+	DependenciesPruned  []string `json:"dependenciesPruned,omitempty"`
+	Warnings            []string `json:"warnings,omitempty"`
 }
 
 // Render returns a human-friendly representation.
@@ -207,6 +214,12 @@ func (o SourcePullOutput) Render() string {
 		sb.WriteString("\n")
 		sb.WriteString(s.Dim.Render("  Bindings pruned: "))
 		sb.WriteString(s.Removed.Render(strings.Join(o.BindingsPruned, ", ")))
+	}
+	renderKeyGroup(&sb, s, "Dependencies", o.DependenciesUpdated, o.DependenciesAdded)
+	if len(o.DependenciesPruned) > 0 {
+		sb.WriteString("\n")
+		sb.WriteString(s.Dim.Render("  Dependencies pruned: "))
+		sb.WriteString(s.Removed.Render(strings.Join(o.DependenciesPruned, ", ")))
 	}
 	for _, w := range o.Warnings {
 		sb.WriteString("\n")
@@ -332,6 +345,9 @@ func SourcePull(input SourcePullInput) (SourcePullOutput, error) {
 	sort.Strings(out.BindingsAdded)
 	sort.Strings(out.BindingsUpdated)
 	sort.Strings(out.BindingsPruned)
+	sort.Strings(out.DependenciesAdded)
+	sort.Strings(out.DependenciesUpdated)
+	sort.Strings(out.DependenciesPruned)
 	sort.Strings(out.Failed)
 	return out, nil
 }
@@ -409,6 +425,47 @@ func pullSourceInto(iface *openbindings.Interface, sourceKey string, derived Der
 		}
 	}
 
+	// Dependencies follow the binding discipline: overwrite source-owned, add
+	// new, never clobber a hand-authored entry. A DependencyEntry carries no
+	// source field of its own -- unlike a binding it names no source, because
+	// a consumption point has no realization yet -- so ownership rides the
+	// x-ob marker alone, exactly as it does for operations.
+	derivedDeps := map[string]bool{}
+	for depKey, freshDep := range derived.Dependencies {
+		derivedDeps[depKey] = true
+		existingDep, exists := iface.Dependencies[depKey]
+		if exists && !IsSourceOwned(existingDep.LosslessFields) {
+			out.Warnings = append(out.Warnings, fmt.Sprintf(
+				"source %q: derived dependency %q collides with a hand-authored dependency; left unchanged", sourceKey, depKey))
+			continue
+		}
+		markSourceOwned(&freshDep.LosslessFields, freshDep, elideBase, out)
+		if exists && sameContent(existingDep, freshDep) && sameXOB(existingDep.LosslessFields, freshDep.LosslessFields) {
+			continue
+		}
+		if iface.Dependencies == nil {
+			iface.Dependencies = map[string]openbindings.DependencyEntry{}
+		}
+		iface.Dependencies[depKey] = freshDep
+		if exists {
+			out.DependenciesUpdated = append(out.DependenciesUpdated, depKey)
+		} else {
+			out.DependenciesAdded = append(out.DependenciesAdded, depKey)
+		}
+	}
+	// Prune source-owned dependencies this source no longer derives. The
+	// operation a pruned dependency named is left to the orphan sweep below,
+	// which already removes a source-owned operation nothing references.
+	losingDependency := map[string]bool{}
+	for depKey, dep := range iface.Dependencies {
+		if derivedDeps[depKey] || !IsSourceOwned(dep.LosslessFields) {
+			continue
+		}
+		losingDependency[dep.Operation] = true
+		delete(iface.Dependencies, depKey)
+		out.DependenciesPruned = append(out.DependenciesPruned, depKey)
+	}
+
 	// Prune source-owned bindings to this source that are no longer derived.
 	// Track the operations that lose a binding so we can orphan-prune them.
 	losingBinding := map[string]bool{}
@@ -424,14 +481,28 @@ func pullSourceInto(iface *openbindings.Interface, sourceKey string, derived Der
 		out.BindingsPruned = append(out.BindingsPruned, bk)
 	}
 
-	// Recompute which operations still have any binding.
+	// Recompute which operations are still referenced by anything. A
+	// dependency counts: an operation a document CONSUMES is referenced even
+	// though nothing binds it, so the orphan sweep must not read "no binding"
+	// as "unreferenced" once dependencies exist.
 	stillBound := map[string]bool{}
 	for _, be := range iface.Bindings {
 		stillBound[be.Operation] = true
 	}
-	// Prune source-owned operations that lost their binding to this source,
-	// are no longer derived, and have no surviving binding from any source.
+	for _, dep := range iface.Dependencies {
+		stillBound[dep.Operation] = true
+	}
+	// Prune source-owned operations that lost their binding or dependency to
+	// this source, are no longer derived, and are referenced by nothing that
+	// survives.
+	losingReference := map[string]bool{}
 	for opKey := range losingBinding {
+		losingReference[opKey] = true
+	}
+	for opKey := range losingDependency {
+		losingReference[opKey] = true
+	}
+	for opKey := range losingReference {
 		if derivedOps[opKey] || stillBound[opKey] {
 			continue
 		}

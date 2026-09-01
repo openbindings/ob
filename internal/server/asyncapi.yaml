@@ -921,6 +921,9 @@ components:
             properties:
                 bindings:
                     $ref: '#/components/schemas/ProvenanceKeys'
+                dependencies:
+                    $ref: '#/components/schemas/ProvenanceKeys'
+                    description: 'Consumption points the document declares, split by provenance. A dependency is the opposite relationship to a binding: a realization this document CONSUMES rather than provides.'
                 name:
                     type: string
                 obiVersion:
@@ -939,6 +942,7 @@ components:
                 - sources
                 - operations
                 - bindings
+                - dependencies
             type: object
         InterfaceStatusInput:
             additionalProperties: false
