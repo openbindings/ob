@@ -50,7 +50,7 @@ func TestBindingInvoke_WireLaneReadsWhatT08Refuses(t *testing.T) {
 			t.Errorf("contract lane must refuse the drifted output, got %v", err)
 		}
 	})
-	if !strings.Contains(stderr, "ERR_VALIDATION_FAILED") {
+	if !strings.Contains(stderr, "ERR_OPERATION_VALIDATION_FAILED") {
 		t.Errorf("expected T-08 refusal, got: %s", stderr)
 	}
 	if strings.Contains(stderr, "listOrders.openapi") {

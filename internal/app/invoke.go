@@ -146,6 +146,25 @@ func resolveBindingAndSource(iface *openbindings.Interface, opKey, bindingKey st
 // selection; otherwise context.configuration.selection is the caller's ordered
 // choice and sole-candidate inference is the only automatic resolution.
 func resolveBindingAndSourceWithContext(ctx context.Context, iface *openbindings.Interface, opKey, bindingKey string, input any, callerContext map[string]any) (*resolvedBinding, error) {
+	resolved, err := resolveBindingAndSourceSelectionWithContext(ctx, iface, opKey, bindingKey, input, callerContext)
+	if err != nil {
+		return nil, err
+	}
+	if resolved.binding.InputTransform != nil {
+		transformed, tErr := ApplyTransform(iface.Transforms, resolved.binding.InputTransform, input)
+		if tErr != nil {
+			return nil, fmt.Errorf("input transform failed: %w", tErr)
+		}
+		resolved.input = transformed
+	}
+	return resolved, nil
+}
+
+// resolveBindingAndSourceSelectionWithContext resolves identity and source but
+// deliberately does not evaluate the input transform. The SDK operation layer
+// owns transforms for in-process operation invocation; the CLI evaluates them
+// itself only after an external delegate wins the binding hop.
+func resolveBindingAndSourceSelectionWithContext(ctx context.Context, iface *openbindings.Interface, opKey, bindingKey string, input any, callerContext map[string]any) (*resolvedBinding, error) {
 	if opKey != "" && bindingKey != "" {
 		return nil, fmt.Errorf("operation key and binding key are mutually exclusive")
 	}
@@ -185,20 +204,11 @@ func resolveBindingAndSourceWithContext(ctx context.Context, iface *openbindings
 		return nil, fmt.Errorf("binding source %q not found", binding.Source)
 	}
 
-	execInput := input
-	if binding.InputTransform != nil {
-		transformed, tErr := ApplyTransform(iface.Transforms, binding.InputTransform, input)
-		if tErr != nil {
-			return nil, fmt.Errorf("input transform failed: %w", tErr)
-		}
-		execInput = transformed
-	}
-
 	return &resolvedBinding{
 		bindingKey: resolvedKey,
 		binding:    binding,
 		source:     source,
-		input:      execInput,
+		input:      input,
 	}, nil
 }
 
@@ -448,8 +458,8 @@ func (g *delegateProvisionGuard) vetTarget(asserted string) (provision bool, ref
 // handle's outputs (and any terminal error) onto a channel of app-layer
 // InvocationOutput.
 //
-// ob's app layer drives the BINDING layer directly (it resolves the binding,
-// source, and transforms itself), so it owns the CONTEXT_REQUIRED negotiation
+// On the direct binding paths that call this helper, ob resolves the binding,
+// source, and transforms itself, so it owns the CONTEXT_REQUIRED negotiation
 // the SDK's operation layer would otherwise provide: a challenge raised before
 // any output is resolved through the configured resolver and the binding is
 // re-invoked with the merged context, replaying the input. Once the binding
@@ -618,16 +628,16 @@ func InvokeOBIOperationConfigured(ctx context.Context, obiPath, opKey, bindingKe
 // and delegate invocation: ob operation-invokes a delegate's operation against
 // the delegate's own resolved OBI through this same path.
 //
-// Dispatch is UNIFIED under delegate selection: the winner is
-// computed before anything runs. When the self-delegate wins, the streaming
-// lane is available. When an external delegate wins the hop, displaced
-// STANDING elections (ob's internal table, which the delegate's own handling
-// replaces) proceed with a loud attributed warning. Every emitted
-// output is T-08-validated against the operation's declared output schema
-// before it reaches the caller (stop-and-return on nonconformant emission).
+// Dispatch is unified under delegate selection: the winner is computed before
+// anything runs. For an in-process OpenAPI binding, the SDK operation layer
+// owns validation, transforms, context negotiation, and streaming. Other
+// binding families retain the established app-driven path until their native
+// adapters make the same operation-layer cutover. When an external delegate
+// wins, ob also retains those responsibilities around the untrusted binding
+// hop and reports any displaced standing elections.
 func invokeOnInterface(ctx context.Context, iface *openbindings.Interface, opKey, bindingKey string, input any, config *InvokeConfig) (*ConfiguredInvocation, error) {
 	callerContext := config.context()
-	resolved, err := resolveBindingAndSourceWithContext(ctx, iface, opKey, bindingKey, input, callerContext)
+	resolved, err := resolveBindingAndSourceSelectionWithContext(ctx, iface, opKey, bindingKey, input, callerContext)
 	if err != nil {
 		return nil, err
 	}
@@ -637,31 +647,6 @@ func invokeOnInterface(ctx context.Context, iface *openbindings.Interface, opKey
 		return nil, err
 	}
 	opCanonical := resolved.binding.Operation
-	outputSchema := iface.Operations[opCanonical].Output
-
-	// OBI-T-07 on the app-driven path: ob drives the binding layer directly
-	// (bypassing the SDK operation layer's per-message validation), so the
-	// caller's message is validated against the operation's input schema
-	// BEFORE any dispatch. Schema-violating input must never reach the wire —
-	// by the time output validation fails, the side effect has happened.
-	// The check runs on the caller's message, pre-transform: the operation
-	// schema describes the caller's shape, the transform's result is the
-	// binding's business.
-	if inSchema := iface.Operations[opCanonical].Input; inSchema != nil && input != nil {
-		if verr := openbindings.ValidateOperationInput(input, iface, opCanonical); verr != nil {
-			return nil, fmt.Errorf("input validation failed for %q: %w", resolved.bindingKey, verr)
-		}
-	}
-
-	lowLevel := InvocationInput{
-		Source:      InvokeSource{BindingSpec: es.BindingSpec, Location: es.Location, Content: es.Content},
-		Selector:    resolved.binding.Selector,
-		Input:       resolved.input,
-		Context:     callerContext,
-		Interface:   iface,
-		Binding:     resolved.binding,
-		InputSchema: effectiveInputSchema(iface, resolved.binding, resolved.input),
-	}
 
 	run := &ConfiguredInvocation{BindingKey: resolved.bindingKey}
 
@@ -672,6 +657,23 @@ func invokeOnInterface(ctx context.Context, iface *openbindings.Interface, opKey
 		return nil, err
 	}
 	if chosen != nil && !chosen.builtin {
+		// External delegates receive a direct binding-layer call. Keep Core's
+		// operation validation and transforms on ob's trusted side of that
+		// boundary, exactly once.
+		if err := prepareAppDrivenBindingInput(iface, opCanonical, resolved, input); err != nil {
+			return nil, err
+		}
+		lowLevel := InvocationInput{
+			Source:      InvokeSource{BindingSpec: es.BindingSpec, Location: es.Location, Content: es.Content},
+			Selector:    resolved.binding.Selector,
+			Input:       resolved.input,
+			Context:     callerContext,
+			Interface:   iface,
+			Binding:     resolved.binding,
+			InputSchema: effectiveInputSchema(iface, resolved.binding, resolved.input),
+		}
+		outputSchema := iface.Operations[opCanonical].Output
+
 		// An external delegate owns the binding hop. Displaced STANDING
 		// elections proceed with a loud attributed warning.
 		run.DisplacedWarning, run.DisplacedDetail = displacedElectionsWarning(opCanonical, chosen.name())
@@ -690,20 +692,102 @@ func invokeOnInterface(ctx context.Context, iface *openbindings.Interface, opKey
 		return run, nil
 	}
 
-	// Streaming lane (builtin drivers only) when the self-delegate wins.
-	if BuiltinSupportsFormat(es.BindingSpec) {
-		src, sErr := SubscribeOperationWithContext(ctx, lowLevel)
-		if sErr == nil {
-			run.Events = applyT08(transformEventStream(src, iface, resolved), iface, opCanonical, outputSchema, resolved.bindingKey)
-			return run, nil
-		}
+	if !BuiltinSupportsFormat(es.BindingSpec) {
+		return nil, fmt.Errorf("no invoker or delegate handles format %q", es.BindingSpec)
 	}
 
-	// Unary fallback (in-process builtin, or a self-delegate non-streaming path).
-	out := InvokeOperationWithContext(ctx, lowLevel)
-	out.BindingKey = resolved.bindingKey
-	run.Events = applyT08(unaryChannel(iface, resolved, out), iface, opCanonical, outputSchema, resolved.bindingKey)
+	if isOpenAPIBindingSpec(es.BindingSpec) {
+		// OpenAPI enters the SDK operation path exactly once. Its operation
+		// invoker owns T-07/T-08 validation, both transforms,
+		// CONTEXT_REQUIRED preflight/retry, delivery bounds, and
+		// cardinality-agnostic streaming.
+		options := []invoke.InvokeOption{invoke.WithBindingKey(resolved.bindingKey)}
+		if len(callerContext) > 0 {
+			options = append(options, invoke.WithContext(callerContext))
+		}
+		call := invoke.Invoke(ctx, DefaultInvoker(), iface, invoke.NewOperationSignature[any, any](opCanonical), options...)
+		run.Events = driveOperationInvocation(ctx, call, input)
+		return run, nil
+	}
+
+	// The remaining built-in families have not yet adopted a detached native
+	// analysis/provider contract. Preserve their binding-layer route rather
+	// than coupling the OpenAPI migration to unrelated behavioral changes.
+	if err := prepareAppDrivenBindingInput(iface, opCanonical, resolved, input); err != nil {
+		return nil, err
+	}
+	lowLevel := InvocationInput{
+		Source:      InvokeSource{BindingSpec: es.BindingSpec, Location: es.Location, Content: es.Content},
+		Selector:    resolved.binding.Selector,
+		Input:       resolved.input,
+		Context:     callerContext,
+		Interface:   iface,
+		Binding:     resolved.binding,
+		InputSchema: effectiveInputSchema(iface, resolved.binding, resolved.input),
+	}
+	outputSchema := iface.Operations[opCanonical].Output
+	if stream, streamErr := SubscribeOperationWithContext(ctx, lowLevel); streamErr == nil {
+		run.Events = applyT08(transformEventStream(stream, iface, resolved), iface, opCanonical, outputSchema, resolved.bindingKey)
+		return run, nil
+	}
+	result := InvokeOperationWithContext(ctx, lowLevel)
+	run.Events = applyT08(unaryChannel(iface, resolved, result), iface, opCanonical, outputSchema, resolved.bindingKey)
 	return run, nil
+}
+
+// prepareAppDrivenBindingInput applies the operation-layer responsibilities
+// retained by ob on direct binding paths. OpenAPI does not call this helper:
+// its SDK operation invoker owns the same validation and transform exactly
+// once.
+func prepareAppDrivenBindingInput(iface *openbindings.Interface, operation string, resolved *resolvedBinding, input any) error {
+	if inSchema := iface.Operations[operation].Input; inSchema != nil && input != nil {
+		if err := openbindings.ValidateOperationInput(input, iface, operation); err != nil {
+			return fmt.Errorf("input validation failed for %q: %w", resolved.bindingKey, err)
+		}
+	}
+	if resolved.binding.InputTransform != nil {
+		transformed, err := ApplyTransform(iface.Transforms, resolved.binding.InputTransform, input)
+		if err != nil {
+			return fmt.Errorf("input transform failed: %w", err)
+		}
+		resolved.input = transformed
+	}
+	return nil
+}
+
+// driveOperationInvocation adapts the SDK's cardinality-agnostic handle to
+// ob's event channel. It deliberately contains no context retry: the SDK
+// operation invoker already owns that lifecycle for this path.
+func driveOperationInvocation(ctx context.Context, call invoke.Invocation[any, any], input any) <-chan InvocationOutput {
+	ch := make(chan InvocationOutput, 16)
+	go func() {
+		defer close(ch)
+		if input != nil {
+			_ = call.Write(ctx, input)
+		}
+		_ = call.Close()
+		outputs := call.Outputs()
+		for {
+			value, err := outputs.Read(ctx)
+			if errors.Is(err, io.EOF) {
+				return
+			}
+			if err != nil {
+				invocationErr := invoke.AsInvocationError(err)
+				select {
+				case ch <- InvocationOutput{Error: invocationErr, Status: statusFromError(invocationErr)}:
+				case <-ctx.Done():
+				}
+				return
+			}
+			select {
+			case ch <- InvocationOutput{Output: value}:
+			case <-ctx.Done():
+				return
+			}
+		}
+	}()
+	return ch
 }
 
 // unaryChannel collapses a unary InvocationResult into a one-event
@@ -793,7 +877,7 @@ func PrepareInterfaceOperation(ctx context.Context, iface *openbindings.Interfac
 	if iface == nil {
 		return nil, fmt.Errorf("interface is required")
 	}
-	resolved, err := resolveBindingAndSourceWithContext(ctx, iface, opKey, bindingKey, nil, callerContext)
+	resolved, err := resolveBindingAndSourceSelectionWithContext(ctx, iface, opKey, bindingKey, nil, callerContext)
 	if err != nil {
 		return nil, err
 	}
@@ -817,14 +901,24 @@ func PrepareInterfaceOperation(ctx context.Context, iface *openbindings.Interfac
 		}
 	}
 
-	return PrepareBinding(ctx, InvocationInput{
-		Source:      InvokeSource{BindingSpec: es.BindingSpec, Location: es.Location, Content: es.Content},
-		Selector:    resolved.binding.Selector,
-		Context:     callerContext,
-		Interface:   iface,
-		Binding:     resolved.binding,
-		InputSchema: effectiveInputSchema(iface, resolved.binding, resolved.input),
-	})
+	// Prepare through the same SDK runtime and binding registration used by
+	// invocation. Materialize only the selected source on a shallow interface
+	// copy so callers never observe preflight acquisition as a document edit.
+	prepared := *iface
+	prepared.Sources = make(map[string]openbindings.Source, len(iface.Sources))
+	for key, source := range iface.Sources {
+		prepared.Sources[key] = source
+	}
+	materialized := resolved.source
+	materialized.Location = es.Location
+	materialized.Content = es.Content
+	prepared.Sources[resolved.binding.Source] = materialized
+
+	options := []invoke.InvokeOption{invoke.WithBindingKey(resolved.bindingKey)}
+	if len(callerContext) > 0 {
+		options = append(options, invoke.WithContext(callerContext))
+	}
+	return DefaultInvoker().PrepareOperation(ctx, &prepared, resolved.binding.Operation, options...)
 }
 
 // acquireSourceDocument materializes a source artifact for the preflight:

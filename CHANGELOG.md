@@ -38,6 +38,14 @@ ship as part of 0.2.0.
   bodies retain their protocol-neutral operation shapes and binding-private
   routing. Core is unchanged.
 
+- **OpenAPI now enters `ob` through one cohesive SDK provider.** Inspection,
+  synthesis, context preflight, and operation invocation for the four current
+  OAS binding specifications use the same configured adapter and native client
+  substrate. The SDK operation layer owns input/output validation, transforms,
+  and bounded context resolution exactly once; operation-contract failures now
+  use its canonical `ERR_OPERATION_VALIDATION_FAILED` code. The lower-level
+  `binding invoke` lane remains deliberately untransformed and unvalidated.
+
 - **`ob start` no longer modifies system trust or accepts arbitrary HTTPS
   origins by default.** The zero-configuration server is loopback HTTP only.
   `--tls` adds HTTPS without installing trust, while `--trust-local-ca`

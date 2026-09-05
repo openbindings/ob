@@ -459,9 +459,9 @@ func TestEnsurePinnedToken_ReentrancyGuard(t *testing.T) {
 }
 
 // TestReentrancyGuardPropagates proves the marker actually threads through the
-// real invoke path (invokeOnInterface → driveBinding → the live
-// CLIContextResolver), not merely that ensurePinnedToken short-circuits when
-// the marker is pre-set.
+// real OpenAPI invoke path (invokeOnInterface → SDK OperationInvoker →
+// the live CLIContextResolver), not merely that ensurePinnedToken
+// short-circuits when the marker is pre-set.
 //
 // Topology: mint from provider P, whose own mint is bearer-secured, so
 // invoking it raises CONTEXT_REQUIRED and consults the CLI resolver. Under

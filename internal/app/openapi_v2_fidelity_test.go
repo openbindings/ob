@@ -18,6 +18,8 @@ import (
 )
 
 func TestOpenAPICandidateCollisionSurvivesOBTransformRuntime(t *testing.T) {
+	ResetDefaultInvoker()
+	t.Cleanup(ResetDefaultInvoker)
 	type observedRequest struct {
 		pathID  string
 		queryID string
@@ -55,7 +57,7 @@ func TestOpenAPICandidateCollisionSurvivesOBTransformRuntime(t *testing.T) {
 		}}}
 	}`, server.URL)
 
-	synthesis, err := openapibinding.NewSynthesizer().SynthesizeInterfaceWithCoverage(
+	synthesis, err := DefaultRuntime().SynthesizeInterfaceWithCoverage(
 		context.Background(),
 		&synthesize.SynthesizeInput{Sources: []synthesize.SynthesizeSource{{
 			BindingSpec: openapibinding.BindingSpecOpenAPI31,
@@ -66,14 +68,7 @@ func TestOpenAPICandidateCollisionSurvivesOBTransformRuntime(t *testing.T) {
 		t.Fatalf("synthesize: %v", err)
 	}
 
-	invoker := invoke.NewOperationInvoker(openapibinding.NewInvoker())
-	invoker.TransformEvaluator = &jsonataEvaluator{}
-	call := invoke.Invoke(
-		context.Background(),
-		invoker,
-		synthesis.Interface,
-		invoke.NewOperationSignature[any, any]("updateItem"),
-	)
+	call := DefaultRuntime().Invoke(context.Background(), synthesis.Interface, "updateItem")
 	if err := call.Write(context.Background(), map[string]any{
 		"id": "path-value", "id_2": "query-value", "id_3": "body-value",
 	}); err != nil {

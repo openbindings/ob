@@ -9,6 +9,7 @@ import (
 	openbindings "github.com/openbindings/openbindings-go"
 
 	"github.com/openbindings/openbindings-go/invoke"
+	obsdk "github.com/openbindings/openbindings-go/sdk"
 
 	"github.com/openbindings/openbindings-go/synthesize"
 
@@ -23,46 +24,57 @@ import (
 )
 
 var (
-	defaultInvoker     *invoke.OperationInvoker
-	defaultInvokerOnce sync.Once
+	defaultRuntime     *cliRuntime
+	defaultRuntimeOnce sync.Once
 
-	defaultSynthesizer     synthesize.InterfaceSynthesizer
-	defaultSynthesizerOnce sync.Once
-
-	// newInvokerFunc builds the OperationInvoker. Override in tests to
-	// inject a custom set of binding invokers.
-	newInvokerFunc = newDefaultInvoker
-
-	// newSynthesizerFunc builds the combined InterfaceSynthesizer. Override in tests
-	// to inject a custom set of synthesizers.
-	newSynthesizerFunc = newDefaultSynthesizer
+	// defaultInvokerOverride preserves the app package's narrow test seam.
+	// Production always reads the invoker owned by defaultRuntime.
+	defaultInvokerOverride *invoke.OperationInvoker
 )
 
-func newDefaultInvoker() *invoke.OperationInvoker {
-	invoker := invoke.NewOperationInvoker(
-		openapi.NewInvoker(),
-		grpc.NewInvoker(),
-		connectbinding.NewInvoker(),
-		mcp.NewInvoker(mcp.WithClientVersion(OBVersion)),
-		asyncapi.NewInvoker(),
-		graphqlbinding.NewInvoker(),
-		newUsageInvoker(),
-	)
+// cliRuntime is ob's composition root. The SDK runtime owns the cohesive
+// OpenAPI provider; the synthesis view temporarily includes the remaining
+// split format implementations until those packages expose cohesive providers
+// of their own. Both views contain the exact same OpenAPI Adapter instance.
+type cliRuntime struct {
+	SDK         *obsdk.Runtime
+	Synthesizer synthesize.InterfaceSynthesizer
+	OpenAPI     *openapi.Adapter
+}
+
+func newDefaultRuntime() *cliRuntime {
+	openAPI := openapi.NewAdapterWithOptions(openapi.AdapterOptions{
+		// Authoring reads are distinct from live API calls. Reuse ob's
+		// redirect-hop guard for remote OpenAPI documents; live invocation
+		// retains the adapter's context-cancelled client with no overall
+		// timeout, as required by the standalone client contract.
+		SynthesisHTTPClient: GuardedHTTPClient(0),
+	})
+	runtime, err := obsdk.New(obsdk.RuntimeOptions{
+		Providers:          []obsdk.BindingProvider{openAPI},
+		HTTPClient:         GuardedHTTPClient(0),
+		TransformEvaluator: &jsonataEvaluator{},
+		ContextResolver:    CLIContextResolver(),
+	})
+	if err != nil {
+		// The provider list above is a compile-time composition invariant, not
+		// user input. Failing here means the binary was assembled incorrectly.
+		panic(fmt.Sprintf("assemble OpenBindings runtime: %v", err))
+	}
+
+	invoker := runtime.OperationInvoker()
+	// The other format packages still publish split invoker/synthesizer
+	// implementations. Register only their invocation halves here; OpenAPI is
+	// already present through the cohesive provider and MUST NOT be added again.
+	invoker.AddBindingInvoker(grpc.NewInvoker())
+	invoker.AddBindingInvoker(connectbinding.NewInvoker())
+	invoker.AddBindingInvoker(mcp.NewInvoker(mcp.WithClientVersion(OBVersion)))
+	invoker.AddBindingInvoker(asyncapi.NewInvoker())
+	invoker.AddBindingInvoker(graphqlbinding.NewInvoker())
+	invoker.AddBindingInvoker(newUsageInvoker())
 	// Operation graph invoker needs the OperationInvoker itself (recursive:
 	// operation nodes invoke sub-operations). Register after construction.
 	invoker.AddBindingInvoker(operationgraph.NewInvoker(invoker))
-	invoker.TransformEvaluator = &jsonataEvaluator{}
-	// ContextResolver drives CONTEXT_REQUIRED negotiation. NOTE: the app layer
-	// reaches bindings via invoker.InvokeBinding and owns its own bounded
-	// resolve-replay loop (driveBinding), so the SDK's operation-layer loop in
-	// invoker.Invoke stays dormant on that path. If any app-layer code is ever
-	// moved onto invoker.Invoke, remove driveBinding's loop first — otherwise
-	// both loops fire and a single challenge is retried up to 3×3 times.
-	//
-	// Least privilege: the resolver hands back only context fields named by
-	// the satisfied challenge alternative (invoke.ScopeContext), and a
-	// binding invoker never gets raw store access.
-	invoker.ContextResolver = CLIContextResolver()
 	// ob's own consumer configuration: the site-guarded hook table for the
 	// bound CLI OBI (specification + configuration = complete invocation —
 	// the elections the pristine usage.kdl cannot express). Guarded to
@@ -71,12 +83,9 @@ func newDefaultInvoker() *invoke.OperationInvoker {
 	if bound, err := OpenBindingsInterface(); err == nil {
 		InstallBoundCLIHooks(invoker, &bound)
 	}
-	return invoker
-}
 
-func newDefaultSynthesizer() synthesize.InterfaceSynthesizer {
-	return synthesize.CombineSynthesizers(
-		openapi.NewSynthesizer(),
+	synthesizer := synthesize.CombineSynthesizers(
+		openAPI,
 		asyncapi.NewSynthesizer(),
 		grpc.NewSynthesizer(),
 		connectbinding.NewSynthesizer(),
@@ -84,15 +93,26 @@ func newDefaultSynthesizer() synthesize.InterfaceSynthesizer {
 		graphqlbinding.NewSynthesizer(),
 		newUsageSynthesizer(),
 	)
+	return &cliRuntime{SDK: runtime, Synthesizer: synthesizer, OpenAPI: openAPI}
+}
+
+func defaultCLIRuntime() *cliRuntime {
+	defaultRuntimeOnce.Do(func() {
+		defaultRuntime = newDefaultRuntime()
+	})
+	return defaultRuntime
+}
+
+// DefaultRuntime returns ob's process-wide protocol-neutral SDK runtime. It is
+// the owner of OpenAPI invocation, synthesis, and inspection configuration.
+func DefaultRuntime() *obsdk.Runtime {
+	return defaultCLIRuntime().SDK
 }
 
 // DefaultSynthesizer returns the singleton combined InterfaceSynthesizer wired with
 // all built-in format synthesizers.
 func DefaultSynthesizer() synthesize.InterfaceSynthesizer {
-	defaultSynthesizerOnce.Do(func() {
-		defaultSynthesizer = newSynthesizerFunc()
-	})
-	return defaultSynthesizer
+	return defaultCLIRuntime().Synthesizer
 }
 
 // SynthesizeInterfaceFromSource routes interface creation to the appropriate
@@ -101,6 +121,9 @@ func DefaultSynthesizer() synthesize.InterfaceSynthesizer {
 func SynthesizeInterfaceFromSource(ctx context.Context, input *synthesize.SynthesizeInput) (*openbindings.Interface, error) {
 	if iface, routed, err := synthesizeViaDelegate(ctx, input); routed {
 		return iface, err
+	}
+	if runtimeOwnsSynthesis(input) {
+		return DefaultRuntime().SynthesizeInterface(ctx, input)
 	}
 	return DefaultSynthesizer().SynthesizeInterface(ctx, input)
 }
@@ -112,6 +135,9 @@ func InspectSource(ctx context.Context, source *openbindings.Source) (*synthesiz
 	if ins, routed, err := inspectViaDelegate(ctx, source); routed {
 		return ins, err
 	}
+	if source != nil && isOpenAPIBindingSpec(source.BindingSpec) {
+		return DefaultRuntime().InspectSource(ctx, source)
+	}
 	synthesizer := DefaultSynthesizer()
 	inspector, ok := synthesizer.(synthesize.SourceInspector)
 	if !ok {
@@ -120,24 +146,44 @@ func InspectSource(ctx context.Context, source *openbindings.Source) (*synthesiz
 	return inspector.InspectSource(ctx, source)
 }
 
-// DefaultInvoker returns the singleton OperationInvoker wired with all
-// built-in binding invokers. In tests, override newInvokerFunc
-// before calling DefaultInvoker to inject a custom invoker.
-func DefaultInvoker() *invoke.OperationInvoker {
-	defaultInvokerOnce.Do(func() {
-		defaultInvoker = newInvokerFunc()
-	})
-	return defaultInvoker
+func runtimeOwnsSynthesis(input *synthesize.SynthesizeInput) bool {
+	if input == nil || len(input.Sources) == 0 {
+		return false
+	}
+	for _, source := range input.Sources {
+		if !isOpenAPIBindingSpec(source.BindingSpec) {
+			return false
+		}
+	}
+	return true
 }
 
-// ResetDefaultInvoker clears the cached invoker and synthesizer so the next
-// call to DefaultInvoker/DefaultSynthesizer re-initialises them. Intended for
-// tests only.
+func isOpenAPIBindingSpec(bindingSpec string) bool {
+	switch bindingSpec {
+	case openapi.BindingSpecOpenAPI20,
+		openapi.BindingSpecOpenAPI30,
+		openapi.BindingSpecOpenAPI31,
+		openapi.BindingSpecOpenAPI32:
+		return true
+	default:
+		return false
+	}
+}
+
+// DefaultInvoker returns the OperationInvoker owned by the singleton SDK
+// runtime and wired with all built-in binding invokers.
+func DefaultInvoker() *invoke.OperationInvoker {
+	if defaultInvokerOverride != nil {
+		return defaultInvokerOverride
+	}
+	return DefaultRuntime().OperationInvoker()
+}
+
+// ResetDefaultInvoker clears the cached composition root. Intended for tests.
 func ResetDefaultInvoker() {
-	defaultInvokerOnce = sync.Once{}
-	defaultInvoker = nil
-	defaultSynthesizerOnce = sync.Once{}
-	defaultSynthesizer = nil
+	defaultRuntimeOnce = sync.Once{}
+	defaultRuntime = nil
+	defaultInvokerOverride = nil
 }
 
 // OverrideInvokerForTest replaces the default invoker with the given one
@@ -145,13 +191,13 @@ func ResetDefaultInvoker() {
 // Also resets the cached native-token list so BuiltinSupportsFormat picks
 // up the new invoker's formats. Intended for tests only.
 func OverrideInvokerForTest(invoker *invoke.OperationInvoker) func() {
-	old := newInvokerFunc
+	old := defaultInvokerOverride
 	ResetDefaultInvoker()
 	resetNativeTokens()
-	newInvokerFunc = func() *invoke.OperationInvoker { return invoker }
+	defaultInvokerOverride = invoker
 	return func() {
-		newInvokerFunc = old
 		ResetDefaultInvoker()
+		defaultInvokerOverride = old
 		resetNativeTokens()
 	}
 }

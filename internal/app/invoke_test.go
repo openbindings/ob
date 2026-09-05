@@ -410,10 +410,10 @@ func TestDriveBindingTearsDownOnCancel(t *testing.T) {
 	}
 }
 
-// OBI-T-07 on the app-driven path: schema-violating input fails BEFORE any
-// dispatch. Regression: the binding path bypassed the SDK operation layer's
-// validation, so the mutation executed (side effect!) and the defect was
-// then reported as an OUTPUT validation failure blaming the response.
+// OBI-T-07 on the SDK operation path: schema-violating input fails BEFORE any
+// dispatch. Regression: the former binding-direct path bypassed operation
+// validation, so the mutation executed (side effect!) and the defect was then
+// reported as an OUTPUT validation failure blaming the response.
 func TestInvokeOBIOperation_InvalidInputNeverReachesWire(t *testing.T) {
 	var requests atomic.Int32
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -451,6 +451,18 @@ func TestInvokeOBIOperation_InvalidInputNeverReachesWire(t *testing.T) {
 						"/orders": map[string]any{
 							"post": map[string]any{
 								"operationId": "createOrder",
+								"requestBody": map[string]any{
+									"required": true,
+									"content": map[string]any{
+										"application/json": map[string]any{
+											"schema": map[string]any{
+												"type":       "object",
+												"properties": map[string]any{"quantity": map[string]any{"type": "integer"}},
+												"required":   []any{"quantity"},
+											},
+										},
+									},
+								},
 								"responses": map[string]any{
 									"200": map[string]any{
 										"description": "ok",
@@ -471,23 +483,30 @@ func TestInvokeOBIOperation_InvalidInputNeverReachesWire(t *testing.T) {
 			},
 		},
 		"bindings": map[string]any{
-			"createOrder.api": map[string]any{"operation": "createOrder", "source": "api", "selector": "#/paths/~1orders/post"},
+			"createOrder.api": map[string]any{
+				"operation": "createOrder", "source": "api", "selector": "#/paths/~1orders/post",
+				"inputTransform": `{"body":$}`,
+			},
 		},
 	})
 
-	_, _, err := InvokeOBIOperation(context.Background(), obi, "createOrder", "", map[string]any{"quantity": "five"})
-	if err == nil {
-		t.Fatal("expected input validation failure")
+	events, _, err := InvokeOBIOperation(context.Background(), obi, "createOrder", "", map[string]any{"quantity": "five"})
+	if err != nil {
+		t.Fatalf("operation wiring failed before the SDK validation boundary: %v", err)
 	}
-	if !strings.Contains(err.Error(), "input validation failed") {
-		t.Errorf("error should name input validation, got: %v", err)
+	event, ok := <-events
+	if !ok || event.Error == nil {
+		t.Fatalf("expected terminal input validation failure, got %#v", event)
+	}
+	if event.Error.Code != invoke.ErrCodeOperationValidationFailed {
+		t.Errorf("validation code = %q, want %q", event.Error.Code, invoke.ErrCodeOperationValidationFailed)
 	}
 	if got := requests.Load(); got != 0 {
 		t.Errorf("schema-violating input reached the wire: %d requests dispatched", got)
 	}
 
 	// The conforming message still dispatches.
-	events, _, err := InvokeOBIOperation(context.Background(), obi, "createOrder", "", map[string]any{"quantity": 5})
+	events, _, err = InvokeOBIOperation(context.Background(), obi, "createOrder", "", map[string]any{"quantity": 5})
 	if err != nil {
 		t.Fatalf("valid input refused: %v", err)
 	}
