@@ -286,6 +286,12 @@ func renderInvokeError(
 	verbose bool,
 ) {
 	fmt.Fprintf(w, "error: %s\n", ierr.Code)
+	switch ierr.Code {
+	case invoke.ErrCodeRefused:
+		fmt.Fprintln(w, "  check the selected binding, declared input requirements, and supplied configuration before retrying")
+	case invoke.ErrCodeExecutionFailed:
+		fmt.Fprintln(w, "  the binding reported an unsuccessful execution; check the service and protocol-specific diagnostics before deciding whether a retry is safe")
+	}
 	if details := invoke.ContextRequiredFrom(ierr); details != nil {
 		fmt.Fprintln(w, app.RenderContextRequirements(details))
 		if hint := contextSetHint(details); hint != "" {

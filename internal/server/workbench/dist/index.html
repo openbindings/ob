@@ -405,6 +405,10 @@
                      same relationship reveal-on-navigation has with the
                      rail. Inert unless there is something to open. -->
                 <button id="sheet-status" class="sheet-status" type="button"></button>
+                <select id="invocation-mode" aria-label="Invocation mode" title="Binding mode bypasses operation schemas and transforms; binding rules still apply.">
+                  <option value="operation">Strict operation</option>
+                  <option value="binding">Binding (raw)</option>
+                </select>
                 <!-- Permanent slot (rev 17.3): Run lives in the strip in BOTH
                      states — disabled, never absent, never moving. Icon-based
                      (rev 17.6), matching the icon rails in the cockpit. -->
@@ -584,9 +588,11 @@
       <div class="context-body">
         <p id="target-context-status">No target credentials configured.</p>
         <p class="dialog-note">
-          Supply context only when the selected API requires it. These values
-          are held in this browser with the session and sent only with target
-          invocations — never to <code>ob start</code> itself.
+          Context is sent through ob start for the selected invocation attempt.
+          Reusable values stay in memory until the document changes or the page
+          closes, and only prefill a matching challenge for you to Apply.
+          They are not saved with the workspace. The workbench session credential
+          is separate and is never forwarded to an API target.
         </p>
         <!-- The typed path: rendered from the operation's declared
              requirements when ob reports them. Silent otherwise. -->
@@ -594,7 +600,7 @@
           <p id="target-requirements-copy"></p>
           <form id="requirement-form">
             <label id="requirement-alternative-label" for="requirement-alternative">
-              Authentication method
+              Requirement alternative
             </label>
             <select id="requirement-alternative"></select>
             <div id="requirement-fields"></div>

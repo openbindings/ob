@@ -56,7 +56,7 @@ func handleBindingInvoke(srv *server.Server, logger *slog.Logger) http.HandlerFu
 // handleOperationInvoke serves invokeOperation over the same frame transport
 // as invokeBinding. The open payload carries the interface plus an operation
 // or binding key; subsequent input/output frames are cardinality-agnostic.
-func handleOperationInvoke(srv *server.Server, logger *slog.Logger) http.HandlerFunc {
+func handleOperationInvoke(srv *server.Server, logger *slog.Logger, diagnostics ...*workbenchDiagnostics) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		conn := acceptInvocationWebSocket(w, r, srv, logger, "operation-invoker")
 		if conn == nil {
@@ -69,6 +69,12 @@ func handleOperationInvoke(srv *server.Server, logger *slog.Logger) http.Handler
 
 		ctx, cancel := context.WithCancel(r.Context())
 		defer cancel()
+		if len(diagnostics) > 0 {
+			if collector := diagnostics[0].begin(r.URL.Query().Get("diagnostics")); collector != nil {
+				defer diagnostics[0].finish(r.URL.Query().Get("diagnostics"))
+				ctx = context.WithValue(ctx, diagnosticContextKey{}, collector)
+			}
+		}
 		serveOperationFrameStream(ctx, cancel, conn, logger)
 	}
 }
@@ -265,11 +271,13 @@ func serveOperationFrameStream(ctx context.Context, cancel context.CancelFunc, c
 	}
 
 	logger.Info("operations/invoke (frames)", "operation", open.Input.Operation, "binding", open.Input.Binding)
+	collector, _ := ctx.Value(diagnosticContextKey{}).(*invoke.DiagnosticCollector)
 	inv := app.InvokeOperationHandle(ctx, app.OperationHandleInput{
-		Interface: open.Input.Interface,
-		Operation: open.Input.Operation,
-		Binding:   open.Input.Binding,
-		Context:   open.Input.Context,
+		Diagnostics: collector,
+		Interface:   open.Input.Interface,
+		Operation:   open.Input.Operation,
+		Binding:     open.Input.Binding,
+		Context:     open.Input.Context,
 	})
 	driveFrameStream(ctx, cancel, conn, logger, writer, inv)
 }

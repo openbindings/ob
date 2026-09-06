@@ -40,6 +40,7 @@ type cliRuntime struct {
 	SDK         *obsdk.Runtime
 	Synthesizer synthesize.InterfaceSynthesizer
 	OpenAPI     *openapi.Adapter
+	Recognizers []func([]byte) (string, bool, error)
 
 	preparedMu        sync.Mutex
 	preparedProviders map[string]*invoke.PreparedProvider
@@ -50,6 +51,7 @@ const maxPreparedProviders = 64
 
 func newDefaultRuntime() *cliRuntime {
 	openAPI := openapi.NewAdapterWithOptions(openapi.AdapterOptions{
+		Invoker: openapi.InvokerOptions{ParameterConversion: openapi.DecimalParameterConversion},
 		// Authoring reads are distinct from live API calls. Reuse ob's
 		// redirect-hop guard for remote OpenAPI documents; live invocation
 		// retains the adapter's context-cancelled client with no overall
@@ -103,6 +105,7 @@ func newDefaultRuntime() *cliRuntime {
 		SDK:               runtime,
 		Synthesizer:       synthesizer,
 		OpenAPI:           openAPI,
+		Recognizers:       []func([]byte) (string, bool, error){openAPI.RecognizeRepresentation},
 		preparedProviders: make(map[string]*invoke.PreparedProvider),
 	}
 }
