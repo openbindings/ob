@@ -66,12 +66,26 @@ type OperationSig struct {
 	Tags        []string
 }
 
+// DependencySig describes one generated dependency identity. Input and Output
+// are copied from the referenced canonical operation during IR construction;
+// emitters never accept an independently asserted dependency type.
+type DependencySig struct {
+	Key           string
+	Name          string
+	OperationKey  string
+	OperationName string
+	Input         *TypeRef
+	Output        *TypeRef
+	BindingSpecs  []string
+}
+
 // CodegenResult is everything an emitter needs to produce a typed client.
 type CodegenResult struct {
 	InterfaceName string
 	Description   string
 	Types         []TypeDef
 	Operations    []OperationSig
+	Dependencies  []DependencySig
 }
 
 // ---------- JSON Schema → IR conversion ----------

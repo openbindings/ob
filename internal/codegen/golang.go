@@ -55,6 +55,10 @@ func EmitGo(r *CodegenResult, packageName string) string {
 	// Operation signatures.
 	b.WriteString("// --- Operation signatures ---\n\n")
 	emitGoSignatures(&b, r)
+	if len(r.Dependencies) > 0 {
+		b.WriteString("\n// --- Dependency signatures ---\n\n")
+		emitGoDependencySignatures(&b, r)
+	}
 
 	src := b.String()
 	formatted, err := format.Source([]byte(src))
@@ -62,6 +66,25 @@ func EmitGo(r *CodegenResult, packageName string) string {
 		return src
 	}
 	return string(formatted)
+}
+
+func emitGoDependencySignatures(b *strings.Builder, r *CodegenResult) {
+	b.WriteString(goDocComment("dependencySignatures is the namespace type holding one generated identity per named OBI dependency. Use the DependencySignatures value below, not this type directly.", ""))
+	b.WriteString("type dependencySignatures struct {\n")
+	for _, dependency := range r.Dependencies {
+		field := toPascalCase(dependency.Name)
+		b.WriteString(goDocComment(fmt.Sprintf("%s is the %q dependency; its I/O types are derived from operation %q.", field, dependency.Key, dependency.OperationKey), "\t"))
+		b.WriteString(fmt.Sprintf("\t%s invoke.DependencySignature[%s, %s]\n",
+			field, goSigType(dependency.Input), goSigType(dependency.Output)))
+	}
+	b.WriteString("}\n\n")
+	b.WriteString(goDocComment("DependencySignatures holds one typed identity per named dependency declared by the codegen-time OBI. Each I/O type is mechanically inherited from its referenced operation.", ""))
+	b.WriteString("var DependencySignatures = dependencySignatures{\n")
+	for _, dependency := range r.Dependencies {
+		b.WriteString(fmt.Sprintf("\t%s: invoke.NewDependencySignatureForOperation(%q, OperationSignatures.%s),\n",
+			toPascalCase(dependency.Name), dependency.Key, toPascalCase(dependency.OperationName)))
+	}
+	b.WriteString("}\n")
 }
 
 // emitGoSignatures writes the OperationSignatures namespace: a named struct type

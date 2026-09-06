@@ -316,6 +316,82 @@ func TestGenerateRejectsDuplicateSymbols(t *testing.T) {
 	}
 }
 
+func TestGeneratedDependencySignaturesDeriveReferencedOperationTypes(t *testing.T) {
+	iface := &openbindings.Interface{
+		OpenBindings: "0.2.0",
+		Operations: map[string]openbindings.Operation{
+			"create": {
+				Input: map[string]any{
+					"type":       "object",
+					"properties": map[string]any{"title": map[string]any{"type": "string"}},
+					"required":   []any{"title"},
+				},
+				Output: map[string]any{
+					"type":       "object",
+					"properties": map[string]any{"id": map[string]any{"type": "string"}},
+					"required":   []any{"id"},
+				},
+			},
+		},
+		Dependencies: map[string]openbindings.DependencyEntry{
+			"taskCreation": {Operation: "create", BindingSpecs: []string{"example.local@1"}},
+		},
+	}
+	result, err := Generate(iface)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(result.Dependencies) != 1 || result.Dependencies[0].OperationKey != "create" {
+		t.Fatalf("dependencies = %#v", result.Dependencies)
+	}
+
+	tsCode := EmitTypeScript(result)
+	for _, want := range []string{
+		"dependencySignatureFromOperation, operationSignature",
+		"export const DependencySignatures = {",
+		`taskCreation: dependencySignatureFromOperation("taskCreation", OperationSignatures.create)`,
+		`I/O derived from operation "create"`,
+	} {
+		if !strings.Contains(tsCode, want) {
+			t.Errorf("TypeScript output missing %q:\n%s", want, tsCode)
+		}
+	}
+
+	goCode := EmitGo(result, "tasks")
+	for _, want := range []string{
+		"type dependencySignatures struct",
+		"TaskCreation invoke.DependencySignature[CreateInput, CreateOutput]",
+		`invoke.NewDependencySignatureForOperation("taskCreation", OperationSignatures.Create)`,
+	} {
+		if !strings.Contains(goCode, want) {
+			t.Errorf("Go output missing %q:\n%s", want, goCode)
+		}
+	}
+}
+
+func TestGenerateRejectsInvalidDependencyReferenceAndSymbolCollision(t *testing.T) {
+	invalid := &openbindings.Interface{
+		Operations: map[string]openbindings.Operation{"create": {}},
+		Dependencies: map[string]openbindings.DependencyEntry{
+			"missing": {Operation: "remove"},
+		},
+	}
+	if _, err := Generate(invalid); err == nil || !strings.Contains(err.Error(), "unknown operation") {
+		t.Fatalf("invalid dependency error = %v", err)
+	}
+
+	collision := &openbindings.Interface{
+		Operations: map[string]openbindings.Operation{"create": {}},
+		Dependencies: map[string]openbindings.DependencyEntry{
+			"task-creation": {Operation: "create"},
+			"taskCreation":  {Operation: "create"},
+		},
+	}
+	if _, err := Generate(collision); err == nil || !strings.Contains(err.Error(), "collide") {
+		t.Fatalf("dependency collision error = %v", err)
+	}
+}
+
 func TestSchemaConverterRefCycle(t *testing.T) {
 	// Build a schema with a self-referencing $ref (tree node pattern).
 	root := map[string]any{

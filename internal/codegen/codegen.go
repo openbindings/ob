@@ -117,6 +117,48 @@ func Generate(iface *openbindings.Interface) (*CodegenResult, error) {
 			len(collisions), strings.Join(collisions, "\n"))
 	}
 
+	operationsByKey := make(map[string]OperationSig, len(ops))
+	for _, op := range ops {
+		operationsByKey[op.Key] = op
+	}
+	dependencyKeys := make([]string, 0, len(iface.Dependencies))
+	for key := range iface.Dependencies {
+		dependencyKeys = append(dependencyKeys, key)
+	}
+	sort.Strings(dependencyKeys)
+	dependencies := make([]DependencySig, 0, len(dependencyKeys))
+	dependencySymbols := make(map[string]string, len(dependencyKeys))
+	for _, key := range dependencyKeys {
+		dependency := iface.Dependencies[key]
+		op, ok := operationsByKey[dependency.Operation]
+		if !ok {
+			return nil, fmt.Errorf(
+				"codegen: dependency %q references unknown operation %q",
+				key,
+				dependency.Operation,
+			)
+		}
+		symbol := toPascalCase(key)
+		if previous, exists := dependencySymbols[symbol]; exists {
+			return nil, fmt.Errorf(
+				"codegen: dependency keys %q and %q collide at generated symbol %q",
+				previous,
+				key,
+				symbol,
+			)
+		}
+		dependencySymbols[symbol] = key
+		dependencies = append(dependencies, DependencySig{
+			Key:           key,
+			Name:          key,
+			OperationKey:  dependency.Operation,
+			OperationName: op.Name,
+			Input:         op.Input,
+			Output:        op.Output,
+			BindingSpecs:  append([]string(nil), dependency.BindingSpecs...),
+		})
+	}
+
 	// Collect all types: registry entries first (named schemas), then generated inline types.
 	typeMap := make(map[string]TypeDef)
 	for _, td := range conv.types {
@@ -150,6 +192,7 @@ func Generate(iface *openbindings.Interface) (*CodegenResult, error) {
 		Description:   iface.Description,
 		Types:         types,
 		Operations:    ops,
+		Dependencies:  dependencies,
 	}, nil
 }
 
