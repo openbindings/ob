@@ -40,7 +40,13 @@ type cliRuntime struct {
 	SDK         *obsdk.Runtime
 	Synthesizer synthesize.InterfaceSynthesizer
 	OpenAPI     *openapi.Adapter
+
+	preparedMu        sync.Mutex
+	preparedProviders map[string]*invoke.PreparedProvider
+	preparedOrder     []string
 }
+
+const maxPreparedProviders = 64
 
 func newDefaultRuntime() *cliRuntime {
 	openAPI := openapi.NewAdapterWithOptions(openapi.AdapterOptions{
@@ -93,7 +99,46 @@ func newDefaultRuntime() *cliRuntime {
 		graphqlbinding.NewSynthesizer(),
 		newUsageSynthesizer(),
 	)
-	return &cliRuntime{SDK: runtime, Synthesizer: synthesizer, OpenAPI: openAPI}
+	return &cliRuntime{
+		SDK:               runtime,
+		Synthesizer:       synthesizer,
+		OpenAPI:           openAPI,
+		preparedProviders: make(map[string]*invoke.PreparedProvider),
+	}
+}
+
+// prepareProvider snapshots an interface once per canonical revision and
+// retains the generic provider catalog for this process. The catalog closes
+// exact realizations lazily; live credentials and configuration remain
+// per-invocation and are never cached here.
+func (r *cliRuntime) prepareProvider(iface *openbindings.Interface) (*invoke.PreparedProvider, error) {
+	prepared, err := openbindings.PrepareInterface(iface)
+	if err != nil {
+		return nil, err
+	}
+	revision := prepared.Revision()
+	r.preparedMu.Lock()
+	defer r.preparedMu.Unlock()
+	if provider := r.preparedProviders[revision]; provider != nil {
+		return provider, nil
+	}
+	provider, err := invoke.PrepareProvider(invoke.PreparedProviderOptions{
+		Key:       revision,
+		Label:     "ob interface " + revision,
+		Interface: prepared,
+		Runtime:   DefaultInvoker(),
+	})
+	if err != nil {
+		return nil, err
+	}
+	r.preparedProviders[revision] = provider
+	r.preparedOrder = append(r.preparedOrder, revision)
+	if len(r.preparedOrder) > maxPreparedProviders {
+		oldest := r.preparedOrder[0]
+		r.preparedOrder = r.preparedOrder[1:]
+		delete(r.preparedProviders, oldest)
+	}
+	return provider, nil
 }
 
 func defaultCLIRuntime() *cliRuntime {
@@ -135,7 +180,7 @@ func InspectSource(ctx context.Context, source *openbindings.Source) (*synthesiz
 	if ins, routed, err := inspectViaDelegate(ctx, source); routed {
 		return ins, err
 	}
-	if source != nil && isOpenAPIBindingSpec(source.BindingSpec) {
+	if source != nil && DefaultRuntime().SupportsBindingSpec(source.BindingSpec) {
 		return DefaultRuntime().InspectSource(ctx, source)
 	}
 	synthesizer := DefaultSynthesizer()
@@ -151,23 +196,11 @@ func runtimeOwnsSynthesis(input *synthesize.SynthesizeInput) bool {
 		return false
 	}
 	for _, source := range input.Sources {
-		if !isOpenAPIBindingSpec(source.BindingSpec) {
+		if !DefaultRuntime().SupportsBindingSpec(source.BindingSpec) {
 			return false
 		}
 	}
 	return true
-}
-
-func isOpenAPIBindingSpec(bindingSpec string) bool {
-	switch bindingSpec {
-	case openapi.BindingSpecOpenAPI20,
-		openapi.BindingSpecOpenAPI30,
-		openapi.BindingSpecOpenAPI31,
-		openapi.BindingSpecOpenAPI32:
-		return true
-	default:
-		return false
-	}
 }
 
 // DefaultInvoker returns the OperationInvoker owned by the singleton SDK

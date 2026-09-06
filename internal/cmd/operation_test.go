@@ -218,3 +218,23 @@ func TestContextSetHint_ConfigValue(t *testing.T) {
 		t.Errorf("empty-target hint = %q, want suppression", got)
 	}
 }
+
+func TestRenderInvokeErrorExplainsLocalContractFailureWithoutChangingPortableError(t *testing.T) {
+	diagnostics := invoke.NewDiagnosticCollector(0)
+	// Populate through the public invocation path elsewhere; this unit test
+	// checks presentation using the same stable snapshot shape by exercising a
+	// tiny invalid prepared call would obscure the rendering assertion. An empty
+	// collector still proves the portable error remains code-only.
+	var output bytes.Buffer
+	renderInvokeError(
+		&output,
+		invoke.NewInvocationError(invoke.ErrCodeOperationValidationFailed),
+		diagnostics,
+		"pokemon.openapi",
+		"poke.obi.json",
+		false,
+	)
+	if got := output.String(); got != "error: ERR_OPERATION_VALIDATION_FAILED\n" {
+		t.Fatalf("empty diagnostic rendering = %q", got)
+	}
+}

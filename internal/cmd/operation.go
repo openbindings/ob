@@ -219,7 +219,7 @@ Examples:
 			hadError := false
 			for ev := range run.Events {
 				if ev.Error != nil {
-					renderInvokeError(os.Stderr, ev.Error)
+					renderInvokeError(os.Stderr, ev.Error, run.Diagnostics, run.BindingKey, obiFile, verbose)
 					hadError = true
 					continue
 				}
@@ -278,7 +278,13 @@ func renderInvokeJSON(w io.Writer, run *app.ConfiguredInvocation) error {
 // any application-authored data, and — for CONTEXT_REQUIRED — the full
 // challenge plus a copy-pasteable remedy, so the auth loop closes from the
 // error itself instead of from the docs.
-func renderInvokeError(w io.Writer, ierr *invoke.InvocationError) {
+func renderInvokeError(
+	w io.Writer,
+	ierr *invoke.InvocationError,
+	diagnostics *invoke.DiagnosticCollector,
+	bindingKey, obiFile string,
+	verbose bool,
+) {
 	fmt.Fprintf(w, "error: %s\n", ierr.Code)
 	if details := invoke.ContextRequiredFrom(ierr); details != nil {
 		fmt.Fprintln(w, app.RenderContextRequirements(details))
@@ -292,6 +298,34 @@ func renderInvokeError(w io.Writer, ierr *invoke.InvocationError) {
 		enc := json.NewEncoder(w)
 		enc.SetEscapeHTML(false)
 		_ = enc.Encode(ierr.Data)
+	}
+	if ierr.Code == invoke.ErrCodeOperationValidationFailed && diagnostics != nil {
+		records, truncated := diagnostics.Snapshot()
+		limit := 1
+		if verbose {
+			limit = len(records)
+		}
+		if limit > len(records) {
+			limit = len(records)
+		}
+		for _, diagnostic := range records[:limit] {
+			location := diagnostic.InstancePointer
+			if location == "" {
+				location = "<root>"
+			}
+			qualifier := ""
+			if diagnostic.Keyword != "" {
+				qualifier = " (" + diagnostic.Keyword + ")"
+			}
+			fmt.Fprintf(w, "  contract %s: %s%s\n", diagnostic.Phase, location, qualifier)
+		}
+		if truncated || len(records) > limit {
+			fmt.Fprintf(w, "  additional contract failures omitted; rerun with --verbose\n")
+		}
+		if len(records) > 0 && records[0].Phase == invoke.ValidationPhaseOutput && bindingKey != "" {
+			fmt.Fprintf(w, "  the source returned a value, but it did not satisfy the operation contract\n")
+			fmt.Fprintf(w, "  inspect deliberately without operation validation via 'ob binding invoke %s %s'\n", obiFile, bindingKey)
+		}
 	}
 }
 
