@@ -18,6 +18,13 @@ ship as part of 0.2.0.
 
 ### Changed
 
+- **OpenAPI operation invocation now closes and reuses exact prepared-provider
+  realizations through the generic SDK path.** The process cache is bounded and
+  keyed by immutable interface revision. Human CLI output may show bounded,
+  value-free input/output contract locations for validation failures and point
+  to the existing raw `binding invoke` diagnostic lane; machine output and
+  portable invocation errors are unchanged.
+
 - **The binding member `ref` is renamed `selector`.** Every surface that
   carries the member follows the core rename: OBI documents
   (`bindings[*].selector`), the binding-invoker wire contract

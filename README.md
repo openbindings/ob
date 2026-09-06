@@ -163,6 +163,13 @@ Machine callers of the `/operations/invoke` WebSocket API exposed by
 `ob start` supply the same object as `context.configuration`. `ob operation
 prepare` accepts `--configuration` to preflight with points already known.
 
+If operation-output validation fails, the human CLI reports the safe contract
+location (one by default, all available locations with `--verbose`) without
+printing the rejected value or changing the machine error record. Use
+`ob binding invoke <obi> <exact-binding-key>` deliberately to inspect what the
+binding returned below operation validation. Binding keys are opaque exact
+selectors; `ob` does not parse protocol meaning from their spelling.
+
 ### 6. Generate typed client code
 
 ```bash
@@ -533,6 +540,12 @@ credentials are visibly separate. When a target declares recognizable context
 requirements, the workbench preflights them into focused credential fields
 while preserving alternatives and leaving protocol-specific context to the
 advanced JSON control.
+
+The workbench's explicit raw-binding mode resolves the canonical Binding
+Invoker capability through the same environment. It requires an exact binding,
+forwards a raw JSON value without operation schemas or transforms, and adds no
+OpenAPI-specific browser path. Operation and raw-binding editor buffers are
+kept separate.
 
 **Authentication.** Every endpoint except `/`, `/assets/*`, `/healthz`, `/.well-known/openbindings`, `/openapi.yaml`, `/asyncapi.yaml`, `/oauth/authorize`, and `/oauth/token` requires `Authorization: Bearer <token>`. The token comes from one of:
 - `--token` or the `OB_START_TOKEN` env var (static, caller-supplied)

@@ -67,6 +67,8 @@ func registerCanonicalOperationRoutes(srv *server.Server, logger *slog.Logger) {
 	}
 
 	mux := srv.Mux()
+	diagnostics := &workbenchDiagnostics{}
+	mux.HandleFunc("GET /workbench/diagnostics/{id}", diagnostics.serve)
 	registered := make(map[string]bool, len(httpHandlers))
 	for _, route := range app.ServeHTTPRoutes() {
 		handler := httpHandlers[route.Operation]
@@ -88,7 +90,7 @@ func registerCanonicalOperationRoutes(srv *server.Server, logger *slog.Logger) {
 
 	streamHandlers := map[string]http.HandlerFunc{
 		"invokeBinding":   handleBindingInvoke(srv, logger),
-		"invokeOperation": handleOperationInvoke(srv, logger),
+		"invokeOperation": handleOperationInvoke(srv, logger, diagnostics),
 	}
 	for _, route := range app.ServeStreamRoutes() {
 		handler := streamHandlers[route.Operation]

@@ -70,6 +70,8 @@ type OperationHandleInput struct {
 	Operation string
 	Binding   string
 	Context   map[string]any
+	// Local evidence only; never serialized into the invocation contract.
+	Diagnostics *invoke.DiagnosticCollector
 }
 
 // InvokeOperationHandle returns the cardinality-agnostic operation-layer
@@ -89,6 +91,9 @@ func InvokeOperationHandle(ctx context.Context, input OperationHandleInput) invo
 
 	operation := input.Operation
 	var opts []invoke.InvokeOption
+	if input.Diagnostics != nil {
+		opts = append(opts, invoke.WithDiagnosticCollector(input.Diagnostics))
+	}
 	if len(input.Context) > 0 {
 		opts = append(opts, invoke.WithContext(input.Context))
 	}

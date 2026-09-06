@@ -12,6 +12,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"reflect"
 	"sort"
 	"strings"
 	"sync"
@@ -541,8 +542,10 @@ func driveBinding(
 								if guard != nil {
 									merged = invoke.ScopeContext(merged, details)
 								}
-								contextData = merged
-								break // next round re-invokes with merged context
+								if !reflect.DeepEqual(contextData, merged) {
+									contextData = merged
+									break // next round only when context actually changes
+								}
 							}
 						}
 					}
@@ -608,6 +611,9 @@ type ConfiguredInvocation struct {
 	BindingKey       string
 	DisplacedWarning string
 	DisplacedDetail  []string
+	// Diagnostics is bounded process-local evidence for an operation contract
+	// failure. It is never serialized as InvocationError data.
+	Diagnostics *invoke.DiagnosticCollector
 }
 
 // InvokeOBIOperationConfigured invokes an operation with an optional
@@ -696,16 +702,27 @@ func invokeOnInterface(ctx context.Context, iface *openbindings.Interface, opKey
 		return nil, fmt.Errorf("no invoker or delegate handles format %q", es.BindingSpec)
 	}
 
-	if isOpenAPIBindingSpec(es.BindingSpec) {
+	if DefaultRuntime().SupportsBindingSpec(es.BindingSpec) {
 		// OpenAPI enters the SDK operation path exactly once. Its operation
-		// invoker owns T-07/T-08 validation, both transforms,
+		// provider realization owns T-07/T-08 validation, both transforms,
 		// CONTEXT_REQUIRED preflight/retry, delivery bounds, and
-		// cardinality-agnostic streaming.
-		options := []invoke.InvokeOption{invoke.WithBindingKey(resolved.bindingKey)}
+		// cardinality-agnostic streaming. Preparation and binding closure are
+		// content-addressed and reused for this process revision.
+		provider, prepareErr := defaultCLIRuntime().prepareProvider(iface)
+		if prepareErr != nil {
+			return nil, fmt.Errorf("prepare interface provider: %w", prepareErr)
+		}
+		realization, closeErr := provider.CloseRealization(ctx, resolved.bindingKey)
+		if closeErr != nil {
+			return nil, fmt.Errorf("close binding realization %q: %w", resolved.bindingKey, closeErr)
+		}
+		diagnostics := invoke.NewDiagnosticCollector(0)
+		options := []invoke.InvokeOption{invoke.WithDiagnosticCollector(diagnostics)}
 		if len(callerContext) > 0 {
 			options = append(options, invoke.WithContext(callerContext))
 		}
-		call := invoke.Invoke(ctx, DefaultInvoker(), iface, invoke.NewOperationSignature[any, any](opCanonical), options...)
+		call := realization.Invoke(ctx, options...)
+		run.Diagnostics = diagnostics
 		run.Events = driveOperationInvocation(ctx, call, input)
 		return run, nil
 	}

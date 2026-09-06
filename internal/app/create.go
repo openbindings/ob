@@ -315,6 +315,7 @@ func processSource(iface *openbindings.Interface, src SynthesizeInterfaceSource,
 				BindingSpec: src.BindingSpec,
 				Location:    src.Location,
 				Content:     src.Content,
+				Embed:       src.Embed || IsEmbeddableLocalFile(src.Location, ""),
 			},
 		},
 		OnWarning: printSynthesizerWarning,
@@ -411,6 +412,14 @@ func mergeGeneratedSource(iface *openbindings.Interface, generated *openbindings
 		BindingSpec: src.BindingSpec,
 		Description: src.Description,
 	}
+	// Preserve the provider's source identity. Embedded content is authoritative,
+	// but may still need its explicitly carried base for references or servers.
+	if len(generated.Sources) == 1 {
+		for _, source := range generated.Sources {
+			bsrc.Location = source.Location
+			bsrc.Content = source.Content
+		}
+	}
 
 	// Build x-ob metadata (resolve mode determined above).
 	meta := SourceMeta{
@@ -420,7 +429,7 @@ func mergeGeneratedSource(iface *openbindings.Interface, generated *openbindings
 	}
 
 	// If OutputLocation is set, use it as the published URI.
-	if src.OutputLocation != "" && src.OutputLocation != src.Location {
+	if src.OutputLocation != "" {
 		meta.URI = src.OutputLocation
 	}
 
@@ -436,11 +445,21 @@ func mergeGeneratedSource(iface *openbindings.Interface, generated *openbindings
 		// matching the file lane's posture: synthesis never polices it, the
 		// invoke-time gate (resolveSourceLocation) refuses a relative
 		// spec-level location under OBI-D-05 for all lanes alike.
-		bsrc.Location = meta.URI
+		if meta.URI != "" {
+			bsrc.Location = meta.URI
+		}
 	case resolveMode == ResolveModeContent:
 		// Read and embed content (format decides object vs string, the same
 		// parse `source add --resolve content` and pull refreshes use).
-		data, err := ReadSourceContent(src.Location, "")
+		// Prefer the provider's already-analyzed artifact. Re-fetching here
+		// could embed a different revision from the operation projection.
+		var data []byte
+		var err error
+		if bsrc.Content != nil {
+			data, err = openbindings.ContentToBytes(bsrc.Content)
+		} else {
+			data, err = ReadSourceContent(src.Location, "")
+		}
 		if err != nil {
 			return fmt.Errorf("embed content: %w", err)
 		}
@@ -453,7 +472,9 @@ func mergeGeneratedSource(iface *openbindings.Interface, generated *openbindings
 		// `?embed&outputLocation=` carries both: the pinned artifact plus
 		// the format-defined location (canonical origin, or the service's
 		// dial address for service-addressed formats — §6.4).
-		bsrc.Location = meta.URI
+		if meta.URI != "" {
+			bsrc.Location = meta.URI
+		}
 	default:
 		// Use outputLocation if provided, otherwise input location.
 		if src.OutputLocation != "" {

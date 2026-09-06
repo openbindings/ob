@@ -305,7 +305,7 @@ type delegateCLIInvoker struct {
 func delegateExecInvoker(delegate string) *invoke.OperationInvoker {
 	lane := DefaultInvoker().WithRuntime(nil) // blessed shallow copy; runtime fields ride
 	lane.OutputDecoder = func(site invoke.InvokeSite, raw invoke.RawResult) (any, error) {
-		if site.FamilyName() != "usage" {
+		if site.BindingSpec != usage.BindingSpec {
 			return nil, invoke.ErrUseDefault
 		}
 		if len(raw.Body) == 0 {

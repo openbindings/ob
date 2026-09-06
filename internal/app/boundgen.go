@@ -623,7 +623,7 @@ func BoundCLIHookTable(contract *openbindings.Interface) usage.HookTable {
 func InstallBoundCLIHooks(inv *invoke.OperationInvoker, contract *openbindings.Interface) {
 	decode, classify, route := BoundCLIHookTable(contract).Hooks()
 	guard := func(site invoke.InvokeSite) bool {
-		return site.FamilyName() == "usage" && (site.Target == "ob" || strings.HasSuffix(site.Target, "/ob"))
+		return site.BindingSpec == usage.BindingSpec && (site.Target == "ob" || strings.HasSuffix(site.Target, "/ob"))
 	}
 	inv.OutputDecoder = func(site invoke.InvokeSite, raw invoke.RawResult) (any, error) {
 		if !guard(site) {

@@ -31,17 +31,37 @@ type DelegateClaim struct {
 // format produces a DelegateClaim with the format token it assigned and
 // the operation/binding counts from the interface it built.
 func DetectSourceCandidates(location string) ([]DelegateClaim, error) {
+	var claims []DelegateClaim
+	var retrievalErr error
 	if !strings.HasPrefix(location, "http://") && !strings.HasPrefix(location, "https://") && !strings.HasPrefix(location, "exec:") {
 		if _, err := os.Stat(location); err != nil {
 			return nil, fmt.Errorf("source file not found: %s", location)
 		}
 	}
+	// Byte acquisition and optional provider recognition are separate from
+	// validation. Never turn a failed retrieval or recognized invalid document
+	// into a claim that the format is unknown. Non-byte services keep probing.
+	if strings.HasPrefix(location, "http://") || strings.HasPrefix(location, "https://") || IsEmbeddableLocalFile(location, "") {
+		data, err := ReadSourceContent(location, "")
+		if err != nil {
+			// HTTP locations may be non-artifact services (for example MCP).
+			// Keep their existing synthesis probes before surfacing a GET failure.
+			retrievalErr = fmt.Errorf("retrieve source: %w", err)
+		} else if recognized, handled, err := recognizedSource(data, location); handled {
+			if err != nil {
+				return nil, err
+			}
+			claims = append(claims, recognized...)
+		}
+	}
 
-	var claims []DelegateClaim
 	// Each OpenAPI sibling claims only its own artifact edition. Auto-detection
 	// keeps the first successful exact identifier in one family while explicit
 	// identifiers remain exact everywhere else.
 	claimedFamilies := map[string]bool{}
+	for _, claim := range claims {
+		claimedFamilies[SpecFamily(claim.BindingSpec)] = true
+	}
 	for _, fi := range DefaultSynthesizer().BindingSpecs() {
 		family := SpecFamily(fi.BindingSpec)
 		if claimedFamilies[family] {
@@ -54,7 +74,10 @@ func DetectSourceCandidates(location string) ([]DelegateClaim, error) {
 	}
 
 	if len(claims) == 0 {
-		return nil, fmt.Errorf("could not detect the format of %q; specify it explicitly (e.g. openbindings.openapi-3.1@1:%s)", location, location)
+		if retrievalErr != nil {
+			return nil, retrievalErr
+		}
+		return nil, fmt.Errorf("could not recognize or validate the source format; select an exact binding specification to inspect its document errors")
 	}
 
 	return claims, nil
@@ -68,9 +91,18 @@ func DetectSourceCandidates(location string) ([]DelegateClaim, error) {
 // rejects the bytes are non-claims.
 func detectCandidatesFromBytes(data []byte) ([]DelegateClaim, error) {
 	var claims []DelegateClaim
+	if recognized, handled, err := recognizedSource(data, ""); handled {
+		if err != nil {
+			return nil, err
+		}
+		claims = append(claims, recognized...)
+	}
 	// See DetectSourceCandidates: one automatic claim per binding family;
 	// callers can still request any exact sibling identifier explicitly.
 	claimedFamilies := map[string]bool{}
+	for _, claim := range claims {
+		claimedFamilies[SpecFamily(claim.BindingSpec)] = true
+	}
 	for _, fi := range DefaultSynthesizer().BindingSpecs() {
 		family := SpecFamily(fi.BindingSpec)
 		if claimedFamilies[family] {
@@ -91,6 +123,30 @@ func detectCandidatesFromBytes(data []byte) ([]DelegateClaim, error) {
 	}
 
 	return claims, nil
+}
+
+func recognizedSource(data []byte, location string) ([]DelegateClaim, bool, error) {
+	for _, recognize := range defaultCLIRuntime().Recognizers {
+		spec, claimed, err := recognize(data)
+		if !claimed {
+			continue
+		}
+		if err != nil {
+			return nil, true, fmt.Errorf("recognized source edition is unsupported or invalid: %w", err)
+		}
+		content, err := ParseContentForEmbed(data, spec)
+		if err != nil {
+			return nil, true, fmt.Errorf("recognized %s document: %w", spec, err)
+		}
+		ctx, cancel := context.WithTimeout(context.Background(), probeTimeout)
+		iface, err := SynthesizeInterfaceFromSource(ctx, &synthesize.SynthesizeInput{Sources: []synthesize.SynthesizeSource{{BindingSpec: spec, Location: location, Content: content}}})
+		cancel()
+		if err != nil {
+			return nil, true, fmt.Errorf("recognized %s document could not be synthesized: %w", spec, err)
+		}
+		return []DelegateClaim{{DelegateName: "ob", DelegateID: "ob", BindingSpec: spec, OperationCount: len(iface.Operations), BindingCount: len(iface.Bindings)}}, true, nil
+	}
+	return nil, false, nil
 }
 
 // probeFormatClaim runs one bounded synthesis probe and returns the claim

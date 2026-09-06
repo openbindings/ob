@@ -53,8 +53,14 @@ func TestBindingInvoke_WireLaneReadsWhatT08Refuses(t *testing.T) {
 	if !strings.Contains(stderr, "ERR_OPERATION_VALIDATION_FAILED") {
 		t.Errorf("expected T-08 refusal, got: %s", stderr)
 	}
-	if strings.Contains(stderr, "listOrders.openapi") {
-		t.Errorf("abstract refusal leaked the selected binding identity: %s", stderr)
+	if !strings.Contains(stderr, "contract output: /orders/*/quantity") {
+		t.Errorf("expected safe output-contract location, got: %s", stderr)
+	}
+	if !strings.Contains(stderr, "ob binding invoke") || !strings.Contains(stderr, "listOrders.openapi") {
+		t.Errorf("expected an explicit raw-inspection remedy naming the opaque binding key, got: %s", stderr)
+	}
+	if strings.Contains(stderr, `\"quantity\":\"three\"`) {
+		t.Errorf("validation diagnostics leaked the rejected value: %s", stderr)
 	}
 
 	// Wire lane: reads the drifted truth, exit 0.
