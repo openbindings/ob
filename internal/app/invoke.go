@@ -12,6 +12,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"reflect"
 	"sort"
 	"strings"
 	"sync"
@@ -541,8 +542,10 @@ func driveBinding(
 								if guard != nil {
 									merged = invoke.ScopeContext(merged, details)
 								}
-								contextData = merged
-								break // next round re-invokes with merged context
+								if !reflect.DeepEqual(contextData, merged) {
+									contextData = merged
+									break // next round only when context actually changes
+								}
 							}
 						}
 					}
