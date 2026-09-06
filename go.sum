@@ -130,8 +130,8 @@ github.com/openbindings/asyncapi-client/go v0.0.0-20260820220441-54678886c38c h1
 github.com/openbindings/asyncapi-client/go v0.0.0-20260820220441-54678886c38c/go.mod h1:pD1jTd3B8x68+QGtRDOU7hCi7xS7eynVufeTlwDwNkI=
 github.com/openbindings/openapi-client/go v0.0.0-20260906104423-3914c0643923 h1:V60yvbncd3iOiLmshXTdvxdijMR2lZULkZU+yCE22Lo=
 github.com/openbindings/openapi-client/go v0.0.0-20260906104423-3914c0643923/go.mod h1:96uKJWrcSmr11cqM36KxDpyZRrBU8pHnHJmWQ8oBn2Y=
-github.com/openbindings/openbindings-go v0.1.1-0.20260906113112-554498d64cf3 h1:C0H6N0uWvPgNFW8EO/xZBJ0HFlo/vroM3ASMsQyNW/U=
-github.com/openbindings/openbindings-go v0.1.1-0.20260906113112-554498d64cf3/go.mod h1:199QZVpy/zqytO6KZr5WugIwpLGCMs+Zevgv8CnM+gU=
+github.com/openbindings/openbindings-go v0.1.1-0.20260906114906-57ce4d9484b5 h1:lsrkMF+3M+z342N6w196UJjwexst7iO8vpDY1JoCfLk=
+github.com/openbindings/openbindings-go v0.1.1-0.20260906114906-57ce4d9484b5/go.mod h1:199QZVpy/zqytO6KZr5WugIwpLGCMs+Zevgv8CnM+gU=
 github.com/openbindings/openbindings-go/formats/asyncapi v0.1.1-0.20260829010906-cc50e624119d h1:VsgNWWEaN9cyYsRJL8egdYJ8wTrcpx/D/wRYQVxc4sk=
 github.com/openbindings/openbindings-go/formats/asyncapi v0.1.1-0.20260829010906-cc50e624119d/go.mod h1:qx3YW395C6l7TfcTL4KsoejPbu2MD5N7pz2tP3a9pec=
 github.com/openbindings/openbindings-go/formats/connect v0.1.1-0.20260829010906-cc50e624119d h1:dilNKv9qF0RskJ+vyv8TxAQh8cA7MUQXxtbZ7eUWU48=
@@ -142,12 +142,12 @@ github.com/openbindings/openbindings-go/formats/grpc v0.1.1-0.20260829010906-cc5
 github.com/openbindings/openbindings-go/formats/grpc v0.1.1-0.20260829010906-cc50e624119d/go.mod h1:3bVwktlYislW30cRKX8xNCcqVuJcrZ598VS+1sZtsNE=
 github.com/openbindings/openbindings-go/formats/mcp v0.1.1-0.20260829010906-cc50e624119d h1:F6leqbuTVoZcXgWjbWq/cN3EXJTCpq47YI9nGvvOrmU=
 github.com/openbindings/openbindings-go/formats/mcp v0.1.1-0.20260829010906-cc50e624119d/go.mod h1:QJr1Re2qCqPBcRNQLhs5EEZNiYxG/K7W7M0QZ13wwvI=
-github.com/openbindings/openbindings-go/formats/openapi v0.1.1-0.20260906113112-554498d64cf3 h1:TPL43n/PmHBEfJBCli4W+swXY45QVHYWTnjceyPzylo=
-github.com/openbindings/openbindings-go/formats/openapi v0.1.1-0.20260906113112-554498d64cf3/go.mod h1:yDFrSFbETlGeg697IlXRWRTmeVaPNjnhut7TDWIVcd4=
+github.com/openbindings/openbindings-go/formats/openapi v0.1.1-0.20260906114906-57ce4d9484b5 h1:GyNqH7MsZTBh6XSw9k+1aqkIJVX3xTu4H6Ej2p2tZok=
+github.com/openbindings/openbindings-go/formats/openapi v0.1.1-0.20260906114906-57ce4d9484b5/go.mod h1:yDFrSFbETlGeg697IlXRWRTmeVaPNjnhut7TDWIVcd4=
 github.com/openbindings/openbindings-go/formats/operationgraph v0.1.1-0.20260829010906-cc50e624119d h1:bU+k3IiUi43NOYOx58yvlzterRtnz0pE50ooeG97a64=
 github.com/openbindings/openbindings-go/formats/operationgraph v0.1.1-0.20260829010906-cc50e624119d/go.mod h1:EkHIOMLHCFoWQB2h198CuJCKTZkMlpkYqtZGFCmidz8=
-github.com/openbindings/openbindings-go/formats/usage v0.1.1-0.20260906113112-554498d64cf3 h1:NOiEBWxadEakHWbfvl5qa4WqNahDXj27zyleFsMwjHQ=
-github.com/openbindings/openbindings-go/formats/usage v0.1.1-0.20260906113112-554498d64cf3/go.mod h1:rZCkEQk78O2tage6aunOnW0lGiDmM4XIf1Co5uQnqs0=
+github.com/openbindings/openbindings-go/formats/usage v0.1.1-0.20260906114906-57ce4d9484b5 h1:z4wzFqAfRCaW9y2Gi/Omd/lYr+e5sDSwb8jXrsD+/DU=
+github.com/openbindings/openbindings-go/formats/usage v0.1.1-0.20260906114906-57ce4d9484b5/go.mod h1:rZCkEQk78O2tage6aunOnW0lGiDmM4XIf1Co5uQnqs0=
 github.com/pierrec/lz4/v4 v4.1.26 h1:GrpZw1gZttORinvzBdXPUXATeqlJjqUG/D87TKMnhjY=
 github.com/pierrec/lz4/v4 v4.1.26/go.mod h1:EoQMVJgeeEOMsCqCzqFm2O0cJvljX2nGZjcRIPL34O4=
 github.com/pmezard/go-difflib v1.0.0 h1:4DBwDE0NGyQoBHbLQYPwSUPoCMWR5BEzIk/f1lZbAQM=

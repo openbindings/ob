@@ -12,9 +12,9 @@ require (
 	github.com/openbindings/openbindings-go/formats/graphql v0.1.1-0.20260829010906-cc50e624119d
 	github.com/openbindings/openbindings-go/formats/grpc v0.1.1-0.20260829010906-cc50e624119d
 	github.com/openbindings/openbindings-go/formats/mcp v0.1.1-0.20260829010906-cc50e624119d
-	github.com/openbindings/openbindings-go/formats/openapi v0.1.1-0.20260906113112-554498d64cf3
+	github.com/openbindings/openbindings-go/formats/openapi v0.1.1-0.20260906114906-57ce4d9484b5
 	github.com/openbindings/openbindings-go/formats/operationgraph v0.1.1-0.20260829010906-cc50e624119d
-	github.com/openbindings/openbindings-go/formats/usage v0.1.1-0.20260906113112-554498d64cf3
+	github.com/openbindings/openbindings-go/formats/usage v0.1.1-0.20260906114906-57ce4d9484b5
 	github.com/spf13/cobra v1.10.2
 	gopkg.in/yaml.v3 v3.0.1
 )
@@ -93,13 +93,13 @@ require (
 replace (
 	github.com/openbindings/asyncapi-client/go v0.1.0 => github.com/openbindings/asyncapi-client/go v0.0.0-20260820220441-54678886c38c
 	github.com/openbindings/openapi-client/go v0.1.0 => github.com/openbindings/openapi-client/go v0.0.0-20260906104423-3914c0643923
-	github.com/openbindings/openbindings-go v0.2.0 => github.com/openbindings/openbindings-go v0.1.1-0.20260906113112-554498d64cf3
+	github.com/openbindings/openbindings-go v0.2.0 => github.com/openbindings/openbindings-go v0.1.1-0.20260906114906-57ce4d9484b5
 	github.com/openbindings/openbindings-go/formats/asyncapi v0.2.0 => github.com/openbindings/openbindings-go/formats/asyncapi v0.1.1-0.20260829010906-cc50e624119d
 	github.com/openbindings/openbindings-go/formats/connect v0.2.0 => github.com/openbindings/openbindings-go/formats/connect v0.1.1-0.20260829010906-cc50e624119d
 	github.com/openbindings/openbindings-go/formats/graphql v0.2.0 => github.com/openbindings/openbindings-go/formats/graphql v0.1.1-0.20260829010906-cc50e624119d
 	github.com/openbindings/openbindings-go/formats/grpc v0.2.0 => github.com/openbindings/openbindings-go/formats/grpc v0.1.1-0.20260829010906-cc50e624119d
 	github.com/openbindings/openbindings-go/formats/mcp v0.2.0 => github.com/openbindings/openbindings-go/formats/mcp v0.1.1-0.20260829010906-cc50e624119d
-	github.com/openbindings/openbindings-go/formats/openapi v0.2.0 => github.com/openbindings/openbindings-go/formats/openapi v0.1.1-0.20260906113112-554498d64cf3
+	github.com/openbindings/openbindings-go/formats/openapi v0.2.0 => github.com/openbindings/openbindings-go/formats/openapi v0.1.1-0.20260906114906-57ce4d9484b5
 	github.com/openbindings/openbindings-go/formats/operationgraph v0.2.0 => github.com/openbindings/openbindings-go/formats/operationgraph v0.1.1-0.20260829010906-cc50e624119d
-	github.com/openbindings/openbindings-go/formats/usage v0.2.0 => github.com/openbindings/openbindings-go/formats/usage v0.1.1-0.20260906113112-554498d64cf3
+	github.com/openbindings/openbindings-go/formats/usage v0.2.0 => github.com/openbindings/openbindings-go/formats/usage v0.1.1-0.20260906114906-57ce4d9484b5
 )
