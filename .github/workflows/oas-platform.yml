@@ -6,6 +6,8 @@ on:
     paths:
       - '.github/workflows/oas-platform.yml'
       - 'scripts/verify-oas-platform.mjs'
+      - 'scripts/verify-oas-browser-journeys.mjs'
+      - 'scripts/verify-oas-public-corroboration.mjs'
       - 'go.mod'
       - 'go.sum'
       - 'internal/server/workbench/dist/**'
@@ -45,4 +47,38 @@ jobs:
       - name: Install browser
         run: node "$OB_PLATFORM_BROWSER_ROOT/node_modules/playwright/cli.js" install --with-deps chromium
       - name: Prove normal installed-process invocation and browser journey
-        run: node ob/scripts/verify-oas-platform.mjs "$GITHUB_WORKSPACE"
+        id: platform
+        run: node ob/scripts/verify-oas-platform.mjs "$GITHUB_WORKSPACE" | tee "$RUNNER_TEMP/oas-platform-result.json"
+      - name: Check out exact workbench qualification tests
+        if: matrix.runner == 'ubuntu-24.04'
+        uses: actions/checkout@v7
+        with:
+          repository: openbindings/elements
+          ref: 495759b1e4bb8e1c5027f74f1557039bc69106a5
+          path: elements
+      - name: Install isolated workbench test runner
+        if: matrix.runner == 'ubuntu-24.04'
+        run: npm install --prefix "$OB_PLATFORM_BROWSER_ROOT" --no-audit --no-fund @playwright/test@1.61.1
+      - name: Qualify the same binary with workbench and journey tests
+        if: matrix.runner == 'ubuntu-24.04'
+        run: node ob/scripts/verify-oas-browser-journeys.mjs "$GITHUB_WORKSPACE" "$RUNNER_TEMP/oas-platform-result.json" "$RUNNER_TEMP/oas-browser-journeys"
+      - name: Preserve workbench qualification evidence
+        if: always() && matrix.runner == 'ubuntu-24.04'
+        uses: actions/upload-artifact@v4
+        with:
+          name: oas-browser-journeys
+          path: |
+            ${{ runner.temp }}/oas-platform-result.json
+            ${{ runner.temp }}/oas-browser-journeys/RESULTS.json
+            ${{ runner.temp }}/oas-browser-journeys/test-results
+          if-no-files-found: warn
+      - name: Bounded public-artifact corroboration
+        if: always() && matrix.runner == 'ubuntu-24.04' && steps.platform.outcome == 'success'
+        run: node ob/scripts/verify-oas-public-corroboration.mjs "$RUNNER_TEMP/oas-platform-result.json" "$RUNNER_TEMP/oas-public-corroboration"
+      - name: Preserve public corroboration evidence
+        if: always() && matrix.runner == 'ubuntu-24.04'
+        uses: actions/upload-artifact@v4
+        with:
+          name: oas-public-corroboration
+          path: ${{ runner.temp }}/oas-public-corroboration
+          if-no-files-found: warn
