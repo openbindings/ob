@@ -14,7 +14,7 @@ const binary=path.join(platform.dir,process.platform==='win32'?'ob.exe':'ob');
 const hash=bytes=>createHash('sha256').update(bytes).digest('hex');
 assert.equal(hash(fs.readFileSync(binary)),platform.binaryHash);
 assert.equal(execFileSync('go',['version','-m',binary],{encoding:'utf8'}),platform.buildInfo);
-const record={started:new Date().toISOString(),binaryHash:platform.binaryHash,obSHA:platform.sourceRevisions.ob,maxExternalGETs:30,usedBudget:1,priorGETs:1,priorRun:'34533162907: one PokeAPI artifact GET before harness E2BIG; no CLI process started',requests:[],commands:[],sources:[]};
+const record={started:new Date().toISOString(),binaryHash:platform.binaryHash,obSHA:platform.sourceRevisions.ob,maxExternalGETs:30,usedBudget:2,priorGETs:2,priorRun:'34533162907: one PokeAPI artifact GET before harness E2BIG. 34533848052: one artifact GET before harness outputLocation spelling error; no API invocation.',requests:[],commands:[],sources:[]};
 const save=()=>fs.writeFileSync(path.join(evidence,'RESULTS.json'),JSON.stringify(record,null,2)+'\n');
 function reserve(count){assert(record.usedBudget+count<=30,'External request budget exceeded');record.usedBudget+=count;save();}
 async function get(url){
@@ -54,17 +54,24 @@ const sources=[
 ];
 try{
   const available={};
-  for(const [name,bindingSpec,url]of sources){
+  for(const [name,expectedBindingSpec,url]of sources){
     const response=await get(url);const item={name,url,status:response?.status};record.sources.push(item);
     if(!response||response.status!==200){item.disposition='INCONCLUSIVE_ACQUISITION';continue;}
     fs.writeFileSync(path.join(evidence,name+'.source'),response.text);
+    const advertised=response.text.trimStart().startsWith('{')?JSON.parse(response.text).openapi:response.text.match(/^openapi:\s*["']?(3\.[012]\.\d+)/m)?.[1];
+    const edition=typeof advertised==='string'?advertised.match(/^(3\.[012])\./)?.[1]:undefined;
+    if(!edition){item.disposition='INCONCLUSIVE_UNRECOGNIZED_EDITION';continue;}
+    const bindingSpec='openbindings.openapi-'+edition+'@1';Object.assign(item,{advertised,bindingSpec,expectedBindingSpec});
     const refs=externalReferences(response.text);item.externalReferences=refs;
     if(refs.length){item.disposition='INCONCLUSIVE_UNBUDGETED_REFERENCE_CLOSURE';continue;}
     const obi=path.join(evidence,name+'.obi.json');
     const source={bindingSpec,location:url,content:response.text};
     // Existing stdin artifact lane preserves the exact fetched bytes and the
     // original source base without exceeding the OS's per-argument limit.
-    const synthesis=await command(name+'-synthesize',['synthesize',bindingSpec+':-?outputLocation='+encodeURIComponent(url),'-o',obi],false,response.text);
+    // ParseSource options carry literal values, not URLSearchParams decoding.
+    // These fixed source URLs have no '&' separator; assert before passing them.
+    assert(!url.includes('&'));
+    const synthesis=await command(name+'-synthesize',['synthesize',bindingSpec+':-?outputLocation='+url,'-o',obi],false,response.text);
     if(synthesis.code!==0){item.disposition='SYNTHESIS_REFUSAL_REQUIRES_CLASSIFICATION';continue;}
     const validation=await command(name+'-validate',['validate',obi]);
     item.disposition=validation.code===0?'SYNTHESIZED_AND_VALIDATED':'VALIDATION_FAILURE';
@@ -97,7 +104,8 @@ try{
   if(available.petstore&&available.petstore.generated.operations?.getOrderById)await command('petstore-read-only-order',['op','invoke',available.petstore.obi,'getOrderById','--input','{"orderId":10}'],true);
   for(const [name,url]of [['non-oas','https://pokeapi.co/api/v2/pokemon/pikachu'],['missing','https://raw.githubusercontent.com/open-meteo/open-meteo/main/openapi.yml']]){
     const response=await get(url);if(!response)continue;
-    const row=await command(name+'-rejection',['synthesize','openbindings.openapi-3.1@1:-?outputLocation='+encodeURIComponent(url)],false,response.text);
+    assert(!url.includes('&'));
+    const row=await command(name+'-rejection',['synthesize','openbindings.openapi-3.1@1:-?outputLocation='+url],false,response.text);
     assert.notEqual(row.code,0,name+' unexpectedly synthesized');
   }
   record.verdict='COLLECTED_REQUIRES_PRIMARY_CLASSIFICATION';record.budgetAccounting='Direct fetches counted; each CLI invocation reserves two GETs, no redirects, no external refs, update checks disabled. Not server-observed counts.';
