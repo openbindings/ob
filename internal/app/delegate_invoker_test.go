@@ -435,7 +435,7 @@ exit 1
 		t.Errorf("source = %#v, want thrift@1.0 / service.thrift", src)
 	}
 	input, _ := received["input"].(map[string]any)
-	if input["limit"] != float64(10) {
+	if input["limit"] != json.Number("10") {
 		t.Errorf("input = %#v, want {limit: 10}", input)
 	}
 

@@ -3,7 +3,7 @@ package app
 import (
 	"crypto/sha256"
 	"encoding/hex"
-	"encoding/json"
+	"errors"
 	"fmt"
 	"sort"
 	"strconv"
@@ -12,6 +12,7 @@ import (
 
 	"github.com/openbindings/openbindings-go"
 	"github.com/openbindings/openbindings-go/canonicaljson"
+	"github.com/openbindings/openbindings-go/jsonvalue"
 	"github.com/openbindings/openbindings-go/schemaprofile"
 )
 
@@ -431,8 +432,19 @@ func subsumptionFindings(opKey, direction string, left, right, leftRoot, rightRo
 	// $refs resolve, then the directional check runs on the results.
 	ln, lerr := (&schemaprofile.Normalizer{Root: leftRoot}).Normalize(lr)
 	rn, rerr := (&schemaprofile.Normalizer{Root: rightRoot}).Normalize(rr)
-	if lerr != nil || rerr != nil {
-		return nil // outside profile or unresolvable: graded by the walk
+	if lerr != nil {
+		var capability *jsonvalue.CapabilityError
+		if errors.As(lerr, &capability) {
+			return []Finding{comparisonUnavailable("/operations/"+escapePointer(opKey)+"/"+direction, direction, lerr)}
+		}
+		return nil // Established outside-profile/ref handling belongs to the structural walk.
+	}
+	if rerr != nil {
+		var capability *jsonvalue.CapabilityError
+		if errors.As(rerr, &capability) {
+			return []Finding{comparisonUnavailable("/operations/"+escapePointer(opKey)+"/"+direction, direction, rerr)}
+		}
+		return nil
 	}
 
 	norm := &schemaprofile.Normalizer{}
@@ -444,7 +456,14 @@ func subsumptionFindings(opKey, direction string, left, right, leftRoot, rightRo
 	} else {
 		ok, reason, err = norm.OutputCompatible(ln, rn)
 	}
-	if err != nil || ok {
+	if err != nil {
+		var capability *jsonvalue.CapabilityError
+		if errors.As(err, &capability) {
+			return []Finding{comparisonUnavailable("/operations/"+escapePointer(opKey)+"/"+direction, direction, err)}
+		}
+		return nil
+	}
+	if ok {
 		return nil
 	}
 	f := finding("subsume.violated", "right", "/operations/"+escapePointer(opKey)+"/"+direction, nil, nil, direction)
@@ -515,6 +534,8 @@ func verdictRank(v string) int {
 // incompatible.
 func findingVerdict(f Finding) string {
 	switch {
+	case f.Kind == "comparison.unavailable":
+		return "indeterminate"
 	case f.Kind == "profile.ref.resolution_failed" || strings.HasPrefix(f.Kind, "profile.schema."):
 		return "indeterminate"
 	case strings.HasPrefix(f.Kind, "unverified."):
@@ -781,12 +802,20 @@ func enumFindings(ptr, direction string, left, right any) []Finding {
 	}
 	var out []Finding
 	for i, v := range ra {
-		if !arrayContains(la, v) {
+		found, err := arrayContains(la, v)
+		if err != nil {
+			return []Finding{comparisonUnavailable(ptr+"/enum", direction, err)}
+		}
+		if !found {
 			out = append(out, finding("enum.value.added", "right", ptr+"/enum/"+fmt.Sprint(i), left, right, direction))
 		}
 	}
 	for i, v := range la {
-		if !arrayContains(ra, v) {
+		found, err := arrayContains(ra, v)
+		if err != nil {
+			return []Finding{comparisonUnavailable(ptr+"/enum", direction, err)}
+		}
+		if !found {
 			out = append(out, finding("enum.value.removed", "left", ptr+"/enum/"+fmt.Sprint(i), left, right, direction))
 		}
 	}
@@ -819,23 +848,41 @@ func stringArrayOrEmpty(v any) []string {
 }
 
 func compareNumeric(findings *[]Finding, ptr, direction, keyword string, left, right any) {
-	lf, lok := numberValue(left)
-	rf, rok := numberValue(right)
-	if !lok || !rok || lf == rf {
+	_, lok, lerr := jsonvalue.NumberToken(left)
+	_, rok, rerr := jsonvalue.NumberToken(right)
+	if lerr != nil || rerr != nil || !lok || !rok {
+		return
+	}
+	order, err := jsonvalue.CompareNumbers(right, left)
+	if err != nil {
+		*findings = append(*findings, comparisonUnavailable(ptr+"/"+keyword, direction, err))
+		return
+	}
+	if order == 0 {
 		return
 	}
 	switch keyword {
 	case "minimum":
-		if rf > lf {
+		if order > 0 {
 			*findings = append(*findings, finding("numeric.minimum.tightened", "right", ptr+"/minimum", left, right, direction))
 		}
 	case "maximum":
-		if rf < lf {
+		if order < 0 {
 			*findings = append(*findings, finding("numeric.maximum.tightened", "right", ptr+"/maximum", left, right, direction))
 		} else {
 			*findings = append(*findings, finding("numeric.maximum.loosened", "right", ptr+"/maximum", left, right, direction))
 		}
 	}
+}
+
+func comparisonUnavailable(ptr, direction string, err error) Finding {
+	f := finding("comparison.unavailable", "right", ptr, nil, nil, direction)
+	// Do not disclose instance values or backend object representations.
+	f.Detail = "Schema comparison could not be completed"
+	if _, ok := err.(*jsonvalue.CapabilityError); ok {
+		f.Detail = "Exact numeric comparison exceeded its supported work limit"
+	}
+	return f
 }
 
 func finding(kind, side, pointer string, before, after any, direction string) Finding {
@@ -1086,7 +1133,7 @@ func contentHash(v any) string {
 func strippedCanonicalEqual(left, right any) bool {
 	l := stripAnnotations(left)
 	r := stripAnnotations(right)
-	return canonicalString(l) == canonicalString(r)
+	return exactValueEqual(l, r)
 }
 
 // containsRef reports whether v (a decoded JSON value) carries a "$ref" key
@@ -1125,8 +1172,21 @@ func stripAnnotations(v any) any {
 			switch k {
 			case "title", "description", "default", "examples", "$comment", "readOnly", "writeOnly", "deprecated":
 				continue
-			default:
+			case "properties", "patternProperties", "definitions", "$defs", "dependentSchemas":
+				out[k] = v
+				if children, ok := v.(map[string]any); ok {
+					copy := make(map[string]any, len(children))
+					for name, child := range children {
+						copy[name] = stripAnnotations(child)
+					}
+					out[k] = copy
+				}
+			case "items", "prefixItems", "allOf", "anyOf", "oneOf", "not", "if", "then", "else", "contains", "propertyNames", "additionalProperties", "additionalItems", "unevaluatedProperties", "unevaluatedItems", "contentSchema":
 				out[k] = stripAnnotations(v)
+			default:
+				// Instance-valued and unknown keywords are opaque. A member
+				// named "default" inside const/enum is data, not an annotation.
+				out[k] = v
 			}
 		}
 		return out
@@ -1139,14 +1199,6 @@ func stripAnnotations(v any) any {
 	default:
 		return v
 	}
-}
-
-func canonicalString(v any) string {
-	b, err := canonicaljson.Marshal(v)
-	if err != nil {
-		return ""
-	}
-	return string(b)
 }
 
 func sortedOperationKeys(iface *openbindings.Interface) []string {
@@ -1201,9 +1253,7 @@ func anyPtr(v any) *any {
 }
 
 func jsonValuesEqual(a, b any) bool {
-	ab, _ := json.Marshal(a)
-	bb, _ := json.Marshal(b)
-	return string(ab) == string(bb)
+	return exactValueEqual(a, b)
 }
 
 func boolValue(v any, def bool) bool {
@@ -1237,14 +1287,19 @@ func arrayValue(v any) ([]any, bool) {
 	return a, ok
 }
 
-func arrayContains(values []any, needle any) bool {
-	n := canonicalString(needle)
+func arrayContains(values []any, needle any) (bool, error) {
+	var unavailable error
 	for _, v := range values {
-		if canonicalString(v) == n {
-			return true
+		equal, err := jsonvalue.Equal(v, needle)
+		if err != nil {
+			unavailable = err
+			continue
+		}
+		if equal {
+			return true, nil
 		}
 	}
-	return false
+	return false, unavailable
 }
 
 func stringSliceContains(values []string, needle string) bool {
@@ -1254,20 +1309,6 @@ func stringSliceContains(values []string, needle string) bool {
 		}
 	}
 	return false
-}
-
-func numberValue(v any) (float64, bool) {
-	switch x := v.(type) {
-	case float64:
-		return x, true
-	case int:
-		return float64(x), true
-	case json.Number:
-		f, err := x.Float64()
-		return f, err == nil
-	default:
-		return 0, false
-	}
 }
 
 func (r ComparisonReport) Render() string {

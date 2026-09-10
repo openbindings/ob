@@ -14,6 +14,7 @@ import (
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 	openbindings "github.com/openbindings/openbindings-go"
 	"github.com/openbindings/openbindings-go/invoke"
+	"github.com/openbindings/openbindings-go/jsonvalue"
 )
 
 // DefaultToolDeadline bounds a single bridged tool/resource/prompt call when
@@ -598,11 +599,11 @@ func registerPrompt(
 }
 
 func remarshal(value any, target any) error {
-	data, err := json.Marshal(value)
+	data, err := jsonvalue.Marshal(value)
 	if err != nil {
 		return err
 	}
-	return json.Unmarshal(data, target)
+	return jsonvalue.Unmarshal(data, target)
 }
 
 func toolStructuredOutputSchema(output openbindings.JSONSchema) any {
@@ -985,12 +986,12 @@ func jsonPointerToken(value string) string {
 // deepCopyJSON returns a deep copy of a JSON-serializable value via a marshal
 // round-trip, so rewrites never mutate the source schema maps.
 func deepCopyJSON(v any) any {
-	b, err := json.Marshal(v)
+	b, err := jsonvalue.Marshal(v)
 	if err != nil {
 		return nil
 	}
 	var out any
-	if err := json.Unmarshal(b, &out); err != nil {
+	if err := jsonvalue.Unmarshal(b, &out); err != nil {
 		return nil
 	}
 	return out

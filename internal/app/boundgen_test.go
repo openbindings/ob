@@ -1,6 +1,7 @@
 package app
 
 import (
+	"context"
 	"encoding/json"
 	"os"
 	"strings"
@@ -121,7 +122,7 @@ func TestGenerateBoundServe_BindsServedSurface(t *testing.T) {
 	}
 	for _, tc := range dynamicCases {
 		binding := serve.Bindings["openbindings.ob."+tc.short+".openapi"]
-		got, transformErr := ApplyTransform(serve.Transforms, binding.InputTransform, tc.input)
+		got, transformErr := ApplyTransform(context.Background(), serve.Transforms, binding.InputTransform, tc.input)
 		if transformErr != nil {
 			t.Errorf("%s composed transform: %v", tc.short, transformErr)
 			continue
@@ -278,7 +279,7 @@ func TestGenerateBoundCLI_AttachesWireInputTransforms(t *testing.T) {
 			t.Errorf("%s: expected a machine-lane inputTransform", key)
 			continue
 		}
-		out, terr := ApplyTransform(bound.Transforms, b.InputTransform, wire)
+		out, terr := ApplyTransform(context.Background(), bound.Transforms, b.InputTransform, wire)
 		if terr != nil {
 			t.Errorf("%s: transform failed: %v", key, terr)
 			continue
@@ -309,7 +310,7 @@ func TestGenerateBoundCLI_AttachesWireInputTransforms(t *testing.T) {
 	if b.InputTransform == nil {
 		t.Fatal("describe: expected the -F json forcing inputTransform")
 	}
-	out, terr := ApplyTransform(bound.Transforms, b.InputTransform, nil)
+	out, terr := ApplyTransform(context.Background(), bound.Transforms, b.InputTransform, nil)
 	if terr != nil {
 		t.Fatalf("describe: transform on nil input failed: %v", terr)
 	}
@@ -320,7 +321,7 @@ func TestGenerateBoundCLI_AttachesWireInputTransforms(t *testing.T) {
 	if b.InputTransform == nil {
 		t.Fatal("resolveDelegate: expected the -F json forcing inputTransform")
 	}
-	out, terr = ApplyTransform(bound.Transforms, b.InputTransform, map[string]any{"operation": "x"})
+	out, terr = ApplyTransform(context.Background(), bound.Transforms, b.InputTransform, map[string]any{"operation": "x"})
 	if terr != nil {
 		t.Fatalf("resolveDelegate: transform failed: %v", terr)
 	}
@@ -334,7 +335,7 @@ func TestGenerateBoundCLI_AttachesWireInputTransforms(t *testing.T) {
 	if b.InputTransform == nil {
 		t.Fatal("resolveDelegateForBindingSpec: expected an adaptation transform")
 	}
-	out, terr = ApplyTransform(bound.Transforms, b.InputTransform, map[string]any{"bindingSpec": "openbindings.usage@1"})
+	out, terr = ApplyTransform(context.Background(), bound.Transforms, b.InputTransform, map[string]any{"bindingSpec": "openbindings.usage@1"})
 	if terr != nil {
 		t.Fatalf("resolveDelegateForBindingSpec: transform failed: %v", terr)
 	}
@@ -347,7 +348,7 @@ func TestGenerateBoundCLI_AttachesWireInputTransforms(t *testing.T) {
 	if b.InputTransform == nil {
 		t.Fatal("setDelegatePreference: expected an adaptation transform")
 	}
-	out, terr = ApplyTransform(bound.Transforms, b.InputTransform, map[string]any{
+	out, terr = ApplyTransform(context.Background(), bound.Transforms, b.InputTransform, map[string]any{
 		"location": "exec:x", "preference": 5, "operation": "op.key", "bindingSpec": "openbindings.grpc@1",
 	})
 	if terr != nil {
@@ -359,7 +360,7 @@ func TestGenerateBoundCLI_AttachesWireInputTransforms(t *testing.T) {
 	}
 	// getContext: the wire key rides the CLI's natural <url> argument.
 	b = bound.Bindings["openbindings.ob.getContext.usage"]
-	out, terr = ApplyTransform(bound.Transforms, b.InputTransform, map[string]any{"key": "https://x"})
+	out, terr = ApplyTransform(context.Background(), bound.Transforms, b.InputTransform, map[string]any{"key": "https://x"})
 	if terr != nil {
 		t.Fatalf("getContext: transform failed: %v", terr)
 	}
@@ -370,7 +371,7 @@ func TestGenerateBoundCLI_AttachesWireInputTransforms(t *testing.T) {
 	// Direct CLI commands may report their file/stdin carriers. Their bound
 	// operation realization must remove those transport details.
 	b = bound.Bindings["openbindings.ob.validateInterface.usage"]
-	out, terr = ApplyTransform(bound.Transforms, b.OutputTransform, map[string]any{
+	out, terr = ApplyTransform(context.Background(), bound.Transforms, b.OutputTransform, map[string]any{
 		"locator": "-", "valid": true, "version": "0.2.0",
 	})
 	if terr != nil {
@@ -381,7 +382,7 @@ func TestGenerateBoundCLI_AttachesWireInputTransforms(t *testing.T) {
 	}
 
 	b = bound.Bindings["openbindings.ob.reportCompatibility.usage"]
-	out, terr = ApplyTransform(bound.Transforms, b.OutputTransform, map[string]any{
+	out, terr = ApplyTransform(context.Background(), bound.Transforms, b.OutputTransform, map[string]any{
 		"generated_at": "2026-01-01T00:00:00.000Z",
 		"inputs": map[string]any{
 			"left":  map[string]any{"source": "stdin", "uri": "-", "content_sha256": "a", "label": "left"},

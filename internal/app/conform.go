@@ -1,12 +1,12 @@
 package app
 
 import (
-	"encoding/json"
 	"fmt"
 	"sort"
 	"strings"
 
 	openbindings "github.com/openbindings/openbindings-go"
+	"github.com/openbindings/openbindings-go/jsonvalue"
 )
 
 // ConformInput specifies the interface to satisfy and the target OBI to
@@ -359,12 +359,12 @@ func copySchema(schema openbindings.JSONSchema, contractIface, target *openbindi
 
 // deepCopySchema creates a deep copy of a JSON Schema via JSON round-trip.
 func deepCopySchema(schema openbindings.JSONSchema) openbindings.JSONSchema {
-	b, err := json.Marshal(schema)
+	b, err := jsonvalue.Marshal(schema)
 	if err != nil {
 		return schema
 	}
 	var copy openbindings.JSONSchema
-	if err := json.Unmarshal(b, &copy); err != nil {
+	if err := jsonvalue.Unmarshal(b, &copy); err != nil {
 		return schema
 	}
 	return copy

@@ -1,8 +1,8 @@
 package cmd
 
 import (
-	"encoding/json"
 	"fmt"
+	"github.com/openbindings/openbindings-go/jsonvalue"
 	"io"
 	"strings"
 
@@ -66,7 +66,7 @@ Examples:
 				if len(args) > 0 || name != "" || version != "" || description != "" || obVersion != "" {
 					return app.ExitResult{Code: 2, Message: "--input is exclusive with source arguments and metadata flags", ToStderr: true}
 				}
-				if err := json.Unmarshal([]byte(inputJSON), &input); err != nil {
+				if err := jsonvalue.Unmarshal([]byte(inputJSON), &input); err != nil {
 					return app.ExitResult{Code: 2, Message: fmt.Sprintf("parse --input: %v", err), ToStderr: true}
 				}
 			} else {

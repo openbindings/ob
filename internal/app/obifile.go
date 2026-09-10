@@ -12,7 +12,7 @@ import (
 	"time"
 
 	"github.com/openbindings/openbindings-go"
-	"github.com/openbindings/openbindings-go/canonicaljson"
+	"github.com/openbindings/openbindings-go/jsonvalue"
 	"github.com/openbindings/openbindings-go/synthesize"
 )
 
@@ -191,7 +191,8 @@ func parseInterfaceJSON(data []byte, source string) (*openbindings.Interface, er
 }
 
 // WriteInterfaceFile writes an Interface to a file atomically using
-// canonical JSON formatting (D6). If the target file already exists,
+// deterministic, value-preserving JSON formatting (D6). This ordinary writer
+// is not a JCS export or a delegate trust-pin encoder. If the target exists,
 // its permissions are preserved; otherwise 0644 is used.
 //
 // The bare `-` writes the document to stdout instead — the write side of the
@@ -199,8 +200,8 @@ func parseInterfaceJSON(data []byte, source string) (*openbindings.Interface, er
 // command whose document argument is `-` reads the document from stdin and
 // emits the modified document on stdout, with its human summary on stderr.
 func WriteInterfaceFile(path string, iface *openbindings.Interface) error {
-	// Marshal with canonical key ordering.
-	b, err := canonicaljson.Marshal(iface)
+	// encoding/json orders map keys without converting retained numeric values.
+	b, err := jsonvalue.Marshal(iface)
 	if err != nil {
 		return fmt.Errorf("marshal: %w", err)
 	}
@@ -216,8 +217,8 @@ func WriteInterfaceFile(path string, iface *openbindings.Interface) error {
 		_, err := os.Stdout.Write(buf.Bytes())
 		return err
 	}
-	// Idempotent writes: identical semantics yield identical bytes (canonical
-	// marshal), and identical bytes leave the file untouched — a no-op pull
+	// Idempotent writes: unchanged retained material yields identical bytes,
+	// and identical bytes leave the file untouched — a no-op pull
 	// neither dirties a git tree nor manufactures same-line merge conflicts.
 	if existing, rerr := os.ReadFile(path); rerr == nil && bytes.Equal(existing, buf.Bytes()) {
 		return nil
@@ -227,7 +228,7 @@ func WriteInterfaceFile(path string, iface *openbindings.Interface) error {
 
 // WriteInterfaceToPath writes the interface to path. Format is inferred from path
 // when format is empty or "text" (.yaml/.yml → yaml, else json).
-// The bare `-` writes canonical JSON to stdout (the filter lane's document
+// The bare `-` writes deterministic JSON to stdout (the filter lane's document
 // channel is always JSON; a format override applies to the summary, not the
 // document).
 func WriteInterfaceToPath(path string, iface *openbindings.Interface, format string) error {
@@ -296,7 +297,7 @@ func OutputDocument(v any, format, outputPath string) error {
 		return ExitResult{Code: 0, Message: strings.TrimRight(string(b), "\n")}
 	}
 
-	b, err := canonicaljson.Marshal(v)
+	b, err := jsonvalue.Marshal(v)
 	if err != nil {
 		return fmt.Errorf("marshal document: %w", err)
 	}

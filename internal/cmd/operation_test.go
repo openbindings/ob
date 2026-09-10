@@ -129,7 +129,7 @@ func TestReadInvokeInput_Inline(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 	m, ok := v.(map[string]any)
-	if !ok || m["limit"] != float64(10) {
+	if !ok || m["limit"] != json.Number("10") {
 		t.Errorf("parsed = %#v", v)
 	}
 

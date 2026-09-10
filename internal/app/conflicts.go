@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"sort"
 	"strings"
+
+	"github.com/openbindings/openbindings-go/jsonvalue"
 )
 
 // ConflictsInput represents input for the conflicts command.
@@ -84,7 +86,7 @@ func Conflicts(input ConflictsInput) (ConflictsOutput, error) {
 // compactJSON returns a compact string representation of a JSON value.
 func compactJSON(raw json.RawMessage) string {
 	var v any
-	if json.Unmarshal(raw, &v) != nil {
+	if jsonvalue.Unmarshal(raw, &v) != nil {
 		return string(raw)
 	}
 	b, err := json.Marshal(v)

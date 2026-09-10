@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"github.com/openbindings/openbindings-go/jsonvalue"
 
 	openbindings "github.com/openbindings/openbindings-go"
 
@@ -141,7 +142,7 @@ func decodeOutput[T any](v any) (*T, error) {
 		return nil, err
 	}
 	var out T
-	if err := json.Unmarshal(data, &out); err != nil {
+	if err := jsonvalue.Unmarshal(data, &out); err != nil {
 		return nil, err
 	}
 	return &out, nil

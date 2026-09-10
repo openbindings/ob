@@ -2,9 +2,9 @@ package app
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/openbindings/openbindings-go/jsonvalue"
 	"io"
 	"net/http"
 	"net/url"
@@ -312,7 +312,7 @@ func delegateExecInvoker(delegate string) *invoke.OperationInvoker {
 			return nil, nil
 		}
 		var v any
-		if err := json.Unmarshal(raw.Body, &v); err != nil {
+		if err := jsonvalue.Unmarshal(raw.Body, &v); err != nil {
 			return nil, &invoke.InvocationError{
 				Code: invoke.ErrCodeResponseError,
 			}
@@ -334,6 +334,8 @@ func (d *delegateCLIInvoker) InvokeBinding(ctx context.Context, args *invoke.Bin
 	impl := invoke.NewInvocationImpl[any, any](ctx)
 
 	go func() {
+		ctx, stop := invoke.DoneContext(ctx, impl.Done())
+		defer stop()
 		// Unary: read at most one input, then close the input side so the
 		// caller observes the unary shape through the handle.
 		var input any
@@ -360,8 +362,11 @@ func (d *delegateCLIInvoker) InvokeBinding(ctx context.Context, args *invoke.Bin
 			Context:  args.Context,
 		}
 		if d.binding.InputTransform != nil {
-			transformed, tErr := ApplyTransform(d.iface.Transforms, d.binding.InputTransform, payload)
+			transformed, tErr := ApplyTransform(ctx, d.iface.Transforms, d.binding.InputTransform, payload)
 			if tErr != nil {
+				if ctx.Err() != nil {
+					return
+				}
 				impl.FireError(&invoke.InvocationError{
 					Code: invoke.ErrCodeTransformError,
 				})

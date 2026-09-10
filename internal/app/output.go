@@ -5,8 +5,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/openbindings/openbindings-go/canonicaljson"
-	"gopkg.in/yaml.v3"
+	"github.com/openbindings/openbindings-go/jsonvalue"
 )
 
 // formatForPath returns the output format to use when writing to a file path.
@@ -40,21 +39,11 @@ func FormatOutput(v any, format OutputFormat) ([]byte, error) {
 	case OutputFormatJSON:
 		switch v.(type) {
 		case ComparisonReport, *ComparisonReport:
-			return canonicaljson.Marshal(v)
+			return jsonvalue.Marshal(v)
 		}
 		return json.MarshalIndent(v, "", "  ")
 	case OutputFormatYAML:
-		// Round-trip via JSON so extension/lossless fields (e.g. x-ob) become
-		// proper YAML objects instead of byte sequences (openbindings-go uses json.RawMessage).
-		b, err := json.Marshal(v)
-		if err != nil {
-			return nil, err
-		}
-		var tmp any
-		if err := json.Unmarshal(b, &tmp); err != nil {
-			return nil, err
-		}
-		return yaml.Marshal(tmp)
+		return MarshalJSONAsYAML(v)
 	default:
 		return nil, fmt.Errorf("unsupported output format: %s", format)
 	}

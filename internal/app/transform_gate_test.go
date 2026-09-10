@@ -1,6 +1,7 @@
 package app
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"os"
@@ -10,14 +11,13 @@ import (
 	"testing"
 
 	"github.com/openbindings/openbindings-go/invoke"
+	"github.com/openbindings/openbindings-go/jsonvalue"
 )
 
-// This is the Go side of the JSONata transform differential-conformance gate
-// (spec/conformance/transforms). The `agree/` corpus pins the NORMATIVE
-// jsonata-js output that every conformant engine MUST reproduce; this test
-// runs every agree case through ob's adopted engine (gnata, via the same
-// evalTransform path invocation uses) and asserts it matches. It is the
-// cross-SDK parity gate on the Go side and the regression guard on the engine.
+// Core's language/ corpus governs the documented binding-transform checks.
+// agree/ and known-divergence/ are historical runtime observations, retained as
+// regression controls on the unmigrated private Graph engine ONLY. Neither the
+// reference's old behavior nor its known bugs define current Core conformance.
 //
 // The corpus is located under OB_SPEC_CORPUS (the conformance root), or in the
 // sibling spec checkout used by the monorepo development layout. Absence is a
@@ -64,10 +64,9 @@ func transformCorpusDir(t *testing.T) string {
 	return dir
 }
 
-// evalOutcome runs an expression through ob's engine and reduces it to the
-// corpus outcome envelope (undefined stays distinct from a null value).
+// evalOutcome observes the frozen legacy engine, not current binding transforms.
 func evalOutcome(expr string, input any) gateOutcome {
-	result, err := evalTransform(expr, input, nil)
+	result, err := legacyEvalTransformContext(context.Background(), expr, input, nil)
 	switch {
 	case errors.Is(err, invoke.ErrTransformUndefined):
 		return gateOutcome{Status: "undefined"}
@@ -137,10 +136,8 @@ func loadGateFiles(t *testing.T, dir string) []gateFile {
 	return files
 }
 
-// TestTransformGate_AgreeMatchesNormative runs the agree corpus through gnata
-// and asserts every case reproduces the normative jsonata-js output. A failure
-// means the Go engine has drifted from the cross-SDK parity contract.
-func TestTransformGate_AgreeMatchesNormative(t *testing.T) {
+// Historical agreement remains a regression control for deferred Graph wiring.
+func TestLegacyTransformGate_HistoricalAgreement(t *testing.T) {
 	dir := filepath.Join(transformCorpusDir(t), "agree")
 	files := loadGateFiles(t, dir)
 	total := 0
@@ -165,15 +162,12 @@ func TestTransformGate_AgreeMatchesNormative(t *testing.T) {
 	if total == 0 {
 		t.Fatal("no agree cases loaded")
 	}
-	t.Logf("transform gate: %d agree cases matched the normative engine on gnata", total)
+	t.Logf("legacy isolation: %d historical agreement cases retained", total)
 }
 
-// TestTransformGate_KnownDivergenceStillHolds runs the catalogued gnata
-// divergences through gnata and asserts each still produces the recorded
-// `actual`. This is the inverse guard: when a gnata upgrade CLOSES a
-// divergence (its output shifts toward the normative `expected`), this test
-// fails, prompting the catalog to be updated and the case promoted to agree.
-func TestTransformGate_KnownDivergenceStillHolds(t *testing.T) {
+// Known legacy differences must not accidentally migrate the deferred engine.
+// This is not a requirement to preserve those defects in the new evaluator.
+func TestLegacyTransformGate_HistoricalDifferences(t *testing.T) {
 	dir := filepath.Join(transformCorpusDir(t), "known-divergence")
 	files := loadGateFiles(t, dir)
 	total := 0
@@ -198,5 +192,59 @@ func TestTransformGate_KnownDivergenceStillHolds(t *testing.T) {
 	if total == 0 {
 		t.Fatal("no known-divergence cases loaded")
 	}
-	t.Logf("transform gate: %d catalogued gnata divergences still hold", total)
+	t.Logf("legacy isolation: %d historical differences retained", total)
+}
+
+func TestTransformGate_DocumentedLanguage(t *testing.T) {
+	data, err := os.ReadFile(filepath.Join(transformCorpusDir(t), "language", "scenarios.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var corpus struct {
+		Cases []struct {
+			ID        string `json:"id"`
+			Expr      string `json:"expr"`
+			InputJSON string `json:"inputJSON"`
+			Expected  struct {
+				Status string `json:"status"`
+				JSON   string `json:"json"`
+			} `json:"expected"`
+		} `json:"cases"`
+	}
+	if err := json.Unmarshal(data, &corpus); err != nil {
+		t.Fatal(err)
+	}
+	if len(corpus.Cases) == 0 {
+		t.Fatal("no documented language cases")
+	}
+	for _, c := range corpus.Cases {
+		t.Run(c.ID, func(t *testing.T) {
+			var input any
+			if err := jsonvalue.Unmarshal([]byte(c.InputJSON), &input); err != nil {
+				t.Fatal(err)
+			}
+			value, err := evalTransform(c.Expr, input, nil)
+			if c.Expected.Status == "failure" {
+				if err == nil {
+					t.Fatalf("expected boundary failure; received %#v", value)
+				}
+				return
+			}
+			if c.Expected.Status != "json" {
+				t.Fatalf("unrecognized expected status %q", c.Expected.Status)
+			}
+			if err != nil {
+				t.Fatal(err)
+			}
+			var want any
+			if err := jsonvalue.Unmarshal([]byte(c.Expected.JSON), &want); err != nil {
+				t.Fatal(err)
+			}
+			equal, err := jsonvalue.Equal(value, want)
+			if err != nil || !equal {
+				t.Fatalf("language result %#v, want %s (comparison: %v)", value, c.Expected.JSON, err)
+			}
+		})
+	}
+	t.Logf("current binding transforms: %d documented language/boundary cases", len(corpus.Cases))
 }

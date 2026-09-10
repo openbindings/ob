@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"github.com/openbindings/openbindings-go/jsonvalue"
 
 	"github.com/openbindings/ob/internal/app"
 	"github.com/spf13/cobra"
@@ -48,7 +49,7 @@ Examples:
 			if len(args) == 2 {
 				var value any
 				if inputJSON != "" {
-					if err := json.Unmarshal([]byte(inputJSON), &value); err != nil {
+					if err := jsonvalue.Unmarshal([]byte(inputJSON), &value); err != nil {
 						return app.ExitResult{Code: 2, Message: fmt.Sprintf("parse --input: %v", err), ToStderr: true}
 					}
 				}
@@ -73,7 +74,7 @@ Examples:
 				return app.ExitResult{Code: 1, Message: "--input is required (or pass <obi-path> <binding-key>)", ToStderr: true}
 			}
 			var input app.InvocationInput
-			if err := json.Unmarshal([]byte(inputJSON), &input); err != nil {
+			if err := jsonvalue.Unmarshal([]byte(inputJSON), &input); err != nil {
 				return writeInvokeOutput(app.InvocationResult{
 					Error: &app.Error{Code: "invalid_input", Message: fmt.Sprintf("failed to parse input JSON: %v", err)},
 				})

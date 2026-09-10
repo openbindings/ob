@@ -7,7 +7,7 @@ import (
 	"strings"
 
 	"github.com/openbindings/openbindings-go"
-	"github.com/openbindings/openbindings-go/canonicaljson"
+	"github.com/openbindings/openbindings-go/jsonvalue"
 	"github.com/openbindings/openbindings-go/schemaprofile"
 )
 
@@ -429,28 +429,21 @@ func schemasEqual(a, b map[string]any, aRoot, bRoot map[string]any) bool {
 
 	aNormalized, err := aNorm.Normalize(a)
 	if err != nil {
-		// If normalization fails, fall back to canonical JSON comparison.
-		return canonicalEqual(a, b)
+		// If normalization fails, only exact raw equality is evidence of sameness.
+		return exactValueEqual(a, b)
 	}
 	bNormalized, err := bNorm.Normalize(b)
 	if err != nil {
-		return canonicalEqual(a, b)
+		return exactValueEqual(a, b)
 	}
 
-	return canonicalEqual(aNormalized, bNormalized)
+	return exactValueEqual(aNormalized, bNormalized)
 }
 
-// canonicalEqual compares two values using canonical JSON representation.
-func canonicalEqual(a, b any) bool {
-	aJSON, err := canonicaljson.Marshal(a)
-	if err != nil {
-		return false
-	}
-	bJSON, err := canonicaljson.Marshal(b)
-	if err != nil {
-		return false
-	}
-	return string(aJSON) == string(bJSON)
+// Failed comparison is not evidence of equality.
+func exactValueEqual(a, b any) bool {
+	equal, err := jsonvalue.Equal(a, b)
+	return err == nil && equal
 }
 
 // groupByStatus groups operation diffs by their status.

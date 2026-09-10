@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"github.com/openbindings/openbindings-go/jsonvalue"
 
 	"github.com/openbindings/ob/internal/app"
 	"github.com/spf13/cobra"
@@ -31,7 +32,7 @@ binding-invoker interface, and is the binding-level twin of operation prepare.`,
 			}
 
 			var input app.InvocationInput
-			if err := json.Unmarshal([]byte(inputJSON), &input); err != nil {
+			if err := jsonvalue.Unmarshal([]byte(inputJSON), &input); err != nil {
 				return app.ExitResult{Code: 1, Message: fmt.Sprintf("failed to parse input JSON: %v", err), ToStderr: true}
 			}
 

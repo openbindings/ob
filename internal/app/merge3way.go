@@ -3,9 +3,9 @@ package app
 import (
 	"bytes"
 	"encoding/json"
-	"reflect"
 
 	"github.com/openbindings/openbindings-go"
+	"github.com/openbindings/openbindings-go/jsonvalue"
 )
 
 // FieldConflict records a three-way conflict on a single field.
@@ -284,10 +284,12 @@ func jsonEqual(a, b json.RawMessage) bool {
 	if bytes.Equal(a, b) {
 		return true
 	}
-	// Semantic comparison: unmarshal and use reflect.DeepEqual.
+	// Exact semantic comparison. A capability limit conservatively withholds
+	// equality; it must never hide a conflict or approve a destructive merge.
 	var av, bv any
-	if json.Unmarshal(a, &av) != nil || json.Unmarshal(b, &bv) != nil {
+	if jsonvalue.Unmarshal(a, &av) != nil || jsonvalue.Unmarshal(b, &bv) != nil {
 		return false
 	}
-	return reflect.DeepEqual(av, bv)
+	equal, err := jsonvalue.Equal(av, bv)
+	return err == nil && equal
 }

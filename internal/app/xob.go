@@ -6,6 +6,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"github.com/openbindings/openbindings-go/jsonvalue"
 	"io"
 	"net/http"
 	"os"
@@ -19,6 +20,7 @@ import (
 
 	"github.com/openbindings/ob/internal/execref"
 	"github.com/openbindings/openbindings-go"
+	"github.com/openbindings/openbindings-go/formats/openapi"
 	"gopkg.in/yaml.v3"
 )
 
@@ -57,7 +59,7 @@ func GetSourceMeta(src openbindings.Source) (*SourceMeta, error) {
 		return nil, nil
 	}
 	var meta SourceMeta
-	if err := json.Unmarshal(raw, &meta); err != nil {
+	if err := jsonvalue.Unmarshal(raw, &meta); err != nil {
 		return nil, fmt.Errorf("parse x-ob metadata: %w", err)
 	}
 	return &meta, nil
@@ -150,7 +152,7 @@ func getOpBindingXOB(lf openbindings.LosslessFields) (OpBindingXOB, error) {
 	if !ok {
 		return xob, nil
 	}
-	if err := json.Unmarshal(raw, &xob); err != nil {
+	if err := jsonvalue.Unmarshal(raw, &xob); err != nil {
 		return xob, fmt.Errorf("parse x-ob: %w", err)
 	}
 	return xob, nil
@@ -230,7 +232,7 @@ func GetOutputSchemaElection(lf openbindings.LosslessFields) (openbindings.JSONS
 		return nil, nil
 	}
 	var schema openbindings.JSONSchema
-	if err := json.Unmarshal(xob.OutputSchemaElection, &schema); err != nil {
+	if err := jsonvalue.Unmarshal(xob.OutputSchemaElection, &schema); err != nil {
 		return nil, fmt.Errorf("parse output-schema election: %w", err)
 	}
 	return schema, nil
@@ -264,7 +266,7 @@ func ObjectToFieldMap(v any) (map[string]json.RawMessage, error) {
 		return nil, err
 	}
 	var m map[string]json.RawMessage
-	if err := json.Unmarshal(b, &m); err != nil {
+	if err := jsonvalue.Unmarshal(b, &m); err != nil {
 		return nil, err
 	}
 	delete(m, xobKey)
@@ -492,6 +494,10 @@ func ParseContentForEmbed(data []byte, format string) (json.RawMessage, error) {
 	// Determine the artifact family from the binding-specification identifier.
 	family := SpecFamily(format)
 	formatLower := strings.ToLower(format)
+	if family == "openapi" {
+		// Source grammar belongs to the format adapter, not the generic CLI.
+		return openapi.SourceContent(data)
+	}
 
 	isJSON := strings.Contains(formatLower, "json") ||
 		family == "openapi" || family == "asyncapi" || family == "mcp"
@@ -502,7 +508,7 @@ func ParseContentForEmbed(data []byte, format string) (json.RawMessage, error) {
 		// are commonly authored in YAML, so try JSON first and fall back to YAML
 		// (every JSON document is also valid YAML, but JSON is the cheaper parse).
 		var obj map[string]any
-		if err := json.Unmarshal(data, &obj); err == nil {
+		if err := jsonvalue.Unmarshal(data, &obj); err == nil {
 			return json.Marshal(obj)
 		}
 		if err := yaml.Unmarshal(data, &obj); err == nil {

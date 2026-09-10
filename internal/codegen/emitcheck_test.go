@@ -1,6 +1,8 @@
 package codegen
 
 import (
+	"encoding/json"
+	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -34,6 +36,29 @@ require github.com/openbindings/openbindings-go v0.2.0
 
 replace github.com/openbindings/openbindings-go => ` + mustAbs(t, "../../../openbindings-go") + `
 `
+	// A coordinated unpublished SDK candidate can depend on a coordinated
+	// runtime candidate. Resolve that selected module before disabling GOWORK;
+	// do not accidentally test the candidate SDK against a registry's latest
+	// evaluator. This remains a source-checkout test, not publication evidence.
+	selected := exec.Command("go", "list", "-m", "-json", "github.com/openbindings/jsonata/go")
+	if raw, err := selected.Output(); err != nil {
+		t.Fatalf("resolve selected runtime: %v", err)
+	} else {
+		var module struct {
+			Dir     string
+			Main    bool
+			Replace *struct{ Dir string }
+		}
+		if err := json.Unmarshal(raw, &module); err != nil {
+			t.Fatal(err)
+		}
+		if module.Replace != nil {
+			module.Dir = module.Replace.Dir
+		}
+		if (module.Main || module.Replace != nil) && module.Dir != "" {
+			gomod += fmt.Sprintf("\nreplace github.com/openbindings/jsonata/go => %q\n", module.Dir)
+		}
+	}
 	if err := os.WriteFile(filepath.Join(dir, "go.mod"), []byte(gomod), 0o644); err != nil {
 		t.Fatal(err)
 	}

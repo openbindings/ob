@@ -26,6 +26,7 @@ func decodeRequest(w http.ResponseWriter, r *http.Request, dst any) bool {
 	}
 	r.Body = http.MaxBytesReader(w, r.Body, maxRequestBodyBytes)
 	dec := json.NewDecoder(r.Body)
+	dec.UseNumber()
 	dec.DisallowUnknownFields()
 	if err := dec.Decode(dst); err != nil {
 		writeRequestDecodeError(w, err)

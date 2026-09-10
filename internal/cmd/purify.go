@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"github.com/openbindings/openbindings-go/jsonvalue"
 	"strings"
 
 	"github.com/openbindings/ob/internal/app"
@@ -44,7 +45,7 @@ gate a registry or CI pre-publish step needs (gofmt -l style).`,
 				return app.ExitResult{Code: 1, Message: err.Error(), ToStderr: true}
 			}
 			var doc any
-			if err := json.Unmarshal(data, &doc); err != nil {
+			if err := jsonvalue.Unmarshal(data, &doc); err != nil {
 				return app.ExitResult{Code: 1, Message: "parse interface: " + err.Error(), ToStderr: true}
 			}
 

@@ -12,6 +12,7 @@ import (
 	"strings"
 
 	"github.com/openbindings/openbindings-go/invoke"
+	"github.com/openbindings/openbindings-go/jsonvalue"
 )
 
 // ContextConfig holds structured non-credential fields of a URL-keyed
@@ -122,7 +123,7 @@ func LoadContextConfig(rawURL string) (ContextConfig, error) {
 		return ContextConfig{}, fmt.Errorf("reading context config for %q: %w", url, err)
 	}
 	var cfg ContextConfig
-	if err := json.Unmarshal(data, &cfg); err != nil {
+	if err := jsonvalue.Unmarshal(data, &cfg); err != nil {
 		return ContextConfig{}, fmt.Errorf("parsing context config for %q: %w", url, err)
 	}
 	cfg.URL = url
@@ -385,7 +386,7 @@ func ListContexts() ([]ContextSummary, error) {
 			continue
 		}
 		var cfg ContextConfig
-		if err := json.Unmarshal(data, &cfg); err != nil {
+		if err := jsonvalue.Unmarshal(data, &cfg); err != nil {
 			summaries = append(summaries, ContextSummary{
 				URL:       e.Name(),
 				LoadError: err.Error(),
@@ -577,7 +578,7 @@ func DetectLegacyContexts() []string {
 			continue
 		}
 		var cfg ContextConfig
-		if err := json.Unmarshal(data, &cfg); err != nil {
+		if err := jsonvalue.Unmarshal(data, &cfg); err != nil {
 			continue
 		}
 		if cfg.URL == "" {

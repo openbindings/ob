@@ -2,19 +2,21 @@ module github.com/openbindings/ob
 
 go 1.25.12
 
+toolchain go1.25.13
+
 require (
 	github.com/charmbracelet/bubbles v0.21.1-0.20250623103423-23b8fd6302d7 // indirect
 	github.com/charmbracelet/bubbletea v1.3.10 // indirect
 	github.com/charmbracelet/lipgloss v1.1.0
 	github.com/openbindings/openbindings-go v0.2.0
-	github.com/openbindings/openbindings-go/formats/asyncapi v0.1.1-0.20260829010906-cc50e624119d
-	github.com/openbindings/openbindings-go/formats/connect v0.1.1-0.20260829010906-cc50e624119d
-	github.com/openbindings/openbindings-go/formats/graphql v0.1.1-0.20260829010906-cc50e624119d
-	github.com/openbindings/openbindings-go/formats/grpc v0.1.1-0.20260829010906-cc50e624119d
-	github.com/openbindings/openbindings-go/formats/mcp v0.1.1-0.20260829010906-cc50e624119d
-	github.com/openbindings/openbindings-go/formats/openapi v0.1.1-0.20260906114906-57ce4d9484b5
-	github.com/openbindings/openbindings-go/formats/operationgraph v0.1.1-0.20260829010906-cc50e624119d
-	github.com/openbindings/openbindings-go/formats/usage v0.1.1-0.20260906114906-57ce4d9484b5
+	github.com/openbindings/openbindings-go/formats/asyncapi v0.1.1-0.20260910180913-56f5d1f05cfb
+	github.com/openbindings/openbindings-go/formats/connect v0.1.1-0.20260910180913-56f5d1f05cfb
+	github.com/openbindings/openbindings-go/formats/graphql v0.1.1-0.20260910180913-56f5d1f05cfb
+	github.com/openbindings/openbindings-go/formats/grpc v0.1.1-0.20260910180913-56f5d1f05cfb
+	github.com/openbindings/openbindings-go/formats/mcp v0.1.1-0.20260910180913-56f5d1f05cfb
+	github.com/openbindings/openbindings-go/formats/openapi v0.1.1-0.20260910180913-56f5d1f05cfb
+	github.com/openbindings/openbindings-go/formats/operationgraph v0.1.1-0.20260910180913-56f5d1f05cfb
+	github.com/openbindings/openbindings-go/formats/usage v0.1.1-0.20260910180913-56f5d1f05cfb
 	github.com/spf13/cobra v1.10.2
 	gopkg.in/yaml.v3 v3.0.1
 )
@@ -24,23 +26,26 @@ require (
 	github.com/coder/websocket v1.8.15
 	github.com/google/shlex v0.0.0-20191202100458-e7afc7fbc510
 	github.com/modelcontextprotocol/go-sdk v1.6.1
+	github.com/tidwall/gjson v1.18.0
 	github.com/zalando/go-keyring v0.2.6
 	golang.org/x/term v0.44.0
-	golang.org/x/text v0.38.0
-	google.golang.org/grpc v1.79.3
+	golang.org/x/text v0.39.0
+	google.golang.org/grpc v1.82.1
 	google.golang.org/protobuf v1.36.11
 )
 
 require (
 	github.com/bufbuild/protocompile v0.14.1 // indirect
 	github.com/calico32/kdl-go v0.15.0 // indirect
+	github.com/cockroachdb/apd/v3 v3.2.1 // indirect
 	github.com/dlclark/regexp2 v1.12.0 // indirect
+	github.com/dlclark/regexp2/v2 v2.7.1 // indirect
 	github.com/go-openapi/swag/jsonname v0.25.5 // indirect
 	github.com/golang/snappy v0.0.1 // indirect
 	github.com/linkedin/goavro/v2 v2.15.0 // indirect
 	github.com/openbindings/asyncapi-client/go v0.1.0 // indirect
+	github.com/openbindings/jsonata/go v0.0.0-20260910174534-e2a5e518e6b5 // indirect
 	github.com/santhosh-tekuri/jsonschema/v6 v6.0.3 // indirect
-	github.com/tidwall/gjson v1.18.0 // indirect
 	github.com/tidwall/match v1.1.1 // indirect
 	github.com/tidwall/pretty v1.2.1 // indirect
 )
@@ -75,7 +80,6 @@ require (
 	github.com/oasdiff/yaml v0.1.1 // indirect
 	github.com/oasdiff/yaml3 v0.0.14 // indirect
 	github.com/openbindings/openapi-client/go v0.1.0 // indirect
-	github.com/recolabs/gnata v0.2.2
 	github.com/rivo/uniseg v0.4.7 // indirect
 	github.com/segmentio/asm v1.1.3 // indirect
 	github.com/segmentio/encoding v0.5.4 // indirect
@@ -84,22 +88,14 @@ require (
 	github.com/yosida95/uritemplate/v3 v3.0.2 // indirect
 	golang.org/x/exp v0.0.0-20260212183809-81e46e3db34a // indirect
 	golang.org/x/net v0.56.0 // indirect
-	golang.org/x/oauth2 v0.35.0 // indirect
+	golang.org/x/oauth2 v0.36.0 // indirect
 	golang.org/x/sync v0.21.0 // indirect
 	golang.org/x/sys v0.46.0 // indirect
-	google.golang.org/genproto/googleapis/rpc v0.0.0-20251202230838-ff82c1b0f217 // indirect
+	google.golang.org/genproto/googleapis/rpc v0.0.0-20260414002931-afd174a4e478 // indirect
 )
 
 replace (
 	github.com/openbindings/asyncapi-client/go v0.1.0 => github.com/openbindings/asyncapi-client/go v0.0.0-20260820220441-54678886c38c
-	github.com/openbindings/openapi-client/go v0.1.0 => github.com/openbindings/openapi-client/go v0.0.0-20260906104423-3914c0643923
-	github.com/openbindings/openbindings-go v0.2.0 => github.com/openbindings/openbindings-go v0.1.1-0.20260906114906-57ce4d9484b5
-	github.com/openbindings/openbindings-go/formats/asyncapi v0.2.0 => github.com/openbindings/openbindings-go/formats/asyncapi v0.1.1-0.20260829010906-cc50e624119d
-	github.com/openbindings/openbindings-go/formats/connect v0.2.0 => github.com/openbindings/openbindings-go/formats/connect v0.1.1-0.20260829010906-cc50e624119d
-	github.com/openbindings/openbindings-go/formats/graphql v0.2.0 => github.com/openbindings/openbindings-go/formats/graphql v0.1.1-0.20260829010906-cc50e624119d
-	github.com/openbindings/openbindings-go/formats/grpc v0.2.0 => github.com/openbindings/openbindings-go/formats/grpc v0.1.1-0.20260829010906-cc50e624119d
-	github.com/openbindings/openbindings-go/formats/mcp v0.2.0 => github.com/openbindings/openbindings-go/formats/mcp v0.1.1-0.20260829010906-cc50e624119d
-	github.com/openbindings/openbindings-go/formats/openapi v0.2.0 => github.com/openbindings/openbindings-go/formats/openapi v0.1.1-0.20260906114906-57ce4d9484b5
-	github.com/openbindings/openbindings-go/formats/operationgraph v0.2.0 => github.com/openbindings/openbindings-go/formats/operationgraph v0.1.1-0.20260829010906-cc50e624119d
-	github.com/openbindings/openbindings-go/formats/usage v0.2.0 => github.com/openbindings/openbindings-go/formats/usage v0.1.1-0.20260906114906-57ce4d9484b5
+	github.com/openbindings/openapi-client/go v0.1.0 => github.com/openbindings/openapi-client/go v0.0.0-20260910180400-281ea7b0886a
+	github.com/openbindings/openbindings-go v0.2.0 => github.com/openbindings/openbindings-go v0.1.1-0.20260910180913-56f5d1f05cfb
 )

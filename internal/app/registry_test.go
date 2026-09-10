@@ -1,7 +1,9 @@
 package app
 
 import (
+	"encoding/json"
 	"fmt"
+	"strings"
 	"testing"
 
 	openbindings "github.com/openbindings/openbindings-go"
@@ -72,7 +74,7 @@ func TestDefaultRuntimeOwnsOneOpenAPIAdapter(t *testing.T) {
 	}
 }
 
-func TestPreparedProviderCacheUsesRevisionAndIsBounded(t *testing.T) {
+func TestPreparedProviderCacheUsesExactValuesAndIsBounded(t *testing.T) {
 	runtime := newDefaultRuntime()
 	fixture := func(name string) *openbindings.Interface {
 		return &openbindings.Interface{
@@ -100,7 +102,7 @@ func TestPreparedProviderCacheUsesRevisionAndIsBounded(t *testing.T) {
 		t.Fatal(err)
 	}
 	if first != second {
-		t.Fatal("identical interface revision did not reuse its prepared provider")
+		t.Fatal("identical retained interface did not reuse its prepared provider")
 	}
 
 	for index := 0; index <= maxPreparedProviders; index++ {
@@ -110,5 +112,89 @@ func TestPreparedProviderCacheUsesRevisionAndIsBounded(t *testing.T) {
 	}
 	if got := len(runtime.preparedProviders); got != maxPreparedProviders {
 		t.Fatalf("prepared provider cache size = %d, want %d", got, maxPreparedProviders)
+	}
+	if got := len(runtime.preparedContent); got > maxPreparedProviders {
+		t.Fatalf("content index exceeded its bound: %d", got)
+	}
+}
+
+func TestPreparedProviderCacheExactValuesAndRuntimeOwner(t *testing.T) {
+	runtime := newDefaultRuntime()
+	fixture := func(token string) *openbindings.Interface {
+		var iface openbindings.Interface
+		raw := `{"openbindings":"0.2.0","operations":{"ping":{}},"x-value":` + token + `}`
+		if err := json.Unmarshal([]byte(raw), &iface); err != nil {
+			t.Fatal(err)
+		}
+		return &iface
+	}
+	first, err := runtime.prepareProvider(fixture("9007199254740992"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	second, err := runtime.prepareProvider(fixture("9007199254740993"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if first == second {
+		t.Fatal("adjacent retained IDs shared a provider")
+	}
+	decimal, err := runtime.prepareProvider(fixture("0.1"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	same, err := runtime.prepareProvider(fixture("0.10"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if decimal != same {
+		t.Fatal("equal numerical values did not reuse their owner")
+	}
+	runtime.SDK = newDefaultRuntime().SDK
+	other, err := runtime.prepareProvider(fixture("0.1"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if other == decimal {
+		t.Fatal("provider crossed runtime ownership")
+	}
+	for index := 0; index < 2; index++ {
+		if _, err := runtime.prepareProvider(fixture("1e999999999999999999999")); err != nil {
+			t.Fatalf("comparison capability should cause cache miss: %v", err)
+		}
+	}
+}
+
+func TestPreparedProviderContentIndexOwnsValuesAndBoundsAliases(t *testing.T) {
+	runtime := newDefaultRuntime()
+	fixture := func(token string) *openbindings.Interface {
+		var iface openbindings.Interface
+		if err := json.Unmarshal([]byte(`{"openbindings":"0.2.0","operations":{"ping":{"input":{"const":`+token+`}}}}`), &iface); err != nil {
+			t.Fatal(err)
+		}
+		return &iface
+	}
+	original := fixture("0.1")
+	first, err := runtime.prepareProvider(original)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for i := 1; i < maxPreparedProviders+10; i++ {
+		provider, err := runtime.prepareProvider(fixture("0.1" + strings.Repeat("0", i)))
+		if err != nil || provider != first {
+			t.Fatal("numeric alias did not reuse its verified owner", err)
+		}
+	}
+	if len(runtime.preparedProviders) != 1 || len(runtime.preparedContent) > maxPreparedProviders {
+		t.Fatal("unbounded semantic aliases")
+	}
+	original.Operations["ping"].Input.(map[string]any)["const"] = json.Number("0.2")
+	changed, err := runtime.prepareProvider(original)
+	if err != nil || changed == first {
+		t.Fatal("caller mutation reused old contract", err)
+	}
+	restored, err := runtime.prepareProvider(fixture("0.1"))
+	if err != nil || restored != first {
+		t.Fatal("mutation changed the retained owner", err)
 	}
 }

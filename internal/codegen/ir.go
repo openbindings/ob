@@ -6,6 +6,8 @@ import (
 	"sort"
 	"strings"
 	"unicode"
+
+	"github.com/openbindings/openbindings-go/jsonvalue"
 )
 
 // TypeKind classifies a TypeRef.
@@ -93,13 +95,16 @@ type CodegenResult struct {
 // schemaConverter converts JSON Schema (map[string]any) into IR types.
 type schemaConverter struct {
 	// root is the containing OBI document for resolving #/schemas/Foo refs.
-	root map[string]any
+	root       map[string]any
+	rootLoader func() (map[string]any, error)
 	// registry tracks already-converted $ref targets by ref string.
 	registry map[string]*TypeDef
 	// converting tracks refs currently being converted (cycle detection).
 	converting map[string]bool
 	// types collects all generated TypeDefs.
 	types []TypeDef
+	// First exact comparison failure: Generate must not emit a fabricated type.
+	err error
 }
 
 func newSchemaConverter(root map[string]any) *schemaConverter {
@@ -292,7 +297,7 @@ func (c *schemaConverter) resolveRef(ref string) TypeRef {
 	}
 
 	// Resolve the target schema from the root document.
-	target := resolveJSONPointer(c.root, ref)
+	target := c.resolvePointer(ref)
 	if target == nil {
 		return TypeRef{Kind: KindUnknown}
 	}
@@ -340,7 +345,7 @@ func (c *schemaConverter) flattenAllOf(branches []map[string]any, path string) m
 		// Resolve $ref in branch.
 		resolved := branch
 		if ref, ok := branch["$ref"].(string); ok {
-			target := resolveJSONPointer(c.root, ref)
+			target := c.resolvePointer(ref)
 			if target != nil {
 				resolved = target
 			}
@@ -403,7 +408,11 @@ func (c *schemaConverter) flattenAllOf(branches []map[string]any, path string) m
 		// Merge enum (intersection).
 		if ev, ok := resolved["enum"].([]any); ok {
 			if existing, ok := merged["enum"].([]any); ok {
-				merged["enum"] = intersectEnums(existing, ev)
+				values, err := intersectEnums(existing, ev)
+				if err != nil && c.err == nil {
+					c.err = err
+				}
+				merged["enum"] = values
 			} else {
 				merged["enum"] = ev
 			}
@@ -440,6 +449,20 @@ func (c *schemaConverter) flattenAllOf(branches []map[string]any, path string) m
 
 // resolveJSONPointer resolves a JSON Pointer fragment (e.g. "#/schemas/Foo")
 // against a root document.
+func (c *schemaConverter) resolvePointer(ref string) map[string]any {
+	if c.rootLoader != nil {
+		loader := c.rootLoader
+		c.rootLoader = nil
+		root, err := loader()
+		if err != nil {
+			c.err = err
+			return nil
+		}
+		c.root = root
+	}
+	return resolveJSONPointer(c.root, ref)
+}
+
 func resolveJSONPointer(root map[string]any, ref string) map[string]any {
 	if !strings.HasPrefix(ref, "#/") {
 		return nil
@@ -650,18 +673,22 @@ func typeSet(t any) []string {
 	return nil
 }
 
-func intersectEnums(a, b []any) []any {
-	bSet := make(map[any]bool, len(b))
-	for _, v := range b {
-		bSet[v] = true
-	}
+func intersectEnums(a, b []any) ([]any, error) {
 	var result []any
+	set, err := jsonvalue.NewValueSet(b)
+	if err != nil {
+		return nil, err
+	}
 	for _, v := range a {
-		if bSet[v] {
+		found, err := set.Contains(v)
+		if err != nil {
+			return nil, err
+		}
+		if found {
 			result = append(result, v)
 		}
 	}
-	return result
+	return result, nil
 }
 
 func uniqueStrings(arr []any) []any {
