@@ -15,6 +15,7 @@ import (
 	"time"
 
 	openbindings "github.com/openbindings/openbindings-go"
+	"github.com/openbindings/openbindings-go/jsonvalue"
 
 	"github.com/openbindings/openbindings-go/synthesize"
 
@@ -281,7 +282,7 @@ func ResolveOBI(urlOrHost string) (doc []byte, synthesizedFrom string, err error
 
 func normalizeOBIJSON(body []byte) (string, bool) {
 	var raw map[string]any
-	if err := json.Unmarshal(body, &raw); err != nil {
+	if err := jsonvalue.Unmarshal(body, &raw); err != nil {
 		return "", false
 	}
 	if !openbindings.IsOBInterface(raw) {

@@ -242,7 +242,7 @@ func TestInvoke_CallerCloseSendsCloseFrame(t *testing.T) {
 	if err != nil {
 		t.Fatalf("read: %v", err)
 	}
-	if v != float64(3) {
+	if v != json.Number("3") {
 		t.Errorf("output = %#v, want 3", v)
 	}
 	if _, err := out.Read(ctx); !errors.Is(err, io.EOF) {

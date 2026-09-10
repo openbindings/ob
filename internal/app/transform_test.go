@@ -1,6 +1,7 @@
 package app
 
 import (
+	"context"
 	"testing"
 
 	openbindings "github.com/openbindings/openbindings-go"
@@ -8,7 +9,7 @@ import (
 
 func TestApplyTransform_Nil(t *testing.T) {
 	input := map[string]any{"foo": "bar"}
-	result, err := ApplyTransform(nil, nil, input)
+	result, err := ApplyTransform(context.Background(), nil, nil, input)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -21,7 +22,7 @@ func TestApplyTransform_SimpleRename(t *testing.T) {
 	tor := &openbindings.TransformOrRef{Inline: `{ "to": openbindingsVersion }`}
 
 	input := map[string]any{"openbindingsVersion": "0.1.0"}
-	result, err := ApplyTransform(nil, tor, input)
+	result, err := ApplyTransform(context.Background(), nil, tor, input)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -56,7 +57,7 @@ func TestApplyTransform_FullSynthesizeInterfaceInput(t *testing.T) {
 		},
 	}
 
-	result, err := ApplyTransform(nil, tor, input)
+	result, err := ApplyTransform(context.Background(), nil, tor, input)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -104,7 +105,7 @@ func TestApplyTransform_ResolveRef(t *testing.T) {
 	tor := &openbindings.TransformOrRef{Ref: "#/transforms/myTransform"}
 
 	input := map[string]any{"original": "value"}
-	result, err := ApplyTransform(transforms, tor, input)
+	result, err := ApplyTransform(context.Background(), transforms, tor, input)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -121,7 +122,7 @@ func TestApplyTransform_ResolveRef(t *testing.T) {
 func TestApplyTransform_RefNotFound(t *testing.T) {
 	tor := &openbindings.TransformOrRef{Ref: "#/transforms/nonexistent"}
 
-	_, err := ApplyTransform(nil, tor, map[string]any{})
+	_, err := ApplyTransform(context.Background(), nil, tor, map[string]any{})
 	if err == nil {
 		t.Error("expected error for missing ref, got nil")
 	}
@@ -130,7 +131,7 @@ func TestApplyTransform_RefNotFound(t *testing.T) {
 func TestApplyTransform_EmptyExpression(t *testing.T) {
 	tor := &openbindings.TransformOrRef{Inline: ""}
 
-	_, err := ApplyTransform(nil, tor, map[string]any{})
+	_, err := ApplyTransform(context.Background(), nil, tor, map[string]any{})
 	if err == nil {
 		t.Error("expected error for empty expression, got nil")
 	}
@@ -139,7 +140,7 @@ func TestApplyTransform_EmptyExpression(t *testing.T) {
 func TestApplyTransform_InvalidExpression(t *testing.T) {
 	tor := &openbindings.TransformOrRef{Inline: `{ invalid syntax !!!`}
 
-	_, err := ApplyTransform(nil, tor, map[string]any{})
+	_, err := ApplyTransform(context.Background(), nil, tor, map[string]any{})
 	if err == nil {
 		t.Error("expected error for invalid expression, got nil")
 	}
@@ -148,7 +149,7 @@ func TestApplyTransform_InvalidExpression(t *testing.T) {
 func TestApplyTransform_NilInput(t *testing.T) {
 	tor := &openbindings.TransformOrRef{Inline: `{ "value": $ }`}
 
-	result, err := ApplyTransform(nil, tor, nil)
+	result, err := ApplyTransform(context.Background(), nil, tor, nil)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}

@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"encoding/json"
 	"testing"
 )
 
@@ -107,7 +108,7 @@ func TestParseConfigFlagEntries_JSONAndBareString(t *testing.T) {
 	if got["region"] != "eu-west-1" {
 		t.Errorf("region point: %#v", got["region"])
 	}
-	if got["retries"] != float64(3) {
+	if got["retries"] != json.Number("3") {
 		t.Errorf("retries point: %#v", got["retries"])
 	}
 }

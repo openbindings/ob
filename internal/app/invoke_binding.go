@@ -34,7 +34,7 @@ func InvokeBinding(ctx context.Context, in InvokeBindingInput) InvokeBindingResu
 		return InvokeBindingResult{Error: fmt.Errorf("no interface")}
 	}
 
-	resolved, err := resolveBindingAndSource(in.Interface, in.OpKey, "", in.InputData)
+	resolved, err := resolveBindingAndSourceWithContext(ctx, in.Interface, in.OpKey, "", in.InputData, nil)
 	if err != nil {
 		return InvokeBindingResult{Error: err}
 	}
@@ -58,7 +58,7 @@ func InvokeBinding(ctx context.Context, in InvokeBindingInput) InvokeBindingResu
 
 	output := result.Output
 	if resolved.binding.OutputTransform != nil && result.Error == nil {
-		transformed, tErr := ApplyTransform(in.Interface.Transforms, resolved.binding.OutputTransform, output)
+		transformed, tErr := ApplyTransform(ctx, in.Interface.Transforms, resolved.binding.OutputTransform, output)
 		if tErr != nil {
 			return InvokeBindingResult{
 				Output: FormatOpOutput(output),

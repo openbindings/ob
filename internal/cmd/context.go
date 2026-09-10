@@ -3,13 +3,13 @@ package cmd
 import (
 	"bufio"
 	"encoding/base64"
-	"encoding/json"
 	"fmt"
 	"io"
 	"os"
 	"strings"
 
 	"github.com/openbindings/ob/internal/app"
+	"github.com/openbindings/openbindings-go/jsonvalue"
 	"github.com/spf13/cobra"
 	"golang.org/x/term"
 )
@@ -305,7 +305,7 @@ func runContextSetValue(cmd *cobra.Command, args []string, valueJSON string) err
 	}
 	var value map[string]any
 	if strings.TrimSpace(raw) != "" {
-		if err := json.Unmarshal([]byte(raw), &value); err != nil {
+		if err := jsonvalue.Unmarshal([]byte(raw), &value); err != nil {
 			return app.ExitResult{Code: 2, Message: fmt.Sprintf("parse --value: %v", err), ToStderr: true}
 		}
 	}
@@ -609,7 +609,7 @@ func parseConfigFlagEntries(entries []string) (map[string]any, error) {
 			return nil, app.ExitResult{Code: 1, Message: fmt.Sprintf("invalid config %q (expected \"point=value\")", raw), ToStderr: true}
 		}
 		var parsed any
-		if err := json.Unmarshal([]byte(value), &parsed); err != nil {
+		if err := jsonvalue.Unmarshal([]byte(value), &parsed); err != nil {
 			parsed = value
 		}
 		if out == nil {

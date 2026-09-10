@@ -2,6 +2,8 @@ module github.com/openbindings/ob
 
 go 1.25.12
 
+toolchain go1.25.13
+
 require (
 	github.com/charmbracelet/bubbles v0.21.1-0.20250623103423-23b8fd6302d7 // indirect
 	github.com/charmbracelet/bubbletea v1.3.10 // indirect
@@ -26,8 +28,8 @@ require (
 	github.com/modelcontextprotocol/go-sdk v1.6.1
 	github.com/zalando/go-keyring v0.2.6
 	golang.org/x/term v0.44.0
-	golang.org/x/text v0.38.0
-	google.golang.org/grpc v1.79.3
+	golang.org/x/text v0.39.0
+	google.golang.org/grpc v1.82.1
 	google.golang.org/protobuf v1.36.11
 )
 

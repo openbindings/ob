@@ -15,6 +15,7 @@ package frames
 import (
 	"encoding/json"
 	"fmt"
+	"github.com/openbindings/openbindings-go/jsonvalue"
 
 	openbindings "github.com/openbindings/openbindings-go"
 
@@ -85,7 +86,7 @@ func (e WireError) MarshalJSON() ([]byte, error) {
 
 func (e *WireError) UnmarshalJSON(raw []byte) error {
 	var fields map[string]json.RawMessage
-	if err := json.Unmarshal(raw, &fields); err != nil || fields == nil {
+	if err := jsonvalue.Unmarshal(raw, &fields); err != nil || fields == nil {
 		return fmt.Errorf("InvocationError must be an object")
 	}
 	for key := range fields {
@@ -94,13 +95,13 @@ func (e *WireError) UnmarshalJSON(raw []byte) error {
 		}
 	}
 	codeRaw, ok := fields["code"]
-	if !ok || json.Unmarshal(codeRaw, &e.Code) != nil || e.Code == "" {
+	if !ok || jsonvalue.Unmarshal(codeRaw, &e.Code) != nil || e.Code == "" {
 		return fmt.Errorf("InvocationError.code must be a non-empty string")
 	}
 	e.Data = nil
 	e.dataPresent = false
 	if dataRaw, ok := fields["data"]; ok {
-		if err := json.Unmarshal(dataRaw, &e.Data); err != nil {
+		if err := jsonvalue.Unmarshal(dataRaw, &e.Data); err != nil {
 			return fmt.Errorf("InvocationError.data: %w", err)
 		}
 		e.dataPresent = true
@@ -220,7 +221,7 @@ func (f *OperationInputFrame) UnmarshalJSON(b []byte) error {
 			return err
 		}
 		var value any
-		if err := json.Unmarshal(fields["value"], &value); err != nil {
+		if err := jsonvalue.Unmarshal(fields["value"], &value); err != nil {
 			return protocolErrorf("input frame: invalid value: %v", err)
 		}
 		*f = OperationInputFrame{Kind: kind, Value: value}
@@ -291,7 +292,7 @@ func (f *InputFrame) UnmarshalJSON(b []byte) error {
 			return err
 		}
 		var value any
-		if err := json.Unmarshal(fields["value"], &value); err != nil {
+		if err := jsonvalue.Unmarshal(fields["value"], &value); err != nil {
 			return protocolErrorf("input frame: invalid value: %v", err)
 		}
 		*f = InputFrame{Kind: kind, Value: value}
@@ -312,7 +313,7 @@ func (f *InputFrame) UnmarshalJSON(b []byte) error {
 // properties on it and its extensible Source value.
 func DecodeInvocationInput(raw json.RawMessage) (*BindingInvocationInput, error) {
 	var fields map[string]json.RawMessage
-	if raw == nil || json.Unmarshal(raw, &fields) != nil || fields == nil {
+	if raw == nil || jsonvalue.Unmarshal(raw, &fields) != nil || fields == nil {
 		return nil, protocolErrorf("open frame: input must be an object")
 	}
 	for k := range fields {
@@ -330,7 +331,7 @@ func DecodeInvocationInput(raw json.RawMessage) (*BindingInvocationInput, error)
 	}
 
 	var srcFields map[string]json.RawMessage
-	if json.Unmarshal(fields["source"], &srcFields) != nil || srcFields == nil {
+	if jsonvalue.Unmarshal(fields["source"], &srcFields) != nil || srcFields == nil {
 		return nil, protocolErrorf("open frame: input.source must be an object")
 	}
 	if _, hasLocation := srcFields["location"]; !hasLocation {
@@ -340,7 +341,7 @@ func DecodeInvocationInput(raw json.RawMessage) (*BindingInvocationInput, error)
 	}
 
 	var input BindingInvocationInput
-	if err := json.Unmarshal(raw, &input); err != nil {
+	if err := jsonvalue.Unmarshal(raw, &input); err != nil {
 		return nil, protocolErrorf("open frame: invalid input: %v", err)
 	}
 	if input.Source.BindingSpec == "" {
@@ -353,7 +354,7 @@ func DecodeInvocationInput(raw json.RawMessage) (*BindingInvocationInput, error)
 // payload, including the operation-or-binding exclusive choice.
 func DecodeOperationInvocationInput(raw json.RawMessage) (*OperationInvocationInput, error) {
 	var fields map[string]json.RawMessage
-	if raw == nil || json.Unmarshal(raw, &fields) != nil || fields == nil {
+	if raw == nil || jsonvalue.Unmarshal(raw, &fields) != nil || fields == nil {
 		return nil, protocolErrorf("open frame: input must be an object")
 	}
 	for k := range fields {
@@ -368,7 +369,7 @@ func DecodeOperationInvocationInput(raw json.RawMessage) (*OperationInvocationIn
 	}
 
 	var input OperationInvocationInput
-	if err := json.Unmarshal(raw, &input); err != nil {
+	if err := jsonvalue.Unmarshal(raw, &input); err != nil {
 		return nil, protocolErrorf("open frame: invalid input: %v", err)
 	}
 	if input.Interface == nil {
@@ -446,7 +447,7 @@ func (f *OutputFrame) UnmarshalJSON(b []byte) error {
 			return err
 		}
 		var value any
-		if err := json.Unmarshal(fields["value"], &value); err != nil {
+		if err := jsonvalue.Unmarshal(fields["value"], &value); err != nil {
 			return protocolErrorf("output frame: invalid value: %v", err)
 		}
 		*f = OutputFrame{Kind: kind, Value: value}
@@ -460,7 +461,7 @@ func (f *OutputFrame) UnmarshalJSON(b []byte) error {
 			return err
 		}
 		var wireErr WireError
-		if err := json.Unmarshal(fields["error"], &wireErr); err != nil {
+		if err := jsonvalue.Unmarshal(fields["error"], &wireErr); err != nil {
 			return protocolErrorf("error frame: invalid error: %v", err)
 		}
 		if wireErr.Code == "" {
@@ -481,7 +482,7 @@ func (f *OutputFrame) UnmarshalJSON(b []byte) error {
 // `kind` discriminator.
 func decodeFrameObject(b []byte) (map[string]json.RawMessage, string, error) {
 	var fields map[string]json.RawMessage
-	if err := json.Unmarshal(b, &fields); err != nil || fields == nil {
+	if err := jsonvalue.Unmarshal(b, &fields); err != nil || fields == nil {
 		return nil, "", protocolErrorf("frame must be a JSON object")
 	}
 	rawKind, ok := fields["kind"]
@@ -489,7 +490,7 @@ func decodeFrameObject(b []byte) (map[string]json.RawMessage, string, error) {
 		return nil, "", protocolErrorf("frame is missing the kind discriminator")
 	}
 	var kind string
-	if err := json.Unmarshal(rawKind, &kind); err != nil {
+	if err := jsonvalue.Unmarshal(rawKind, &kind); err != nil {
 		return nil, "", protocolErrorf("frame kind must be a string")
 	}
 	return fields, kind, nil

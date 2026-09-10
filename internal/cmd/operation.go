@@ -14,6 +14,7 @@ import (
 	"github.com/openbindings/ob/internal/app"
 	openbindings "github.com/openbindings/openbindings-go"
 	"github.com/openbindings/openbindings-go/invoke"
+	"github.com/openbindings/openbindings-go/jsonvalue"
 	"github.com/spf13/cobra"
 	"golang.org/x/term"
 )
@@ -388,7 +389,7 @@ func readInvokeInput(arg string) (any, error) {
 		return nil, nil
 	}
 	var v any
-	if err := json.Unmarshal(raw, &v); err != nil {
+	if err := jsonvalue.Unmarshal(raw, &v); err != nil {
 		return nil, fmt.Errorf("invalid --input JSON: %w", err)
 	}
 	return v, nil
@@ -443,7 +444,7 @@ func readJSONObjectArg(arg, flagName string) (map[string]any, error) {
 		return nil, nil
 	}
 	var configuration map[string]any
-	if err := json.Unmarshal(raw, &configuration); err != nil {
+	if err := jsonvalue.Unmarshal(raw, &configuration); err != nil {
 		return nil, fmt.Errorf("invalid %s JSON object: %w", flagName, err)
 	}
 	if configuration == nil {
@@ -654,7 +655,7 @@ func readSchemaArg(val, flagName string) (map[string]any, error) {
 		raw = string(data)
 	}
 	var schema map[string]any
-	if err := json.Unmarshal([]byte(raw), &schema); err != nil {
+	if err := jsonvalue.Unmarshal([]byte(raw), &schema); err != nil {
 		return nil, app.ExitResult{Code: 2, Message: fmt.Sprintf("invalid %s JSON: %v", flagName, err), ToStderr: true}
 	}
 	return schema, nil

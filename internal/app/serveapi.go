@@ -1,6 +1,7 @@
 package app
 
 import (
+	"encoding/json"
 	"fmt"
 	"strings"
 
@@ -379,6 +380,12 @@ func firstSentence(s string) string {
 
 func openAPISchema(v any) any {
 	switch x := v.(type) {
+	case json.Number:
+		tag := "!!int"
+		if strings.ContainsAny(string(x), ".eE") {
+			tag = "!!float"
+		}
+		return &yaml.Node{Kind: yaml.ScalarNode, Tag: tag, Value: string(x)}
 	case map[string]any:
 		out := make(map[string]any, len(x))
 		for k, value := range x {

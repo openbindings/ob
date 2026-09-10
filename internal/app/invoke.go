@@ -152,7 +152,7 @@ func resolveBindingAndSourceWithContext(ctx context.Context, iface *openbindings
 		return nil, err
 	}
 	if resolved.binding.InputTransform != nil {
-		transformed, tErr := ApplyTransform(iface.Transforms, resolved.binding.InputTransform, input)
+		transformed, tErr := ApplyTransform(ctx, iface.Transforms, resolved.binding.InputTransform, input)
 		if tErr != nil {
 			return nil, fmt.Errorf("input transform failed: %w", tErr)
 		}
@@ -666,7 +666,7 @@ func invokeOnInterface(ctx context.Context, iface *openbindings.Interface, opKey
 		// External delegates receive a direct binding-layer call. Keep Core's
 		// operation validation and transforms on ob's trusted side of that
 		// boundary, exactly once.
-		if err := prepareAppDrivenBindingInput(iface, opCanonical, resolved, input); err != nil {
+		if err := prepareAppDrivenBindingInput(ctx, iface, opCanonical, resolved, input); err != nil {
 			return nil, err
 		}
 		lowLevel := InvocationInput{
@@ -694,7 +694,7 @@ func invokeOnInterface(ctx context.Context, iface *openbindings.Interface, opKey
 			Location: chosen.location(),
 			OBI:      &delegates.ResolvedOBI{Interface: *delegateIface},
 		}, lowLevel)
-		run.Events = applyT08(unaryChannel(iface, resolved, out), iface, opCanonical, outputSchema, resolved.bindingKey)
+		run.Events = applyT08(unaryChannel(ctx, iface, resolved, out), iface, opCanonical, outputSchema, resolved.bindingKey)
 		return run, nil
 	}
 
@@ -730,7 +730,7 @@ func invokeOnInterface(ctx context.Context, iface *openbindings.Interface, opKey
 	// The remaining built-in families have not yet adopted a detached native
 	// analysis/provider contract. Preserve their binding-layer route rather
 	// than coupling the OpenAPI migration to unrelated behavioral changes.
-	if err := prepareAppDrivenBindingInput(iface, opCanonical, resolved, input); err != nil {
+	if err := prepareAppDrivenBindingInput(ctx, iface, opCanonical, resolved, input); err != nil {
 		return nil, err
 	}
 	lowLevel := InvocationInput{
@@ -744,11 +744,11 @@ func invokeOnInterface(ctx context.Context, iface *openbindings.Interface, opKey
 	}
 	outputSchema := iface.Operations[opCanonical].Output
 	if stream, streamErr := SubscribeOperationWithContext(ctx, lowLevel); streamErr == nil {
-		run.Events = applyT08(transformEventStream(stream, iface, resolved), iface, opCanonical, outputSchema, resolved.bindingKey)
+		run.Events = applyT08(transformEventStream(ctx, stream, iface, resolved), iface, opCanonical, outputSchema, resolved.bindingKey)
 		return run, nil
 	}
 	result := InvokeOperationWithContext(ctx, lowLevel)
-	run.Events = applyT08(unaryChannel(iface, resolved, result), iface, opCanonical, outputSchema, resolved.bindingKey)
+	run.Events = applyT08(unaryChannel(ctx, iface, resolved, result), iface, opCanonical, outputSchema, resolved.bindingKey)
 	return run, nil
 }
 
@@ -756,14 +756,14 @@ func invokeOnInterface(ctx context.Context, iface *openbindings.Interface, opKey
 // retained by ob on direct binding paths. OpenAPI does not call this helper:
 // its SDK operation invoker owns the same validation and transform exactly
 // once.
-func prepareAppDrivenBindingInput(iface *openbindings.Interface, operation string, resolved *resolvedBinding, input any) error {
+func prepareAppDrivenBindingInput(ctx context.Context, iface *openbindings.Interface, operation string, resolved *resolvedBinding, input any) error {
 	if inSchema := iface.Operations[operation].Input; inSchema != nil && input != nil {
 		if err := openbindings.ValidateOperationInput(input, iface, operation); err != nil {
 			return fmt.Errorf("input validation failed for %q: %w", resolved.bindingKey, err)
 		}
 	}
 	if resolved.binding.InputTransform != nil {
-		transformed, err := ApplyTransform(iface.Transforms, resolved.binding.InputTransform, input)
+		transformed, err := ApplyTransform(ctx, iface.Transforms, resolved.binding.InputTransform, input)
 		if err != nil {
 			return fmt.Errorf("input transform failed: %w", err)
 		}
@@ -810,9 +810,9 @@ func driveOperationInvocation(ctx context.Context, call invoke.Invocation[any, a
 // unaryChannel collapses a unary InvocationResult into a one-event
 // channel, applying the binding's output transform on success (the
 // streaming lane applies it via transformEventStream).
-func unaryChannel(iface *openbindings.Interface, resolved *resolvedBinding, result InvocationResult) <-chan InvocationOutput {
+func unaryChannel(ctx context.Context, iface *openbindings.Interface, resolved *resolvedBinding, result InvocationResult) <-chan InvocationOutput {
 	if resolved.binding.OutputTransform != nil && result.Error == nil {
-		transformed, tErr := ApplyTransform(iface.Transforms, resolved.binding.OutputTransform, result.Output)
+		transformed, tErr := ApplyTransform(ctx, iface.Transforms, resolved.binding.OutputTransform, result.Output)
 		if tErr != nil {
 			result.Error = &Error{Code: "output_transform_error", Message: fmt.Sprintf("output transform failed: %v", tErr)}
 		} else {
@@ -1064,26 +1064,53 @@ func renderConfigChoice(value any) string {
 
 // transformEventStream applies the binding's outputTransform to each event.
 // Returns the source channel directly if no transform is configured.
-func transformEventStream(src <-chan InvocationOutput, iface *openbindings.Interface, resolved *resolvedBinding) <-chan InvocationOutput {
+func transformEventStream(ctx context.Context, src <-chan InvocationOutput, iface *openbindings.Interface, resolved *resolvedBinding) <-chan InvocationOutput {
 	if resolved.binding.OutputTransform == nil {
 		return src
 	}
 	out := make(chan InvocationOutput)
 	go func() {
 		defer close(out)
-		for ev := range src {
+		send := func(ev InvocationOutput) bool {
+			select {
+			case out <- ev:
+				return true
+			case <-ctx.Done():
+				return false
+			}
+		}
+		for {
+			var ev InvocationOutput
+			select {
+			case value, ok := <-src:
+				if !ok {
+					return
+				}
+				ev = value
+			case <-ctx.Done():
+				return
+			}
 			if ev.Error != nil || ev.Output == nil {
-				out <- ev
+				if !send(ev) {
+					return
+				}
 				continue
 			}
-			transformed, err := ApplyTransform(iface.Transforms, resolved.binding.OutputTransform, ev.Output)
+			transformed, err := ApplyTransform(ctx, iface.Transforms, resolved.binding.OutputTransform, ev.Output)
+			if ctx.Err() != nil {
+				return
+			}
 			if err != nil {
-				out <- InvocationOutput{Error: &invoke.InvocationError{
+				if !send(InvocationOutput{Error: &invoke.InvocationError{
 					Code: "output_transform_error",
-				}}
+				}}) {
+					return
+				}
 				continue
 			}
-			out <- InvocationOutput{Output: transformed}
+			if !send(InvocationOutput{Output: transformed}) {
+				return
+			}
 		}
 	}()
 	return out

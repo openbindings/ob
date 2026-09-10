@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	openbindings "github.com/openbindings/openbindings-go"
+	"github.com/openbindings/openbindings-go/jsonvalue"
 )
 
 // Generate converts an OBI Interface into a CodegenResult suitable for emitters.
@@ -19,16 +20,20 @@ func Generate(iface *openbindings.Interface) (*CodegenResult, error) {
 	}
 
 	// Marshal the interface to a raw map for $ref resolution.
-	rawBytes, err := json.Marshal(iface)
+	rawBytes, err := jsonvalue.Marshal(iface)
 	if err != nil {
 		return nil, fmt.Errorf("marshal interface: %w", err)
 	}
-	var root map[string]any
-	if err := json.Unmarshal(rawBytes, &root); err != nil {
-		return nil, fmt.Errorf("unmarshal interface: %w", err)
+	conv := newSchemaConverter(nil)
+	// Exact host-value admission above is unconditional. Materialize the
+	// reference view only if a named schema or actual $ref needs it.
+	conv.rootLoader = func() (map[string]any, error) {
+		var root map[string]any
+		if err := jsonvalue.Unmarshal(rawBytes, &root); err != nil {
+			return nil, fmt.Errorf("unmarshal interface: %w", err)
+		}
+		return root, nil
 	}
-
-	conv := newSchemaConverter(root)
 
 	// Pre-convert all named schemas so $ref targets are in the registry.
 	schemaKeys := make([]string, 0, len(iface.Schemas))
@@ -160,6 +165,9 @@ func Generate(iface *openbindings.Interface) (*CodegenResult, error) {
 	}
 
 	// Collect all types: registry entries first (named schemas), then generated inline types.
+	if conv.err != nil {
+		return nil, fmt.Errorf("codegen schema comparison: %w", conv.err)
+	}
 	typeMap := make(map[string]TypeDef)
 	for _, td := range conv.types {
 		typeMap[td.Name] = td

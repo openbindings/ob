@@ -6,6 +6,7 @@ import (
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 	openbindings "github.com/openbindings/openbindings-go"
+	"github.com/openbindings/openbindings-go/jsonvalue"
 )
 
 // genericToolProjection is the protocol-neutral mapping from one OBI
@@ -33,7 +34,7 @@ func projectGenericTool(op openbindings.Operation, schemas map[string]openbindin
 			return operationInput{}, nil
 		}
 		var input map[string]any
-		if err := json.Unmarshal(raw, &input); err != nil {
+		if err := jsonvalue.Unmarshal(raw, &input); err != nil {
 			return operationInput{}, fmt.Errorf("invalid arguments: %w", err)
 		}
 		if input == nil {
@@ -99,7 +100,7 @@ func projectGenericTool(op openbindings.Operation, schemas map[string]openbindin
 			return operationInput{}, nil
 		}
 		var input any
-		if err := json.Unmarshal(value, &input); err != nil {
+		if err := jsonvalue.Unmarshal(value, &input); err != nil {
 			return operationInput{}, fmt.Errorf(`invalid arguments member "input": %w`, err)
 		}
 		return operationInput{Value: input, Present: true}, nil
@@ -148,7 +149,7 @@ func genericToolResult(result drainedOperation) *mcp.CallToolResult {
 		}
 		envelope["error"] = failure
 	}
-	data, err := json.Marshal(envelope)
+	data, err := jsonvalue.Marshal(envelope)
 	if err != nil {
 		return &mcp.CallToolResult{
 			IsError: true,

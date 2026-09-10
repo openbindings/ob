@@ -1,8 +1,8 @@
 package cmd
 
 import (
-	"encoding/json"
 	"fmt"
+	"github.com/openbindings/openbindings-go/jsonvalue"
 	"os"
 	"strings"
 
@@ -114,7 +114,7 @@ Examples:
 					return app.ExitResult{Code: 2, Message: "--input is exclusive with positional arguments and source flags", ToStderr: true}
 				}
 				var input app.AddInterfaceSourceInput
-				if err := json.Unmarshal([]byte(inputJSON), &input); err != nil {
+				if err := jsonvalue.Unmarshal([]byte(inputJSON), &input); err != nil {
 					return app.ExitResult{Code: 2, Message: fmt.Sprintf("parse --input: %v", err), ToStderr: true}
 				}
 				result, err := app.AddInterfaceSource(input)

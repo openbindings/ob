@@ -10,7 +10,6 @@ import (
 	"github.com/openbindings/ob/internal/server"
 	"github.com/openbindings/openbindings-go/canonicaljson"
 	"github.com/spf13/cobra"
-	"gopkg.in/yaml.v3"
 )
 
 // embeddedUsageSpec is the usage.kdl content for exec: artifact resolution.
@@ -222,9 +221,5 @@ func canonicalYAML(v any) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	var anyVal any
-	if err := json.Unmarshal(b, &anyVal); err != nil {
-		return nil, err
-	}
-	return yaml.Marshal(anyVal)
+	return app.MarshalJSONAsYAML(json.RawMessage(b))
 }

@@ -1,6 +1,9 @@
 package app
 
-import "testing"
+import (
+	"encoding/json"
+	"testing"
+)
 
 func TestNormalizeJSON_Nil(t *testing.T) {
 	result, err := NormalizeJSON(nil)
@@ -59,7 +62,7 @@ func TestNormalizeJSON_Struct(t *testing.T) {
 	if m["name"] != "test" {
 		t.Errorf("expected 'test', got %v", m["name"])
 	}
-	if m["value"] != float64(42) { // JSON numbers are float64
+	if m["value"] != json.Number("42") {
 		t.Errorf("expected 42, got %v", m["value"])
 	}
 }
@@ -86,7 +89,35 @@ func TestNormalizeJSON_NestedStruct(t *testing.T) {
 	if !ok {
 		t.Fatalf("expected inner to be map[string]any, got %T", m["inner"])
 	}
-	if innerMap["x"] != float64(10) {
+	if innerMap["x"] != json.Number("10") {
 		t.Errorf("expected 10, got %v", innerMap["x"])
+	}
+}
+
+func TestNormalizeJSON_ExactNumbers(t *testing.T) {
+	for _, value := range []any{json.Number("1e400"), uint64(18446744073709551615), struct{ N json.Number }{json.Number("0.10000000000000000001")}} {
+		before, err := json.Marshal(value)
+		if err != nil {
+			t.Fatal(err)
+		}
+		normalized, err := NormalizeJSON(value)
+		if err != nil {
+			t.Fatal(err)
+		}
+		after, err := json.Marshal(normalized)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if string(before) != string(after) {
+			t.Fatalf("changed %s to %s", before, after)
+		}
+	}
+}
+
+func TestNormalizeJSON_RejectsMalformedTypedNumber(t *testing.T) {
+	for _, value := range []any{json.Number(""), struct{ N json.Number }{json.Number("")}} {
+		if result, err := NormalizeJSON(value); err == nil {
+			t.Fatalf("malformed number normalized as %v", result)
+		}
 	}
 }

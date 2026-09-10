@@ -2,8 +2,8 @@ package cmd
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
+	"github.com/openbindings/openbindings-go/jsonvalue"
 	"io"
 	"strings"
 
@@ -51,7 +51,7 @@ Examples:
 				var wire struct {
 					Source *openbindings.Source `json:"source"`
 				}
-				if err := json.Unmarshal([]byte(inputJSON), &wire); err != nil {
+				if err := jsonvalue.Unmarshal([]byte(inputJSON), &wire); err != nil {
 					return app.ExitResult{Code: 2, Message: fmt.Sprintf("parse --input: %v", err), ToStderr: true}
 				}
 				if wire.Source == nil {

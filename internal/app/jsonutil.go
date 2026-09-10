@@ -1,7 +1,7 @@
 // Package app - jsonutil.go provides JSON normalization and conversion utilities.
 package app
 
-import "encoding/json"
+import "github.com/openbindings/openbindings-go/jsonvalue"
 
 // NormalizeJSON converts a Go value to a JSON-normalized form (map[string]any, []any, etc).
 // This ensures consistent handling of structs, typed maps, and other Go values
@@ -21,13 +21,13 @@ func NormalizeJSON(v any) (any, error) {
 	}
 
 	// Round-trip through JSON to normalize
-	data, err := json.Marshal(v)
+	data, err := jsonvalue.Marshal(v)
 	if err != nil {
 		return nil, err
 	}
 
 	var result any
-	if err := json.Unmarshal(data, &result); err != nil {
+	if err := jsonvalue.Unmarshal(data, &result); err != nil {
 		return nil, err
 	}
 

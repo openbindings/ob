@@ -2,6 +2,7 @@ package app
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 	"sync"
@@ -9,6 +10,7 @@ import (
 	openbindings "github.com/openbindings/openbindings-go"
 
 	"github.com/openbindings/openbindings-go/invoke"
+	"github.com/openbindings/openbindings-go/jsonvalue"
 	obsdk "github.com/openbindings/openbindings-go/sdk"
 
 	"github.com/openbindings/openbindings-go/synthesize"
@@ -42,9 +44,13 @@ type cliRuntime struct {
 	OpenAPI     *openapi.Adapter
 	Recognizers []func([]byte) (string, bool, error)
 
-	preparedMu        sync.Mutex
-	preparedProviders map[string]*invoke.PreparedProvider
-	preparedOrder     []string
+	preparedMu           sync.Mutex
+	preparedProviders    map[string]*invoke.PreparedProvider
+	preparedOwners       map[string]*invoke.OperationInvoker
+	preparedNames        map[string]string
+	preparedOrder        []string
+	preparedContent      map[string]string
+	preparedContentOrder []string
 }
 
 const maxPreparedProviders = 64
@@ -107,41 +113,105 @@ func newDefaultRuntime() *cliRuntime {
 		OpenAPI:           openAPI,
 		Recognizers:       []func([]byte) (string, bool, error){openAPI.RecognizeRepresentation},
 		preparedProviders: make(map[string]*invoke.PreparedProvider),
+		preparedOwners:    make(map[string]*invoke.OperationInvoker),
 	}
 }
 
-// prepareProvider snapshots an interface once per canonical revision and
-// retains the generic provider catalog for this process. The catalog closes
+// prepareProvider verifies exact owned document values within this runtime's
+// bounded provider cache. Local labels never establish equality. The catalog closes
 // exact realizations lazily; live credentials and configuration remain
 // per-invocation and are never cached here.
 func (r *cliRuntime) prepareProvider(iface *openbindings.Interface) (*invoke.PreparedProvider, error) {
-	prepared, err := openbindings.PrepareInterface(iface)
+	// Exact encoded content is a sufficient (not necessary) reuse witness.
+	// Capture it before lookup; this is not JCS or persistent content identity.
+	material, err := jsonvalue.Marshal(iface)
 	if err != nil {
 		return nil, err
 	}
-	revision := prepared.Revision()
+	content := string(material)
+	owner := r.SDK.OperationInvoker()
+	if r == defaultRuntime && defaultInvokerOverride != nil {
+		owner = defaultInvokerOverride
+	}
 	r.preparedMu.Lock()
 	defer r.preparedMu.Unlock()
-	if provider := r.preparedProviders[revision]; provider != nil {
-		return provider, nil
+	if id, found := r.preparedContent[content]; found && r.preparedOwners[id] == owner {
+		if provider := r.preparedProviders[id]; provider != nil {
+			return provider, nil
+		}
 	}
+	var captured openbindings.Interface
+	if err := jsonvalue.Unmarshal(material, &captured); err != nil {
+		return nil, err
+	}
+	for _, id := range r.preparedOrder {
+		provider := r.preparedProviders[id]
+		// Unequal literal names cannot be equal documents. This is only a
+		// rejection filter; exact material still decides every cache hit.
+		if provider == nil || r.preparedOwners[id] != owner || r.preparedNames[id] != captured.Name {
+			continue
+		}
+		same, err := jsonvalue.Equal(provider.PreparedInterface().InterfaceSnapshot(), &captured)
+		if err != nil {
+			var capability *jsonvalue.CapabilityError
+			if errors.As(err, &capability) {
+				continue
+			}
+			return nil, err
+		}
+		if same {
+			r.rememberPreparedContent(content, id)
+			return provider, nil
+		}
+	}
+	prepared, err := openbindings.PrepareInterface(&captured)
+	if err != nil {
+		return nil, err
+	}
+	id := prepared.SnapshotID()
 	provider, err := invoke.PrepareProvider(invoke.PreparedProviderOptions{
-		Key:       revision,
-		Label:     "ob interface " + revision,
+		Key:       id,
+		Label:     "ob interface " + id,
 		Interface: prepared,
-		Runtime:   DefaultInvoker(),
+		Runtime:   owner,
 	})
 	if err != nil {
 		return nil, err
 	}
-	r.preparedProviders[revision] = provider
-	r.preparedOrder = append(r.preparedOrder, revision)
+	r.preparedProviders[id] = provider
+	r.preparedOwners[id] = owner
+	if r.preparedNames == nil {
+		r.preparedNames = make(map[string]string)
+	}
+	r.preparedNames[id] = captured.Name
+	r.preparedOrder = append(r.preparedOrder, id)
+	r.rememberPreparedContent(content, id)
 	if len(r.preparedOrder) > maxPreparedProviders {
 		oldest := r.preparedOrder[0]
 		r.preparedOrder = r.preparedOrder[1:]
 		delete(r.preparedProviders, oldest)
+		delete(r.preparedOwners, oldest)
+		delete(r.preparedNames, oldest)
 	}
 	return provider, nil
+}
+
+// The language's string-keyed map verifies full bytes after hashing. A digest
+// collision cannot establish reuse. Alternate numeric spellings may be added
+// only after exact semantic comparison; aliases have their own bounded FIFO.
+func (r *cliRuntime) rememberPreparedContent(content, id string) {
+	if r.preparedContent == nil {
+		r.preparedContent = make(map[string]string)
+	}
+	if _, found := r.preparedContent[content]; !found {
+		r.preparedContentOrder = append(r.preparedContentOrder, content)
+	}
+	r.preparedContent[content] = id
+	if len(r.preparedContentOrder) > maxPreparedProviders {
+		oldest := r.preparedContentOrder[0]
+		r.preparedContentOrder = r.preparedContentOrder[1:]
+		delete(r.preparedContent, oldest)
+	}
 }
 
 func defaultCLIRuntime() *cliRuntime {
