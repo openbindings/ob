@@ -47,7 +47,7 @@ try {
   else {
     env.OB_OUT=binary;env.OB_BIN_DIR=path.join(dir,'bin');env.OB_SKIP_WORKBENCH='1';env.OB_LOCAL_WORKSPACE='0';env.GOFLAGS='-mod=readonly';
     await command('bash',['scripts/dev-install.sh'],path.join(cohort,'ob'));
-    assert.equal(fs.realpathSync(path.join(env.OB_BIN_DIR,'ob')),binary);
+    assert.equal(fs.realpathSync(path.join(env.OB_BIN_DIR,'ob')),fs.realpathSync(binary));
     await command(path.join(env.OB_BIN_DIR,'ob'),['--help'],dir);
   }
   const payload='{"id":9223372036854775807,"amount":0.12345678901234567890123456789,"huge":1e400,"tiny":1e-400,"label":"😀 e\\u0301","isLosslessNumber":true}';
@@ -120,7 +120,10 @@ try {
   const sourceRevisions={ob:execFileSync('git',['rev-parse','HEAD'],{cwd:path.join(cohort,'ob'),encoding:'utf8'}).trim()};
   assert(buildInfo.includes('vcs.revision='+sourceRevisions.ob),'binary VCS provenance differs from checkout');
   assert(!buildInfo.includes('vcs.modified=true'),'binary built from modified source');
-  assert(!buildInfo.includes('=>\\t../'),'filesystem replacement in binary');
+  for(const line of buildInfo.split('\n')) {
+    const fields=line.trim().split(/\s+/);
+    if(fields[0]==='=>')assert(fields.length>=3 && /^v\d/.test(fields[2]),'filesystem replacement in binary: '+line);
+  }
   const record={dir,sourceRevisions,buildInfo,binaryHash:hash(fs.readFileSync(binary)),host:{platform:process.platform,arch:process.arch,normalProcess:true,normalConfig:true,sourceOverlay:false,installed:process.platform!=='win32'},results,requests:captured.length,serverOutput,logs};
   fs.writeFileSync(path.join(dir,'RESULTS.json'),JSON.stringify(record,null,2)+'\n');console.log(JSON.stringify({...record,logs:undefined,serverOutput:undefined}));
 }catch(error){fs.writeFileSync(path.join(dir,'FAILURE.json'),JSON.stringify({dir,error:String(error),stack:error.stack,logs},null,2));console.error(dir,error);process.exitCode=1;}
@@ -129,4 +132,3 @@ finally {
   if(active&&active.exitCode===null){const done=new Promise(resolve=>active.once('exit',resolve));active.kill('SIGINT');const timer=setTimeout(()=>active.kill('SIGKILL'),2000);await done;clearTimeout(timer);}
   if(peer)await new Promise(resolve=>peer.close(resolve));
 }
-
