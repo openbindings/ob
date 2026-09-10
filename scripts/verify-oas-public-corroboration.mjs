@@ -14,7 +14,7 @@ const binary=path.join(platform.dir,process.platform==='win32'?'ob.exe':'ob');
 const hash=bytes=>createHash('sha256').update(bytes).digest('hex');
 assert.equal(hash(fs.readFileSync(binary)),platform.binaryHash);
 assert.equal(execFileSync('go',['version','-m',binary],{encoding:'utf8'}),platform.buildInfo);
-const record={started:new Date().toISOString(),binaryHash:platform.binaryHash,obSHA:platform.sourceRevisions.ob,maxExternalGETs:30,usedBudget:0,requests:[],commands:[],sources:[]};
+const record={started:new Date().toISOString(),binaryHash:platform.binaryHash,obSHA:platform.sourceRevisions.ob,maxExternalGETs:30,usedBudget:1,priorGETs:1,priorRun:'34533162907: one PokeAPI artifact GET before harness E2BIG; no CLI process started',requests:[],commands:[],sources:[]};
 const save=()=>fs.writeFileSync(path.join(evidence,'RESULTS.json'),JSON.stringify(record,null,2)+'\n');
 function reserve(count){assert(record.usedBudget+count<=30,'External request budget exceeded');record.usedBudget+=count;save();}
 async function get(url){
@@ -22,17 +22,18 @@ async function get(url){
   try{const response=await fetch(url,{redirect:'manual',signal:AbortSignal.timeout(20000)});const bytes=Buffer.from(await response.arrayBuffer());Object.assign(request,{status:response.status,sha256:hash(bytes),length:bytes.length});save();return {status:response.status,text:bytes.toString('utf8')};}
   catch(error){request.error=String(error);save();return null;}
 }
-async function command(name,args,network=false){
+async function command(name,args,network=false,stdin){
   // Each command is a fresh process and client. The selected native client uses
   // RedirectManual; embedded input has no external references. Reserve TWO GETs
   // per invocation conservatively, not a claim of server-observed wire counts.
   if(network)reserve(2);
   return new Promise((resolve,reject)=>{
-    const row={name,args,network,reservedGETs:network?2:0};record.commands.push(row);save();
-    const child=spawn(binary,args,{cwd:evidence,env:{...process.env,OB_NO_UPDATE_CHECK:'1',OB_TEST_NO_CREDENTIAL_STORE:'1',OB_CREDENTIALS_FILE:path.join(evidence,'credentials.json')},stdio:['ignore','pipe','pipe']});
+    const row={name,args,network,reservedGETs:network?2:0,...(stdin===undefined?{}:{stdinBytes:Buffer.byteLength(stdin),stdinSHA256:hash(stdin)})};record.commands.push(row);save();
+    const child=spawn(binary,args,{cwd:evidence,env:{...process.env,OB_NO_UPDATE_CHECK:'1',OB_TEST_NO_CREDENTIAL_STORE:'1',OB_CREDENTIALS_FILE:path.join(evidence,'credentials.json')},stdio:[stdin===undefined?'ignore':'pipe','pipe','pipe']});
     let stdout='',stderr='';const timer=setTimeout(()=>child.kill('SIGKILL'),30000);
     child.stdout.on('data',b=>stdout+=b);child.stderr.on('data',b=>stderr+=b);child.on('error',reject);
     child.on('close',(code,signal)=>{clearTimeout(timer);Object.assign(row,{code,signal,stdout,stderr});save();resolve(row);});
+    if(stdin!==undefined){child.stdin.on('error',error=>{row.stdinError=String(error);save();});child.stdin.end(stdin);}
   });
 }
 function externalReferences(text){
@@ -61,7 +62,9 @@ try{
     if(refs.length){item.disposition='INCONCLUSIVE_UNBUDGETED_REFERENCE_CLOSURE';continue;}
     const obi=path.join(evidence,name+'.obi.json');
     const source={bindingSpec,location:url,content:response.text};
-    const synthesis=await command(name+'-synthesize',['synthesize','--input',JSON.stringify({sources:[source]}),'-o',obi]);
+    // Existing stdin artifact lane preserves the exact fetched bytes and the
+    // original source base without exceeding the OS's per-argument limit.
+    const synthesis=await command(name+'-synthesize',['synthesize',bindingSpec+':-?outputLocation='+encodeURIComponent(url),'-o',obi],false,response.text);
     if(synthesis.code!==0){item.disposition='SYNTHESIS_REFUSAL_REQUIRES_CLASSIFICATION';continue;}
     const validation=await command(name+'-validate',['validate',obi]);
     item.disposition=validation.code===0?'SYNTHESIZED_AND_VALIDATED':'VALIDATION_FAILURE';
@@ -94,7 +97,7 @@ try{
   if(available.petstore&&available.petstore.generated.operations?.getOrderById)await command('petstore-read-only-order',['op','invoke',available.petstore.obi,'getOrderById','--input','{"orderId":10}'],true);
   for(const [name,url]of [['non-oas','https://pokeapi.co/api/v2/pokemon/pikachu'],['missing','https://raw.githubusercontent.com/open-meteo/open-meteo/main/openapi.yml']]){
     const response=await get(url);if(!response)continue;
-    const row=await command(name+'-rejection',['synthesize','--input',JSON.stringify({sources:[{bindingSpec:'openbindings.openapi-3.1@1',location:url,content:response.text}]})]);
+    const row=await command(name+'-rejection',['synthesize','openbindings.openapi-3.1@1:-?outputLocation='+encodeURIComponent(url)],false,response.text);
     assert.notEqual(row.code,0,name+' unexpectedly synthesized');
   }
   record.verdict='COLLECTED_REQUIRES_PRIMARY_CLASSIFICATION';record.budgetAccounting='Direct fetches counted; each CLI invocation reserves two GETs, no redirects, no external refs, update checks disabled. Not server-observed counts.';
