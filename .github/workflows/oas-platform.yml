@@ -24,7 +24,7 @@ jobs:
     env:
       GOWORK: 'off'
       CGO_ENABLED: '0'
-      OB_PLATFORM_BROWSER_ROOT: ${{ runner.temp }}/oas-platform-browser
+      OB_PLATFORM_BROWSER_ROOT: ${{ github.workspace }}/oas-platform-browser
     defaults:
       run:
         shell: bash
