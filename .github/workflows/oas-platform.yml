@@ -50,17 +50,17 @@ jobs:
         id: platform
         run: node ob/scripts/verify-oas-platform.mjs "$GITHUB_WORKSPACE" | tee "$RUNNER_TEMP/oas-platform-result.json"
       - name: Check out exact workbench qualification tests
-        if: matrix.runner == 'ubuntu-24.04'
+        if: always() && matrix.runner == 'ubuntu-24.04'
         uses: actions/checkout@v7
         with:
           repository: openbindings/elements
           ref: 495759b1e4bb8e1c5027f74f1557039bc69106a5
           path: elements
       - name: Install isolated workbench test runner
-        if: matrix.runner == 'ubuntu-24.04'
+        if: always() && matrix.runner == 'ubuntu-24.04'
         run: npm install --prefix "$OB_PLATFORM_BROWSER_ROOT" --no-audit --no-fund @playwright/test@1.61.1
       - name: Qualify the same binary with workbench and journey tests
-        if: matrix.runner == 'ubuntu-24.04'
+        if: always() && matrix.runner == 'ubuntu-24.04'
         run: node ob/scripts/verify-oas-browser-journeys.mjs "$GITHUB_WORKSPACE" "$RUNNER_TEMP/oas-platform-result.json" "$RUNNER_TEMP/oas-browser-journeys"
       - name: Preserve workbench qualification evidence
         if: always() && matrix.runner == 'ubuntu-24.04'
@@ -73,7 +73,7 @@ jobs:
             ${{ runner.temp }}/oas-browser-journeys/test-results
           if-no-files-found: warn
       - name: Bounded public-artifact corroboration
-        if: always() && matrix.runner == 'ubuntu-24.04' && steps.platform.outcome == 'success'
+        if: always() && matrix.runner == 'ubuntu-24.04'
         run: node ob/scripts/verify-oas-public-corroboration.mjs "$RUNNER_TEMP/oas-platform-result.json" "$RUNNER_TEMP/oas-public-corroboration"
       - name: Preserve public corroboration evidence
         if: always() && matrix.runner == 'ubuntu-24.04'

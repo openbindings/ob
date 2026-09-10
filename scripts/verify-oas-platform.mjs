@@ -117,6 +117,7 @@ try {
   }
   const artifactDirectory=path.join(dir,'path edge % # café');fs.mkdirSync(artifactDirectory);
   for(const version of ['2.0','3.0.4','3.1.2','3.2.0']) {
+    try {
     const edition=version.slice(0,3),spec='openbindings.openapi-'+edition+'@1';
     // A literal %2F filename detects double decoding; # must be path data,
     // not a URI fragment. The reference is a URI reference, not a native path.
@@ -171,9 +172,11 @@ try {
       pathCases.push({mode,source,relativeReference,referenceFile,rootContentPrimary:mode==='embedded-with-base',requests:captured.length-beforeInvoke});
     }
     results.push({version,cli:true,obStart:true,workbench:ui,namedOutputTransform:true,invalidResultRejected:true,localSource,relativeReference,referenceHash:hash(fs.readFileSync(referenceFile)),pathCases,frames:wire});
+    } catch(error) { results.push({version,error:String(error)}); }
   }
   const scalarResults=[];
   for(const [route,media,value] of [['scalar',{'text/plain':{schema:{type:'integer'}}},'9223372036854775807'],['parts',{'multipart/mixed':{itemSchema:{type:'number'}}},'9007199254740993']]) {
+    try {
     const document={openapi:'3.2.0',info:{title:'Scalar codec through CLI',version:'1'},servers:[{url:peerURL}],paths:{['/'+route]:{get:{operationId:'echo',responses:{200:{description:'ok',content:media}}}}}};
     const artifact=path.join(dir,route+'.json'),obi=path.join(dir,route+'.obi.json');fs.writeFileSync(artifact,JSON.stringify(document));
     await command(binary,['synthesize','openbindings.openapi-3.2@1:'+artifact,'-o',obi],dir);
@@ -186,6 +189,7 @@ try {
     assert.equal(outputs.length,1);assert.match(outputs[0],new RegExp('"value"\\s*:\\s*'+value+'\\s*[,}]'));
     assert.equal(scalarReceipts.length,before+2);assert(scalarReceipts.slice(before).every(receipt=>receipt.method==='GET'&&receipt.path==='/'+route));
     scalarResults.push({route,cli:output.trim(),frames:wire,requests:2});
+    } catch(error) { scalarResults.push({route,error:String(error)}); }
   }
   for(const raw of captured)checkValue(raw);
   const buildInfo=await command('go',['version','-m',binary],dir);
@@ -196,8 +200,10 @@ try {
     const fields=line.trim().split(/\s+/);
     if(fields[0]==='=>')assert(fields.length>=3 && /^v\d/.test(fields[2]),'filesystem replacement in binary: '+line);
   }
-  const record={dir,sourceRevisions,buildInfo,binaryHash:hash(fs.readFileSync(binary)),host:{platform:process.platform,arch:process.arch,normalProcess:true,normalConfig:true,sourceOverlay:false,installed:process.platform!=='win32'},results,requests:captured.length,scalarResults,scalarReceipts,serverOutput,logs};
+  const failures=[...results,...scalarResults].filter(result=>result.error);
+  const record={dir,sourceRevisions,buildInfo,binaryHash:hash(fs.readFileSync(binary)),host:{platform:process.platform,arch:process.arch,normalProcess:true,normalConfig:true,sourceOverlay:false,installed:process.platform!=='win32'},qualified:failures.length===0,failures,results,requests:captured.length,scalarResults,scalarReceipts,serverOutput,logs};
   fs.writeFileSync(path.join(dir,'RESULTS.json'),JSON.stringify(record,null,2)+'\n');console.log(JSON.stringify({...record,logs:undefined,serverOutput:undefined}));
+  if(failures.length)process.exitCode=1;
 }catch(error){fs.writeFileSync(path.join(dir,'FAILURE.json'),JSON.stringify({dir,error:String(error),stack:error.stack,logs},null,2));console.error(dir,error);process.exitCode=1;}
 finally {
   if(browser)await browser.close();
