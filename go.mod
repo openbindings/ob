@@ -14,7 +14,7 @@ require (
 	github.com/openbindings/openbindings-go/formats/graphql v0.1.1-0.20260910180913-56f5d1f05cfb
 	github.com/openbindings/openbindings-go/formats/grpc v0.1.1-0.20260910180913-56f5d1f05cfb
 	github.com/openbindings/openbindings-go/formats/mcp v0.1.1-0.20260910180913-56f5d1f05cfb
-	github.com/openbindings/openbindings-go/formats/openapi v0.1.1-0.20260910212452-0f5be341d2f4
+	github.com/openbindings/openbindings-go/formats/openapi v0.1.1-0.20260911023054-6e0b8cf5d219
 	github.com/openbindings/openbindings-go/formats/operationgraph v0.1.1-0.20260910180913-56f5d1f05cfb
 	github.com/openbindings/openbindings-go/formats/usage v0.1.1-0.20260910180913-56f5d1f05cfb
 	github.com/spf13/cobra v1.10.2

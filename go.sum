@@ -152,6 +152,8 @@ github.com/openbindings/openbindings-go/formats/mcp v0.1.1-0.20260910180913-56f5
 github.com/openbindings/openbindings-go/formats/mcp v0.1.1-0.20260910180913-56f5d1f05cfb/go.mod h1:QJr1Re2qCqPBcRNQLhs5EEZNiYxG/K7W7M0QZ13wwvI=
 github.com/openbindings/openbindings-go/formats/openapi v0.1.1-0.20260910212452-0f5be341d2f4 h1:dRWb6dTfBl4y1UvmRCnfR0AuW8U3UGTNUDmipxarhDg=
 github.com/openbindings/openbindings-go/formats/openapi v0.1.1-0.20260910212452-0f5be341d2f4/go.mod h1:XoB4GLLxVZMbQ0YOr309RkQ3FQG1zr3BJTIqC8BW3jc=
+github.com/openbindings/openbindings-go/formats/openapi v0.1.1-0.20260911023054-6e0b8cf5d219 h1:nwPOxBSixDx1Fpeb+kJS6vvW/xDC/KEn6A7FfZTxl9A=
+github.com/openbindings/openbindings-go/formats/openapi v0.1.1-0.20260911023054-6e0b8cf5d219/go.mod h1:XoB4GLLxVZMbQ0YOr309RkQ3FQG1zr3BJTIqC8BW3jc=
 github.com/openbindings/openbindings-go/formats/operationgraph v0.1.1-0.20260910180913-56f5d1f05cfb h1:iMPhymJKLDShlk9gQlT40NPHAIYbuBDe6mKt2fivsh4=
 github.com/openbindings/openbindings-go/formats/operationgraph v0.1.1-0.20260910180913-56f5d1f05cfb/go.mod h1:EkHIOMLHCFoWQB2h198CuJCKTZkMlpkYqtZGFCmidz8=
 github.com/openbindings/openbindings-go/formats/usage v0.1.1-0.20260910180913-56f5d1f05cfb h1:4TC5ZNuN4wkYbLClYJhFexKAquQaF9yDBCOeJvLMZ4I=
