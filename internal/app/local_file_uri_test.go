@@ -50,3 +50,30 @@ func TestLocalFileURIUnsupportedPaths(t *testing.T) {
 		}
 	}
 }
+
+func TestSourceHostPortClassification(t *testing.T) {
+	for _, path := range []string{`C:\Users\person\api.json`, `c:/workspace/api.json`, `Z:\a %2F#é.json`, "file:///C:/workspace/api.json", "https://api.example:443/openapi.json"} {
+		if isHostPort(path) {
+			t.Errorf("source path/URI misclassified as host:port: %q", path)
+		}
+	}
+	for _, address := range []string{"localhost:8080", "api.example:https", "[::1]:50051", "a:80"} {
+		if !isHostPort(address) {
+			t.Errorf("network address rejected: %q", address)
+		}
+	}
+	path := filepath.Join(t.TempDir(), "source %2F#é.json")
+	if err := os.WriteFile(path, []byte("{}"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	if !IsEmbeddableLocalFile(path, "") {
+		t.Fatalf("readable local source is not embeddable: %q", path)
+	}
+	uri, err := localPathFileURL(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if IsEmbeddableLocalFile(uri, "") {
+		t.Fatalf("explicit URI must retain the existing location mode: %q", uri)
+	}
+}
