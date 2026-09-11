@@ -69,31 +69,27 @@ func NormalizeURL(raw string) string {
 // toFileURL detects local paths and file:// URLs and returns a canonical
 // file:///absolute/path form. Returns ("", false) when s is not a file ref.
 func toFileURL(s string) (string, bool) {
-	var path string
-	lower := strings.ToLower(s)
-	switch {
-	case strings.HasPrefix(lower, "file:///"):
-		path = s[len("file://"):]
-	case strings.HasPrefix(lower, "file://"):
-		path = "/" + s[len("file://"):]
-	case isFilePath(s):
-		path = s
-	default:
+	if strings.HasPrefix(strings.ToLower(s), "file:") {
+		return s, true
+	}
+	if !isFilePath(s) {
 		return "", false
 	}
-
-	if !filepath.IsAbs(path) {
-		if cwd, err := os.Getwd(); err == nil {
-			path = filepath.Join(cwd, path)
-		}
-	}
-	return "file://" + path, true
+	uri, err := localPathFileURL(s)
+	if err != nil {
+		return s, true
+	} // never guess an HTTP hostname for a local path
+	return uri, true
 }
 
 // isFilePath returns true if s looks like a local file path rather than a hostname.
 // Matches: /absolute, ./relative, ../parent, ~/home, or any path containing
 // a slash that also has a file extension typical of OBI documents.
 func isFilePath(s string) bool {
+	if strings.HasPrefix(s, `\`) || (len(s) >= 2 && s[1] == ':' &&
+		((s[0] >= 'a' && s[0] <= 'z') || (s[0] >= 'A' && s[0] <= 'Z'))) {
+		return true
+	}
 	if strings.HasPrefix(s, "/") || strings.HasPrefix(s, "./") ||
 		strings.HasPrefix(s, "../") || strings.HasPrefix(s, "~") {
 		return true
@@ -171,8 +167,11 @@ func ProbeOBI(rawURL string, timeout time.Duration) ProbeResult {
 	}
 
 	// file:// URL — read from local filesystem.
-	if strings.HasPrefix(strings.ToLower(u), "file://") {
-		absPath := u[len("file://"):]
+	if strings.HasPrefix(strings.ToLower(u), "file:") {
+		absPath, pathErr := fileURLLocalPath(u)
+		if pathErr != nil {
+			return ProbeResult{Status: ProbeStatusBad, Detail: pathErr.Error()}
+		}
 		data, err := os.ReadFile(absPath)
 		if err != nil {
 			return ProbeResult{Status: ProbeStatusBad, Detail: err.Error()}
@@ -192,6 +191,9 @@ func ProbeOBI(rawURL string, timeout time.Duration) ProbeResult {
 			return result
 		}
 		return ProbeResult{Status: ProbeStatusBad, Detail: "not a valid OpenBindings interface"}
+	}
+	if isFilePath(u) {
+		return ProbeResult{Status: ProbeStatusBad, Detail: "unsupported local path; use an absolute local path on this platform"}
 	}
 
 	return probeHTTP(u, timeout)

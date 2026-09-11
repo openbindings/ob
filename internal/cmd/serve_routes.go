@@ -490,20 +490,13 @@ func handleBindingPrepare(logger *slog.Logger) http.HandlerFunc {
 // handleBindingPrepare.
 func handleOperationPrepare(logger *slog.Logger) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		// Transport adaptation: the OpenAPI artifact wraps the conditional
-		// OperationInvocationInput under `input`, and the bound OBI's input
-		// transform performs the inverse for operation callers.
-		var envelope struct {
-			Input json.RawMessage `json:"input"`
-		}
-		if !decodeRequest(w, r, &envelope) {
+		// The published HTTP contract carries OperationInvocationInput as
+		// the body, including its conditional interface/reference shape.
+		var body json.RawMessage
+		if !decodeRequest(w, r, &body) {
 			return
 		}
-		if len(envelope.Input) == 0 {
-			writeErrorJSON(w, http.StatusBadRequest, "invalid_request", "input is required")
-			return
-		}
-		input, derr := frames.DecodeOperationInvocationInput(envelope.Input)
+		input, derr := frames.DecodeOperationInvocationInput(body)
 		if derr != nil {
 			writeErrorJSON(w, http.StatusBadRequest, "invalid_request", derr.Error())
 			return

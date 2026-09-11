@@ -1719,10 +1719,10 @@ func TestServeOperationPrepare_InlineInterface(t *testing.T) {
 
 	ts := testEnv(t)
 	defer ts.Close()
-	body, err := json.Marshal(map[string]any{"input": map[string]any{
+	body, err := json.Marshal(map[string]any{
 		"interface": echoOperationInterface(),
 		"operation": "echo",
-	}})
+	})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1741,6 +1741,23 @@ func TestServeOperationPrepare_InlineInterface(t *testing.T) {
 	}
 	if strings.TrimSpace(string(payload)) != "null" {
 		t.Fatalf("prepareOperation body = %s, want null", payload)
+	}
+}
+
+func TestServeOperationPrepare_RejectsMalformedInput(t *testing.T) {
+	ts := testEnv(t)
+	defer ts.Close()
+	for _, body := range []string{`null`, `{}`, `{"input":{}}`, `{"operation":"echo","unknown":true}`, `{} {}`} {
+		t.Run(body, func(t *testing.T) {
+			resp, err := authedPost(ts.URL+"/operations/prepare", "test-token", body)
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer resp.Body.Close()
+			if resp.StatusCode != http.StatusBadRequest {
+				t.Fatalf("status = %d, want 400", resp.StatusCode)
+			}
+		})
 	}
 }
 

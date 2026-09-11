@@ -328,6 +328,12 @@ func resolveSourceLocation(source openbindings.Source) (invoke.InvocationSource,
 
 // isHostPort returns true if s looks like a host:port network address.
 func isHostPort(s string) bool {
+	// SplitHostPort accepts a nonnumeric service and would parse C:\path
+	// as host C plus port \path. Drive paths belong to source acquisition.
+	if len(s) >= 3 && s[1] == ':' && (s[2] == '\\' || s[2] == '/') &&
+		((s[0] >= 'A' && s[0] <= 'Z') || (s[0] >= 'a' && s[0] <= 'z')) {
+		return false
+	}
 	_, _, err := net.SplitHostPort(s)
 	return err == nil
 }

@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"path/filepath"
 	"strings"
 	"time"
 
@@ -115,11 +114,11 @@ func ResolveInterfaceDetailed(locator string) (*ResolvedInterface, error) {
 		if _, statErr := os.Stat(locator); statErr != nil {
 			return nil, directErr
 		}
-		absolute, err := filepath.Abs(locator)
+		fileURI, err := localPathFileURL(locator)
 		if err != nil {
 			return nil, err
 		}
-		locator = "file://" + absolute
+		locator = fileURI
 	}
 
 	// Remote or exec: probe.

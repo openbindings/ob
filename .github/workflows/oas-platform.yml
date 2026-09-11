@@ -1,0 +1,84 @@
+name: OAS platform qualification
+
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - '.github/workflows/oas-platform.yml'
+      - 'scripts/verify-oas-platform.mjs'
+      - 'scripts/verify-oas-browser-journeys.mjs'
+      - 'scripts/verify-oas-public-corroboration.mjs'
+      - 'go.mod'
+      - 'go.sum'
+      - 'internal/server/workbench/dist/**'
+
+permissions:
+  contents: read
+
+jobs:
+  normal-process:
+    strategy:
+      fail-fast: false
+      matrix:
+        runner: [ubuntu-24.04, ubuntu-24.04-arm, macos-15, macos-15-intel, windows-2025]
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 25
+    env:
+      GOWORK: 'off'
+      CGO_ENABLED: '0'
+      OB_PLATFORM_BROWSER_ROOT: ${{ github.workspace }}/oas-platform-browser
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          path: ob
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: ob/go.mod
+          cache: false
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '22'
+      - name: Install isolated browser harness
+        run: npm install --prefix "$OB_PLATFORM_BROWSER_ROOT" --no-audit --no-fund playwright@1.61.1
+      - name: Install browser
+        run: node "$OB_PLATFORM_BROWSER_ROOT/node_modules/playwright/cli.js" install --with-deps chromium
+      - name: Prove normal installed-process invocation and browser journey
+        id: platform
+        run: node ob/scripts/verify-oas-platform.mjs "$GITHUB_WORKSPACE" | tee "$RUNNER_TEMP/oas-platform-result.json"
+      - name: Check out exact workbench qualification tests
+        if: always() && matrix.runner == 'ubuntu-24.04'
+        uses: actions/checkout@v7
+        with:
+          repository: openbindings/elements
+          ref: eb590acafecb94c4701bf16e878f59212cbf032c
+          path: elements
+      - name: Install isolated workbench test runner
+        if: always() && matrix.runner == 'ubuntu-24.04'
+        run: npm install --prefix "$OB_PLATFORM_BROWSER_ROOT" --no-audit --no-fund @playwright/test@1.61.1
+      - name: Qualify the same binary with workbench and journey tests
+        if: always() && matrix.runner == 'ubuntu-24.04'
+        run: node ob/scripts/verify-oas-browser-journeys.mjs "$GITHUB_WORKSPACE" "$RUNNER_TEMP/oas-platform-result.json" "$RUNNER_TEMP/oas-browser-journeys"
+      - name: Preserve workbench qualification evidence
+        if: always() && matrix.runner == 'ubuntu-24.04'
+        uses: actions/upload-artifact@v4
+        with:
+          name: oas-browser-journeys
+          path: |
+            ${{ runner.temp }}/oas-platform-result.json
+            ${{ runner.temp }}/oas-browser-journeys/RESULTS.json
+            ${{ runner.temp }}/oas-browser-journeys/test-results
+          if-no-files-found: warn
+      - name: Bounded public-artifact corroboration
+        if: always() && matrix.runner == 'ubuntu-24.04'
+        run: node ob/scripts/verify-oas-public-corroboration.mjs "$RUNNER_TEMP/oas-platform-result.json" "$RUNNER_TEMP/oas-public-corroboration"
+      - name: Preserve public corroboration evidence
+        if: always() && matrix.runner == 'ubuntu-24.04'
+        uses: actions/upload-artifact@v4
+        with:
+          name: oas-public-corroboration
+          path: ${{ runner.temp }}/oas-public-corroboration
+          if-no-files-found: warn
