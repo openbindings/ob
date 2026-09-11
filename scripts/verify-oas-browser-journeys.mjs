@@ -17,7 +17,7 @@ const evidence=path.resolve(process.argv[4]);
 assert(!fs.existsSync(evidence),'Evidence directory must be fresh');
 fs.mkdirSync(evidence,{recursive:true});
 const elements=path.join(cohort,'elements');
-const elementsSHA='495759b1e4bb8e1c5027f74f1557039bc69106a5';
+const elementsSHA='eb590acafecb94c4701bf16e878f59212cbf032c';
 const hash=bytes=>createHash('sha256').update(bytes).digest('hex');
 const git=(folder,args)=>execFileSync('git',args,{cwd:folder,encoding:'utf8'}).trim();
 const record={started:new Date().toISOString(),scope:'Same normal binary; exact copied Elements tests; no source/storage overlay',host:{platform:process.platform,arch:process.arch,disposableHostedRunner:true},commands:[],testInputs:{},assets:[]};
@@ -98,7 +98,7 @@ try {
     const filename=path.join(evidence,suite+'.config.mjs');fs.writeFileSync(filename,'export default '+JSON.stringify(value,null,2)+';\n');return filename;
   }
   const cli=require.resolve('@playwright/test/cli');
-  const workbench=await command('workbench-35',process.execPath,[cli,'test','--config',config('ob-start')]);
+  const workbench=await command('workbench-36',process.execPath,[cli,'test','--config',config('ob-start')]);
   const journeys=await command('journeys-5',process.execPath,[cli,'test','--config',config('journeys')]);
   const telemetryPath=path.join(evidence,'test-results/journeys-telemetry.jsonl');
   record.telemetry=fs.existsSync(telemetryPath)?fs.readFileSync(telemetryPath,'utf8').trim().split('\n').filter(Boolean).map(line=>JSON.parse(line)):[];
@@ -108,7 +108,7 @@ try {
   record.performance=record.telemetry.filter(row=>budgets[row.reasonCode]?.kind==='perf');
   record.functionalTelemetryFailures=record.telemetry.filter(row=>budgets[row.reasonCode]?.kind!=='perf'&&row.outcome!=='pass');
   record.performanceWithinBudget=record.performance.length===2&&record.performance.every(row=>row.outcome==='pass');
-  record.workbench=verifySuite(workbench,35);record.journeys=verifySuite(journeys,5);
+  record.workbench=verifySuite(workbench,36);record.journeys=verifySuite(journeys,5);
   assert(record.workbench.tests.some(test=>test.title==='legacy workspace restores the draft but never restores credential authority'),'Seeded legacy proof was not executed');
   const expectedMoments=['navigate-to-ready','run-to-output','one-visible-workbench','wrong-token-pill','wrong-token-error-names-credentials','rail-gutter-arrow-resize','tab-strip-reachable','tab-strip-stop-budget'];
   assert.deepEqual(record.telemetry.map(row=>row.moment).sort(),expectedMoments.sort());
