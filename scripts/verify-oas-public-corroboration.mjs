@@ -3,6 +3,7 @@ import path from 'node:path';
 import assert from 'node:assert/strict';
 import {createHash} from 'node:crypto';
 import {createRequire} from 'node:module';
+import {pathToFileURL} from 'node:url';
 import {spawn,execFileSync} from 'node:child_process';
 
 // Corroboration only: public outages and service/schema drift are recorded,
@@ -99,7 +100,12 @@ try{
   }
   if(available.weather){
     const binding=Object.values(available.weather.generated.bindings??{}).find(value=>value.operation==='v1.forecast.get');
-    if(binding)await command('weather-explicit-public-server',['binding','invoke','--input',JSON.stringify({source:available.weather.source,selector:binding.selector,input:{parameters:{latitude:52.52,longitude:13.41,forecast_days:1}},context:{configuration:{server:{url:'https://api.open-meteo.com'}}}})],true);
+    // The machine envelope is an argv value. Load the already-hashed artifact
+    // through the existing local-file source lane to avoid the OS argument
+    // limit. This probe explicitly selects its server; original acquisition
+    // and synthesized-source bases were checked above. No extra public GET.
+    const source={bindingSpec:available.weather.source.bindingSpec,location:pathToFileURL(path.join(evidence,'weather.source')).href};
+    if(binding)await command('weather-explicit-public-server',['binding','invoke','--input',JSON.stringify({source,selector:binding.selector,input:{parameters:{latitude:52.52,longitude:13.41,forecast_days:1}},context:{configuration:{server:{url:'https://api.open-meteo.com'}}}})],true);
   }
   if(available.petstore&&available.petstore.generated.operations?.getOrderById)await command('petstore-read-only-order',['op','invoke',available.petstore.obi,'getOrderById','--input','{"orderId":10}'],true);
   for(const [name,url]of [['non-oas','https://pokeapi.co/api/v2/pokemon/pikachu'],['missing','https://raw.githubusercontent.com/open-meteo/open-meteo/main/openapi.yml']]){
