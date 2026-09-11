@@ -138,6 +138,8 @@ github.com/openbindings/jsonata/go v0.0.0-20260910174534-e2a5e518e6b5 h1:k7S84e5
 github.com/openbindings/jsonata/go v0.0.0-20260910174534-e2a5e518e6b5/go.mod h1:DzOMQZySylay2oNpbZfsrGsg4m75EdY1jfGgrxova2s=
 github.com/openbindings/openapi-client/go v0.0.0-20260910212241-e38055658c22 h1:VRyf9ad6jCtH/SYkt+QNQVAc4+lTPPb7O6oCk1fNgCo=
 github.com/openbindings/openapi-client/go v0.0.0-20260910212241-e38055658c22/go.mod h1:vUnEGJvN2St09qglPck0vY9O6+bVLmqRWWoMbOmAgKQ=
+github.com/openbindings/openapi-client/go v0.0.0-20260911025654-2a6d9dbd4839 h1:hzziagACMcM7NxEKgGhfzfmOL2repPWuluDcESVFUwA=
+github.com/openbindings/openapi-client/go v0.0.0-20260911025654-2a6d9dbd4839/go.mod h1:vUnEGJvN2St09qglPck0vY9O6+bVLmqRWWoMbOmAgKQ=
 github.com/openbindings/openbindings-go v0.1.1-0.20260910180913-56f5d1f05cfb h1:R/Uf0Ud4VSr0fCE3NqpxGkaqme3ceAemLtr3Kugu2Wk=
 github.com/openbindings/openbindings-go v0.1.1-0.20260910180913-56f5d1f05cfb/go.mod h1:GEjTSXHSMzHCBxScRaXtIJSfjPsTVAirP+0JT7mUPb0=
 github.com/openbindings/openbindings-go/formats/asyncapi v0.1.1-0.20260910180913-56f5d1f05cfb h1:XNXD/rhhqeGuPDIQ3W3lEek4H7MexIovsDTxehi2rVg=

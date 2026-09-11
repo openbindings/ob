@@ -96,6 +96,6 @@ require (
 
 replace (
 	github.com/openbindings/asyncapi-client/go v0.1.0 => github.com/openbindings/asyncapi-client/go v0.0.0-20260820220441-54678886c38c
-	github.com/openbindings/openapi-client/go v0.1.0 => github.com/openbindings/openapi-client/go v0.0.0-20260910212241-e38055658c22
+	github.com/openbindings/openapi-client/go v0.1.0 => github.com/openbindings/openapi-client/go v0.0.0-20260911025654-2a6d9dbd4839
 	github.com/openbindings/openbindings-go v0.2.0 => github.com/openbindings/openbindings-go v0.1.1-0.20260910180913-56f5d1f05cfb
 )
