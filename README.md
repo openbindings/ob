@@ -39,13 +39,15 @@ After the 0.2 release, these install the implementation documented here:
 brew install --cask openbindings/tap/ob
 ```
 
-Or without Homebrew (builds from source, requires Go 1.25+):
+Go users can install the latest released CLI without Homebrew:
 
 ```bash
-bash <(curl -fsSL https://raw.githubusercontent.com/openbindings/ob/main/scripts/dev-install.sh)
+go install github.com/openbindings/ob/cmd/ob@latest
 ```
 
-The script installs to `~/.local/bin`; override with `OB_BIN_DIR="$HOME/bin"`. Go users can also `go install github.com/openbindings/ob/cmd/ob@latest`.
+For a source checkout or the unreleased draft, follow
+[`CONTRIBUTING.md`](CONTRIBUTING.md). Machine-specific build/link helpers are
+local, ignored files, not published installation scripts.
 
 ## Demo
 
