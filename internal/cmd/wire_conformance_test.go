@@ -309,6 +309,25 @@ func TestWireConformance_ExecLane(t *testing.T) {
 				t.Errorf("explicit zero not retained: %#v", prefs)
 			}
 		}},
+		// A negative preference is a positional that looks like a flag; the
+		// descriptor's optional double_dash puts the structural `--` before it
+		// (found by the independent Go consumer, F-09 of the completion ledger).
+		{"setDelegatePreference_negative", "openbindings.ob.setDelegatePreference", func() any {
+			return map[string]any{"id": registeredID, "role": "invoke", "preference": json.Number("-1.25")}
+		}, func(t *testing.T, output any) {
+			if output != nil {
+				t.Errorf("expected null, got %#v", output)
+			}
+		}},
+		{"listDelegates_negative", "openbindings.ob.listDelegates", nil, func(t *testing.T, output any) {
+			m, _ := output.(map[string]any)
+			delegates, _ := m["delegates"].([]any)
+			record, _ := delegates[0].(map[string]any)
+			prefs, _ := record["rolePreferences"].(map[string]any)
+			if value, present := prefs["invoke"]; !present || fmt.Sprint(value) != "-1.25" {
+				t.Errorf("negative preference not retained exactly: %#v", prefs)
+			}
+		}},
 		{"setDelegatePreference_clear", "openbindings.ob.setDelegatePreference", func() any {
 			return map[string]any{"id": registeredID, "role": "invoke", "preference": nil}
 		}, nil},

@@ -9,7 +9,7 @@ import { after, before, test } from 'node:test';
 import { OperationInvoker, USE_DEFAULT, operationSignature } from '@openbindings/invoke';
 import { UsageInvoker } from '@openbindings/usage';
 import { OpenAPIInvoker } from '@openbindings/openapi';
-import { parse as parseExact, stringify as stringifyExact } from '@openbindings/json';
+import { compareNumberTokens, parse as parseExact, stringify as stringifyExact } from '@openbindings/json';
 import { createJSONataEvaluator } from '@openbindings/invoke/jsonata';
 import { createJSONataExecutor } from '@openbindings/jsonata';
 
@@ -43,6 +43,10 @@ let server, serverURL, provider, providerInfo, cliOBI, servedOBI, providerValue;
 const token = 'ts-consumer-token';
 
 before(async () => {
+  // ob discovers an environment by walking up from the working directory
+  // before consulting OB_CONFIG_DIR, and the developer's home holds one; the
+  // SDK spawns commands in this process's working directory.
+  process.chdir(workDir);
   ob('init');
   cliOBI = parseExact(ob('--openbindings'));
   const port = 20500 + Math.floor(Math.random() * 1000);
@@ -54,8 +58,10 @@ before(async () => {
     setTimeout(() => reject(new Error('ob start not ready: ' + text)), 60000);
   });
   servedOBI = parseExact(await (await fetch(serverURL + '/.well-known/openbindings')).text());
-  // The provider is built from the candidate's advertised accepted interfaces.
-  const roles = (await cli(ops.listRoles, undefined)).roles;
+  // The provider is built from the candidate's advertised accepted interfaces,
+  // discovered through the served OpenAPI lane; the Usage-lane listRoles claim
+  // is its own test below (F-06).
+  const roles = (await http(ops.listRoles, undefined)).roles;
   const accepted = (id) => { const role = roles.find((r) => r.id === id); const path = join(workDir, id + '.accepted.json'); writeFileSync(path, stringifyExact(role.acceptedInterfaces[0])); return path; };
   const obiPath = join(workDir, 'provider.obi.json');
   provider = spawn(providerBinary, ['--accepted', accepted('invoke'), '--extra', accepted('synthesize'), '--obi', obiPath], { stdio: ['pipe', 'pipe', 'inherit'] });
@@ -74,23 +80,48 @@ async function single(invocation, input, writeInput = input !== undefined) {
   if (writeInput) await invocation.write(input === undefined ? null : input);
   await invocation.close();
   let out; let count = 0;
-  for await (const value of invocation.outputs()) { out = value; count++; }
+  for await (const value of invocation.outputs) { out = value; count++; }
   assert.ok(count <= 1, 'unary operation emitted more than one output');
   return count === 0 ? null : out;
 }
 
-// Usage lane: the consumer's own transcription of the published recipe.
-function usageEngine() {
-  const invoker = new UsageInvoker({ authorizeExecAddress: (argv) => argv[0] === 'ob' || argv[0] === binary });
-  return new OperationInvoker([invoker], {
-    transformEvaluator,
-    outputDecoder: (site, raw) => (site.bindingSpec === 'openbindings.usage@1' && machineLane.has(site.operation) ? (raw.body.length ? parseExact(raw.body) : null) : USE_DEFAULT),
-    fieldRouter: (site, field) => (site.bindingSpec === 'openbindings.usage@1' && site.operation === 'openbindings.ob.registerDelegate' && field === 'interface' ? 'stdin-dash' : ''),
-  });
+// Usage lane: the consumer's own transcription of the published recipe
+// (docs/bound-cli-recipe.md) through the TypeScript Usage package's
+// configuration seam: named decoders on the invoker, selected per invocation
+// by context configuration (`decode`), and the registerDelegate interface
+// field routed to stdin as the `-` operand (`route`). The generic operation
+// invoker's outputDecoder/fieldRouter hooks are not this package's seam.
+const usageInvoker = new UsageInvoker({
+  authorizeExecAddress: (argv) => argv[0] === 'ob' || argv[0] === binary,
+  decoders: { json: (bytes) => (bytes.length ? parseExact(new TextDecoder('utf-8', { fatal: true }).decode(bytes)) : null) },
+});
+const usageEngine = new OperationInvoker([usageInvoker], { transformEvaluator });
+function cliContext(operation) {
+  const configuration = { decode: 'json' };
+  if (operation === ops.register) configuration.route = { interface: { kind: 'stdin', operand: 'dash' } };
+  return {
+    configuration,
+    environment: { OB_CONFIG_DIR: environment.OB_CONFIG_DIR, OB_CACHE_DIR: environment.OB_CACHE_DIR, OB_CREDENTIALS_FILE: environment.OB_CREDENTIALS_FILE, OB_NO_UPDATE_CHECK: '1', PATH: environment.PATH },
+  };
 }
 async function cli(operation, input) {
-  const invocation = usageEngine().invoke(cliOBI, operationSignature(operation), { context: { environment: { OB_CONFIG_DIR: environment.OB_CONFIG_DIR, OB_CACHE_DIR: environment.OB_CACHE_DIR, OB_CREDENTIALS_FILE: environment.OB_CREDENTIALS_FILE, OB_NO_UPDATE_CHECK: '1', PATH: environment.PATH } } });
-  return single(invocation, input, true);
+  const bound = boundOperation(operation);
+  assert.ok(machineLane.has(bound), `${operation} is not a machine-lane operation`);
+  // Every CLI realization is unary: one input message carries the binding's
+  // adaptation transform. An operation that declares an input receives the
+  // portable "nothing supplied" value {} when the caller passes nothing; an
+  // input-less operation receives null (the transform still applies here).
+  const value = input === undefined && cliOBI.operations[bound].input != null ? {} : input;
+  const invocation = usageEngine.invoke(cliOBI, operationSignature(operation), { context: cliContext(operation) });
+  return single(invocation, value, true);
+}
+// boundOperation resolves a shared operation key to the bound CLI OBI's own
+// operation key through the document's declared correspondence (aliases).
+function boundOperation(operation) {
+  for (const [key, op] of Object.entries(cliOBI.operations)) {
+    if (key === operation || (Array.isArray(op.aliases) && op.aliases.includes(operation))) return key;
+  }
+  return operation;
 }
 async function http(operation, input) {
   const engine = new OperationInvoker([new OpenAPIInvoker()], { transformEvaluator });
@@ -100,9 +131,18 @@ async function http(operation, input) {
 async function counters() { return (await fetch(providerInfo.url + '/counters')).json(); }
 const exact = (value) => stringifyExact(value);
 
-for (const [name, call] of [['usage', cli], ['openapi', http]]) {
+// The Usage lane's listRoles claim. Expected red at the packed SDK selection
+// only if the TypeScript Usage package discarded the caller's value; it reads
+// the first input whenever the command declares a field, so the binding's
+// `--format json` transform applies here (contrast F-06 for the Go SDK).
+test('usage: listRoles carries the binding transform for an input-less operation', async () => {
+  const roles = (await cli(ops.listRoles, undefined)).roles.map((r) => r.id).sort();
+  assert.deepEqual(roles, ['inspect', 'invoke', 'synthesize']);
+});
+
+for (const [name, call, discover] of [['usage', cli, http], ['openapi', http, http]]) {
   test(`${name}: lifecycle, value fidelity and resulting delegation`, async () => {
-    const roles = (await call(ops.listRoles, undefined)).roles.map((r) => r.id).sort();
+    const roles = (await discover(ops.listRoles, undefined)).roles.map((r) => r.id).sort();
     assert.deepEqual(roles, ['inspect', 'invoke', 'synthesize']);
     const prefs = parseExact('{"invoke": 9007199254740993}');
     const record = await call(ops.register, { interface: providerValue, roles: ['invoke'], rolePreferences: prefs });
@@ -118,7 +158,11 @@ for (const [name, call] of [['usage', cli], ['openapi', http]]) {
     for (const value of ['0', '-1.25', '1e400']) {
       assert.equal(await call(ops.prefer, { id: record.id, role: 'invoke', preference: parseExact(value) }), null);
       const listed = (await call(ops.list, { role: 'invoke' })).delegates[0];
-      assert.equal(exact(listed.rolePreferences), `{"invoke":${value}}`, `preference ${value} not retained`);
+      // The interface promises the number "preserved without silent rounding";
+      // the CLI lane spells tokens canonically through JSONata $string (1e400
+      // lists as 1e+400), so compare exact numeric identity, not spelling.
+      assert.deepEqual(Object.keys(listed.rolePreferences), ['invoke']);
+      assert.equal(compareNumberTokens(String(listed.rolePreferences.invoke), value), 0, `preference ${value} not retained exactly: ${exact(listed.rolePreferences)}`);
     }
     assert.equal(await call(ops.prefer, { id: record.id, role: 'invoke', preference: null }), null);
     assert.equal(exact((await call(ops.list, undefined)).delegates[0].rolePreferences), '{}');

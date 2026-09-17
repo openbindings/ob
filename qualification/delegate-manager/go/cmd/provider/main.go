@@ -93,8 +93,8 @@ func main() {
 			}
 			operations[bare] = decoy
 			if route, ok := routes[key]; ok {
-				bindings[local] = document{"operation": local, "source": "api", "selector": "#/paths/~1" + strings.TrimPrefix(route, "/") + "/post", "inputTransform": `{"body": $$}`}
-				bindings["decoy-"+bare] = document{"operation": bare, "source": "api", "selector": "#/paths/~1decoy~1" + bare + "/post", "inputTransform": `{"body": $$}`}
+				bindings[local] = document{"operation": local, "source": "api", "selector": "#/paths/" + pointerToken(route) + "/post", "inputTransform": `{"body": $$}`}
+				bindings["decoy-"+bare] = document{"operation": bare, "source": "api", "selector": "#/paths/" + pointerToken("/decoy/"+bare) + "/post", "inputTransform": `{"body": $$}`}
 				paths["/"+strings.TrimPrefix(route, "/")] = jsonPost()
 				paths["/decoy/"+bare] = jsonPost()
 			}
@@ -330,3 +330,8 @@ operations:
       messages:
         - $ref: '#/channels/bindingsInvoke/messages/outputFrame'
 `
+
+// pointerToken escapes one JSON Pointer reference token (RFC 6901): "~" then "/".
+func pointerToken(token string) string {
+	return strings.ReplaceAll(strings.ReplaceAll(token, "~", "~0"), "/", "~1")
+}

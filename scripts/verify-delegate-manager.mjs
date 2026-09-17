@@ -57,23 +57,44 @@ for (const [pkg, tests] of Object.entries(gates.packages)) {
   const goArgs = ['test', '-json', '-count=1', ...(race ? ['-race'] : []), '-run', selector, pkg];
   const run = spawnSync('go', goArgs, {cwd: root, env, encoding: 'utf8', maxBuffer: 512 << 20});
   const outcomes = new Map();
+  // Output is retained per top-level test (subtests fold into their parent)
+  // and at package level, so a red run is diagnosable from the evidence
+  // record alone: a timeout or panic that aborts the package leaves every
+  // later test not-run, and only the package output says why.
+  const output = new Map();
+  const packageOutput = [];
   for (const line of run.stdout.split('\n')) {
     if (!line.startsWith('{')) continue;
     let event;
     try { event = JSON.parse(line); } catch { continue; }
+    if (event.Action === 'output') {
+      if (event.Test) {
+        const top = event.Test.split('/')[0];
+        output.set(top, (output.get(top) ?? '') + event.Output);
+      } else {
+        packageOutput.push(event.Output);
+      }
+      continue;
+    }
     if (!event.Test || event.Test.includes('/')) continue;
     if (['pass', 'fail', 'skip'].includes(event.Action)) outcomes.set(event.Test, event.Action);
   }
   const summary = {};
+  const failedOutput = {};
   for (const name of tests) {
     const outcome = outcomes.get(name) ?? 'not-run';
     summary[name] = outcome;
-    if (outcome !== 'pass') failures.push(`${pkg}: ${name} ${outcome}`);
+    if (outcome !== 'pass') {
+      failures.push(`${pkg}: ${name} ${outcome}`);
+      if (output.has(name)) failedOutput[name] = output.get(name);
+    }
   }
-  record.packages[pkg] = {exitStatus: run.status, selector, outcomes: summary};
+  const packageText = packageOutput.join('');
+  record.packages[pkg] = {exitStatus: run.status, selector, outcomes: summary, failedOutput, packageOutput: packageText, stderr: run.stderr};
   if (run.status !== 0) {
     failures.push(`${pkg}: go test exited ${run.status}`);
-    process.stderr.write(run.stdout.split('\n').filter((line) => !line.startsWith('{')).join('\n'));
+    for (const [name, text] of Object.entries(failedOutput)) process.stderr.write(`--- ${pkg} ${name}\n${text}`);
+    process.stderr.write(packageText);
     process.stderr.write(run.stderr);
   }
 }

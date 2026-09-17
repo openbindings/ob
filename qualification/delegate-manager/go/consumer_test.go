@@ -18,6 +18,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"math/big"
 	"net"
 	"net/http"
 	"os"
@@ -97,6 +98,11 @@ func newHarness(t *testing.T) *harness {
 	t.Setenv("OB_CACHE_DIR", filepath.Join(h.workDir, "cache"))
 	t.Setenv("OB_CREDENTIALS_FILE", filepath.Join(h.workDir, "credentials.json"))
 	t.Setenv("OB_NO_UPDATE_CHECK", "1")
+	// ob discovers an environment by walking up from the working directory
+	// before consulting OB_CONFIG_DIR, and the developer's home holds one; the
+	// SDK spawns commands in this process's working directory, so the whole
+	// process moves into the isolated work directory.
+	t.Chdir(h.workDir)
 	h.env = os.Environ()
 	if out, err := h.run("init"); err != nil {
 		t.Fatalf("init: %v %s", err, out)
@@ -181,7 +187,9 @@ func (h *harness) startProvider() {
 	providerBinary := requireEnv(t, "OB_PROVIDER_BINARY")
 	// Expected outcomes come from the interface: the provider is built from
 	// the candidate's advertised accepted interfaces, not from ob's source.
-	roles := h.cli(t, listRoles, nil).(map[string]any)["roles"].([]any)
+	// Discovery here goes through the served OpenAPI lane; the Usage-lane
+	// listRoles claim is TestConsumerListRolesOverUsage (F-06).
+	roles := h.httpOp(t, listRoles, nil).(map[string]any)["roles"].([]any)
 	write := func(id string) string {
 		for _, raw := range roles {
 			role := raw.(map[string]any)
@@ -246,6 +254,22 @@ func newEngine(t *testing.T, invokers ...invoke.BindingInvoker) *invoke.Operatio
 	return engine
 }
 
+// boundOperation resolves a shared operation key to the bound CLI OBI's own
+// operation through the document's declared correspondence (aliases).
+func boundOperation(iface *openbindings.Interface, operation string) openbindings.Operation {
+	if op, ok := iface.Operations[operation]; ok {
+		return op
+	}
+	for _, op := range iface.Operations {
+		for _, alias := range op.Aliases {
+			if alias == operation {
+				return op
+			}
+		}
+	}
+	return openbindings.Operation{}
+}
+
 // cli invokes a shared operation through the bound CLI OBI's Usage binding.
 func (h *harness) cli(t *testing.T, operation string, input any) any {
 	t.Helper()
@@ -253,8 +277,13 @@ func (h *harness) cli(t *testing.T, operation string, input any) any {
 	inv.AuthorizeExec = func(argv []string) bool { return len(argv) > 0 && (argv[0] == "ob" || argv[0] == h.binary) }
 	engine := newEngine(t, inv)
 	engine.OutputDecoder, engine.ResultClassifier, engine.FieldRouter = recipe().Hooks()
-	// Every CLI realization is unary: one input message (null for an
-	// input-less operation) carries the binding's adaptation transform.
+	// Every CLI realization is unary: one input message carries the binding's
+	// adaptation transform. An operation that declares an input receives the
+	// portable "nothing supplied" value {} when the caller passes nil; an
+	// input-less operation receives null (the F-06 case).
+	if input == nil && boundOperation(h.cliOBI, operation).Input != nil {
+		input = map[string]any{}
+	}
 	return invokeUnary(t, engine, h.cliOBI, operation, input, true)
 }
 
@@ -326,19 +355,41 @@ func exact(t *testing.T, value any) string {
 	return string(raw)
 }
 
-func TestConsumerLifecycleAndDelegation(t *testing.T) {
-	h := newHarness(t)
-	var providerValue any
-	if err := jsonvalue.Unmarshal(h.provider.value, &providerValue); err != nil {
-		t.Fatal(err)
+// sameExactNumber compares two JSON number tokens as exact rational values.
+func sameExactNumber(t *testing.T, a, b string) bool {
+	t.Helper()
+	ra, okA := new(big.Rat).SetString(a)
+	rb, okB := new(big.Rat).SetString(b)
+	if !okA || !okB {
+		t.Fatalf("not JSON number tokens: %q %q", a, b)
 	}
-	for _, surface := range []struct {
+	return ra.Cmp(rb) == 0
+}
+
+func TestConsumerLifecycleAndDelegation(t *testing.T) {
+	type lane struct {
 		name string
-		call func(t *testing.T, operation string, input any) any
-	}{{"usage", h.cli}, {"openapi", h.httpOp}} {
+		call func(h *harness) func(t *testing.T, operation string, input any) any
+		// discover lists roles for the lifecycle. The Usage lane's own
+		// listRoles claim is TestConsumerListRolesOverUsage (F-06): an
+		// input-less operation cannot carry its binding transform through
+		// the Go SDK's no-input convention, so the Usage lifecycle reads the
+		// role catalogue through the served lane and claims nothing for it.
+		discover func(h *harness) func(t *testing.T, operation string, input any) any
+	}
+	cli := func(h *harness) func(t *testing.T, operation string, input any) any { return h.cli }
+	http := func(h *harness) func(t *testing.T, operation string, input any) any { return h.httpOp }
+	for _, surface := range []lane{{"usage", cli, http}, {"openapi", http, http}} {
 		t.Run(surface.name, func(t *testing.T) {
-			call := surface.call
-			roles := call(t, listRoles, nil).(map[string]any)["roles"].([]any)
+			// Each lane owns a fresh environment, server and provider: the
+			// lifecycle asserts exact registry counts.
+			h := newHarness(t)
+			var providerValue any
+			if err := jsonvalue.Unmarshal(h.provider.value, &providerValue); err != nil {
+				t.Fatal(err)
+			}
+			call := surface.call(h)
+			roles := surface.discover(h)(t, listRoles, nil).(map[string]any)["roles"].([]any)
 			ids := map[string]bool{}
 			for _, raw := range roles {
 				role := raw.(map[string]any)
@@ -386,9 +437,13 @@ func TestConsumerLifecycleAndDelegation(t *testing.T) {
 				if out := call(t, prefer, map[string]any{"id": id, "role": "invoke", "preference": number}); out != nil {
 					t.Fatalf("preference must return null, got %v", out)
 				}
-				got := call(t, list, map[string]any{"role": "invoke"}).(map[string]any)["delegates"].([]any)[0].(map[string]any)["rolePreferences"]
-				if exact(t, got) != `{"invoke":`+value+`}` {
-					t.Fatalf("preference %s not retained: %s", value, exact(t, got))
+				got := call(t, list, map[string]any{"role": "invoke"}).(map[string]any)["delegates"].([]any)[0].(map[string]any)["rolePreferences"].(map[string]any)
+				// The interface promises the number "preserved without silent
+				// rounding"; the CLI lane spells tokens canonically through
+				// JSONata $string (1e400 lists as 1e+400), so compare exact
+				// numeric identity, not spelling.
+				if len(got) != 1 || !sameExactNumber(t, fmt.Sprint(got["invoke"]), value) {
+					t.Fatalf("preference %s not retained exactly: %s", value, exact(t, got))
 				}
 			}
 			if out := call(t, prefer, map[string]any{"id": id, "role": "invoke", "preference": nil}); out != nil {
@@ -466,9 +521,12 @@ func (h *harness) streamThroughCandidate(t *testing.T) {
 	if err := call.Close(); err != nil {
 		t.Fatalf("close: %v", err)
 	}
+	// The frame protocol ends at the terminal frame (complete or error); what
+	// the transport does afterwards is not part of the interaction.
 	var frames []any
+	outputs := call.Outputs() // the output reader is handed out once
 	for {
-		frame, err := call.Outputs().Read(ctx)
+		frame, err := outputs.Read(ctx)
 		if errors.Is(err, io.EOF) {
 			break
 		}
@@ -476,9 +534,12 @@ func (h *harness) streamThroughCandidate(t *testing.T) {
 			t.Fatalf("stream: %v (frames so far %v)", err, frames)
 		}
 		frames = append(frames, frame)
+		if kind, _ := frame.(map[string]any)["kind"]; kind == "complete" || kind == "error" {
+			break
+		}
 	}
 	if len(frames) < 2 {
-		t.Fatalf("expected an output and a terminal frame, got %v", frames)
+		t.Fatalf("expected an output and a terminal frame, got %v (provider counters %v)", frames, h.counters())
 	}
 	output, _ := frames[0].(map[string]any)
 	if output["kind"] != "output" {
@@ -489,6 +550,22 @@ func (h *harness) streamThroughCandidate(t *testing.T) {
 	}
 	if last, _ := frames[len(frames)-1].(map[string]any); last["kind"] != "complete" {
 		t.Fatalf("terminal frame: %v", frames)
+	}
+}
+
+// TestConsumerListRolesOverUsage is the Usage-lane claim for the one shared
+// operation that declares no input. It is expected red at the pinned SDK
+// (F-06): the operation layer marks listDelegateRoles as a no-input
+// operation, the Usage binding closes input on entry and spawns the bare
+// `ob delegate roles`, and the binding's `--format json` transform never
+// applies. The assertion is the published contract, not the SDK's current
+// behaviour; it turns green only when the exact repaired SDK selection
+// carries the caller's value across the operation boundary.
+func TestConsumerListRolesOverUsage(t *testing.T) {
+	h := newHarness(t)
+	roles := h.cli(t, listRoles, nil).(map[string]any)["roles"].([]any)
+	if len(roles) != 3 {
+		t.Fatalf("expected the three advertised roles over the Usage lane, got %v", roles)
 	}
 }
 

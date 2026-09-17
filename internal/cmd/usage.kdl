@@ -97,7 +97,7 @@ cmd "delegate" help="Manage delegates" subcommand_required=#true {
     flag "-o --output <path>" help="Write output to file"
     flag "-F --format <format>" help="Output format: json|yaml|text"
     arg "<id>" help="Registration ID"
-    arg "[preference]" help="Exact JSON number (omit with --clear)"
+    arg "[preference]" double_dash="optional" help="Exact JSON number (omit with --clear); a negative value follows --"
   }
   cmd "unregister" help="Remove a registration by ID" {
     alias "remove" "rm"
