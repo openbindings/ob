@@ -104,6 +104,15 @@ func (h *roleFrameTestInvoker) InvokeBinding(ctx context.Context, args *invoke.B
 
 func roleFrameProvider(t *testing.T) json.RawMessage {
 	t.Helper()
+	return roleFrameProviderWithSelector(t, "qualified-work")
+}
+
+// roleFrameProviderWithSelector builds an invoke provider whose frame work
+// binding uses the given selector. Two providers built this way are equally
+// admissible (correspondence is on operation keys, not selectors); their work
+// selectors differ so a test can tell which retained document actually ran.
+func roleFrameProviderWithSelector(t *testing.T, workSelector string) json.RawMessage {
+	t.Helper()
 	expected, err := RequirementInterface(CapInvoke)
 	if err != nil {
 		t.Fatal(err)
@@ -114,12 +123,100 @@ func roleFrameProvider(t *testing.T) json.RawMessage {
 	}
 	provider.Sources["frames"] = openbindings.Source{BindingSpec: roleFrameTestSpec, Content: json.RawMessage(`{}`)}
 	key := "provider.openbindings.binding-invoker.invokeBinding"
-	provider.Bindings[key] = openbindings.BindingEntry{Operation: key, Source: "frames", Selector: "qualified-work"}
+	provider.Bindings[key] = openbindings.BindingEntry{Operation: key, Source: "frames", Selector: workSelector}
 	raw, err := jsonvalue.Marshal(provider)
 	if err != nil {
 		t.Fatal(err)
 	}
 	return raw
+}
+
+// TestRoleFrameEntrypointReplacementDoesNotReplaceRetainedWork proves R06/R08:
+// a registration replaced with a different-but-admissible provider between
+// support selection and workload must not change the retained work. The
+// replacement (a different work selector) happens inside the support-query
+// callback, i.e. after the runtime snapshot and prepared route but before any
+// output. The retained invocation must still run the originally selected work
+// (selector "qualified-work"), and a fresh invocation after it must observe the
+// replacement (selector "replaced-work") without a second support query for the
+// first. A provider re-fetch or reselect at or after use would run
+// "replaced-work" for the retained call and fail this test.
+func TestRoleFrameEntrypointReplacementDoesNotReplaceRetainedWork(t *testing.T) {
+	r, _ := migrationTestRegistry(t)
+	record, err := r.register(RoleRegistrationInput{Interface: roleFrameProviderWithSelector(t, "qualified-work"), Roles: []string{"invoke"}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	replaced := false
+	queries := &roleTestInvoker{result: func(selector string, value any) any {
+		if !replaced {
+			// Replace the retained document mid-flight, once, after selection.
+			if _, err := r.register(RoleRegistrationInput{ID: record.ID, Interface: roleFrameProviderWithSelector(t, "replaced-work"), Roles: []string{"invoke"}}); err != nil {
+				t.Error(err)
+			}
+			replaced = true
+		}
+		return []any{map[string]any{"bindingSpec": "example.work@1", "supported": true}}
+	}}
+	work := &roleFrameTestInvoker{}
+	installRoleFrameRuntime(t, invoke.NewOperationInvoker(queries, work))
+	ctx, cancel := context.WithTimeout(t.Context(), 10*time.Second)
+	defer cancel()
+
+	call := InvokeBindingHandle(ctx, roleFrameInput())
+	defer call.Cancel()
+	if err := call.Write(ctx, json.Number("1")); err != nil {
+		t.Fatal(err)
+	}
+	if err := call.Close(); err != nil {
+		t.Fatal(err)
+	}
+	out := call.Outputs()
+	if _, err := out.Read(ctx); err != nil {
+		t.Fatalf("retained work did not run: %v", err)
+	}
+	for {
+		if _, err := out.Read(ctx); errors.Is(err, io.EOF) {
+			break
+		} else if err != nil {
+			t.Fatalf("terminal: %v", err)
+		}
+	}
+	work.mu.Lock()
+	if len(work.selectors) != 1 || work.selectors[0] != "qualified-work" {
+		t.Fatalf("retained work replaced by a concurrent registration: %v", work.selectors)
+	}
+	work.mu.Unlock()
+
+	// A fresh invocation now sees the replacement: its work runs the new
+	// selector, proving the registry did change and the first call held its
+	// own snapshot rather than never observing the replacement.
+	next := &roleFrameTestInvoker{}
+	installRoleFrameRuntime(t, invoke.NewOperationInvoker(&roleTestInvoker{result: func(string, any) any {
+		return []any{map[string]any{"bindingSpec": "example.work@1", "supported": true}}
+	}}, next))
+	ncall := InvokeBindingHandle(ctx, roleFrameInput())
+	defer ncall.Cancel()
+	if err := ncall.Write(ctx, json.Number("1")); err != nil {
+		t.Fatal(err)
+	}
+	_ = ncall.Close()
+	no := ncall.Outputs()
+	if _, err := no.Read(ctx); err != nil {
+		t.Fatalf("replacement not usable by a fresh call: %v", err)
+	}
+	for {
+		if _, err := no.Read(ctx); errors.Is(err, io.EOF) {
+			break
+		} else if err != nil {
+			t.Fatalf("fresh terminal: %v", err)
+		}
+	}
+	next.mu.Lock()
+	if len(next.selectors) != 1 || next.selectors[0] != "replaced-work" {
+		t.Fatalf("fresh call did not observe the replacement: %v", next.selectors)
+	}
+	next.mu.Unlock()
 }
 
 func installRoleFrameRuntime(t *testing.T, engine *invoke.OperationInvoker) {

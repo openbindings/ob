@@ -10,6 +10,7 @@ your configuration by hand.
 ## The conversion at a glance
 
 ```bash
+mkdir -p review
 ob delegate migrate preview -o review/plan.json     # inventory; writes an owner-only plan, changes nothing
 # review and edit review/plan.json (dispositions, roles, recovered interfaces)
 ob delegate migrate apply review/plan.json --confirm-quiesced

@@ -416,6 +416,12 @@ func TestConsumerLifecycleAndDelegation(t *testing.T) {
 			if exact(t, record["roles"]) != `["invoke"]` {
 				t.Fatalf("roles changed: %s", exact(t, record["roles"]))
 			}
+			// V02: the supplied document carries exact-number, non-BMP and
+			// combining Unicode, explicit null and empty object/array
+			// sentinels; equality here is the whole-value retention claim.
+			if sentinels, ok := providerValue.(map[string]any)["x-consumer-sentinels"].(map[string]any); !ok || len(sentinels) == 0 {
+				t.Fatal("provider document lost its value sentinels before registration")
+			}
 			if equal, err := jsonvalue.Equal(record["interface"], providerValue); err != nil || !equal {
 				t.Fatal("retained interface differs from the supplied value")
 			}
@@ -453,6 +459,44 @@ func TestConsumerLifecycleAndDelegation(t *testing.T) {
 			if exact(t, got) != `{}` {
 				t.Fatalf("null did not clear: %s", exact(t, got))
 			}
+			// W03 multi-role: one document enrolled atomically in two roles
+			// with a complete explicit map. Filtering by either role must
+			// return the whole role set and the whole preference map.
+			var multiPrefs any
+			_ = jsonvalue.Unmarshal([]byte(`{"invoke": 3, "synthesize": -2.5}`), &multiPrefs)
+			multi := call(t, register, map[string]any{"interface": providerValue, "roles": []any{"invoke", "synthesize"}, "rolePreferences": multiPrefs}).(map[string]any)
+			multiID, _ := multi["id"].(string)
+			if multiID == "" || multiID == id {
+				t.Fatalf("multi-role registration identity: %v", multi)
+			}
+			if exact(t, multi["roles"]) != `["invoke","synthesize"]` {
+				t.Fatalf("multi-role set not retained: %s", exact(t, multi["roles"]))
+			}
+			if exact(t, multi["rolePreferences"]) != `{"invoke":3,"synthesize":-2.5}` {
+				t.Fatalf("multi-role preferences not retained: %s", exact(t, multi["rolePreferences"]))
+			}
+			for _, role := range []string{"invoke", "synthesize"} {
+				listed := call(t, list, map[string]any{"role": role}).(map[string]any)["delegates"].([]any)
+				var found map[string]any
+				for _, raw := range listed {
+					if entry, _ := raw.(map[string]any); entry["id"] == multiID {
+						found = entry
+					}
+				}
+				if found == nil {
+					t.Fatalf("multi-role registration absent from the %s filter", role)
+				}
+				if exact(t, found["roles"]) != `["invoke","synthesize"]` || exact(t, found["rolePreferences"]) != `{"invoke":3,"synthesize":-2.5}` {
+					t.Fatalf("filter by %s altered the returned role set or preference map: %v", role, found)
+				}
+			}
+			if out := call(t, unregister, map[string]any{"id": multiID}); out != nil {
+				t.Fatalf("unregister must return null, got %v", out)
+			}
+			if listed := call(t, list, map[string]any{"role": "synthesize"}).(map[string]any)["delegates"].([]any); len(listed) != 0 {
+				t.Fatalf("removal left synthesize memberships: %v", listed)
+			}
+
 			// Replacement keeps the ID and applies the complete map; removal is idempotent.
 			replaced := call(t, register, map[string]any{"id": id, "interface": providerValue, "roles": []any{"invoke"}, "rolePreferences": map[string]any{}}).(map[string]any)
 			if replaced["id"] != id {

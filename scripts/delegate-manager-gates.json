@@ -65,6 +65,7 @@
       "TestRoleExplicitAuthoringRefusals",
       "TestDetectSourceCandidatesViaRegistration",
       "TestRoleFrameEntrypointRetainsSelectedProvider",
+      "TestRoleFrameEntrypointReplacementDoesNotReplaceRetainedWork",
       "TestRoleFrameEntrypointNoImplicitEnrollment",
       "TestRoleFrameEntrypointRefusesInvalidRegistry",
       "TestRoleFrameEntrypointContextAndCancellation",
@@ -95,7 +96,8 @@
       "TestBoundCLIFrameOperationsUnbound",
       "TestBoundCLIConformsToContract",
       "TestBoundServeConformsToContract",
-      "TestGenerateBoundCLI_AttachesWireInputTransforms"
+      "TestGenerateBoundCLI_AttachesWireInputTransforms",
+      "TestRoleDelegateChainIsBounded"
     ],
     "./internal/cmd/": [
       "TestDelegateCLISurface",

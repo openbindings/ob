@@ -19,6 +19,10 @@ import {fileURLToPath} from 'node:url';
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const args = process.argv.slice(2);
 const race = !args.includes('--no-race');
+// Process-recovery and locking tests spawn children and wait on real windows;
+// the default 10m package timeout aborts the package under load and reports
+// every later mandatory test as not-run (ledger F-10). State it explicitly.
+const timeout = process.env.OB_GATE_TIMEOUT || '30m';
 const evidenceIndex = args.indexOf('--evidence');
 const evidencePath = evidenceIndex >= 0 ? path.resolve(args[evidenceIndex + 1]) : null;
 const gates = JSON.parse(fs.readFileSync(path.join(root, 'scripts', 'delegate-manager-gates.json'), 'utf8'));
@@ -41,7 +45,29 @@ const env = {
   OB_NO_UPDATE_CHECK: '1',
   OB_TEST_NO_CREDENTIAL_STORE: process.env.OB_TEST_NO_CREDENTIAL_STORE ?? '1',
 };
-const record = {started: new Date().toISOString(), race, corpora: {interfaces: process.env.OB_INTERFACES_CORPUS, spec: process.env.OB_SPEC_CORPUS}, packages: {}};
+// Provenance: a gate result is only evidence for the exact thing it ran
+// against. Record the candidate revision, whether its tree was dirty, and the
+// revision of each corpus, so a result can never be read as covering a
+// different selection than the one under test.
+function revisionOf(directory) {
+  const rev = spawnSync('git', ['rev-parse', 'HEAD'], {cwd: directory, encoding: 'utf8'});
+  if (rev.status !== 0) return null;
+  const status = spawnSync('git', ['status', '--porcelain', '--untracked-files=no'], {cwd: directory, encoding: 'utf8'});
+  return {revision: rev.stdout.trim(), dirty: status.status === 0 ? status.stdout.trim() !== '' : null};
+}
+const record = {
+  started: new Date().toISOString(),
+  race,
+  timeout,
+  candidate: revisionOf(root),
+  corpora: {
+    interfaces: process.env.OB_INTERFACES_CORPUS,
+    interfacesRevision: process.env.OB_INTERFACES_CORPUS ? revisionOf(process.env.OB_INTERFACES_CORPUS) : null,
+    spec: process.env.OB_SPEC_CORPUS,
+    specRevision: process.env.OB_SPEC_CORPUS ? revisionOf(process.env.OB_SPEC_CORPUS) : null,
+  },
+  packages: {},
+};
 
 function goList(pkg) {
   const list = spawnSync('go', ['test', '-list', '.', pkg], {cwd: root, env, encoding: 'utf8', maxBuffer: 64 << 20});
@@ -54,7 +80,7 @@ for (const [pkg, tests] of Object.entries(gates.packages)) {
   const missing = tests.filter((name) => !available.has(name));
   if (missing.length) failures.push(`${pkg}: mandatory tests absent from the inventory: ${missing.join(', ')}`);
   const selector = '^(' + tests.join('|') + ')$';
-  const goArgs = ['test', '-json', '-count=1', ...(race ? ['-race'] : []), '-run', selector, pkg];
+  const goArgs = ['test', '-json', '-count=1', `-timeout=${timeout}`, ...(race ? ['-race'] : []), '-run', selector, pkg];
   const run = spawnSync('go', goArgs, {cwd: root, env, encoding: 'utf8', maxBuffer: 512 << 20});
   const outcomes = new Map();
   // Output is retained per top-level test (subtests fold into their parent)

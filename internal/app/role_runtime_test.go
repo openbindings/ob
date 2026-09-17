@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"io"
+	"os"
 	"strings"
 	"sync"
 	"testing"
@@ -393,5 +394,70 @@ func TestRoleRuntimeUnboundEligibility(t *testing.T) {
 	})
 	if err != nil || selection != nil || len(handler.calls) != 0 {
 		t.Fatal("unbound record was invoked/probed")
+	}
+}
+
+// TestRoleDelegateChainIsBounded is S05's evidence: a registration whose
+// binding resolves back to this same ob is legitimate (registrations are
+// interface values and ob's own bound OBI corresponds to the binding-invoker
+// role), so the protection is a bound on the chain rather than a refusal of
+// self-reference. A process already at the bound refuses to make another hop,
+// and the refusal names the bound instead of silently falling back to the
+// built-in.
+func TestRoleDelegateChainIsBounded(t *testing.T) {
+	for _, marker := range []string{"", "not-a-number", "-3"} {
+		t.Setenv(delegateDepthVar, marker)
+		if got := readDelegateDepth(); got != 0 {
+			t.Fatalf("marker %q must not grant depth: %d", marker, got)
+		}
+	}
+	t.Setenv(delegateDepthVar, "2")
+	if got := readDelegateDepth(); got != 2 {
+		t.Fatalf("inherited depth not read: %d", got)
+	}
+	// A process's own depth is fixed at start: marking its children writes the
+	// same variable, and re-reading it would inflate its own count.
+	restoreDepth, restoreOnce := processDelegateDepth, delegateChildDepthOnce
+	t.Cleanup(func() { processDelegateDepth, delegateChildDepthOnce = restoreDepth, restoreOnce })
+
+	r, _ := migrationTestRegistry(t)
+	expected, _ := RequirementInterface(CapInvoke)
+	record, err := r.register(RoleRegistrationInput{Interface: roleTestProvider(t, expected), Roles: []string{"invoke"}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	queried := false
+	factory := func(candidate roleCandidate) (invoke.ProviderRuntime, invoke.RealizationSelector) {
+		return invoke.NewOperationInvoker(&roleTestInvoker{result: func(string, any) any {
+			queried = true
+			return []any{map[string]any{"bindingSpec": "example.work@1", "supported": true}}
+		}}), nil
+	}
+
+	processDelegateDepth, delegateChildDepthOnce = maxDelegateDepth, sync.Once{}
+	_, err = selectRoleRuntime(t.Context(), r, CapInvoke, "example.work@1", roleRanked, false, factory)
+	if err == nil {
+		t.Fatal("a process at the chain bound still prepared another delegate hop")
+	}
+	if !strings.Contains(err.Error(), "bound") {
+		t.Fatalf("refusal does not name the bound: %v", err)
+	}
+	if queried {
+		t.Fatal("a refused hop still contacted the delegate")
+	}
+
+	// Below the bound the same lookup proceeds and elects the registration.
+	t.Setenv(delegateDepthVar, "0")
+	processDelegateDepth, delegateChildDepthOnce = 0, sync.Once{}
+	selection, err := selectRoleRuntime(t.Context(), r, CapInvoke, "example.work@1", roleRanked, false, factory)
+	if err != nil {
+		t.Fatalf("a first hop must be allowed: %v", err)
+	}
+	if selection == nil || selection.Runtime == nil || selection.Runtime.candidate.Record.ID != record.ID {
+		t.Fatalf("registration not elected below the bound: %+v", selection)
+	}
+	// Children of this process carry the next depth, so the chain terminates.
+	if got := os.Getenv(delegateDepthVar); got != "1" {
+		t.Fatalf("delegate children were not marked with the next depth: %q", got)
 	}
 }

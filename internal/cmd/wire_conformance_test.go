@@ -116,8 +116,10 @@ func TestWireConformance_ExecLane(t *testing.T) {
 	}
 	t.Setenv("PATH", binDir+string(os.PathListSeparator)+os.Getenv("PATH"))
 
-	// A registrable delegate fixture: the same binary under a different name
-	// (registering `exec:ob` itself is refused as the self-delegate).
+	// A registrable delegate fixture: the same binary under a different name.
+	// By-value registration carries an interface, not a locator, so there is no
+	// self-delegate refusal to rely on; the chain is bounded instead
+	// (armDelegateChildDepth, TestRoleDelegateChainIsBounded).
 	binBytes, err := os.ReadFile(filepath.Join(binDir, "ob"))
 	if err != nil {
 		t.Fatal(err)

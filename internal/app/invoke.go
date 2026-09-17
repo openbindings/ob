@@ -10,12 +10,10 @@ import (
 	"net/http"
 	"net/url"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"reflect"
 	"sort"
 	"strings"
-	"sync"
 	"time"
 
 	openbindings "github.com/openbindings/openbindings-go"
@@ -1153,41 +1151,6 @@ func SubscribeOBIOperationDirect(ctx context.Context, binding *openbindings.Bind
 	}
 	// Builtin in-process invoker: trusted (no guard).
 	return driveBinding(ctx, invokeBinding, nil, nil, invoker.ContextResolver, nil), nil
-}
-
-var (
-	selfPath     string
-	selfPathOnce sync.Once
-)
-
-// isSelf checks if a delegate location refers to the current binary.
-// Used for recursion prevention and in-process optimization.
-func isSelf(location string) bool {
-	if !execref.IsExec(location) {
-		return false
-	}
-	cmd, err := execref.RootCommand(location)
-	if err != nil {
-		return false
-	}
-
-	selfPathOnce.Do(func() {
-		exe, err := os.Executable()
-		if err != nil {
-			return
-		}
-		selfPath, _ = filepath.EvalSymlinks(exe)
-	})
-	if selfPath == "" {
-		return false
-	}
-
-	resolved, err := exec.LookPath(cmd)
-	if err != nil {
-		return false
-	}
-	resolved, _ = filepath.EvalSymlinks(resolved)
-	return resolved == selfPath
 }
 
 // InvokeOperationWithContext invokes an operation with cancellation support.

@@ -168,6 +168,9 @@ func explicitRoleRuntime(ctx context.Context, role DelegateCapability, registrat
 		if candidate.Record.ID != registrationID {
 			continue
 		}
+		if err := armDelegateChildDepth(); err != nil {
+			return nil, err
+		}
 		runtime, err := newRoleRuntime(catalogue, candidate, delegateExecInvoker(candidate.Record.ID), nil)
 		if err != nil {
 			return nil, err
@@ -397,6 +400,12 @@ func selectRoleRuntimesFrom(ctx context.Context, registry *roleRegistry, role De
 		rows = enrolled
 	}
 	for _, candidate := range rows {
+		// An external delegate is about to be prepared and queried: bound the
+		// chain before any hop, so a self-referential registration refuses
+		// instead of recursing.
+		if err := armDelegateChildDepth(); err != nil {
+			return nil, err
+		}
 		runtime, selector := factory(candidate)
 		provider, err := newRoleRuntime(registry.catalogue, candidate, runtime, selector)
 		if err != nil {

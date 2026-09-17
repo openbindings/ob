@@ -136,8 +136,26 @@ func main() {
 		"openbindings": "0.2.0",
 		"name":         "Consumer harness provider",
 		"description":  "sensitive-provider-document-marker",
-		"schemas":      schemas,
-		"operations":   operations,
+		// V02 sentinels ride inside the registered document itself, so the
+		// manager's retention is proven on exact numbers, non-BMP and
+		// combining Unicode, explicit null, and empty object/array — not only
+		// on ASCII. An extension field is ignored by every consumer of the
+		// document and must survive register, disk reload, list and
+		// replacement byte-for-byte.
+		"x-consumer-sentinels": document{
+			"exactInteger":  json.RawMessage(`9007199254740993`),
+			"exactNegative": json.RawMessage(`-1.25`),
+			"exactHuge":     json.RawMessage(`1e400`),
+			"exactTiny":     json.RawMessage(`1e-400`),
+			"exactZero":     json.RawMessage(`0`),
+			"unicode":       "ünïcode \u0301 \U0001F9EA \u4e2d\u6587",
+			"explicitNull":  nil,
+			"emptyObject":   document{},
+			"emptyArray":    []any{},
+			"nested":        []any{nil, document{}, []any{}, json.RawMessage(`1e400`)},
+		},
+		"schemas":    schemas,
+		"operations": operations,
 		"sources": document{
 			"api":    document{"bindingSpec": "openbindings.openapi-3.1@1", "content": json.RawMessage(artifactJSON)},
 			"frames": document{"bindingSpec": "openbindings.asyncapi@1", "location": base + "/asyncapi.yaml"},

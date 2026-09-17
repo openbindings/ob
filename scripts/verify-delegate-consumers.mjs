@@ -90,7 +90,11 @@ const knownBlocked = {
   },
 };
 let blocked = 0;
-const goRequired = ['TestConsumerLifecycleAndDelegation', 'TestConsumerListRolesOverUsage', 'TestConsumerRefusalsLeaveStateUntouched'];
+// Every top-level Go test the module actually ran is reported; a newly added
+// consumer claim cannot be missed by a hard-coded list. The named claims must
+// be present, so a silently dropped test is a failure rather than an absence.
+const goExpected = ['TestConsumerLifecycleAndDelegation', 'TestConsumerListRolesOverUsage', 'TestConsumerRefusalsLeaveStateUntouched'];
+const goRequired = [...new Set([...goExpected, ...Object.keys(goOutcomes)])].sort();
 for (const name of goRequired) {
   const outcome = goOutcomes[name] ?? 'not-run';
   const note = outcome === 'pass' ? '' : knownBlocked.go[name] ? `  blocked by ${knownBlocked.go[name]}` : '  UNATTRIBUTED';
@@ -120,10 +124,18 @@ if (!skipTS) {
   }
   const manifestPath = path.join(install, 'package.json');
   const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
+  // npm refuses an override that conflicts with a direct dependency range, so
+  // the direct devDependencies carry the identical exact tarball spec.
+  for (const section of ['dependencies', 'devDependencies']) {
+    for (const name of Object.keys(manifest[section] ?? {})) {
+      if (overrides[name]) manifest[section][name] = overrides[name];
+    }
+  }
   manifest.overrides = overrides;
   fs.writeFileSync(manifestPath, JSON.stringify(manifest, null, 2) + '\n');
-  run('ts-install-packed-sdk', 'npm', ['install', '--no-audit', '--no-fund', '--no-package-lock', '--install-links', ...tarballs], {cwd: install});
-  const tsTest = runAllowingFailure('ts-consumer', process.execPath, ['--test', 'test/'], {cwd: install, env: consumerEnv});
+  run('ts-install-packed-sdk', 'npm', ['install', '--no-audit', '--no-fund', '--no-package-lock', '--install-links'], {cwd: install});
+  const tsFiles = fs.readdirSync(path.join(install, 'test')).filter((name) => name.endsWith('.test.mjs')).map((name) => path.join('test', name)).sort();
+  const tsTest = runAllowingFailure('ts-consumer', process.execPath, ['--test', ...tsFiles], {cwd: install, env: consumerEnv});
   const tsOutcomes = {};
   for (const line of tsTest.stdout.split('\n')) {
     const m = line.match(/^(ok|not ok) \d+ - (.+)$/);

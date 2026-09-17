@@ -8,6 +8,14 @@ on:
       - 'scripts/verify-oas-platform.mjs'
       - 'scripts/verify-oas-browser-journeys.mjs'
       - 'scripts/verify-oas-public-corroboration.mjs'
+      - 'scripts/check-process-gates.mjs'
+      - 'scripts/delegate-manager-gates.json'
+      - 'scripts/verify-delegate-manager.mjs'
+      # This workflow carries the only cross-OS proof of the environment
+      # locking, registry process and migration recovery tests, so it must run
+      # whenever the code or the tests behind that proof change.
+      - 'internal/app/**'
+      - 'internal/cmd/**'
       - 'go.mod'
       - 'go.sum'
       - 'internal/server/workbench/dist/**'
