@@ -46,15 +46,14 @@ func TestDemoSmoke_PrintedCommands(t *testing.T) {
 	}
 
 	// Commands run from a sandbox dir: `ob resolve` writes the resolved OBI
-	// to its working directory, which must never be the repo. HOME and the
+	// to its working directory, which must never be the repo. App state and the
 	// credential backend are sandboxed too, so `ob context set` (the GraphQL
 	// interpretation-point flow below) never touches the developer's real
 	// config dir or OS keychain.
 	workDir := t.TempDir()
 	homeDir := t.TempDir()
 	env := append(os.Environ(),
-		"HOME="+homeDir,
-		"XDG_CONFIG_HOME="+filepath.Join(homeDir, ".config"),
+		"OB_CONFIG_DIR="+homeDir,
 		"OB_CREDENTIALS_FILE="+filepath.Join(homeDir, "credentials.json"),
 	)
 	run := func(args ...string) string {

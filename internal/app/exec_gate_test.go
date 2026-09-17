@@ -36,3 +36,24 @@ func TestReadSourceContent_ExecAllowedAfterAuthorize(t *testing.T) {
 		t.Fatalf("authorized exec ref should run, got: %v", err)
 	}
 }
+
+func TestDelegateRegistrationDoesNotAuthorizeExec(t *testing.T) {
+	path := envConfigTestEnv(t)
+	config, err := LoadEnvConfig(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	config.Delegates = []DelegateRecord{{Location: "exec:delegate-not-authorized", Operations: []string{}}}
+	if err := SaveEnvConfig(path, config); err != nil {
+		t.Fatal(err)
+	}
+	if authorizeExecAddress([]string{"delegate-not-authorized"}) {
+		t.Fatal("legacy registration still grants executable authority")
+	}
+	if err := RecordAuthorizedExec("exec:delegate-not-authorized"); err != nil {
+		t.Fatal(err)
+	}
+	if !authorizeExecAddress([]string{"delegate-not-authorized"}) {
+		t.Fatal("explicit authorization no longer works")
+	}
+}

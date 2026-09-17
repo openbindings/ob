@@ -150,6 +150,7 @@ func TestDefaultBindingForOp_NilAndExplicitPreferenceRemainAmbiguous(t *testing.
 }
 
 func TestResolveBindingAndSource_OrderedCallerSelection(t *testing.T) {
+	t.Chdir(t.TempDir())
 	iface := &openbindings.Interface{
 		OpenBindings: "0.2.0",
 		Operations: map[string]openbindings.Operation{
@@ -415,6 +416,7 @@ func TestDriveBindingTearsDownOnCancel(t *testing.T) {
 // validation, so the mutation executed (side effect!) and the defect was then
 // reported as an OUTPUT validation failure blaming the response.
 func TestInvokeOBIOperation_InvalidInputNeverReachesWire(t *testing.T) {
+	t.Chdir(t.TempDir())
 	var requests atomic.Int32
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		requests.Add(1)

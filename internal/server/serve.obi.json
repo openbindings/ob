@@ -221,22 +221,16 @@
       "selector": "#/paths/~1interfaces~1status/post",
       "source": "openapi"
     },
-    "openbindings.ob.resolveDelegate.openapi": {
-      "inputTransform": "($parameters := {\"operation\":$lookup($,\"operation\")}; $bodyObject := {}; {\"parameters\":$count($keys($parameters)) \u003e 0 ? $parameters : $lookup({},\"__openbindings_absent\"),\"body\":$lookup({},\"__openbindings_absent\")})",
-      "operation": "openbindings.ob.resolveDelegate",
-      "selector": "#/paths/~1delegates~1resolve~1{operation}/get",
-      "source": "openapi"
-    },
-    "openbindings.ob.resolveDelegateForBindingSpec.openapi": {
-      "inputTransform": "($parameters := {}; $bodyObject := $merge([$sift($,function($value,$key){$key != \"bindingSpec\"}),{\"bindingSpec\":$lookup($,\"bindingSpec\")}]); {\"parameters\":$count($keys($parameters)) \u003e 0 ? $parameters : $lookup({},\"__openbindings_absent\"),\"body\":($exists($lookup($,\"bindingSpec\")) or $count($keys($sift($,function($value,$key){$key != \"bindingSpec\"}))) \u003e 0 or true) ? $bodyObject : $lookup({},\"__openbindings_absent\")})",
-      "operation": "openbindings.ob.resolveDelegateForBindingSpec",
-      "selector": "#/paths/~1delegates~1resolve-binding-spec/post",
-      "source": "openapi"
-    },
     "openbindings.ob.resolveInterface.openapi": {
       "inputTransform": "($parameters := {}; $bodyObject := $merge([$sift($,function($value,$key){$key != \"address\"}),{\"address\":$lookup($,\"address\")}]); {\"parameters\":$count($keys($parameters)) \u003e 0 ? $parameters : $lookup({},\"__openbindings_absent\"),\"body\":($exists($lookup($,\"address\")) or $count($keys($sift($,function($value,$key){$key != \"address\"}))) \u003e 0 or true) ? $bodyObject : $lookup({},\"__openbindings_absent\")})",
       "operation": "openbindings.ob.resolveInterface",
       "selector": "#/paths/~1interfaces~1resolve/post",
+      "source": "openapi"
+    },
+    "openbindings.ob.resolveRoleDelegate.openapi": {
+      "inputTransform": "({ \"payload\": $$ }).(($parameters := {}; $bodyObject := {}; {\"parameters\":$count($keys($parameters)) \u003e 0 ? $parameters : $lookup({},\"__openbindings_absent\"),\"body\":$exists($lookup($,\"payload\")) ? $lookup($,\"payload\") : ((false) ? $bodyObject : $lookup({},\"__openbindings_absent\"))}))",
+      "operation": "openbindings.ob.resolveRoleDelegate",
+      "selector": "#/paths/~1delegates~1resolve/post",
       "source": "openapi"
     },
     "openbindings.ob.setContext.openapi": {
@@ -873,35 +867,6 @@
         "inspection"
       ]
     },
-    "openbindings.ob.resolveDelegate": {
-      "aliases": [
-        "openbindings.delegate-manager.resolveDelegate"
-      ],
-      "description": "Resolve an operation to the registered delegates that carry it — those whose interface answers to the operation's key or an alias — ordered by effective preference: the per-operation override when set, else the delegate-level preference, else the baseline; ties favor the self-delegate, then registration order. Returns candidates only; it does not invoke anything, and ob's routing applies its own narrowing (format support) on top.",
-      "idempotent": true,
-      "input": {
-        "$ref": "#/schemas/ResolveDelegateInput"
-      },
-      "output": {
-        "$ref": "#/schemas/ResolveDelegateResult"
-      },
-      "tags": [
-        "delegates"
-      ]
-    },
-    "openbindings.ob.resolveDelegateForBindingSpec": {
-      "description": "Report which delegate ob's routing would select for a format token, and the capabilities it offers for it — ob's format-narrowing diagnostic, layered on top of the operation-keyed resolveDelegate.",
-      "idempotent": true,
-      "input": {
-        "$ref": "#/schemas/ResolveDelegateForBindingSpecInput"
-      },
-      "output": {
-        "$ref": "#/schemas/ResolveDelegateForBindingSpecResult"
-      },
-      "tags": [
-        "delegates"
-      ]
-    },
     "openbindings.ob.resolveInterface": {
       "description": "Resolve an OpenBindings interface from a URL or host. Performs well-known discovery, follows redirects, and synthesizes an OBI from a raw binding spec (e.g. an OpenAPI document) when the target is not already an OBI. Returns the interface and metadata about how it was resolved.",
       "idempotent": true,
@@ -913,6 +878,19 @@
       },
       "tags": [
         "resolution"
+      ]
+    },
+    "openbindings.ob.resolveRoleDelegate": {
+      "description": "Assess OB's live provider selection for a role and exact binding specification identifier. Invocation defaults to ranked selection; its native-first frame path can be requested. Synthesis and inspection use native-first. An explicit registration ID constrains assessment to that enrolled registration, without fallback. Negative support is available=false; invalid state or failed assessment is an error. No workload is invoked. This is a point-in-time diagnostic, not a reservation, authorization grant or shared Delegate Manager operation.",
+      "idempotent": true,
+      "input": {
+        "$ref": "#/schemas/RoleResolutionInput"
+      },
+      "output": {
+        "$ref": "#/schemas/RoleResolutionOutput"
+      },
+      "tags": [
+        "delegates"
       ]
     },
     "openbindings.ob.setContext": {
@@ -2906,85 +2884,6 @@
       ],
       "type": "object"
     },
-    "ResolveDelegateForBindingSpecInput": {
-      "additionalProperties": false,
-      "properties": {
-        "bindingSpec": {
-          "description": "Binding specification identifier to resolve to a delegate.",
-          "type": "string"
-        }
-      },
-      "required": [
-        "bindingSpec"
-      ],
-      "type": "object"
-    },
-    "ResolveDelegateForBindingSpecResult": {
-      "additionalProperties": false,
-      "properties": {
-        "bindingSpec": {
-          "description": "The requested format token.",
-          "type": "string"
-        },
-        "builtin": {
-          "description": "True when ob's own native handling is selected for the format.",
-          "type": "boolean"
-        },
-        "capabilities": {
-          "description": "The capabilities the delegate offers for this format.",
-          "items": {
-            "$ref": "#/schemas/DelegateCapability"
-          },
-          "type": "array"
-        },
-        "location": {
-          "description": "The delegate's location.",
-          "type": "string"
-        },
-        "name": {
-          "description": "Display name of the delegate ob's routing would select.",
-          "type": "string"
-        }
-      },
-      "required": [
-        "bindingSpec"
-      ],
-      "type": "object"
-    },
-    "ResolveDelegateInput": {
-      "additionalProperties": false,
-      "properties": {
-        "operation": {
-          "description": "The operation identifier a delegate is needed for.",
-          "type": "string"
-        }
-      },
-      "required": [
-        "operation"
-      ],
-      "type": "object"
-    },
-    "ResolveDelegateResult": {
-      "additionalProperties": false,
-      "properties": {
-        "candidates": {
-          "description": "Registered delegates that carry the operation, ordered by effective preference, best first. Empty when none carry it.",
-          "items": {
-            "$ref": "#/schemas/DelegateSummary"
-          },
-          "type": "array"
-        },
-        "operation": {
-          "description": "The requested operation identifier, echoed back.",
-          "type": "string"
-        }
-      },
-      "required": [
-        "operation",
-        "candidates"
-      ],
-      "type": "object"
-    },
     "ResolveInterfaceInput": {
       "additionalProperties": false,
       "properties": {
@@ -3015,6 +2914,138 @@
       },
       "required": [
         "interface"
+      ],
+      "type": "object"
+    },
+    "RoleResolutionInput": {
+      "additionalProperties": false,
+      "allOf": [
+        {
+          "else": {
+            "properties": {
+              "path": {
+                "enum": [
+                  "ranked",
+                  "native-first"
+                ]
+              }
+            }
+          },
+          "if": {
+            "required": [
+              "registrationId"
+            ]
+          },
+          "then": {
+            "properties": {
+              "path": {
+                "const": "explicit"
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "not": {
+              "required": [
+                "registrationId"
+              ]
+            },
+            "properties": {
+              "role": {
+                "enum": [
+                  "synthesize",
+                  "inspect"
+                ]
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "path": {
+                "const": "native-first"
+              }
+            }
+          }
+        }
+      ],
+      "properties": {
+        "bindingSpec": {
+          "description": "Exact opaque binding specification identifier.",
+          "minLength": 1,
+          "type": "string"
+        },
+        "path": {
+          "description": "Omit for the role default, or explicit with registrationId. Ranked is only available for invoke.",
+          "enum": [
+            "ranked",
+            "native-first",
+            "explicit"
+          ],
+          "type": "string"
+        },
+        "registrationId": {
+          "description": "Exact enrolled registration ID, not a display name or locator. No fallback.",
+          "minLength": 1,
+          "type": "string"
+        },
+        "role": {
+          "enum": [
+            "invoke",
+            "synthesize",
+            "inspect"
+          ],
+          "type": "string"
+        }
+      },
+      "required": [
+        "role",
+        "bindingSpec"
+      ],
+      "type": "object"
+    },
+    "RoleResolutionOutput": {
+      "additionalProperties": false,
+      "properties": {
+        "available": {
+          "description": "False only for a completed assessment with no supported provider; failures are errors.",
+          "type": "boolean"
+        },
+        "bindingSpec": {
+          "type": "string"
+        },
+        "builtin": {
+          "description": "True only for the built-in provider; built-ins have no registration ID.",
+          "type": "boolean"
+        },
+        "path": {
+          "enum": [
+            "ranked",
+            "native-first",
+            "explicit"
+          ],
+          "type": "string"
+        },
+        "registrationId": {
+          "description": "Selected registration, present only for an available external provider.",
+          "minLength": 1,
+          "type": "string"
+        },
+        "role": {
+          "enum": [
+            "invoke",
+            "synthesize",
+            "inspect"
+          ],
+          "type": "string"
+        }
+      },
+      "required": [
+        "role",
+        "bindingSpec",
+        "path",
+        "available",
+        "builtin"
       ],
       "type": "object"
     },

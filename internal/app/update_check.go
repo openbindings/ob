@@ -169,6 +169,12 @@ func writeUpdateCache(cache updateCheckCache) error {
 }
 
 func updateCachePath() (string, error) {
+	if dir, set, err := applicationDirectory("OB_CACHE_DIR"); set {
+		if err != nil {
+			return "", err
+		}
+		return filepath.Join(dir, updateCacheFile), nil
+	}
 	dir, err := os.UserCacheDir()
 	if err != nil {
 		return "", err

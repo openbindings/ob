@@ -565,22 +565,22 @@ paths:
                                 $ref: '#/components/schemas/ErrorResponse'
                     description: The operation failed.
             summary: 'Register a delegate — any referenceable OpenBindings interface (an exec: or http(s) location) that ob may route operations to.'
-    /delegates/resolve-binding-spec:
+    /delegates/resolve:
         post:
-            description: Report which delegate ob's routing would select for a format token, and the capabilities it offers for it — ob's format-narrowing diagnostic, layered on top of the operation-keyed resolveDelegate.
-            operationId: resolveDelegateForBindingSpec
+            description: Assess OB's live provider selection for a role and exact binding specification identifier. Invocation defaults to ranked selection; its native-first frame path can be requested. Synthesis and inspection use native-first. An explicit registration ID constrains assessment to that enrolled registration, without fallback. Negative support is available=false; invalid state or failed assessment is an error. No workload is invoked. This is a point-in-time diagnostic, not a reservation, authorization grant or shared Delegate Manager operation.
+            operationId: resolveRoleDelegate
             requestBody:
                 content:
                     application/json:
                         schema:
-                            $ref: '#/components/schemas/ResolveDelegateForBindingSpecInput'
+                            $ref: '#/components/schemas/RoleResolutionInput'
                 required: true
             responses:
                 "200":
                     content:
                         application/json:
                             schema:
-                                $ref: '#/components/schemas/ResolveDelegateForBindingSpecResult'
+                                $ref: '#/components/schemas/RoleResolutionOutput'
                     description: Successful response.
                 "400":
                     content:
@@ -612,55 +612,7 @@ paths:
                             schema:
                                 $ref: '#/components/schemas/ErrorResponse'
                     description: The operation failed.
-            summary: Report which delegate ob's routing would select for a format token, and the capabilities it offers for it — ob's format-narrowing diagnostic, layered on top of the operation-keyed resolveDelegate.
-    /delegates/resolve/{operation}:
-        get:
-            description: 'Resolve an operation to the registered delegates that carry it — those whose interface answers to the operation''s key or an alias — ordered by effective preference: the per-operation override when set, else the delegate-level preference, else the baseline; ties favor the self-delegate, then registration order. Returns candidates only; it does not invoke anything, and ob''s routing applies its own narrowing (format support) on top.'
-            operationId: resolveDelegate
-            parameters:
-                - in: path
-                  name: operation
-                  required: true
-                  schema:
-                    type: string
-            responses:
-                "200":
-                    content:
-                        application/json:
-                            schema:
-                                $ref: '#/components/schemas/ResolveDelegateResult'
-                    description: Successful response.
-                "400":
-                    content:
-                        application/json:
-                            schema:
-                                $ref: '#/components/schemas/ErrorResponse'
-                    description: The request is invalid or the operation cannot be applied.
-                "401":
-                    content:
-                        application/json:
-                            schema:
-                                $ref: '#/components/schemas/ErrorResponse'
-                    description: A valid bearer or OAuth access token is required.
-                "413":
-                    content:
-                        application/json:
-                            schema:
-                                $ref: '#/components/schemas/ErrorResponse'
-                    description: The request body exceeds the server's delivery-unit limit.
-                "415":
-                    content:
-                        application/json:
-                            schema:
-                                $ref: '#/components/schemas/ErrorResponse'
-                    description: The request body is not JSON.
-                default:
-                    content:
-                        application/json:
-                            schema:
-                                $ref: '#/components/schemas/ErrorResponse'
-                    description: The operation failed.
-            summary: 'Resolve an operation to the registered delegates that carry it — those whose interface answers to the operation''s key or an alias — ordered by effective preference: the per-operation override when set, else the delegate-level preference, else the baseline; ties favor the self-delegate, then registration order.'
+            summary: Assess OB's live provider selection for a role and exact binding specification identifier.
     /delegates/unregister:
         post:
             description: 'Remove a registered delegate by its location. Idempotent: unregistering a location that is not registered succeeds.'
@@ -3357,7 +3309,6 @@ components:
                         - codegen_failed
                         - comparison_failed
                         - context_store_failed
-                        - delegate_not_found
                         - delegate_resolution_failed
                         - edit_failed
                         - environment_failed
@@ -3919,62 +3870,6 @@ components:
                 - target
                 - candidate
             type: object
-        ResolveDelegateForBindingSpecInput:
-            additionalProperties: false
-            properties:
-                bindingSpec:
-                    description: Binding specification identifier to resolve to a delegate.
-                    type: string
-            required:
-                - bindingSpec
-            type: object
-        ResolveDelegateForBindingSpecResult:
-            additionalProperties: false
-            properties:
-                bindingSpec:
-                    description: The requested format token.
-                    type: string
-                builtin:
-                    description: True when ob's own native handling is selected for the format.
-                    type: boolean
-                capabilities:
-                    description: The capabilities the delegate offers for this format.
-                    items:
-                        $ref: '#/components/schemas/DelegateCapability'
-                    type: array
-                location:
-                    description: The delegate's location.
-                    type: string
-                name:
-                    description: Display name of the delegate ob's routing would select.
-                    type: string
-            required:
-                - bindingSpec
-            type: object
-        ResolveDelegateInput:
-            additionalProperties: false
-            properties:
-                operation:
-                    description: The operation identifier a delegate is needed for.
-                    type: string
-            required:
-                - operation
-            type: object
-        ResolveDelegateResult:
-            additionalProperties: false
-            properties:
-                candidates:
-                    description: Registered delegates that carry the operation, ordered by effective preference, best first. Empty when none carry it.
-                    items:
-                        $ref: '#/components/schemas/DelegateSummary'
-                    type: array
-                operation:
-                    description: The requested operation identifier, echoed back.
-                    type: string
-            required:
-                - operation
-                - candidates
-            type: object
         ResolveInterfaceInput:
             additionalProperties: false
             properties:
@@ -3997,6 +3892,95 @@ components:
                     type: string
             required:
                 - interface
+            type: object
+        RoleResolutionInput:
+            additionalProperties: false
+            allOf:
+                - else:
+                    properties:
+                        path:
+                            enum:
+                                - ranked
+                                - native-first
+                  if:
+                    required:
+                        - registrationId
+                  then:
+                    properties:
+                        path:
+                            const: explicit
+                - if:
+                    not:
+                        required:
+                            - registrationId
+                    properties:
+                        role:
+                            enum:
+                                - synthesize
+                                - inspect
+                  then:
+                    properties:
+                        path:
+                            const: native-first
+            properties:
+                bindingSpec:
+                    description: Exact opaque binding specification identifier.
+                    minLength: 1
+                    type: string
+                path:
+                    description: Omit for the role default, or explicit with registrationId. Ranked is only available for invoke.
+                    enum:
+                        - ranked
+                        - native-first
+                        - explicit
+                    type: string
+                registrationId:
+                    description: Exact enrolled registration ID, not a display name or locator. No fallback.
+                    minLength: 1
+                    type: string
+                role:
+                    enum:
+                        - invoke
+                        - synthesize
+                        - inspect
+                    type: string
+            required:
+                - role
+                - bindingSpec
+            type: object
+        RoleResolutionOutput:
+            additionalProperties: false
+            properties:
+                available:
+                    description: False only for a completed assessment with no supported provider; failures are errors.
+                    type: boolean
+                bindingSpec:
+                    type: string
+                builtin:
+                    description: True only for the built-in provider; built-ins have no registration ID.
+                    type: boolean
+                path:
+                    enum:
+                        - ranked
+                        - native-first
+                        - explicit
+                    type: string
+                registrationId:
+                    description: Selected registration, present only for an available external provider.
+                    minLength: 1
+                    type: string
+                role:
+                    enum:
+                        - invoke
+                        - synthesize
+                        - inspect
+                    type: string
+            required:
+                - role
+                - bindingSpec
+                - path
+                - available
+                - builtin
             type: object
         ServerInfo:
             additionalProperties: false

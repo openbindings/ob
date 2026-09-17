@@ -16,6 +16,7 @@ import (
 	"github.com/coder/websocket"
 
 	openbindings "github.com/openbindings/openbindings-go"
+	"github.com/openbindings/openbindings-go/formats/usage"
 
 	"github.com/openbindings/openbindings-go/invoke"
 
@@ -444,106 +445,46 @@ exit 1
 	}
 }
 
-// TestOpInvoke_ExternalDelegateDisplacesElections is the dispatch-
-// unification harness case: `op invoke` routes a usage op to a PREFERRED
-// EXTERNAL delegate, and standing-election displacement fires. Ob's
-// standing internal-table elections for the op cannot cross the delegate
-// boundary, so the invocation proceeds with a loud attributed warning and
-// the delegate answers.
+// TestOpInvoke_ExternalDelegateDisplacesElections preserves the warning and
+// successful-dispatch assertions using a complete, explicitly enrolled provider.
+// The old fixture's incomplete unary Usage interface is not a frame realization;
+// its management/CLI migration is a separate N5 journey, not assumed here.
 func TestOpInvoke_ExternalDelegateDisplacesElections(t *testing.T) {
-	dir := t.TempDir()
-	cliPath := filepath.Join(dir, "ext-delegate")
-	delegateOBIFile := filepath.Join(dir, "delegate.obi.json")
-
-	// The external delegate's own OBI: invokeBinding bound to a usage source
-	// whose bin is the fixture; `binding invoke` takes --input.
-	usageSpec := "min_usage_version \"2.0.0\"\nname \"ext\"\nbin \"" + cliPath + "\"\n" +
-		"cmd \"binding\" subcommand_required=#true {\n  cmd \"invoke\" {\n    flag \"--input <json>\"\n  }\n}\n" +
-		"cmd \"binding-specs\" subcommand_required=#true {\n  cmd \"check\" {\n    flag \"--input <json>\"\n  }\n}\n"
-	delegateIface := openbindings.Interface{
-		OpenBindings: "0.2.0",
+	r, _ := migrationTestRegistry(t)
+	record, err := r.register(RoleRegistrationInput{
+		Interface: roleFrameProvider(t), Roles: []string{"invoke"},
+		RolePreferences: json.RawMessage(`{"invoke":100}`),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	queries := &roleTestInvoker{result: func(_ string, value any) any {
+		return roleOperationVerdicts(t, value, true)
+	}}
+	work := &roleFrameTestInvoker{}
+	installRoleFrameRuntime(t, invoke.NewOperationInvoker(queries, work, usage.NewInvoker()))
+	iface := &openbindings.Interface{
+		OpenBindings: "0.2.0", Name: "Standing election displacement",
 		Operations: map[string]openbindings.Operation{
-			"invokeBinding":     {Aliases: []string{"openbindings.binding-invoker.invokeBinding"}},
-			"checkBindingSpecs": {Aliases: []string{"openbindings.binding-invoker.checkBindingSpecs"}},
+			"openbindings.ob.validateInterface": {Input: map[string]any{}, Output: map[string]any{}},
 		},
-		Sources: map[string]openbindings.Source{"usage": {BindingSpec: "openbindings.usage@1", Content: openbindings.TextContent(usageSpec)}},
+		Sources: map[string]openbindings.Source{
+			"usage": {BindingSpec: usage.BindingSpec, Content: openbindings.TextContent("min_usage_version \"2.0.0\"\nbin \"must-not-execute\"\ncmd \"validate\" {}\n")},
+		},
 		Bindings: map[string]openbindings.BindingEntry{
-			"invokeBinding.usage": {
-				Operation:      "invokeBinding",
-				Source:         "usage",
-				Selector:       "binding invoke",
-				InputTransform: &openbindings.TransformOrRef{Inline: `{ "input": $string($$) }`},
-			},
-			"checkBindingSpecs.usage": {
-				Operation:      "checkBindingSpecs",
-				Source:         "usage",
-				Selector:       "binding-specs check",
-				InputTransform: &openbindings.TransformOrRef{Inline: `{ "input": $string($$) }`},
-			},
+			"validate.usage": {Operation: "openbindings.ob.validateInterface", Source: "usage", Selector: "validate"},
 		},
 	}
-	obiBytes, err := json.Marshal(delegateIface)
-	if err != nil {
+	file := filepath.Join(t.TempDir(), "invoked.obi.json")
+	if err := WriteInterfaceFile(file, iface); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(delegateOBIFile, obiBytes, 0o644); err != nil {
-		t.Fatal(err)
-	}
-
-	script := "#!/bin/sh\n" +
-		"if [ \"$1\" = \"--openbindings\" ]; then cat " + delegateOBIFile + "; exit 0; fi\n" +
-		"if [ \"$1\" = \"binding-specs\" ] && [ \"$2\" = \"check\" ]; then printf '[{\"bindingSpec\":\"openbindings.usage@1\",\"supported\":true}]\\n'; exit 0; fi\n" +
-		"if [ \"$1\" = \"binding\" ] && [ \"$2\" = \"invoke\" ]; then printf '{\"delegated\":true}\\n'; exit 0; fi\n" +
-		"echo \"unexpected: $*\" >&2; exit 1\n"
-	if err := os.WriteFile(cliPath, []byte(script), 0o755); err != nil {
-		t.Fatal(err)
-	}
-
-	// The invoked OBI declares one of ob's OWN bound ops (validateInterface,
-	// which carries the ok-exit {0,1} standing election) over a usage source,
-	// so displacement is observable against ob's internal table.
-	invokedIface := openbindings.Interface{
-		OpenBindings: "0.2.0",
-		Operations:   map[string]openbindings.Operation{"openbindings.ob.validateInterface": {}},
-		Sources:      map[string]openbindings.Source{"usage": {BindingSpec: "openbindings.usage@1", Location: "exec:" + cliPath}},
-		Bindings: map[string]openbindings.BindingEntry{
-			"openbindings.ob.validateInterface.usage": {Operation: "openbindings.ob.validateInterface", Source: "usage", Selector: "validate"},
-		},
-	}
-	invokedFile := filepath.Join(dir, "invoked.obi.json")
-	ib, err := json.Marshal(invokedIface)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := os.WriteFile(invokedFile, ib, 0o644); err != nil {
-		t.Fatal(err)
-	}
-
-	// Register the external delegate and prefer it for the invoke operation
-	// so it outranks the self-delegate for the usage format.
-	pref := 100.0
-	getDelegateContextFunc = func() DelegateContext {
-		return DelegateContext{Delegates: []DelegateRecord{{
-			Location:             "exec:" + cliPath,
-			Name:                 "ext",
-			Capabilities:         []DelegateCapability{CapInvoke},
-			BindingSpecs:         []DelegateBindingSpecInfo{{BindingSpec: "openbindings.usage@1"}},
-			OperationPreferences: map[string]float64{"openbindings.binding-invoker.invokeBinding": pref},
-		}}}
-	}
-	t.Cleanup(func() { getDelegateContextFunc = defaultGetDelegateContext })
-
-	ctx := t.Context()
-
-	// The delegate answers and the displacement warning fires.
-	run, err := InvokeOBIOperationConfigured(ctx, invokedFile, "openbindings.ob.validateInterface", "", nil, nil)
+	run, err := InvokeOBIOperationConfigured(t.Context(), file, "openbindings.ob.validateInterface", "", map[string]any{"delegated": true}, nil)
 	if err != nil {
 		t.Fatalf("configured invoke: %v", err)
 	}
-	if run.DisplacedWarning == "" {
-		t.Error("expected a displacement warning for a standing election that cannot reach the delegate")
-	} else if !strings.Contains(run.DisplacedWarning, "ext") {
-		t.Errorf("warning must name the delegate: %q", run.DisplacedWarning)
+	if run.DisplacedWarning == "" || !strings.Contains(run.DisplacedWarning, record.ID) {
+		t.Errorf("warning must name the selected registration: %q", run.DisplacedWarning)
 	}
 	got := reduceUnaryInvocation(run.Events)
 	if got.Error != nil {
@@ -551,5 +492,10 @@ func TestOpInvoke_ExternalDelegateDisplacesElections(t *testing.T) {
 	}
 	if m, _ := got.Output.(map[string]any); m["delegated"] != true {
 		t.Errorf("delegate did not answer the hop: %#v", got.Output)
+	}
+	work.mu.Lock()
+	defer work.mu.Unlock()
+	if len(work.selectors) != 1 || work.selectors[0] != "qualified-work" {
+		t.Fatalf("selected workload did not run exactly once: %v", work.selectors)
 	}
 }

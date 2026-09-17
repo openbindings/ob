@@ -33,6 +33,7 @@ const sourceOwnedFixture = `{
 // running the operation-graph must produce exactly what the Go reference stripper
 // (app.StripAllXOB) produces. If jsonata-go or the graph drifts, this fails.
 func TestPurifyGraphMatchesStripAllXOB(t *testing.T) {
+	t.Chdir(t.TempDir())
 	var doc any
 	if err := json.Unmarshal([]byte(sourceOwnedFixture), &doc); err != nil {
 		t.Fatal(err)

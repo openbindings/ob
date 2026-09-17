@@ -52,6 +52,7 @@ func multiServerTargetOBI(t *testing.T, docURL string) string {
 // exact asserted target (the source URL, not its origin), and re-invoking
 // succeeds against the selected server without any prompt.
 func TestConfigValueLoop_ServerSelection(t *testing.T) {
+	t.Chdir(t.TempDir())
 	setupContextTestDir(t)
 	t.Setenv(EnvCredentialsFile, filepath.Join(t.TempDir(), "creds.json"))
 

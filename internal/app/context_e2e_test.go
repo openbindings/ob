@@ -115,6 +115,7 @@ func TestContextE2E_DeleteCleansUp(t *testing.T) {
 }
 
 func TestContextE2E_AutoResolution(t *testing.T) {
+	t.Chdir(t.TempDir())
 	setupContextTestDir(t)
 
 	cfg := ContextConfig{
@@ -247,6 +248,7 @@ func TestContextE2E_ExactMatchTakesPrecedence(t *testing.T) {
 }
 
 func TestContextE2E_NoContextReturnsEmptyResolvedBinding(t *testing.T) {
+	t.Chdir(t.TempDir())
 	setupContextTestDir(t)
 
 	iface := &openbindings.Interface{

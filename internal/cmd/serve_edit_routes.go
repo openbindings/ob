@@ -624,18 +624,3 @@ func handleSetDelegatePreference(w http.ResponseWriter, r *http.Request) {
 	}
 	writeJSON(w, http.StatusOK, result)
 }
-
-func handleResolveDelegateForBindingSpec(w http.ResponseWriter, r *http.Request) {
-	var body struct {
-		BindingSpec string `json:"bindingSpec"`
-	}
-	if !decodeRequest(w, r, &body) {
-		return
-	}
-	result, err := app.ResolveDelegateForBindingSpec(body.BindingSpec)
-	if err != nil {
-		writeErrorJSON(w, http.StatusNotFound, "delegate_not_found", err.Error())
-		return
-	}
-	writeJSON(w, http.StatusOK, result)
-}

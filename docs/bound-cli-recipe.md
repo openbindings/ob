@@ -13,6 +13,10 @@ reproduces it with three hooks (or `usage.HookTable` in the Go SDK). Every
 unlisted axis falls to the format's documented assumptions (stdout = text,
 success = exit 0, fields ride argv).
 
+The native `binding invoke` and `operation invoke` commands do not realize
+the shared bidirectional frame operations over unary Usage. Those operations
+remain unbound in the CLI OBI; use their served streaming bindings instead.
+
 | Operation | Command | Decode | Success exits | Routed fields |
 | --- | --- | --- | --- | --- |
 | `openbindings.ob.addOperation` | `ob operation add` | json | 0 (assumption) | obi-path=stdin-dash |
@@ -30,8 +34,6 @@ success = exit 0, fields ride argv).
 | `openbindings.ob.getDelegateRequirements` | `ob delegate requirements` | json | 0 (assumption) | — |
 | `openbindings.ob.initializeEnvironment` | `ob init` | json | 0 (assumption) | — |
 | `openbindings.ob.inspectSource` | `ob inspect` | json | 0 (assumption) | — |
-| `openbindings.ob.invokeBinding` | `ob binding invoke` | json | 0 (assumption) | — |
-| `openbindings.ob.invokeOperation` | `ob operation invoke` | json | 0 (assumption) | — |
 | `openbindings.ob.listBindingSpecs` | `ob binding-specs list` | json | 0 (assumption) | — |
 | `openbindings.ob.listBindings` | `ob binding list` | json | 0 (assumption) | obi-path=stdin-dash |
 | `openbindings.ob.listContexts` | `ob context list` | json | 0 (assumption) | — |
@@ -54,9 +56,8 @@ success = exit 0, fields ride argv).
 | `openbindings.ob.reportCompatibility` | `ob compat` | json | 0, 1 | candidate=file, target=stdin-dash |
 | `openbindings.ob.reportEnvironmentStatus` | `ob environment` | json | 0 (assumption) | — |
 | `openbindings.ob.reportInterfaceStatus` | `ob status` | json | 0 (assumption) | obi-path=stdin-dash |
-| `openbindings.ob.resolveDelegate` | `ob delegate resolve` | json | 0 (assumption) | — |
-| `openbindings.ob.resolveDelegateForBindingSpec` | `ob delegate resolve-binding-spec` | json | 0 (assumption) | — |
 | `openbindings.ob.resolveInterface` | `ob resolve` | json | 0 (assumption) | — |
+| `openbindings.ob.resolveRoleDelegate` | `ob delegate resolve` | json | 0 (assumption) | — |
 | `openbindings.ob.setContext` | `ob context set` | json | 0 (assumption) | value=stdin-dash |
 | `openbindings.ob.setDelegatePreference` | `ob delegate prefer` | json | 0 (assumption) | — |
 | `openbindings.ob.setMetadata` | `ob meta set` | json | 0 (assumption) | obi-path=stdin-dash |
@@ -81,7 +82,5 @@ These bindings carry an explicit note (also stamped on the binding entry's
 differs from the plain unary value-in/value-out shape:
 
 - **`ob demo`** — Foreground process: runs until interrupted. Not meaningfully invoked over the exec lane; the binding exists so the bound OBI is complete.
-- **`ob binding invoke`** — Unary realization of the frame contract: --input carries the open payload plus at most one inline input value, and outputs print as JSON values — not frames. The bidirectional frame stream rides the frame lane (ob start).
-- **`ob operation invoke`** — Unary realization of the frame contract: the CLI takes an interface locator, an operation, and at most one --input value, and prints output values — not frames. The bidirectional frame stream rides the frame lane (ob start).
 - **`ob mcp`** — Foreground process: runs until interrupted. Not meaningfully invoked over the exec lane; the binding exists so the bound OBI is complete.
 - **`ob start`** — Foreground process: runs until interrupted. Not meaningfully invoked over the exec lane; the binding exists so the bound OBI is complete.

@@ -53,6 +53,7 @@ func (i *singleRetryInvoker) InvokeBinding(ctx context.Context, args *invoke.Bin
 }
 
 func TestOpenAPIOperationHasOneContextRetryOwner(t *testing.T) {
+	t.Chdir(t.TempDir())
 	durable := true
 	details := &invoke.ContextRequiredDetails{
 		Target: "https://api.example",
@@ -101,6 +102,7 @@ func TestOpenAPIOperationHasOneContextRetryOwner(t *testing.T) {
 }
 
 func TestOpenAPIFamilyUsesOneRuntimeVertically(t *testing.T) {
+	t.Chdir(t.TempDir())
 	ResetDefaultInvoker()
 	t.Cleanup(ResetDefaultInvoker)
 

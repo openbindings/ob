@@ -96,6 +96,11 @@ func TestGenerateBoundServe_BindsServedSurface(t *testing.T) {
 		want  any
 	}{
 		{
+			short: "resolveRoleDelegate",
+			input: map[string]any{"role": "synthesize", "bindingSpec": "example.token@1", "registrationId": "reg-example", "path": "explicit"},
+			want:  map[string]any{"body": map[string]any{"role": "synthesize", "bindingSpec": "example.token@1", "registrationId": "reg-example", "path": "explicit"}},
+		},
+		{
 			short: "purifyInterface",
 			input: map[string]any{"name": "example"},
 			want:  map[string]any{"body": map[string]any{"name": "example"}},
@@ -268,7 +273,7 @@ func TestGenerateBoundCLI_AttachesWireInputTransforms(t *testing.T) {
 		"source":   map[string]any{"bindingSpec": "openbindings.openapi-3.1@1", "location": "api.yaml"},
 		"selector": "#/x",
 	}
-	for _, short := range []string{"addSource", "invokeBinding", "prepareBinding", "synthesizeInterface", "inspectSource"} {
+	for _, short := range []string{"addSource", "prepareBinding", "synthesizeInterface", "inspectSource"} {
 		key := "openbindings.ob." + short + ".usage"
 		b, ok := bound.Bindings[key]
 		if !ok {
@@ -317,30 +322,19 @@ func TestGenerateBoundCLI_AttachesWireInputTransforms(t *testing.T) {
 	if m, ok := out.(map[string]any); !ok || m["format"] != "json" || len(m) != 1 {
 		t.Errorf("describe: nil input should become {format: json}, got %#v", out)
 	}
-	b = bound.Bindings["openbindings.ob.resolveDelegate.usage"]
-	if b.InputTransform == nil {
-		t.Fatal("resolveDelegate: expected the -F json forcing inputTransform")
-	}
-	out, terr = ApplyTransform(context.Background(), bound.Transforms, b.InputTransform, map[string]any{"operation": "x"})
-	if terr != nil {
-		t.Fatalf("resolveDelegate: transform failed: %v", terr)
-	}
-	if m, ok := out.(map[string]any); !ok || m["format"] != "json" || m["operation"] != "x" {
-		t.Errorf("resolveDelegate: expected merged {operation, format}, got %#v", out)
-	}
 	// Ops whose wire field names the CLI spells differently (or that a root
 	// flag shadows) carry an adaptation transform: the BINDING adapts the
 	// wire shape to the CLI's natural surface, leaving the CLI untouched.
-	b = bound.Bindings["openbindings.ob.resolveDelegateForBindingSpec.usage"]
+	b = bound.Bindings["openbindings.ob.resolveRoleDelegate.usage"]
 	if b.InputTransform == nil {
-		t.Fatal("resolveDelegateForBindingSpec: expected an adaptation transform")
+		t.Fatal("resolveRoleDelegate: expected an adaptation transform")
 	}
-	out, terr = ApplyTransform(context.Background(), bound.Transforms, b.InputTransform, map[string]any{"bindingSpec": "openbindings.usage@1"})
+	out, terr = ApplyTransform(context.Background(), bound.Transforms, b.InputTransform, map[string]any{"role": "invoke", "bindingSpec": "openbindings.usage@1", "registrationId": "reg-example", "path": "explicit"})
 	if terr != nil {
-		t.Fatalf("resolveDelegateForBindingSpec: transform failed: %v", terr)
+		t.Fatalf("resolveRoleDelegate: transform failed: %v", terr)
 	}
-	if m, ok := out.(map[string]any); !ok || m["binding-spec"] != "openbindings.usage@1" || m["format"] != "json" {
-		t.Errorf("resolveDelegateForBindingSpec: expected {binding-spec, format: json}, got %#v", out)
+	if m, ok := out.(map[string]any); !ok || m["binding-spec"] != "openbindings.usage@1" || m["format"] != "json" || m["role"] != "invoke" || m["registration"] != "reg-example" || m["path"] != "explicit" || len(m) != 5 {
+		t.Errorf("resolveRoleDelegate: incorrect selector adaptation: %#v", out)
 	}
 	// setDelegatePreference: format scopes to --source-format; other fields
 	// pass through untouched.

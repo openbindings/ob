@@ -22,6 +22,7 @@ func (prepareHTTPTransforms) Evaluate(ctx context.Context, expression string, da
 // This drives the published binding and its real transform, rather than writing
 // a request that merely agrees with the handler's private implementation.
 func TestServeOperationPrepare_PublishedHTTPBinding(t *testing.T) {
+	t.Chdir(t.TempDir())
 	mock := &mockEchoInvoker{formats: []openbindings.BindingSpecInfo{{BindingSpec: "mock-echo@1.0"}}}
 	cleanup := app.OverrideInvokerForTest(invoke.NewOperationInvoker(mock))
 	defer cleanup()

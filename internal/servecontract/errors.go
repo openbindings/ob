@@ -16,7 +16,6 @@ const (
 	CodeCodegenFailed            ErrorCode = "codegen_failed"
 	CodeComparisonFailed         ErrorCode = "comparison_failed"
 	CodeContextStoreFailed       ErrorCode = "context_store_failed"
-	CodeDelegateNotFound         ErrorCode = "delegate_not_found"
 	CodeDelegateResolutionFailed ErrorCode = "delegate_resolution_failed"
 	CodeEditFailed               ErrorCode = "edit_failed"
 	CodeEnvironmentFailed        ErrorCode = "environment_failed"
@@ -52,7 +51,7 @@ const (
 
 var errorCodeSet = map[ErrorCode]struct{}{
 	CodeCodegenFailed: {}, CodeComparisonFailed: {}, CodeContextStoreFailed: {},
-	CodeDelegateNotFound: {}, CodeDelegateResolutionFailed: {}, CodeEditFailed: {},
+	CodeDelegateResolutionFailed: {}, CodeEditFailed: {},
 	CodeEnvironmentFailed: {}, CodeInitializationFailed: {}, CodeInspectionFailed: {},
 	CodeInternal: {}, CodeInvalidHost: {}, CodeInvalidRequest: {}, CodeInvalidUpstream: {},
 	CodeListFailed: {}, CodeMergeFailed: {}, CodeNotFound: {}, CodeOriginForbidden: {},

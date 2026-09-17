@@ -9,7 +9,7 @@ require (
 	github.com/charmbracelet/bubbletea v1.3.10 // indirect
 	github.com/charmbracelet/lipgloss v1.1.0
 	github.com/openbindings/openbindings-go v0.2.0
-	github.com/openbindings/openbindings-go/formats/asyncapi v0.1.1-0.20260911030355-4b176954a677
+	github.com/openbindings/openbindings-go/formats/asyncapi v0.1.1-0.20260917145120-5399429269fd
 	github.com/openbindings/openbindings-go/formats/connect v0.1.1-0.20260911030355-4b176954a677
 	github.com/openbindings/openbindings-go/formats/graphql v0.1.1-0.20260911030355-4b176954a677
 	github.com/openbindings/openbindings-go/formats/grpc v0.1.1-0.20260911030355-4b176954a677
@@ -95,7 +95,7 @@ require (
 )
 
 replace (
-	github.com/openbindings/asyncapi-client/go v0.1.0 => github.com/openbindings/asyncapi-client/go v0.0.0-20260820220441-54678886c38c
+	github.com/openbindings/asyncapi-client/go v0.1.0 => github.com/openbindings/asyncapi-client/go v0.0.0-20260917131814-59e3edf09be1
 	github.com/openbindings/openapi-client/go v0.1.0 => github.com/openbindings/openapi-client/go v0.0.0-20260911032503-9f8020e2d9a7
 	github.com/openbindings/openbindings-go v0.2.0 => github.com/openbindings/openbindings-go v0.1.1-0.20260911030355-4b176954a677
 )

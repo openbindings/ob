@@ -88,15 +88,13 @@ cmd "delegate" help="Manage delegates" subcommand_required=#true {
     flag "-o --output <path>" help="Write output to file"
     flag "-F --format <format>" help="Output format: json|yaml|text"
   }
-  cmd "resolve" help="Resolve an operation to the delegates that carry it" {
+  cmd "resolve" help="Explain delegate selection for a role and binding specification" {
+    flag "--role <role>" required=#true help="Role: invoke, synthesize, or inspect"
+    flag "--binding-spec <identifier>" required=#true help="Exact binding specification identifier"
+    flag "--path <path>" help="Selection policy: ranked or native-first; explicit with --registration"
+    flag "--registration <id>" help="Check only this enrolled registration ID (no fallback)"
     flag "-o --output <path>" help="Write output to file"
     flag "-F --format <format>" help="Output format: json|yaml|text"
-    arg "<operation>" help="Operation identifier to resolve"
-  }
-  cmd "resolve-binding-spec" help="Show which delegate ob's routing would select for a binding specification" {
-    flag "-o --output <path>" help="Write output to file"
-    flag "-F --format <format>" help="Output format: json|yaml|text"
-    arg "<binding-spec>" help="Binding specification identifier to resolve"
   }
   cmd "requirements" help="Print the interface a delegate must correspond to for a capability" {
     arg "<capability>" help="Capability: invoke, synthesize, or inspect"

@@ -12,6 +12,7 @@ import (
 )
 
 func TestColdUserEmbeddedBaseAndNumericInvocation(t *testing.T) {
+	t.Chdir(t.TempDir())
 	ResetDefaultInvoker()
 	t.Cleanup(ResetDefaultInvoker)
 	var document string

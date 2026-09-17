@@ -22,60 +22,59 @@ import (
 // usage.kdl conformance test (internal/cmd) cross-checks this table against
 // the kdl tree and the contract.
 var CommandByShort = map[string]string{
-	"addOperation":                  "operation add",
-	"addOperationAlias":             "operation alias add",
-	"addSource":                     "source add",
-	"bindOperation":                 "operation bind",
-	"checkBindingSpecs":             "binding-specs check",
-	"codegen":                       "codegen",
-	"compareInterfaces":             "diff",
-	"conform":                       "conform",
-	"demo":                          "demo",
-	"describe":                      "describe",
-	"detachOperation":               "operation detach",
-	"getContext":                    "context get",
-	"getDelegateRequirements":       "delegate requirements",
-	"initializeEnvironment":         "init",
-	"inspectSource":                 "inspect",
-	"invokeBinding":                 "binding invoke",
-	"invokeOperation":               "operation invoke",
-	"listContexts":                  "context list",
-	"listDelegates":                 "delegate list",
-	"listBindingSpecs":              "binding-specs list",
-	"listBindings":                  "binding list",
-	"listOperationAliases":          "operation alias list",
-	"listOperations":                "operation list",
-	"listSources":                   "source list",
-	"mergeInterfaces":               "merge",
-	"newInterface":                  "new",
-	"prepareBinding":                "binding prepare",
-	"prepareOperation":              "operation prepare",
-	"pullSource":                    "source pull",
-	"purifyInterface":               "purify",
-	"registerDelegate":              "delegate register",
-	"removeContext":                 "context remove",
-	"removeOperation":               "operation remove",
-	"removeOperationAlias":          "operation alias remove",
-	"removeSource":                  "source remove",
-	"renameOperation":               "operation rename",
-	"reportCompatibility":           "compat",
-	"reportEnvironmentStatus":       "environment",
-	"reportInterfaceStatus":         "status",
-	"resolveDelegate":               "delegate resolve",
-	"resolveDelegateForBindingSpec": "delegate resolve-binding-spec",
-	"resolveInterface":              "resolve",
-	"setContext":                    "context set",
-	"setDelegatePreference":         "delegate prefer",
-	"setMetadata":                   "meta set",
-	"setOperation":                  "operation set",
-	"setOperationCodegenName":       "operation codegen-name",
-	"setOperationOutputSchema":      "operation output-schema",
-	"startMCPServer":                "mcp",
-	"startServer":                   "start",
-	"synthesizeInterface":           "synthesize",
-	"unbindOperation":               "operation unbind",
-	"unregisterDelegate":            "delegate unregister",
-	"validateInterface":             "validate",
+	"addOperation":             "operation add",
+	"addOperationAlias":        "operation alias add",
+	"addSource":                "source add",
+	"bindOperation":            "operation bind",
+	"checkBindingSpecs":        "binding-specs check",
+	"codegen":                  "codegen",
+	"compareInterfaces":        "diff",
+	"conform":                  "conform",
+	"demo":                     "demo",
+	"describe":                 "describe",
+	"detachOperation":          "operation detach",
+	"getContext":               "context get",
+	"getDelegateRequirements":  "delegate requirements",
+	"initializeEnvironment":    "init",
+	"inspectSource":            "inspect",
+	"invokeBinding":            "binding invoke",
+	"invokeOperation":          "operation invoke",
+	"listContexts":             "context list",
+	"listDelegates":            "delegate list",
+	"listBindingSpecs":         "binding-specs list",
+	"listBindings":             "binding list",
+	"listOperationAliases":     "operation alias list",
+	"listOperations":           "operation list",
+	"listSources":              "source list",
+	"mergeInterfaces":          "merge",
+	"newInterface":             "new",
+	"prepareBinding":           "binding prepare",
+	"prepareOperation":         "operation prepare",
+	"pullSource":               "source pull",
+	"purifyInterface":          "purify",
+	"registerDelegate":         "delegate register",
+	"removeContext":            "context remove",
+	"removeOperation":          "operation remove",
+	"removeOperationAlias":     "operation alias remove",
+	"removeSource":             "source remove",
+	"renameOperation":          "operation rename",
+	"reportCompatibility":      "compat",
+	"reportEnvironmentStatus":  "environment",
+	"reportInterfaceStatus":    "status",
+	"resolveRoleDelegate":      "delegate resolve",
+	"resolveInterface":         "resolve",
+	"setContext":               "context set",
+	"setDelegatePreference":    "delegate prefer",
+	"setMetadata":              "meta set",
+	"setOperation":             "operation set",
+	"setOperationCodegenName":  "operation codegen-name",
+	"setOperationOutputSchema": "operation output-schema",
+	"startMCPServer":           "mcp",
+	"startServer":              "start",
+	"synthesizeInterface":      "synthesize",
+	"unbindOperation":          "operation unbind",
+	"unregisterDelegate":       "delegate unregister",
+	"validateInterface":        "validate",
 }
 
 // WireInputByShort names the machine-natured commands whose whole wire input
@@ -90,7 +89,6 @@ var CommandByShort = map[string]string{
 var WireInputByShort = map[string]string{
 	"addSource":           "input",
 	"inspectSource":       "input",
-	"invokeBinding":       "input",
 	"prepareBinding":      "input",
 	"synthesizeInterface": "input",
 }
@@ -106,23 +104,24 @@ var exitOKByShort = map[string][]int{
 // bindingNoteByShort stamps a description on the bound bindings whose exec
 // realization deliberately differs from the plain unary value-in/value-out
 // shape — the explicit note the wire-conformance loop's exit criteria
-// require (every binding conformant OR carrying its exclusion note). Two
-// classes:
+// require for foreground process commands:
 //
 //   - Foreground ops (cohort F): the command runs a server/demo in the
 //     foreground until interrupted; the contract already says they are not
 //     meaningfully invoked over a remote transport.
-//   - Frame ops (cohort S): invokeBinding/invokeOperation are declared as
-//     bidirectional frame streams. A unary exec transport cannot carry the
-//     frame grammar; the CLI is the contract's UNARY REALIZATION (the same
-//     collapse ob itself uses to drive exec delegates), and the frame
-//     stream rides the frame lanes (ob start's WS transport).
+//
+// Frame operations have no Usage binding at all: a note cannot make unary
+// command inputs/results a realization of the bidirectional frame protocol.
 var bindingNoteByShort = map[string]string{
-	"startServer":     "Foreground process: runs until interrupted. Not meaningfully invoked over the exec lane; the binding exists so the bound OBI is complete.",
-	"startMCPServer":  "Foreground process: runs until interrupted. Not meaningfully invoked over the exec lane; the binding exists so the bound OBI is complete.",
-	"demo":            "Foreground process: runs until interrupted. Not meaningfully invoked over the exec lane; the binding exists so the bound OBI is complete.",
-	"invokeBinding":   "Unary realization of the frame contract: --input carries the open payload plus at most one inline input value, and outputs print as JSON values — not frames. The bidirectional frame stream rides the frame lane (ob start).",
-	"invokeOperation": "Unary realization of the frame contract: the CLI takes an interface locator, an operation, and at most one --input value, and prints output values — not frames. The bidirectional frame stream rides the frame lane (ob start).",
+	"startServer":    "Foreground process: runs until interrupted. Not meaningfully invoked over the exec lane; the binding exists so the bound OBI is complete.",
+	"startMCPServer": "Foreground process: runs until interrupted. Not meaningfully invoked over the exec lane; the binding exists so the bound OBI is complete.",
+	"demo":           "Foreground process: runs until interrupted. Not meaningfully invoked over the exec lane; the binding exists so the bound OBI is complete.",
+}
+
+// CommandByShort also inventories useful native commands. Not every command
+// realizes its abstract operation over Usage revision 1, which excludes streams.
+func hasCLIRealization(short string) bool {
+	return short != "invokeBinding" && short != "invokeOperation"
 }
 
 // GenerateBoundCLI builds the bound CLI realization of ob's interface: the
@@ -165,9 +164,7 @@ func GenerateBoundCLI(contractPath, usagePath string) (*openbindings.Interface, 
 	// are spec-level and stay on the OBI entry; transport mechanics
 	// (routing, decode, classify) are the hook table's.
 	adaptationByShort := map[string]string{
-		// resolveDelegateForBindingSpec: wire `format` → the <format-token> arg
-		// (the bare name would map to the root --format flag).
-		"resolveDelegateForBindingSpec": `{"binding-spec": $$.bindingSpec, "format": "json"}`,
+		"resolveRoleDelegate": `{"role": $$.role, "binding-spec": $$.bindingSpec, "path": $$.path, "registration": $$.registrationId, "format": "json"}`,
 		// setDelegatePreference: wire `bindingSpec` → --binding-spec, same shadow.
 		"setDelegatePreference": `$merge([$sift($$, function($v, $k) { $k != "bindingSpec" and $k != "preference" }), $exists($$.bindingSpec) ? {"binding-spec": $$.bindingSpec} : {}, $exists($$.preference) ? {"preference": $string($$.preference)} : {}, {"format": "json"}])`,
 		// registerDelegate: the operation models preference as a number; the
@@ -296,8 +293,8 @@ func GenerateBoundCLI(contractPath, usagePath string) (*openbindings.Interface, 
 		bound.Operations[key] = op
 		short := key[strings.LastIndex(key, ".")+1:]
 		cmdPath, ok := CommandByShort[short]
-		if !ok {
-			// Operations with no CLI command stay unbound; that's expected.
+		if !ok || !hasCLIRealization(short) {
+			// No command, or no faithful Usage realization: remain unbound.
 			continue
 		}
 
@@ -480,6 +477,8 @@ func GenerateBoundServe(contractPath, openapiPath, existingServePath, servedBase
 		// contract already is that body, so adapt it before applying the emitted
 		// caller-envelope transform.
 		"prepareOperation": `{ "payload": $$ }`,
+		// Conditional selectors preserve the whole diagnostic request body.
+		"resolveRoleDelegate": `{ "payload": $$ }`,
 		// The public ob contract uses this dynamic object as the operation input;
 		// adapt it to the source-facing whole-body field before the OpenAPI
 		// envelope transform is applied.
@@ -602,7 +601,7 @@ func BoundCLIHookTable(contract *openbindings.Interface) usage.HookTable {
 	}
 	for key := range contract.Operations {
 		short := key[strings.LastIndex(key, ".")+1:]
-		if _, bound := CommandByShort[short]; !bound {
+		if _, bound := CommandByShort[short]; !bound || !hasCLIRealization(short) {
 			continue
 		}
 		// Every ob machine lane speaks JSON.
@@ -662,7 +661,7 @@ func GenerateBoundCLIRecipe(contract *openbindings.Interface) string {
 	keys := make([]string, 0, len(contract.Operations))
 	for key := range contract.Operations {
 		short := key[strings.LastIndex(key, ".")+1:]
-		if _, bound := CommandByShort[short]; bound {
+		if _, bound := CommandByShort[short]; bound && hasCLIRealization(short) {
 			keys = append(keys, key)
 		}
 	}
@@ -680,6 +679,9 @@ func GenerateBoundCLIRecipe(contract *openbindings.Interface) string {
 	sb.WriteString("reproduces it with three hooks (or `usage.HookTable` in the Go SDK). Every\n")
 	sb.WriteString("unlisted axis falls to the format's documented assumptions (stdout = text,\n")
 	sb.WriteString("success = exit 0, fields ride argv).\n\n")
+	sb.WriteString("The native `binding invoke` and `operation invoke` commands do not realize\n")
+	sb.WriteString("the shared bidirectional frame operations over unary Usage. Those operations\n")
+	sb.WriteString("remain unbound in the CLI OBI; use their served streaming bindings instead.\n\n")
 	sb.WriteString("| Operation | Command | Decode | Success exits | Routed fields |\n")
 	sb.WriteString("| --- | --- | --- | --- | --- |\n")
 	for _, key := range keys {

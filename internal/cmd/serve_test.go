@@ -1713,6 +1713,7 @@ func TestServeBindingPrepare_NullForFormatWithoutPreparer(t *testing.T) {
 }
 
 func TestServeOperationPrepare_InlineInterface(t *testing.T) {
+	t.Chdir(t.TempDir())
 	mock := &mockEchoInvoker{formats: []openbindings.BindingSpecInfo{{BindingSpec: "mock-echo@1.0"}}}
 	cleanup := app.OverrideInvokerForTest(invoke.NewOperationInvoker(mock))
 	defer cleanup()

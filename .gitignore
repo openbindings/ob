@@ -26,3 +26,6 @@ dist/
 # Local-dev workspace against sibling openbindings-go (test-before-tag)
 go.work
 go.work.sum
+
+# Machine-local build/install helper
+/scripts/dev-install.sh

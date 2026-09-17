@@ -988,7 +988,11 @@ func writeTempPEM(cert *x509.Certificate) (string, error) {
 	return f.Name(), nil
 }
 
-func obTLSDir() (string, error) {
+var tlsDirectory = defaultTLSDirectory
+
+func obTLSDir() (string, error) { return tlsDirectory() }
+
+func defaultTLSDirectory() (string, error) {
 	home, err := os.UserHomeDir()
 	if err != nil {
 		return "", err

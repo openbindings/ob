@@ -18,6 +18,18 @@ ship as part of 0.2.0.
 
 ### Changed
 
+- **Role-specific routing diagnostics.** `delegate resolve --role <role>
+  --binding-spec <identifier>` and authenticated `POST /delegates/resolve` use
+  the role-aware runtime. `--path` names the policy; `--registration` constrains
+  assessment to one enrolled ID without fallback. The native OBI operation is
+  `openbindings.ob.resolveRoleDelegate`, with no shared manager alias. This
+  replaces the old operation-keyed resolution and `resolve-binding-spec` surfaces.
+- **Truthful CLI invocation bindings.** The native invocation commands remain,
+  but the generated CLI OBI no longer binds shared frame operations to unary
+  Usage commands. Their actual streaming bindings remain in the served OBI.
+  The earlier “unary realization” claim was incorrect; a descriptive note does
+  not repair a mismatched interaction or value model.
+
 - **OpenAPI operation invocation now closes and reuses exact prepared-provider
   realizations through the generic SDK path.** The process cache is bounded and
   keyed by immutable interface revision. Human CLI output may show bounded,

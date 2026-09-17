@@ -22,7 +22,6 @@ import (
 
 	"github.com/openbindings/openbindings-go/invoke"
 
-	"github.com/openbindings/ob/internal/delegates"
 	"github.com/openbindings/ob/internal/execref"
 )
 
@@ -64,6 +63,11 @@ type InvocationResult struct {
 	Error      *Error `json:"error,omitempty"`
 	BindingKey string `json:"bindingKey,omitempty"`
 }
+
+// nativeInvocationRoutingKey is an internal trust constraint, not caller JSON
+// configuration. Credential-bearing pinned-provider work must not be forwarded
+// to a registry-selected invoker, even one preferred for that binding spec.
+type nativeInvocationRoutingKey struct{}
 
 // operationKeyForName resolves a caller-supplied operation name to its
 // canonical key: the name itself when it is a key, else the key of the
@@ -133,6 +137,10 @@ type resolvedBinding struct {
 	binding    *openbindings.BindingEntry
 	source     openbindings.Source
 	input      any
+	// Automatic binding selection retains the selected invoker from the same
+	// assessment that established reachability. Explicit bindings elect once
+	// at the invocation entrypoint instead (preflight remains a separate call).
+	invoker *roleSelection
 }
 
 // resolveBindingAndSource resolves a binding, source, and input transform
@@ -172,6 +180,7 @@ func resolveBindingAndSourceSelectionWithContext(ctx context.Context, iface *ope
 
 	var binding *openbindings.BindingEntry
 	var resolvedKey string
+	var selectedInvoker *roleSelection
 	if bindingKey != "" {
 		binding = bindingByKey(bindingKey, iface)
 		if binding == nil {
@@ -194,7 +203,7 @@ func resolveBindingAndSourceSelectionWithContext(ctx context.Context, iface *ope
 			}
 		}
 		var selectionErr error
-		resolvedKey, binding, selectionErr = selectBindingForOp(ctx, opKey, iface, contextSelection(callerContext))
+		resolvedKey, binding, selectedInvoker, selectionErr = selectBindingAndInvokerForOp(ctx, opKey, iface, contextSelection(callerContext))
 		if selectionErr != nil {
 			return nil, selectionErr
 		}
@@ -210,6 +219,7 @@ func resolveBindingAndSourceSelectionWithContext(ctx context.Context, iface *ope
 		binding:    binding,
 		source:     source,
 		input:      input,
+		invoker:    selectedInvoker,
 	}, nil
 }
 
@@ -240,8 +250,13 @@ func contextSelection(ctx map[string]any) []string {
 // against ob's builtin and registered-delegate reach, not merely document
 // presence.
 func selectBindingForOp(ctx context.Context, opKey string, iface *openbindings.Interface, ordered []string) (string, *openbindings.BindingEntry, error) {
+	key, binding, _, err := selectBindingAndInvokerForOp(ctx, opKey, iface, ordered)
+	return key, binding, err
+}
+
+func selectBindingAndInvokerForOp(ctx context.Context, opKey string, iface *openbindings.Interface, ordered []string) (string, *openbindings.BindingEntry, *roleSelection, error) {
 	if iface == nil {
-		return "", nil, fmt.Errorf("%w: %s", invoke.ErrBindingNotFound, opKey)
+		return "", nil, nil, fmt.Errorf("%w: %s", invoke.ErrBindingNotFound, opKey)
 	}
 	var bindingSpecs []string
 	for _, binding := range iface.Bindings {
@@ -252,9 +267,12 @@ func selectBindingForOp(ctx context.Context, opKey string, iface *openbindings.I
 			bindingSpecs = append(bindingSpecs, source.BindingSpec)
 		}
 	}
-	available, err := availableBindingSpecs(ctx, gatherDelegates(), CapInvoke, bindingSpecs)
+	// Bindings live in a map; canonicalize the batch so provider observations
+	// are deterministic. The role selector deduplicates tokens before querying.
+	sort.Strings(bindingSpecs)
+	available, err := selectInstalledRoles(ctx, CapInvoke, bindingSpecs, roleRanked)
 	if err != nil {
-		return "", nil, err
+		return "", nil, nil, err
 	}
 	invocable := func(binding openbindings.BindingEntry) bool {
 		source, ok := iface.Sources[binding.Source]
@@ -264,14 +282,14 @@ func selectBindingForOp(ctx context.Context, opKey string, iface *openbindings.I
 			// dangling source as "unsupported" would mask the real defect.
 			return true
 		}
-		return available[source.BindingSpec]
+		return available[source.BindingSpec] != nil
 	}
 
 	for _, key := range ordered {
 		binding, ok := iface.Bindings[key]
 		if ok && binding.Operation == opKey && invocable(binding) {
 			copy := binding
-			return key, &copy, nil
+			return key, &copy, available[iface.Sources[binding.Source].BindingSpec], nil
 		}
 	}
 
@@ -289,16 +307,16 @@ func selectBindingForOp(ctx context.Context, opKey string, iface *openbindings.I
 	sort.Strings(candidates)
 	switch len(candidates) {
 	case 0:
-		return "", nil, fmt.Errorf("%w: %s", invoke.ErrBindingNotFound, opKey)
+		return "", nil, nil, fmt.Errorf("%w: %s", invoke.ErrBindingNotFound, opKey)
 	case 1:
-		return selectedKey, selected, nil
+		return selectedKey, selected, available[iface.Sources[selected.Source].BindingSpec], nil
 	default:
 		// Name the exact candidates, not merely how many. A refusal that makes
 		// the caller re-derive the valid set is a refusal withholding its own
 		// remedy, and the MCP bridge already lists them (details.bindings) —
 		// the two surfaces must not disagree about the same artifact.
 		// Resolution policy is unchanged: several candidates still refuse.
-		return "", nil, fmt.Errorf("%w: operation %q has %d invocable bindings (%s); choose one with --binding or --select-binding",
+		return "", nil, nil, fmt.Errorf("%w: operation %q has %d invocable bindings (%s); choose one with --binding or --select-binding",
 			invoke.ErrBindingSelectionRequired, opKey, len(candidates), strings.Join(candidates, ", "))
 	}
 }
@@ -635,10 +653,10 @@ func InvokeOBIOperationConfigured(ctx context.Context, obiPath, opKey, bindingKe
 }
 
 // invokeOnInterface invokes an operation (or a specific binding) on an
-// already-resolved interface, resolving relative source locations against
-// obiDir. It is the core shared by file-backed invocation (InvokeOBIOperation)
-// and delegate invocation: ob operation-invokes a delegate's operation against
-// the delegate's own resolved OBI through this same path.
+// already-resolved interface. Relative source locations are refused. Automatic
+// binding choice and dispatch share one retained role lookup; an explicit
+// binding performs one lookup for its exact token. Delegate provider bindings
+// execute through their own prepared SDK routes, not recursive registry lookup.
 //
 // Dispatch is unified under delegate selection: the winner is computed before
 // anything runs. For an in-process OpenAPI binding, the SDK operation layer
@@ -662,13 +680,16 @@ func invokeOnInterface(ctx context.Context, iface *openbindings.Interface, opKey
 
 	run := &ConfiguredInvocation{BindingKey: resolved.bindingKey}
 
-	// Pre-dispatch delegate selection (deterministic): the split is decided
-	// before any side effect.
-	chosen, err := selectDelegate(ctx, CapInvoke, es.BindingSpec)
-	if err != nil {
-		return nil, err
+	// Automatic selection already retained the winning route. An explicit
+	// binding bypassed that assessment and needs exactly one election here.
+	chosen := resolved.invoker
+	if bindingKey != "" {
+		chosen, err = selectInstalledRole(ctx, CapInvoke, es.BindingSpec, roleRanked)
+		if err != nil {
+			return nil, err
+		}
 	}
-	if chosen != nil && !chosen.builtin {
+	if chosen != nil && !chosen.Builtin {
 		// External delegates receive a direct binding-layer call. Keep Core's
 		// operation validation and transforms on ob's trusted side of that
 		// boundary, exactly once.
@@ -688,18 +709,8 @@ func invokeOnInterface(ctx context.Context, iface *openbindings.Interface, opKey
 
 		// An external delegate owns the binding hop. Displaced STANDING
 		// elections proceed with a loud attributed warning.
-		run.DisplacedWarning, run.DisplacedDetail = displacedElectionsWarning(opCanonical, chosen.name())
-
-		delegateIface, rerr := chosen.resolveInterface()
-		if rerr != nil {
-			return nil, fmt.Errorf("resolve delegate %q: %w", chosen.name(), rerr)
-		}
-		out := invokeViaExternalDelegate(ctx, delegates.Resolved{
-			Format:   es.BindingSpec,
-			Delegate: chosen.name(),
-			Location: chosen.location(),
-			OBI:      &delegates.ResolvedOBI{Interface: *delegateIface},
-		}, lowLevel)
+		run.DisplacedWarning, run.DisplacedDetail = displacedElectionsWarning(opCanonical, chosen.Runtime.candidate.Record.ID)
+		out := invokeViaGuardedDelegate(ctx, &roleBindingInvoker{spec: es.BindingSpec, route: chosen.Work}, lowLevel)
 		run.Events = applyT08(unaryChannel(ctx, iface, resolved, out), iface, opCanonical, outputSchema, resolved.bindingKey)
 		return run, nil
 	}
@@ -753,7 +764,9 @@ func invokeOnInterface(ctx context.Context, iface *openbindings.Interface, opKey
 		run.Events = applyT08(transformEventStream(ctx, stream, iface, resolved), iface, opCanonical, outputSchema, resolved.bindingKey)
 		return run, nil
 	}
-	result := InvokeOperationWithContext(ctx, lowLevel)
+	// Native handling already won. A unary fallback must not repeat provider
+	// election against potentially changed registry state.
+	result := invokeViaBuiltin(ctx, lowLevel)
 	run.Events = applyT08(unaryChannel(ctx, iface, resolved, result), iface, opCanonical, outputSchema, resolved.bindingKey)
 	return run, nil
 }
@@ -1200,10 +1213,10 @@ func InvokeOperationWithContext(ctx context.Context, input InvocationInput) Invo
 		}
 	}
 
-	// Unified delegate selection (capability + format, preference, self-first
-	// ties). Native formats select the self-delegate (iface nil → in-process);
-	// non-native formats select an external delegate when one is registered.
-	chosen, selectionErr := selectDelegate(ctx, CapInvoke, input.Source.BindingSpec)
+	// This entrypoint ranks explicitly enrolled providers against native
+	// handling. Preserve the native equal-preference tie and retain the exact
+	// prepared workload route from the selected provider's support assessment.
+	chosen, selectionErr := selectInstalledRole(ctx, CapInvoke, input.Source.BindingSpec, roleRanked)
 	if selectionErr != nil {
 		return InvocationResult{Error: &Error{
 			Code:    "delegate_resolution_failed",
@@ -1212,7 +1225,7 @@ func InvokeOperationWithContext(ctx context.Context, input InvocationInput) Invo
 	}
 
 	var output InvocationResult
-	if chosen == nil || chosen.builtin {
+	if chosen == nil || chosen.Builtin {
 		// Self-delegate or nothing: invoke in-process when ob supports the
 		// format natively, else there is nowhere to route.
 		if BuiltinSupportsFormat(input.Source.BindingSpec) {
@@ -1226,20 +1239,7 @@ func InvokeOperationWithContext(ctx context.Context, input InvocationInput) Invo
 			}
 		}
 	} else {
-		// Resolve the chosen delegate's interface at use, verified against its
-		// registration pin (match and invoke the same document).
-		iface, rerr := chosen.resolveInterface()
-		if rerr != nil {
-			return InvocationResult{
-				Error: &Error{Code: "delegate_resolution_failed", Message: rerr.Error()},
-			}
-		}
-		output = invokeViaExternalDelegate(ctx, delegates.Resolved{
-			Format:   input.Source.BindingSpec,
-			Delegate: chosen.name(),
-			Location: chosen.location(),
-			OBI:      &delegates.ResolvedOBI{Interface: *iface},
-		}, input)
+		output = invokeViaGuardedDelegate(ctx, &roleBindingInvoker{spec: input.Source.BindingSpec, route: chosen.Work}, input)
 	}
 
 	output.DurationMs = time.Since(start).Milliseconds()
@@ -1342,20 +1342,10 @@ func reduceUnaryInvocation(events <-chan InvocationOutput) InvocationResult {
 	}
 }
 
-// invokeViaExternalDelegate invokes an operation via an external delegate's
-// invokeBinding capability (the binding-invoker frame protocol over WebSocket,
-// or the delegate's CLI realization; see DelegateBindingInvoker), driving the
-// unary shape through the invocation handle. CONTEXT_REQUIRED challenges from
-// the delegate (or the downstream binding behind it) resolve through the
-// configured resolver, exactly as for in-process invokers.
-func invokeViaExternalDelegate(ctx context.Context, resolved delegates.Resolved, input InvocationInput) InvocationResult {
-	delegateInvoker, err := DelegateBindingInvoker(resolved)
-	if err != nil {
-		return InvocationResult{
-			Error: &Error{Code: "delegate_error", Message: err.Error()},
-		}
-	}
-
+// invokeViaGuardedDelegate drives an already selected external invoker. Keep
+// downstream credential negotiation separate from provider transport auth,
+// and never elect another provider as part of a challenge retry.
+func invokeViaGuardedDelegate(ctx context.Context, delegateInvoker invoke.BindingInvoker, input InvocationInput) InvocationResult {
 	invokeBinding := func(ctx context.Context, ctxData map[string]any) invoke.Invocation[any, any] {
 		return delegateInvoker.InvokeBinding(ctx, &invoke.BindingInvocationArgs{
 			Source: invoke.InvocationSource{

@@ -61,18 +61,22 @@ operations:
 components:
     messages:
         invokeBindingInputFrame:
+            contentType: application/json
             name: invokeBindingInputFrame
             payload:
                 $ref: '#/components/schemas/BindingInvokerInputFrame'
         invokeBindingOutputFrame:
+            contentType: application/json
             name: invokeBindingOutputFrame
             payload:
                 $ref: '#/components/schemas/BindingInvokerOutputFrame'
         invokeOperationInputFrame:
+            contentType: application/json
             name: invokeOperationInputFrame
             payload:
                 $ref: '#/components/schemas/OperationInvokerInputFrame'
         invokeOperationOutputFrame:
+            contentType: application/json
             name: invokeOperationOutputFrame
             payload:
                 $ref: '#/components/schemas/OperationInvokerOutputFrame'
@@ -1383,62 +1387,6 @@ components:
                 - target
                 - candidate
             type: object
-        ResolveDelegateForBindingSpecInput:
-            additionalProperties: false
-            properties:
-                bindingSpec:
-                    description: Binding specification identifier to resolve to a delegate.
-                    type: string
-            required:
-                - bindingSpec
-            type: object
-        ResolveDelegateForBindingSpecResult:
-            additionalProperties: false
-            properties:
-                bindingSpec:
-                    description: The requested format token.
-                    type: string
-                builtin:
-                    description: True when ob's own native handling is selected for the format.
-                    type: boolean
-                capabilities:
-                    description: The capabilities the delegate offers for this format.
-                    items:
-                        $ref: '#/components/schemas/DelegateCapability'
-                    type: array
-                location:
-                    description: The delegate's location.
-                    type: string
-                name:
-                    description: Display name of the delegate ob's routing would select.
-                    type: string
-            required:
-                - bindingSpec
-            type: object
-        ResolveDelegateInput:
-            additionalProperties: false
-            properties:
-                operation:
-                    description: The operation identifier a delegate is needed for.
-                    type: string
-            required:
-                - operation
-            type: object
-        ResolveDelegateResult:
-            additionalProperties: false
-            properties:
-                candidates:
-                    description: Registered delegates that carry the operation, ordered by effective preference, best first. Empty when none carry it.
-                    items:
-                        $ref: '#/components/schemas/DelegateSummary'
-                    type: array
-                operation:
-                    description: The requested operation identifier, echoed back.
-                    type: string
-            required:
-                - operation
-                - candidates
-            type: object
         ResolveInterfaceInput:
             additionalProperties: false
             properties:
@@ -1461,6 +1409,95 @@ components:
                     type: string
             required:
                 - interface
+            type: object
+        RoleResolutionInput:
+            additionalProperties: false
+            allOf:
+                - else:
+                    properties:
+                        path:
+                            enum:
+                                - ranked
+                                - native-first
+                  if:
+                    required:
+                        - registrationId
+                  then:
+                    properties:
+                        path:
+                            const: explicit
+                - if:
+                    not:
+                        required:
+                            - registrationId
+                    properties:
+                        role:
+                            enum:
+                                - synthesize
+                                - inspect
+                  then:
+                    properties:
+                        path:
+                            const: native-first
+            properties:
+                bindingSpec:
+                    description: Exact opaque binding specification identifier.
+                    minLength: 1
+                    type: string
+                path:
+                    description: Omit for the role default, or explicit with registrationId. Ranked is only available for invoke.
+                    enum:
+                        - ranked
+                        - native-first
+                        - explicit
+                    type: string
+                registrationId:
+                    description: Exact enrolled registration ID, not a display name or locator. No fallback.
+                    minLength: 1
+                    type: string
+                role:
+                    enum:
+                        - invoke
+                        - synthesize
+                        - inspect
+                    type: string
+            required:
+                - role
+                - bindingSpec
+            type: object
+        RoleResolutionOutput:
+            additionalProperties: false
+            properties:
+                available:
+                    description: False only for a completed assessment with no supported provider; failures are errors.
+                    type: boolean
+                bindingSpec:
+                    type: string
+                builtin:
+                    description: True only for the built-in provider; built-ins have no registration ID.
+                    type: boolean
+                path:
+                    enum:
+                        - ranked
+                        - native-first
+                        - explicit
+                    type: string
+                registrationId:
+                    description: Selected registration, present only for an available external provider.
+                    minLength: 1
+                    type: string
+                role:
+                    enum:
+                        - invoke
+                        - synthesize
+                        - inspect
+                    type: string
+            required:
+                - role
+                - bindingSpec
+                - path
+                - available
+                - builtin
             type: object
         ServerInfo:
             additionalProperties: false

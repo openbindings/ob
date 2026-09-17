@@ -29,11 +29,28 @@ const (
 // for OpenBindings (e.g. ~/.config/openbindings on Linux,
 // ~/Library/Application Support/openbindings on macOS).
 func GlobalConfigPath() (string, error) {
+	if dir, set, err := applicationDirectory("OB_CONFIG_DIR"); set {
+		return dir, err
+	}
 	configDir, err := os.UserConfigDir()
 	if err != nil {
 		return "", fmt.Errorf("cannot determine config directory: %w", err)
 	}
 	return filepath.Join(configDir, GlobalConfigDir), nil
+}
+
+// Application-specific paths avoid changing process-wide HOME semantics for
+// headless instances and isolated consumers. Invalid explicit paths never fall
+// back to another environment. Paths name the application directory itself.
+func applicationDirectory(name string) (string, bool, error) {
+	dir, set := os.LookupEnv(name)
+	if !set {
+		return "", false, nil
+	}
+	if !filepath.IsAbs(dir) {
+		return "", true, fmt.Errorf("%s must name an absolute directory", name)
+	}
+	return filepath.Clean(dir), true, nil
 }
 
 // File permissions.

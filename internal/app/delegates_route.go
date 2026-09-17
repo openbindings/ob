@@ -4,19 +4,18 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"github.com/openbindings/openbindings-go/jsonvalue"
 
 	openbindings "github.com/openbindings/openbindings-go"
-
+	"github.com/openbindings/openbindings-go/jsonvalue"
 	"github.com/openbindings/openbindings-go/synthesize"
 )
 
 // Create / inspect delegation. When a source's format is not natively
 // supported, ob routes the work to a registered delegate that satisfies the
-// matching interface, by operation-invoking the delegate's synthesizeInterface /
-// inspectSource against the delegate's own OBI (the same invokeOnInterface core
-// the invoke path uses). Native formats and the no-delegate case fall through
-// to the in-process synthesizer/inspector unchanged.
+// matching role, through the SDK's prepared operation dependency. Support and
+// workload use the same retained provider and admitted operation correspondence;
+// execution never rediscovers the provider's top-level OBI by location. Native
+// formats and the no-delegate case fall through to the in-process authoring path.
 //
 // First cut: routes when the format is explicit and non-native. Auto-detecting
 // a delegate-only format (extending DetectSourceCandidates to try delegate
@@ -60,29 +59,21 @@ func synthesizeViaDelegate(ctx context.Context, input *synthesize.SynthesizeInpu
 	if format == "" || BuiltinSupportsFormat(format) {
 		return nil, false, nil // native
 	}
-	chosen, selectionErr := selectDelegate(ctx, CapSynthesize, format)
+	chosen, selectionErr := selectInstalledRole(ctx, CapSynthesize, format, roleNativeFirst)
 	if selectionErr != nil {
 		return nil, true, selectionErr
 	}
-	if chosen == nil || chosen.builtin {
+	if chosen == nil || chosen.Builtin {
 		return nil, false, nil // no delegate; let the native path report the unsupported format
 	}
-	delegateIface, rerr := chosen.resolveInterface()
-	if rerr != nil {
-		return nil, true, rerr // selected but unusable (unreachable or pin mismatch): surface it
-	}
-	opKey, ok := delegateOpKey(delegateIface, synthesizeOpNames...)
-	if !ok {
-		return nil, false, nil
-	}
 
-	out, ierr := invokeDelegateUnary(ctx, chosen, opKey, input)
+	out, ierr := chosen.unary(ctx, input)
 	if ierr != nil {
-		return nil, true, fmt.Errorf("delegate %q synthesizeInterface: %w", chosen.name(), ierr)
+		return nil, true, fmt.Errorf("delegate %q synthesizeInterface: %w", chosen.Runtime.candidate.Record.ID, ierr)
 	}
 	result, cerr := decodeOutput[openbindings.Interface](out)
 	if cerr != nil {
-		return nil, true, fmt.Errorf("delegate %q returned an invalid interface: %w", chosen.name(), cerr)
+		return nil, true, fmt.Errorf("delegate %q returned an invalid interface: %w", chosen.Runtime.candidate.Record.ID, cerr)
 	}
 	return result, true, nil
 }
@@ -93,45 +84,23 @@ func inspectViaDelegate(ctx context.Context, source *openbindings.Source) (ins *
 	if source == nil || source.BindingSpec == "" || BuiltinSupportsFormat(source.BindingSpec) {
 		return nil, false, nil
 	}
-	chosen, selectionErr := selectDelegate(ctx, CapInspect, source.BindingSpec)
+	chosen, selectionErr := selectInstalledRole(ctx, CapInspect, source.BindingSpec, roleNativeFirst)
 	if selectionErr != nil {
 		return nil, true, selectionErr
 	}
-	if chosen == nil || chosen.builtin {
-		return nil, false, nil
-	}
-	delegateIface, rerr := chosen.resolveInterface()
-	if rerr != nil {
-		return nil, true, rerr // selected but unusable (unreachable or pin mismatch): surface it
-	}
-	opKey, ok := delegateOpKey(delegateIface, inspectOpNames...)
-	if !ok {
+	if chosen == nil || chosen.Builtin {
 		return nil, false, nil
 	}
 
-	out, ierr := invokeDelegateUnary(ctx, chosen, opKey, source)
+	out, ierr := chosen.unary(ctx, map[string]any{"source": source})
 	if ierr != nil {
-		return nil, true, fmt.Errorf("delegate %q inspectSource: %w", chosen.name(), ierr)
+		return nil, true, fmt.Errorf("delegate %q inspectSource: %w", chosen.Runtime.candidate.Record.ID, ierr)
 	}
 	result, cerr := decodeOutput[synthesize.SourceInspection](out)
 	if cerr != nil {
-		return nil, true, fmt.Errorf("delegate %q returned an invalid inspection: %w", chosen.name(), cerr)
+		return nil, true, fmt.Errorf("delegate %q returned an invalid inspection: %w", chosen.Runtime.candidate.Record.ID, cerr)
 	}
 	return result, true, nil
-}
-
-// invokeDelegateUnary operation-invokes a delegate's operation against its OBI
-// and reduces the (unary) result to a single output value.
-func invokeDelegateUnary(ctx context.Context, chosen *delegateCandidate, opKey string, input any) (any, error) {
-	run, err := invokeOnInterface(ctx, chosen.iface, opKey, "", input, nil)
-	if err != nil {
-		return nil, err
-	}
-	out := reduceUnaryInvocation(run.Events)
-	if out.Error != nil {
-		return nil, fmt.Errorf("%s", out.Error.Message)
-	}
-	return out.Output, nil
 }
 
 // decodeOutput converts an opaque delegate output value into a typed result

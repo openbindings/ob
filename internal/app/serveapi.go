@@ -99,8 +99,7 @@ func ServeHTTPRoutes() []ServeRoute {
 		{Method: "post", Path: "/delegates/register", Operation: "registerDelegate"},
 		{Method: "post", Path: "/delegates/unregister", Operation: "unregisterDelegate"},
 		{Method: "get", Path: "/delegates", Operation: "listDelegates"},
-		{Method: "get", Path: "/delegates/resolve/{operation}", Operation: "resolveDelegate", PathParam: "operation"},
-		{Method: "post", Path: "/delegates/resolve-binding-spec", Operation: "resolveDelegateForBindingSpec"},
+		{Method: "post", Path: "/delegates/resolve", Operation: "resolveRoleDelegate"},
 		{Method: "get", Path: "/delegate-requirements/{capability}", Operation: "getDelegateRequirements", PathParam: "capability"},
 		{Method: "post", Path: "/delegates/preference", Operation: "setDelegatePreference"},
 		{Method: "post", Path: "/environment/initialize", Operation: "initializeEnvironment"},
@@ -258,10 +257,10 @@ func GenerateServeAsyncAPI(contractPath, serverHost, serverProtocol string) ([]b
 		inputMessage := inv.Operation + "InputFrame"
 		outputMessage := inv.Operation + "OutputFrame"
 		messages[inputMessage] = map[string]any{
-			"name": inputMessage, "payload": map[string]any{"$ref": "#/components/schemas/" + inv.InputSchema},
+			"name": inputMessage, "contentType": "application/json", "payload": map[string]any{"$ref": "#/components/schemas/" + inv.InputSchema},
 		}
 		messages[outputMessage] = map[string]any{
-			"name": outputMessage, "payload": map[string]any{"$ref": "#/components/schemas/" + inv.OutputSchema},
+			"name": outputMessage, "contentType": "application/json", "payload": map[string]any{"$ref": "#/components/schemas/" + inv.OutputSchema},
 		}
 		channels[inv.Channel] = map[string]any{
 			"address":  inv.Path,

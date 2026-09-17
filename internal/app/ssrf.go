@@ -77,7 +77,8 @@ var privateRanges = []*net.IPNet{
 // follows redirects by default.
 func GuardedHTTPClient(timeout time.Duration) *http.Client {
 	return &http.Client{
-		Timeout: timeout,
+		Timeout:   timeout,
+		Transport: guardedOutboundTransport{base: http.DefaultTransport},
 		CheckRedirect: func(req *http.Request, via []*http.Request) error {
 			if len(via) >= 10 {
 				return fmt.Errorf("stopped after 10 redirects")
@@ -88,6 +89,20 @@ func GuardedHTTPClient(timeout time.Duration) *http.Client {
 			return nil
 		},
 	}
+}
+
+// CheckRedirect alone cannot guard the initial request. Put the existing URL
+// policy at the transport seam too, so injected SDK clients cannot bypass it
+// when they acquire a source or open a protocol connection themselves.
+type guardedOutboundTransport struct {
+	base http.RoundTripper
+}
+
+func (t guardedOutboundTransport) RoundTrip(req *http.Request) (*http.Response, error) {
+	if err := ValidateOutboundURL(req.URL.String()); err != nil {
+		return nil, err
+	}
+	return t.base.RoundTrip(req)
 }
 
 func isPrivateIP(ip net.IP) bool {

@@ -9,11 +9,13 @@ func newDelegateCmd() *cobra.Command {
 		Short:   "Manage delegates",
 		Long: `Manage the delegate registry.
 
-A delegate is any referenceable OpenBindings interface ob may route
-operations to. Registration snapshots what a delegate carries and pins the
-resolved document; resolution matches the operations ob needs against those
-snapshots; preference orders the candidates. ob itself is the builtin
-self-delegate.`,
+Inspect accepted interfaces and diagnose selection for invoke, synthesize and
+inspect roles. Role-aware routing uses explicitly enrolled registrations;
+built-in handling is not an editable registration.
+
+This development candidate is migrating its management surfaces. The remaining
+legacy mutation commands do not enroll roles; see docs/delegate-manager-migration.md
+before changing an environment.`,
 	}
 	markCommandGroup(c)
 
@@ -22,7 +24,6 @@ self-delegate.`,
 		newDelegateUnregisterCmd(),
 		newDelegateListCmd(),
 		newDelegateResolveCmd(),
-		newDelegateResolveBindingSpecCmd(),
 		newDelegateRequirementsCmd(),
 		newDelegatePreferCmd(),
 	)

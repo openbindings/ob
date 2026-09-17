@@ -39,13 +39,15 @@ After the 0.2 release, these install the implementation documented here:
 brew install --cask openbindings/tap/ob
 ```
 
-Or without Homebrew (builds from source, requires Go 1.25+):
+Go users can install the latest released CLI without Homebrew:
 
 ```bash
-bash <(curl -fsSL https://raw.githubusercontent.com/openbindings/ob/main/scripts/dev-install.sh)
+go install github.com/openbindings/ob/cmd/ob@latest
 ```
 
-The script installs to `~/.local/bin`; override with `OB_BIN_DIR="$HOME/bin"`. Go users can also `go install github.com/openbindings/ob/cmd/ob@latest`.
+For a source checkout or the unreleased draft, follow
+[`CONTRIBUTING.md`](CONTRIBUTING.md). Machine-specific build/link helpers are
+local, ignored files, not published installation scripts.
 
 ## Demo
 
@@ -266,6 +268,14 @@ and is never persisted or made ambient to another operation.
 
 #### Headless / CI
 
+`OB_CONFIG_DIR` selects an absolute application configuration directory instead
+of the operating system's default. `OB_CACHE_DIR` similarly selects the update
+cache directory. These paths name the application directory itself; empty or
+relative values are errors, not a fallback to personal state. Local
+`.openbindings` environment discovery still takes precedence over the global
+configuration directory. Neither setting changes credential storage: select
+`OB_CREDENTIALS_FILE` separately when the OS keychain is inappropriate.
+
 By default credentials live in the OS keychain, which is unreachable in CI, containers, and sandboxes (a keychain write there fails, and `ob` tells you the escape hatch below rather than dying opaquely). Set `OB_CREDENTIALS_FILE` to an explicit path to store credentials in a JSON file instead:
 
 ```bash
@@ -339,49 +349,52 @@ ob conform host.json my-service.obi.json --dry-run
 
 ## Delegates
 
-Delegates extend `ob` with binding-specification support — `ob`'s application of the OpenBindings [delegate pattern](https://openbindings.com/spec/delegate-pattern), and its realization of the published [delegate-manager](https://openbindings.com/interfaces/delegate-manager) interface. A delegate is any referenceable OpenBindings interface; `ob` routes work to delegates that carry the operations it needs (`invokeBinding`, `synthesizeInterface`, `inspectSource`) and support the binding specification at hand. Credentials and context are scoped and supplied by value through the same application pipeline as in-process execution; a delegate never receives direct access to `ob`'s context storage.
+Delegates extend `ob` with binding-specification handling. OB's runtime consumes
+explicit roles (`invoke`, `synthesize`, `inspect`) from retained OBI values.
+Registration is not execution authorization, and unrelated capabilities do not
+automatically become enrolled roles. Built-in handling needs no registration.
+Credentials/context remain recipient-scoped; a delegate never receives direct
+access to OB's context storage.
 
-`ob` itself is the builtin **self-delegate** (location `"ob"`, providing OpenAPI, AsyncAPI, gRPC, Connect, MCP, GraphQL, and usage-spec in-process). A fresh environment has an empty registry: every external delegate is an explicit registration.
+**Development candidate:** role-aware routing and diagnostics are implemented.
+Manager registration/preference/conversion commands are still being migrated;
+the remaining legacy mutation commands are not a setup path for the new runtime.
+Do not edit real registry state by hand. See the
+[candidate migration guide](docs/delegate-manager-migration.md).
 
-### Registering a delegate
-
-`ob delegate register` (alias: `add`) accepts three location forms:
-
-| Form | Example | Notes |
-|------|---------|-------|
-| `exec:` | `ob delegate register exec:thrift-ob-delegate` | Runs the named binary as a subprocess |
-| Local path | `ob delegate register ./my-delegate` | Auto-prefixed with `exec:` |
-| HTTP(S) | `ob delegate register https://delegate.example.com` | Runs over HTTP for execution |
+### Explain routing
 
 ```bash
-ob delegate register exec:thrift-ob-delegate
-ob delegate list
-ob binding-specs  # should now include the binding specifications the delegate handles
-
-ob new interface.json
-ob source add interface.json thrift@1.0:./service.thrift
-ob source pull interface.json
-ob operation invoke interface.json getUser
+ob delegate resolve --role invoke --binding-spec openbindings.usage@1
+ob delegate resolve --role invoke --binding-spec openbindings.openapi-3.1@1 --path native-first
+ob delegate resolve --role synthesize --binding-spec example.format@1 --registration <id> -F json
 ```
 
-Registration resolves the location to the delegate's OBI (via `--openbindings` for exec:, well-known discovery for http) and records a **snapshot**: the operations it carries, a content digest pinning the resolved document, and the capabilities and formats `ob` derives for routing. **Registration fails when the location cannot be resolved** — a delegate is its interface. When a delegate changes, re-register it: the snapshot refreshes, your preferences persist, and until then invocation detects the drift (digest mismatch) and asks for an explicit re-registration rather than silently running a document you never saw.
+Ordinary operation/raw-binding invocation uses ranked selection. Frame invocation
+uses native-first; synthesis and inspection are also native-first. An explicit
+registration constraint checks only that enrolled ID, without falling back. The
+diagnostic reports role, token, path, availability and either built-in status or
+the selected registration ID. It checks live support without invoking workload.
+Unavailable is a normal result; invalid state and failed assessments are errors.
+A diagnostic does not reserve a provider for a later invocation.
 
-How much of an operation's cardinality crosses a delegate boundary depends on the delegate's transport: a delegate that exposes `invokeBinding` over the frame protocol (an `asyncapi` source at an http(s) URL) carries every cardinality — including server-streaming and bidirectional — while a `usage`/CLI delegate is bounded by its one-shot input (no client-streaming or bidi). `ob` prefers the frame transport when a delegate advertises both. Use `ob delegate prefer <location> <n>` to bias selection when several delegates handle the same format (scope with `--operation`/`--capability` and `--binding-spec`; `--clear` removes an entry), and `ob delegate resolve <operation>` to see which delegates carry an operation, best first.
+The same diagnostic is available through authenticated `POST /delegates/resolve`
+with `role`, `bindingSpec`, and optional `path`/`registrationId`. It is OB-native,
+not an operation of the reusable Delegate Manager interface.
 
 ### Building a delegate
 
-The simplest path: scaffold the binding-invoker interface into a new OBI and implement the operations.
+`ob delegate requirements invoke` prints the exact unbound interface expected
+for that role; substitute `synthesize` or `inspect` for the other roles.
+A complete accepted interface establishes admission compatibility, not executable
+readiness. Work and support queries must have faithful callable bindings.
 
-```bash
-ob delegate requirements invoke > binding-invoker.json   # the exact operation subset ob consumes
-ob conform binding-invoker.json my-delegate.obi.json --yes
-```
-
-A minimal `exec:` delegate is a CLI that:
-
-1. Responds to `--openbindings` by printing its OBI to stdout.
-2. Binds `listBindingSpecs` via an `openbindings.usage@1` source so `ob` can enumerate the binding specifications it supports at registration.
-3. Implements `invokeBinding` (and, independently, `synthesizeInterface` or `inspectSource` when desired) as its OBI declares.
+The shared binding/operation-invoker operations exchange bidirectional frame
+streams. Usage revision 1 is unary and cannot realize them. OB's native
+`binding invoke` and `operation invoke` commands remain useful but are not
+advertised as Usage bindings of those frame operations. `ob start` exposes their
+real AsyncAPI streaming bindings. Unary support queries, synthesis, inspection
+and management can still have Usage bindings.
 
 ## Source Resolution
 
@@ -478,8 +491,7 @@ ob source pull interface.json -o dist/interface.json --pure # publish clean
 |---------|-------------|
 | `ob delegate register/unregister <location>` | Register or unregister a delegate (aliases: `add`, `remove`) |
 | `ob delegate list` | List the registry: every delegate, its operations snapshot, pin, and preferences |
-| `ob delegate resolve <operation>` | Resolve an operation to the delegates that carry it, best first |
-| `ob delegate resolve-binding-spec <binding-spec>` | Show which delegate ob's routing would select for a binding specification |
+| `ob delegate resolve --role <role> --binding-spec <identifier>` | Explain role-specific routing; optionally select `--path` or constrain `--registration` |
 | `ob delegate prefer <location> [n]` | Set or clear (`--clear`) a delegate's preference, optionally per-operation |
 | `ob delegate requirements <capability>` | Print the interface a delegate must correspond to for a capability |
 | `ob binding-specs` | List the binding specifications this `ob` instance can handle |

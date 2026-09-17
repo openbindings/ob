@@ -281,8 +281,9 @@ func fetchFrameDoc(ctx context.Context, docURL string) ([]byte, error) {
 // CLI transport (usage binding)
 // ---------------------------------------------------------------------------
 
-// delegateCLIInvoker invokes a delegate's invokeBinding through its usage
-// (CLI) binding — the unary realization of the contract. The handle accepts
+// delegateCLIInvoker is the legacy collapsed-payload adapter, retained for
+// legacy callers/tests only. It does NOT realize the shared frame protocol and
+// is not used by role-aware dispatch. Its handle accepts
 // at most one input; the delegate's inputTransform shapes the payload (e.g.
 // `{ "input": $string($) }` stringifies it into a --input flag).
 type delegateCLIInvoker struct {

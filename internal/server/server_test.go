@@ -703,9 +703,12 @@ func TestLocalTLSWithoutTrustDoesNotInspectOrInstallSystemCA(t *testing.T) {
 	// The trust-store decision is deliberately visible at the API boundary:
 	// without explicit authorization, a freshly-created local CA is usable by
 	// the TLS listener without calling caIsSystemTrusted, purgeStaleCAs, or
-	// installCASystemWide. Running under a temporary home also proves all
-	// generated material stays in user-controlled test storage.
-	t.Setenv("HOME", t.TempDir())
+	// installCASystemWide. Inject only the state directory; do not redirect
+	// process-wide HOME or permit touching the actual certificate store.
+	dir := t.TempDir()
+	previous := tlsDirectory
+	tlsDirectory = func() (string, error) { return dir, nil }
+	t.Cleanup(func() { tlsDirectory = previous })
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
 
 	cfg, err := ensureLocalhostTLS(logger, false)

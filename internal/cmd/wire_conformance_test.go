@@ -82,8 +82,9 @@ func TestWireConformance_ErrorFramesMatchServedInvokerSchema(t *testing.T) {
 // Coverage spans the wire-conformance loop's cohorts
 // (ob-pj/wire-conformance.md): A (flat inputs), B (--input machine lanes),
 // C (document filters: the read/analysis cases plus the editing chain).
-// Cohort F (foreground) and the frame ops (unary realizations of the frame
-// contract) are excluded by design, with notes on their binding entries.
+// Cohort F (foreground) is excluded with notes on its binding entries.
+// Frame operations have no Usage bindings; native unary commands are not frame
+// realizations. Their actual streaming bindings are tested on the served surface.
 func TestWireConformance_ExecLane(t *testing.T) {
 	if testing.Short() {
 		t.Skip("builds and execs the real binary")
@@ -133,10 +134,8 @@ func TestWireConformance_ExecLane(t *testing.T) {
 	}))
 	defer ts.Close()
 
-	// Sandbox: HOME redirects the global config dir (contexts, delegates,
-	// global environment); a temp cwd catches local-environment writes.
-	t.Setenv("HOME", t.TempDir())
-	t.Setenv("XDG_CONFIG_HOME", "") // linux: fall back to HOME/.config
+	// Isolate global app state; a temp cwd catches local-environment writes.
+	t.Setenv("OB_CONFIG_DIR", t.TempDir())
 	workDir := t.TempDir()
 	origDir, _ := os.Getwd()
 	if err := os.Chdir(workDir); err != nil {
@@ -214,7 +213,7 @@ func TestWireConformance_ExecLane(t *testing.T) {
 		{"reportEnvironmentStatus", "openbindings.ob.reportEnvironmentStatus", nil, nil},
 		{"listContexts", "openbindings.ob.listContexts", nil, nil},
 		{"listDelegates", "openbindings.ob.listDelegates", nil, nil},
-		{"resolveDelegate", "openbindings.ob.resolveDelegate", map[string]any{"operation": "openbindings.ob.describe"}, nil},
+		{"resolveRoleDelegate", "openbindings.ob.resolveRoleDelegate", map[string]any{"role": "invoke", "bindingSpec": "openbindings.usage@1"}, nil},
 		{"getDelegateRequirements", "openbindings.ob.getDelegateRequirements", map[string]any{"capability": "invoke"}, nil},
 		{"getContext_missing", "openbindings.ob.getContext", map[string]any{"key": "https://missing.example.com"}, func(t *testing.T, output any) {
 			if output != nil {
@@ -232,7 +231,6 @@ func TestWireConformance_ExecLane(t *testing.T) {
 			}
 		}},
 		{"removeContext", "openbindings.ob.removeContext", map[string]any{"key": "https://wire.example.com"}, nil},
-		{"resolveDelegateForBindingSpec", "openbindings.ob.resolveDelegateForBindingSpec", map[string]any{"bindingSpec": "openbindings.usage@1"}, nil},
 		// Keep this aliased copy tied with the builtin (the builtin wins ties)
 		// while exercising registry writes: it is a transport fixture, not a
 		// second independent runtime, and routing ob back through itself would
@@ -328,10 +326,8 @@ func TestWireConformance_ExecLane(t *testing.T) {
 		// as JSON (the batch-5 audit ratified inspect/synthesize as
 		// machine-natured alongside binding invoke/prepare), and --input
 		// implies wire-shaped JSON output. The frame ops (invokeBinding,
-		// invokeOperation) are NOT here: their exec bindings are the
-		// documented UNARY REALIZATION of the frame contract — a unary
-		// transport cannot carry the frame grammar, so they are excluded
-		// like cohort F, with the note stamped on their binding entries.
+		// invokeOperation) are NOT here: they have no Usage bindings.
+		// A unary command cannot carry their bidirectional frame protocol.
 		{"inspectSource", "openbindings.ob.inspectSource", map[string]any{
 			"source": map[string]any{"bindingSpec": "openbindings.openapi-3.1@1", "location": "openapi.json"},
 		}, func(t *testing.T, output any) {
