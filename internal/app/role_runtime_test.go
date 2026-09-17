@@ -434,7 +434,7 @@ func TestRoleDelegateChainIsBounded(t *testing.T) {
 		}}), nil
 	}
 
-	processDelegateDepth, delegateChildDepthOnce = maxDelegateDepth, sync.Once{}
+	processDelegateDepth, delegateChildDepthOnce = maxDelegateDepth, new(sync.Once)
 	_, err = selectRoleRuntime(t.Context(), r, CapInvoke, "example.work@1", roleRanked, false, factory)
 	if err == nil {
 		t.Fatal("a process at the chain bound still prepared another delegate hop")
@@ -448,7 +448,7 @@ func TestRoleDelegateChainIsBounded(t *testing.T) {
 
 	// Below the bound the same lookup proceeds and elects the registration.
 	t.Setenv(delegateDepthVar, "0")
-	processDelegateDepth, delegateChildDepthOnce = 0, sync.Once{}
+	processDelegateDepth, delegateChildDepthOnce = 0, new(sync.Once)
 	selection, err := selectRoleRuntime(t.Context(), r, CapInvoke, "example.work@1", roleRanked, false, factory)
 	if err != nil {
 		t.Fatalf("a first hop must be allowed: %v", err)

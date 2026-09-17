@@ -42,7 +42,8 @@ const (
 	maxDelegateDepth = 8
 )
 
-var delegateChildDepthOnce sync.Once
+// A pointer so a test can install a fresh Once without copying a lock.
+var delegateChildDepthOnce = new(sync.Once)
 
 // processDelegateDepth is this process's own depth, captured before anything
 // can mark children. Marking writes the same variable children inherit, so a
