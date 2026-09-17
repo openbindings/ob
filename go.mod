@@ -9,7 +9,7 @@ require (
 	github.com/charmbracelet/bubbletea v1.3.10 // indirect
 	github.com/charmbracelet/lipgloss v1.1.0
 	github.com/openbindings/openbindings-go v0.2.0
-	github.com/openbindings/openbindings-go/formats/asyncapi v0.1.1-0.20260917145120-5399429269fd
+	github.com/openbindings/openbindings-go/formats/asyncapi v0.1.1-0.20260917182618-48ba4edd3567
 	github.com/openbindings/openbindings-go/formats/connect v0.1.1-0.20260911030355-4b176954a677
 	github.com/openbindings/openbindings-go/formats/graphql v0.1.1-0.20260911030355-4b176954a677
 	github.com/openbindings/openbindings-go/formats/grpc v0.1.1-0.20260911030355-4b176954a677
@@ -90,12 +90,12 @@ require (
 	golang.org/x/net v0.56.0 // indirect
 	golang.org/x/oauth2 v0.36.0 // indirect
 	golang.org/x/sync v0.21.0 // indirect
-	golang.org/x/sys v0.46.0 // indirect
+	golang.org/x/sys v0.46.0
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20260414002931-afd174a4e478 // indirect
 )
 
 replace (
-	github.com/openbindings/asyncapi-client/go v0.1.0 => github.com/openbindings/asyncapi-client/go v0.0.0-20260917131814-59e3edf09be1
+	github.com/openbindings/asyncapi-client/go v0.1.0 => github.com/openbindings/asyncapi-client/go v0.0.0-20260917182212-7326ce4e18c1
 	github.com/openbindings/openapi-client/go v0.1.0 => github.com/openbindings/openapi-client/go v0.0.0-20260911032503-9f8020e2d9a7
 	github.com/openbindings/openbindings-go v0.2.0 => github.com/openbindings/openbindings-go v0.1.1-0.20260911030355-4b176954a677
 )
