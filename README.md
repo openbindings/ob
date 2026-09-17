@@ -366,6 +366,7 @@ ob delegate register ./tool.obi.json --role invoke  # enroll a document; prints 
 ob resolve https://tools.example.com -F json | jq .interface | ob delegate register - --role synthesize --role inspect
 ob delegate list --role invoke -F json              # full retained values
 ob delegate prefer <id> 20 --role invoke            # exact number; 0 stays an explicit entry
+ob delegate prefer <id> --role invoke -- -1.25      # a negative value follows --, after the flags
 ob delegate prefer <id> --clear --role invoke
 ob delegate prefer <id> 10 --role invoke --binding-spec openbindings.grpc@1   # ob-native override
 ob delegate register ./tool.obi.json --id <id> --role invoke --clear-preferences  # replace, keep the ID
@@ -545,7 +546,7 @@ ob source pull interface.json -o dist/interface.json --pure # publish clean
 | `ob delegate roles` | List the roles ob accepts delegates for, with their accepted interfaces |
 | `ob delegate register <interface\|-> --role <role>...` | Enroll an interface document for explicit roles (alias: `add`; `--id` replaces) |
 | `ob delegate list [--role <role>]` | List registrations with their retained interfaces, roles and preferences |
-| `ob delegate prefer <id> [n] --role <role>` | Set or clear (`--clear`) a role preference; `--binding-spec` targets the native override |
+| `ob delegate prefer <id> [n] --role <role>` | Set or clear (`--clear`) a role preference; `--binding-spec` targets the native override. A negative value is a positional that looks like a flag, so it follows `--` with the flags before it: `ob delegate prefer <id> --role invoke -- -1.25` |
 | `ob delegate unregister <id>` | Remove a registration (aliases: `remove`, `rm`; idempotent) |
 | `ob delegate resolve --role <role> --binding-spec <identifier>` | Explain role-specific routing; optionally select `--path` or constrain `--registration` |
 | `ob delegate requirements <role>` | Print the accepted interface for a role |
