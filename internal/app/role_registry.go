@@ -5,6 +5,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"math"
 	"slices"
 	"strconv"
@@ -112,7 +113,7 @@ func (r *roleRegistry) candidates(role string) ([]roleCandidate, error) {
 		return out, nil
 	}
 	if state.Catalogue != r.catalogue.identity {
-		return nil, errors.New("role catalogue changed; explicit registry review is required")
+		return nil, fmt.Errorf("%w: role catalogue changed; explicit registry review is required", errRegistryUnavailable)
 	}
 	if _, known := r.catalogue.alternatives[role]; !known {
 		return out, nil
@@ -153,19 +154,27 @@ func decodeRolePreferences(raw json.RawMessage) (map[string]json.Number, error) 
 
 func readRoleState(config *EnvConfig) (*roleRegistryState, error) {
 	if len(config.DelegateRegistry) == 0 {
-		if len(config.Delegates) != 0 {
-			return nil, errors.New("legacy delegates require explicit migration")
+		if len(config.LegacyDelegates) != 0 {
+			return nil, fmt.Errorf("%w: legacy delegates require explicit migration (see 'ob delegate migrate preview')", errRegistryUnavailable)
 		}
 		return nil, nil
 	}
-	if len(config.Delegates) != 0 {
-		return nil, errors.New("mixed legacy and role registry state")
+	if len(config.LegacyDelegates) != 0 {
+		return nil, fmt.Errorf("%w: mixed legacy and role registry state", errRegistryUnavailable)
 	}
-	if len(config.DelegateRegistry) > maxDelegateRegistryBytes {
+	state, err := decodeRoleState(config.DelegateRegistry)
+	if err != nil {
+		return nil, fmt.Errorf("%w: %v", errEnvironmentUnreadable, err)
+	}
+	return state, nil
+}
+
+func decodeRoleState(raw json.RawMessage) (*roleRegistryState, error) {
+	if len(raw) > maxDelegateRegistryBytes {
 		return nil, errors.New("registry exceeds OB capacity")
 	}
 	var fields map[string]json.RawMessage
-	if err := jsonvalue.Unmarshal(config.DelegateRegistry, &fields); err != nil || fields == nil {
+	if err := jsonvalue.Unmarshal(raw, &fields); err != nil || fields == nil {
 		return nil, errors.New("invalid registry state")
 	}
 	for key := range fields {
@@ -174,7 +183,7 @@ func readRoleState(config *EnvConfig) (*roleRegistryState, error) {
 		}
 	}
 	var state roleRegistryState
-	if err := jsonvalue.Unmarshal(config.DelegateRegistry, &state); err != nil {
+	if err := jsonvalue.Unmarshal(raw, &state); err != nil {
 		return nil, errors.New("invalid registry state")
 	}
 	if state.Format != roleRegistryFormat || state.Catalogue == "" || state.Revision == 0 || state.Records == nil || state.BindingPreferences == nil {
@@ -347,7 +356,7 @@ func (r *roleRegistry) register(input RoleRegistrationInput) (*DelegateRegistrat
 			}
 		}
 		if state.Catalogue != r.catalogue.identity {
-			return nil, errors.New("role catalogue changed; explicit registry review is required")
+			return nil, fmt.Errorf("%w: role catalogue changed; explicit registry review is required", errRegistryUnavailable)
 		}
 		if _, err := r.catalogue.admit(request.Interface, request.Roles); err != nil {
 			return nil, err

@@ -8,12 +8,29 @@ import (
 	"testing"
 )
 
-func TestRoleAdmissionCorpus(t *testing.T) {
-	path := filepath.Join("..", "..", "..", "interfaces", "conformance", "delegate-manager", "admission.json")
-	if explicit := os.Getenv("OB_DELEGATE_MANAGER_CORPUS"); explicit != "" {
-		path = explicit
+// interfacesCorpusPath locates a file of the selected interfaces conformance
+// corpus. OB_INTERFACES_CORPUS names the conformance root of the exact
+// interfaces checkout CI selected; a sibling checkout is only a developer
+// convenience and is refused when OB_CORPUS_REQUIRED is set, so "no workspace"
+// never silently becomes "no corpus" or "some other corpus".
+func interfacesCorpusPath(t *testing.T, relative ...string) string {
+	t.Helper()
+	root := os.Getenv("OB_INTERFACES_CORPUS")
+	if root == "" {
+		if os.Getenv("OB_CORPUS_REQUIRED") != "" {
+			t.Fatal("OB_CORPUS_REQUIRED is set but OB_INTERFACES_CORPUS names no interfaces conformance root")
+		}
+		root = filepath.Join("..", "..", "..", "interfaces", "conformance")
 	}
-	data, err := os.ReadFile(path)
+	path := filepath.Join(append([]string{root}, relative...)...)
+	if _, err := os.Stat(path); err != nil {
+		t.Fatalf("required interfaces corpus unavailable at %s: %v", path, err)
+	}
+	return path
+}
+
+func TestRoleAdmissionCorpus(t *testing.T) {
+	data, err := os.ReadFile(interfacesCorpusPath(t, "delegate-manager", "admission.json"))
 	if err != nil {
 		t.Fatal("required manager corpus unavailable:", err)
 	}

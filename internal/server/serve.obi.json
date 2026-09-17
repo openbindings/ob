@@ -78,7 +78,7 @@
       "source": "openapi"
     },
     "openbindings.ob.inspectSource.openapi": {
-      "inputTransform": "($parameters := {}; $bodyObject := $merge([$sift($,function($value,$key){$key != \"source\"}),{\"source\":$lookup($,\"source\")}]); {\"parameters\":$count($keys($parameters)) \u003e 0 ? $parameters : $lookup({},\"__openbindings_absent\"),\"body\":($exists($lookup($,\"source\")) or $count($keys($sift($,function($value,$key){$key != \"source\"}))) \u003e 0 or true) ? $bodyObject : $lookup({},\"__openbindings_absent\")})",
+      "inputTransform": "($parameters := {\"registration\":$lookup($,\"registration\")}; $bodyObject := $merge([$sift($,function($value,$key){$key != \"registration\" and $key != \"source\"}),{\"source\":$lookup($,\"source\")}]); {\"parameters\":$count($keys($parameters)) \u003e 0 ? $parameters : $lookup({},\"__openbindings_absent\"),\"body\":($exists($lookup($,\"source\")) or $count($keys($sift($,function($value,$key){$key != \"registration\" and $key != \"source\"}))) \u003e 0 or true) ? $bodyObject : $lookup({},\"__openbindings_absent\")})",
       "operation": "openbindings.ob.inspectSource",
       "selector": "#/paths/~1sources~1inspect/post",
       "source": "openapi"
@@ -109,7 +109,13 @@
       "selector": "#/paths/~1contexts/get",
       "source": "openapi"
     },
+    "openbindings.ob.listDelegateRoles.openapi": {
+      "operation": "openbindings.ob.listDelegateRoles",
+      "selector": "#/paths/~1delegates~1roles/get",
+      "source": "openapi"
+    },
     "openbindings.ob.listDelegates.openapi": {
+      "inputTransform": "($parameters := {\"role\":$lookup($,\"role\")}; $bodyObject := {}; {\"parameters\":$count($keys($parameters)) \u003e 0 ? $parameters : $lookup({},\"__openbindings_absent\"),\"body\":$lookup({},\"__openbindings_absent\")})",
       "operation": "openbindings.ob.listDelegates",
       "selector": "#/paths/~1delegates/get",
       "source": "openapi"
@@ -157,7 +163,7 @@
       "source": "openapi"
     },
     "openbindings.ob.pullSource.openapi": {
-      "inputTransform": "($parameters := {}; $bodyObject := $merge([$sift($,function($value,$key){$key != \"interface\" and $key != \"sourceKeys\"}),{\"interface\":$lookup($,\"interface\"),\"sourceKeys\":$lookup($,\"sourceKeys\")}]); {\"parameters\":$count($keys($parameters)) \u003e 0 ? $parameters : $lookup({},\"__openbindings_absent\"),\"body\":($exists($lookup($,\"interface\")) or $exists($lookup($,\"sourceKeys\")) or $count($keys($sift($,function($value,$key){$key != \"interface\" and $key != \"sourceKeys\"}))) \u003e 0 or true) ? $bodyObject : $lookup({},\"__openbindings_absent\")})",
+      "inputTransform": "($parameters := {\"registration\":$lookup($,\"registration\")}; $bodyObject := $merge([$sift($,function($value,$key){$key != \"interface\" and $key != \"registration\" and $key != \"sourceKeys\"}),{\"interface\":$lookup($,\"interface\"),\"sourceKeys\":$lookup($,\"sourceKeys\")}]); {\"parameters\":$count($keys($parameters)) \u003e 0 ? $parameters : $lookup({},\"__openbindings_absent\"),\"body\":($exists($lookup($,\"interface\")) or $exists($lookup($,\"sourceKeys\")) or $count($keys($sift($,function($value,$key){$key != \"interface\" and $key != \"registration\" and $key != \"sourceKeys\"}))) \u003e 0 or true) ? $bodyObject : $lookup({},\"__openbindings_absent\")})",
       "operation": "openbindings.ob.pullSource",
       "selector": "#/paths/~1interfaces~1sources~1pull/post",
       "source": "openapi"
@@ -169,7 +175,7 @@
       "source": "openapi"
     },
     "openbindings.ob.registerDelegate.openapi": {
-      "inputTransform": "($parameters := {}; $bodyObject := $merge([$sift($,function($value,$key){$key != \"location\" and $key != \"preference\"}),{\"location\":$lookup($,\"location\"),\"preference\":$lookup($,\"preference\")}]); {\"parameters\":$count($keys($parameters)) \u003e 0 ? $parameters : $lookup({},\"__openbindings_absent\"),\"body\":($exists($lookup($,\"location\")) or $exists($lookup($,\"preference\")) or $count($keys($sift($,function($value,$key){$key != \"location\" and $key != \"preference\"}))) \u003e 0 or true) ? $bodyObject : $lookup({},\"__openbindings_absent\")})",
+      "inputTransform": "($parameters := {}; $bodyObject := $merge([$sift($,function($value,$key){$key != \"id\" and $key != \"interface\" and $key != \"rolePreferences\" and $key != \"roles\"}),{\"id\":$lookup($,\"id\"),\"interface\":$lookup($,\"interface\"),\"rolePreferences\":$lookup($,\"rolePreferences\"),\"roles\":$lookup($,\"roles\")}]); {\"parameters\":$count($keys($parameters)) \u003e 0 ? $parameters : $lookup({},\"__openbindings_absent\"),\"body\":($exists($lookup($,\"id\")) or $exists($lookup($,\"interface\")) or $exists($lookup($,\"rolePreferences\")) or $exists($lookup($,\"roles\")) or $count($keys($sift($,function($value,$key){$key != \"id\" and $key != \"interface\" and $key != \"rolePreferences\" and $key != \"roles\"}))) \u003e 0 or true) ? $bodyObject : $lookup({},\"__openbindings_absent\")})",
       "operation": "openbindings.ob.registerDelegate",
       "selector": "#/paths/~1delegates~1register/post",
       "source": "openapi"
@@ -239,8 +245,14 @@
       "selector": "#/paths/~1contexts~1{url}/put",
       "source": "openapi"
     },
+    "openbindings.ob.setDelegateBindingPreference.openapi": {
+      "inputTransform": "($parameters := {}; $bodyObject := $merge([$sift($,function($value,$key){$key != \"bindingSpec\" and $key != \"id\" and $key != \"preference\" and $key != \"role\"}),{\"bindingSpec\":$lookup($,\"bindingSpec\"),\"id\":$lookup($,\"id\"),\"preference\":$lookup($,\"preference\"),\"role\":$lookup($,\"role\")}]); {\"parameters\":$count($keys($parameters)) \u003e 0 ? $parameters : $lookup({},\"__openbindings_absent\"),\"body\":($exists($lookup($,\"bindingSpec\")) or $exists($lookup($,\"id\")) or $exists($lookup($,\"preference\")) or $exists($lookup($,\"role\")) or $count($keys($sift($,function($value,$key){$key != \"bindingSpec\" and $key != \"id\" and $key != \"preference\" and $key != \"role\"}))) \u003e 0 or true) ? $bodyObject : $lookup({},\"__openbindings_absent\")})",
+      "operation": "openbindings.ob.setDelegateBindingPreference",
+      "selector": "#/paths/~1delegates~1binding-preference/post",
+      "source": "openapi"
+    },
     "openbindings.ob.setDelegatePreference.openapi": {
-      "inputTransform": "($parameters := {}; $bodyObject := $merge([$sift($,function($value,$key){$key != \"bindingSpec\" and $key != \"location\" and $key != \"operation\" and $key != \"preference\"}),{\"bindingSpec\":$lookup($,\"bindingSpec\"),\"location\":$lookup($,\"location\"),\"operation\":$lookup($,\"operation\"),\"preference\":$lookup($,\"preference\")}]); {\"parameters\":$count($keys($parameters)) \u003e 0 ? $parameters : $lookup({},\"__openbindings_absent\"),\"body\":($exists($lookup($,\"bindingSpec\")) or $exists($lookup($,\"location\")) or $exists($lookup($,\"operation\")) or $exists($lookup($,\"preference\")) or $count($keys($sift($,function($value,$key){$key != \"bindingSpec\" and $key != \"location\" and $key != \"operation\" and $key != \"preference\"}))) \u003e 0 or true) ? $bodyObject : $lookup({},\"__openbindings_absent\")})",
+      "inputTransform": "($parameters := {}; $bodyObject := $merge([$sift($,function($value,$key){$key != \"id\" and $key != \"preference\" and $key != \"role\"}),{\"id\":$lookup($,\"id\"),\"preference\":$lookup($,\"preference\"),\"role\":$lookup($,\"role\")}]); {\"parameters\":$count($keys($parameters)) \u003e 0 ? $parameters : $lookup({},\"__openbindings_absent\"),\"body\":($exists($lookup($,\"id\")) or $exists($lookup($,\"preference\")) or $exists($lookup($,\"role\")) or $count($keys($sift($,function($value,$key){$key != \"id\" and $key != \"preference\" and $key != \"role\"}))) \u003e 0 or true) ? $bodyObject : $lookup({},\"__openbindings_absent\")})",
       "operation": "openbindings.ob.setDelegatePreference",
       "selector": "#/paths/~1delegates~1preference/post",
       "source": "openapi"
@@ -270,7 +282,7 @@
       "source": "openapi"
     },
     "openbindings.ob.synthesizeInterface.openapi": {
-      "inputTransform": "($parameters := {}; $bodyObject := $merge([$sift($,function($value,$key){$key != \"description\" and $key != \"name\" and $key != \"openbindingsVersion\" and $key != \"sources\" and $key != \"version\"}),{\"description\":$lookup($,\"description\"),\"name\":$lookup($,\"name\"),\"openbindingsVersion\":$lookup($,\"openbindingsVersion\"),\"sources\":$lookup($,\"sources\"),\"version\":$lookup($,\"version\")}]); {\"parameters\":$count($keys($parameters)) \u003e 0 ? $parameters : $lookup({},\"__openbindings_absent\"),\"body\":($exists($lookup($,\"description\")) or $exists($lookup($,\"name\")) or $exists($lookup($,\"openbindingsVersion\")) or $exists($lookup($,\"sources\")) or $exists($lookup($,\"version\")) or $count($keys($sift($,function($value,$key){$key != \"description\" and $key != \"name\" and $key != \"openbindingsVersion\" and $key != \"sources\" and $key != \"version\"}))) \u003e 0 or true) ? $bodyObject : $lookup({},\"__openbindings_absent\")})",
+      "inputTransform": "($parameters := {\"registration\":$lookup($,\"registration\")}; $bodyObject := $merge([$sift($,function($value,$key){$key != \"description\" and $key != \"name\" and $key != \"openbindingsVersion\" and $key != \"registration\" and $key != \"sources\" and $key != \"version\"}),{\"description\":$lookup($,\"description\"),\"name\":$lookup($,\"name\"),\"openbindingsVersion\":$lookup($,\"openbindingsVersion\"),\"sources\":$lookup($,\"sources\"),\"version\":$lookup($,\"version\")}]); {\"parameters\":$count($keys($parameters)) \u003e 0 ? $parameters : $lookup({},\"__openbindings_absent\"),\"body\":($exists($lookup($,\"description\")) or $exists($lookup($,\"name\")) or $exists($lookup($,\"openbindingsVersion\")) or $exists($lookup($,\"sources\")) or $exists($lookup($,\"version\")) or $count($keys($sift($,function($value,$key){$key != \"description\" and $key != \"name\" and $key != \"openbindingsVersion\" and $key != \"registration\" and $key != \"sources\" and $key != \"version\"}))) \u003e 0 or true) ? $bodyObject : $lookup({},\"__openbindings_absent\")})",
       "operation": "openbindings.ob.synthesizeInterface",
       "selector": "#/paths/~1interfaces~1synthesize/post",
       "source": "openapi"
@@ -282,7 +294,7 @@
       "source": "openapi"
     },
     "openbindings.ob.unregisterDelegate.openapi": {
-      "inputTransform": "($parameters := {}; $bodyObject := $merge([$sift($,function($value,$key){$key != \"location\"}),{\"location\":$lookup($,\"location\")}]); {\"parameters\":$count($keys($parameters)) \u003e 0 ? $parameters : $lookup({},\"__openbindings_absent\"),\"body\":($exists($lookup($,\"location\")) or $count($keys($sift($,function($value,$key){$key != \"location\"}))) \u003e 0 or true) ? $bodyObject : $lookup({},\"__openbindings_absent\")})",
+      "inputTransform": "($parameters := {}; $bodyObject := $merge([$sift($,function($value,$key){$key != \"id\"}),{\"id\":$lookup($,\"id\")}]); {\"parameters\":$count($keys($parameters)) \u003e 0 ? $parameters : $lookup({},\"__openbindings_absent\"),\"body\":($exists($lookup($,\"id\")) or $count($keys($sift($,function($value,$key){$key != \"id\"}))) \u003e 0 or true) ? $bodyObject : $lookup({},\"__openbindings_absent\")})",
       "operation": "openbindings.ob.unregisterDelegate",
       "selector": "#/paths/~1delegates~1unregister/post",
       "source": "openapi"
@@ -466,7 +478,7 @@
       ]
     },
     "openbindings.ob.getDelegateRequirements": {
-      "description": "Return the exact operation subset a delegate must satisfy to provide an ob capability (invoke → listBindingSpecs + checkBindingSpecs + invokeBinding, synthesize → listBindingSpecs + checkBindingSpecs + synthesizeInterface, inspect → listBindingSpecs + checkBindingSpecs + inspectSource). Definitions are derived from immutable published interfaces bundled with this ob release. Correspondence is per operation, so unrelated operations from the same published interface are not imposed on a delegate.",
+      "description": "Return the one accepted interface a delegate must correspond to for a role, as a convenience projection of listDelegateRoles; a role that accepts several alternatives is refused rather than reduced to its first entry. Correspondence is exact-key plus directional schema compatibility for the whole alternative.",
       "idempotent": true,
       "input": {
         "$ref": "#/schemas/GetDelegateRequirementsInput"
@@ -583,19 +595,45 @@
         "context"
       ]
     },
+    "openbindings.ob.listDelegateRoles": {
+      "aliases": [
+        "openbindings.delegate-manager.listRoles"
+      ],
+      "description": "Return the complete catalogue of roles this ob accepts delegates for: invoke (Binding Invoker), synthesize (Interface Synthesizer) and inspect (Source Inspector with the Interface Synthesizer support query). Each role carries its purpose and use policy and its accepted interfaces as actual unbound OBI values. ob's policy per role: admission records compatibility, not trust or activation; runtime requires an authoritative support verdict for the exact binding specification, an executable binding and existing recipient authorization; eligible external registrations are ordered by preference, ties keep registration order; ordinary operation and raw binding invocation rank externals against the built-in (built-in wins ties), while frame invocation, synthesis and inspection are native-first; no workload failover.",
+      "idempotent": true,
+      "output": {
+        "properties": {
+          "roles": {
+            "description": "All advertised roles. Order is unspecified and has no selection semantics.",
+            "items": {
+              "$ref": "#/schemas/DelegateRole"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "roles"
+        ],
+        "type": "object"
+      },
+      "tags": [
+        "delegates"
+      ]
+    },
     "openbindings.ob.listDelegates": {
       "aliases": [
         "openbindings.delegate-manager.listDelegates"
       ],
-      "description": "List every registered delegate — the self-delegate included — with the operations each carried when last resolved, the capabilities and formats ob derived for routing, and its selection preferences.",
+      "description": "Return every registration of the active environment with its retained interface value, complete role set and explicit preference map; with role, only registrations enrolled in that exact role, records untrimmed. Built-in handling is not a registration and is not listed. A missing environment is an empty list; legacy, mixed, corrupt or unsupported registry state is an error rather than an empty inventory.",
       "idempotent": true,
+      "input": {
+        "$ref": "#/schemas/ListDelegatesInput"
+      },
       "output": {
-        "additionalProperties": false,
         "properties": {
           "delegates": {
-            "description": "The registered delegates.",
             "items": {
-              "$ref": "#/schemas/DelegateSummary"
+              "$ref": "#/schemas/DelegateRegistration"
             },
             "type": "array"
           }
@@ -758,12 +796,12 @@
       "aliases": [
         "openbindings.delegate-manager.registerDelegate"
       ],
-      "description": "Register a delegate — any referenceable OpenBindings interface (an exec: or http(s) location) that ob may route operations to. ob resolves the location to the delegate's OBI and records a snapshot: the operation identifiers it carries (keys and aliases), a content digest pinning the resolved document, and what ob derives for its own routing — which of ob's format capabilities the delegate satisfies (checked by conformance, not name-matching) and the formats it handles. Registration fails when the location cannot be resolved to an interface. Re-registering a location re-resolves and replaces the snapshot; the registrar's preferences persist unless a new preference is supplied. An OBI carrying none of ob's three format capabilities registers successfully but is inert for ob; registration warns.",
+      "description": "Enroll an interface value for every requested role under a fresh manager-issued ID, or with id replace an existing registration's complete interface and role set. Every requested role must accept the whole document (exact key correspondence plus directional schema compatibility for one complete alternative); matching an unrequested role never enrolls it. The supplied document is retained exactly, extensions included, and no provider is fetched or invoked. rolePreferences, when supplied, is the complete explicit map (empty clears); when omitted a fresh registration stores {} and a replacement keeps entries for retained roles only. Interface, roles and preferences commit atomically under the environment lock; a rejection leaves no mutation, and a lost response after commit is uncertain completion, not rollback. This operation is not idempotent: a call without id allocates a new registration even for an identical document. ob accepts at most 1 MiB per interface and 256 registrations per environment.",
       "input": {
         "$ref": "#/schemas/RegisterDelegateInput"
       },
       "output": {
-        "$ref": "#/schemas/DelegateSummary"
+        "$ref": "#/schemas/DelegateRegistration"
       },
       "tags": [
         "delegates"
@@ -906,17 +944,30 @@
         "context"
       ]
     },
+    "openbindings.ob.setDelegateBindingPreference": {
+      "description": "ob-native: set (number) or clear (null) a preference override scoped to one registration, one recorded role and one exact binding-specification identifier. When that identifier is requested in that role the override replaces the role preference; otherwise the role preference (else zero) applies. Overrides never change the shared rolePreferences map and cannot enroll a role. This is an OB operation, not part of the shared Delegate Manager interface.",
+      "idempotent": true,
+      "input": {
+        "$ref": "#/schemas/SetDelegateBindingPreferenceInput"
+      },
+      "output": {
+        "type": "null"
+      },
+      "tags": [
+        "delegates"
+      ]
+    },
     "openbindings.ob.setDelegatePreference": {
       "aliases": [
         "openbindings.delegate-manager.setDelegatePreference"
       ],
-      "description": "Set or clear a delegate's selection preference (higher = more preferred; 0 is the baseline; negatives rank below it; null clears). Without an operation, sets the delegate-level default; with one, sets that operation's entry in the delegate's preference index. ob additionally accepts a binding-source format scope on an operation entry — how synthesis of one format can prefer one delegate while everything else prefers another. Preference governs the order resolveDelegate returns candidates in; routing applies OBI-T-09's selection semantics to delegates — ob's own narrowing, not a spec rule — with effective preference the per-operation value, else the delegate-level value, else 0. Returns the updated summary.",
+      "description": "Set (number) or clear (null) the explicit preference of one existing registration in one of its recorded roles. Numbers are retained exactly; an explicit zero stays a stored entry until cleared. Everything else about the registration is unchanged. Higher orders eligible external registrations within the role; equal values keep registration order. ob's native binding-specification overrides are separate and unaffected.",
       "idempotent": true,
       "input": {
         "$ref": "#/schemas/SetDelegatePreferenceInput"
       },
       "output": {
-        "$ref": "#/schemas/DelegateSummary"
+        "type": "null"
       },
       "tags": [
         "delegates"
@@ -1003,10 +1054,10 @@
       "aliases": [
         "openbindings.delegate-manager.unregisterDelegate"
       ],
-      "description": "Remove a registered delegate by its location. Idempotent: unregistering a location that is not registered succeeds.",
+      "description": "Ensure the registration is absent, removing all of its role memberships, preferences and native overrides together. An absent id succeeds. Removal stops new lookups from offering the record; it does not cancel in-flight invocations, revoke credentials or undo provider effects.",
       "idempotent": true,
       "input": {
-        "$ref": "#/schemas/DelegateLocationInput"
+        "$ref": "#/schemas/UnregisterDelegateInput"
       },
       "output": {
         "type": "null"
@@ -1112,6 +1163,24 @@
       "required": [
         "interface",
         "source"
+      ],
+      "type": "object"
+    },
+    "ApplyDelegateMigrationInput": {
+      "additionalProperties": false,
+      "properties": {
+        "confirmQuiesced": {
+          "const": true,
+          "description": "The operator's acknowledgment that every older ob process and other writer of the environment has been stopped. It is an acknowledgment, not proof.",
+          "type": "boolean"
+        },
+        "plan": {
+          "$ref": "#/schemas/DelegateMigrationPlan"
+        }
+      },
+      "required": [
+        "plan",
+        "confirmQuiesced"
       ],
       "type": "object"
     },
@@ -1901,25 +1970,8 @@
       ],
       "type": "object"
     },
-    "DelegateBindingSpecInfo": {
-      "additionalProperties": false,
-      "properties": {
-        "bindingSpec": {
-          "description": "Format token the delegate handles (e.g. grpc, openapi@3.1).",
-          "type": "string"
-        },
-        "description": {
-          "description": "Human-readable description of the format, when the delegate provides one.",
-          "type": "string"
-        }
-      },
-      "required": [
-        "bindingSpec"
-      ],
-      "type": "object"
-    },
     "DelegateCapability": {
-      "description": "One of ob's three binding-specification handling needs, derived from a minimal operation subset of published interfaces: invoke (binding-invoker), synthesize (interface-synthesizer), inspect (source-inspector plus the interface-synthesizer support query). A delegate offers whichever subsets it satisfies; operations outside a subset remain independent capabilities.",
+      "description": "One of ob's three delegation roles: invoke (Binding Invoker), synthesize (Interface Synthesizer) and inspect (Source Inspector plus the Interface Synthesizer support query). Role identifiers are local to this ob; the complete catalogue with accepted interfaces is returned by listDelegateRoles.",
       "enum": [
         "invoke",
         "synthesize",
@@ -1927,83 +1979,204 @@
       ],
       "type": "string"
     },
-    "DelegateLocationInput": {
+    "DelegateMigrationEntry": {
       "additionalProperties": false,
+      "description": "One legacy registry row and its reviewed disposition. Preview emits every row as unresolved; the operator sets convert (with the recovered interface value and explicit roles) or exclude, each with a review explanation. Archive names discarded legacy fields (JSON Pointer paths within the row) that have no safe mapping.",
       "properties": {
-        "location": {
-          "description": "Delegate location: the exec: or http(s) URL of the delegate's OpenBindings interface.",
-          "type": "string"
-        }
-      },
-      "required": [
-        "location"
-      ],
-      "type": "object"
-    },
-    "DelegateSummary": {
-      "additionalProperties": false,
-      "description": "A registered delegate: its identity, the snapshot of what it carries, ob's derived routing data, and its selection preferences.",
-      "properties": {
-        "bindingSpecPreferences": {
-          "description": "Preference overrides scoped to one (operation, format) pair — ob's extra granularity beyond the delegate-manager contract's per-operation index.",
-          "items": {
-            "$ref": "#/schemas/BindingSpecPreference"
-          },
-          "type": "array"
-        },
-        "bindingSpecs": {
-          "description": "The formats the delegate reported handling when last resolved.",
-          "items": {
-            "$ref": "#/schemas/DelegateBindingSpecInfo"
-          },
-          "type": "array"
-        },
-        "builtin": {
-          "description": "True for ob's own native handling — the self-delegate.",
-          "type": "boolean"
-        },
-        "capabilities": {
-          "description": "Which of ob's format capabilities the delegate satisfies, checked by conformance at registration.",
-          "items": {
-            "$ref": "#/schemas/DelegateCapability"
-          },
-          "type": "array"
-        },
-        "contentHash": {
-          "description": "Digest of the delegate's interface document as last resolved (sha256: over its RFC 8785 canonical form). Pins the snapshot; opaque — compare for equality, don't recompute.",
-          "type": "string"
-        },
-        "location": {
-          "description": "The reference the delegate is registered under (exec: or http(s) URL). The self-delegate's location is \"ob\".",
-          "type": "string"
-        },
-        "name": {
-          "description": "Display name: the delegate OBI's name, or one derived from its location.",
-          "type": "string"
-        },
-        "operationPreferences": {
-          "additionalProperties": {
-            "type": "number"
-          },
-          "description": "Per-operation preference overrides, keyed by operation identifier. The override replaces the delegate-level preference when resolving that operation.",
-          "type": "object"
-        },
-        "operations": {
-          "description": "Every operation identifier the delegate answers to — the keys and aliases its interface declared when last resolved. A snapshot: re-registering the location refreshes it.",
+        "archive": {
+          "description": "JSON Pointer paths of legacy fields discarded with explicit acknowledgment; they remain in the original backup.",
           "items": {
             "type": "string"
           },
           "type": "array"
         },
-        "preference": {
-          "description": "Delegate-level selection preference — the default for every operation it carries. Higher is more preferred; absent is the baseline.",
-          "type": "number"
+        "disposition": {
+          "enum": [
+            "unresolved",
+            "convert",
+            "exclude"
+          ],
+          "type": "string"
+        },
+        "index": {
+          "description": "Original row position; conversion preserves relative order.",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "interface": {
+          "$ref": "#/schemas/OpenBindingsInterface",
+          "description": "The explicitly recovered provider interface value to enroll (convert only)."
+        },
+        "original": {
+          "description": "The exact legacy row, retained for review and backup.",
+          "type": "object"
+        },
+        "providerReview": {
+          "description": "Required when the legacy provider pin is missing or no longer matches the recovered interface.",
+          "type": "string"
+        },
+        "review": {
+          "description": "Operator's explanation for the disposition (required to apply).",
+          "type": "string"
+        },
+        "roles": {
+          "$ref": "#/schemas/DelegateRoleIds",
+          "description": "Explicit roles to enroll for (convert only); suggestions are never activation."
         }
       },
       "required": [
-        "location",
-        "operations"
+        "index",
+        "original",
+        "disposition"
       ],
+      "type": "object"
+    },
+    "DelegateMigrationPlan": {
+      "additionalProperties": false,
+      "description": "A reviewable conversion plan for the retired location-based registry of one environment. It pins the exact source document (sourceHash), the target format and role catalogue, and every legacy row with a disposition. Plans may contain sensitive provider configuration; treat them as private files.",
+      "properties": {
+        "catalogue": {
+          "description": "Identity of the role catalogue and policy the plan targets.",
+          "type": "string"
+        },
+        "entries": {
+          "items": {
+            "$ref": "#/schemas/DelegateMigrationEntry"
+          },
+          "type": "array"
+        },
+        "environment": {
+          "description": "Absolute path of the selected environment directory.",
+          "type": "string"
+        },
+        "format": {
+          "const": "ob.delegate-migration@1",
+          "type": "string"
+        },
+        "sourceHash": {
+          "description": "sha256 fingerprint of the exact legacy configuration bytes the plan was previewed from; apply refuses a changed source.",
+          "type": "string"
+        },
+        "targetFormat": {
+          "const": "ob.delegate-registry@1",
+          "type": "string"
+        }
+      },
+      "required": [
+        "format",
+        "environment",
+        "sourceHash",
+        "targetFormat",
+        "catalogue",
+        "entries"
+      ],
+      "type": "object"
+    },
+    "DelegateMigrationReceipt": {
+      "additionalProperties": false,
+      "description": "The recorded result of one applied conversion: the plan identity (also the name of the private backup directory and the argument of rollback), the source fingerprint, the committed state hash and registry revision, and the registration ID created for each original row (empty for excluded rows).",
+      "properties": {
+        "commitHash": {
+          "type": "string"
+        },
+        "planHash": {
+          "type": "string"
+        },
+        "registrations": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "revision": {
+          "minimum": 1,
+          "type": "integer"
+        },
+        "sourceHash": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "planHash",
+        "sourceHash",
+        "commitHash",
+        "revision",
+        "registrations"
+      ],
+      "type": "object"
+    },
+    "DelegateRegistration": {
+      "description": "One manager-local enrollment of an interface value in one or more roles. The same interface may occur in several registrations, and several registrations may occupy the same role subject to that role's rules. Listing a registration reports recorded enrollment, not current health, trust, authorization, binding support, selection, or proof of implementation behavior.",
+      "properties": {
+        "id": {
+          "description": "Opaque manager-assigned registration identifier. Unique and not reused within this manager's scope, including after removal. This is not the interface's identity, a locator, or an authorization credential.",
+          "minLength": 1,
+          "type": "string"
+        },
+        "interface": {
+          "$ref": "#/schemas/OpenBindingsInterface",
+          "description": "The complete supplied OBI value retained for this registration. Preserve its declared values, including extensions and the schema, source, binding, and transform graphs; textual formatting is not significant. The manager must not replace it with a summary, locator, or silently refreshed remote document. Retaining this value does not freeze resources or services it references."
+        },
+        "rolePreferences": {
+          "$ref": "#/schemas/DelegateRolePreferences",
+          "description": "The complete explicit preference map for this registration. Empty when none are set. Listing must not synthesize explicit entries for roles using the implicit zero default."
+        },
+        "roles": {
+          "$ref": "#/schemas/DelegateRoleIds",
+          "description": "The complete recorded set of roles for this registration. Matching an additional role does not implicitly add it. Each role's configuration and selection remain independent; shared registration does not imply shared credentials, namespace, trust, or permission."
+        }
+      },
+      "required": [
+        "id",
+        "interface",
+        "roles",
+        "rolePreferences"
+      ],
+      "type": "object"
+    },
+    "DelegateRole": {
+      "description": "An application-defined responsibility for which interfaces may be registered. A role is local to the manager's scope; it is not an authorization role, an operation identifier, a binding specification, or a new OpenBindings Core concept.",
+      "properties": {
+        "acceptedInterfaces": {
+          "description": "Alternative expected interfaces, carried as actual OBI values, not locations or interface-name assertions. Each must be a valid unbound OBI with at least one operation and no dependency entries. All operations in one alternative are the required capability set for that alternative. A candidate must correspond to and be schema-compatible with at least one complete alternative; it may carry additional operations. Array order is not a preference. These meanings are defined by this manager interface, not by Core. Expected bindings, dependency declarations, or operation names alone must not be used as proof that a candidate can safely be invoked.",
+          "items": {
+            "$ref": "#/schemas/OpenBindingsInterface"
+          },
+          "minItems": 1,
+          "type": "array"
+        },
+        "description": {
+          "description": "The responsibility's purpose and application-owned admission and use rules. Explain the effect of enrollment, multiple registrations, preferences (including whether and when they affect selection and how ties are handled), built-in implementations, provider changes, and absence or failure of an eligible delegate. This is human-readable documentation, not an executable policy language.",
+          "minLength": 1,
+          "type": "string"
+        },
+        "id": {
+          "description": "Opaque role identifier, unique in this manager's scope. Compared exactly; no global role vocabulary or identifier format is prescribed. An existing identifier must not be reassigned to an unrelated responsibility.",
+          "minLength": 1,
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "description",
+        "acceptedInterfaces"
+      ],
+      "type": "object"
+    },
+    "DelegateRoleIds": {
+      "description": "A nonempty set of role identifiers, carried as an array. Entries must be distinct, with exact string equality; duplicates are invalid. Array order carries no meaning or priority. Each role is selected explicitly by the caller; matching an unrequested role does not enroll the interface for it.",
+      "items": {
+        "minLength": 1,
+        "type": "string"
+      },
+      "minItems": 1,
+      "type": "array"
+    },
+    "DelegateRolePreferences": {
+      "additionalProperties": {
+        "type": "number"
+      },
+      "description": "Explicit preferences keyed by exact enrolled role ID. Every key must belong to this registration's roles; an unlisted role is invalid, not an implicit enrollment. Missing entries have effective preference zero. Values are finite JSON numbers, preserved without silent rounding; larger values express stronger preference between registrations in the same role and manager scope. Equal values express no ordering. Magnitude is not a weight, probability, permission, mandatory failover order, or comparison across roles. The application's documented role policy determines how preference affects use. An explicitly supplied zero must remain an explicit entry until changed, cleared, or its role membership or registration is removed. It is distinct as stored data from an absent entry, but has the same effective preference. These are not preferences on the carried OBI's bindings.",
       "type": "object"
     },
     "DemoInput": {
@@ -2139,7 +2312,8 @@
       "additionalProperties": false,
       "properties": {
         "capability": {
-          "$ref": "#/schemas/DelegateCapability"
+          "$ref": "#/schemas/DelegateCapability",
+          "description": "Role identifier (invoke, synthesize or inspect)."
         }
       },
       "required": [
@@ -2291,6 +2465,17 @@
       "required": [
         "interface"
       ],
+      "type": "object"
+    },
+    "ListDelegatesInput": {
+      "additionalProperties": false,
+      "properties": {
+        "role": {
+          "description": "Optional exact role identifier by which to filter registrations. Omit to list all registrations.",
+          "minLength": 1,
+          "type": "string"
+        }
+      },
       "type": "object"
     },
     "ListOperationAliasesInput": {
@@ -2783,17 +2968,26 @@
     "RegisterDelegateInput": {
       "additionalProperties": false,
       "properties": {
-        "location": {
-          "description": "Delegate location: the exec: or http(s) URL of the delegate's OpenBindings interface. Also the delegate's registration identity.",
+        "id": {
+          "description": "When supplied, the existing registration to re-enroll with the supplied interface and complete role set. Omit for a new registration. Passing an unknown id fails.",
+          "minLength": 1,
           "type": "string"
         },
-        "preference": {
-          "description": "Initial delegate-level selection preference (higher = more preferred). May be changed later with setDelegatePreference.",
-          "type": "number"
+        "interface": {
+          "$ref": "#/schemas/OpenBindingsInterface",
+          "description": "The actual provider OBI value. It may come from memory, a file, synthesis, another operation, or caller-managed retrieval; no published address is required. The provider's own dependencies, if present, are not automatically satisfied by registration."
+        },
+        "rolePreferences": {
+          "$ref": "#/schemas/DelegateRolePreferences",
+          "description": "Optional complete explicit preference map, committed atomically with enrollment. An empty object clears all explicit preferences. If omitted, a new registration has none; re-enrollment preserves current preferences for retained roles only."
+        },
+        "roles": {
+          "$ref": "#/schemas/DelegateRoleIds"
         }
       },
       "required": [
-        "location"
+        "interface",
+        "roles"
       ],
       "type": "object"
     },
@@ -3049,6 +3243,25 @@
       ],
       "type": "object"
     },
+    "RollbackDelegateMigrationInput": {
+      "additionalProperties": false,
+      "properties": {
+        "confirmQuiesced": {
+          "const": true,
+          "type": "boolean"
+        },
+        "planHash": {
+          "description": "The plan identity from the migration receipt (sha256:...).",
+          "minLength": 1,
+          "type": "string"
+        }
+      },
+      "required": [
+        "planHash",
+        "confirmQuiesced"
+      ],
+      "type": "object"
+    },
     "ServerInfo": {
       "additionalProperties": false,
       "properties": {
@@ -3079,31 +3292,73 @@
       ],
       "type": "object"
     },
-    "SetDelegatePreferenceInput": {
+    "SetDelegateBindingPreferenceInput": {
       "additionalProperties": false,
+      "description": "ob-native override input: a preference that applies to one registration, one role and one exact binding-specification identifier. Overrides are stored separately from the shared rolePreferences map and cannot enroll a role.",
       "properties": {
         "bindingSpec": {
-          "description": "Optional binding-source format scope for an operation entry (requires operation) — ob's extra granularity beyond the delegate-manager contract.",
+          "description": "Exact binding-specification identifier the override applies to.",
+          "minLength": 1,
           "type": "string"
         },
-        "location": {
-          "description": "The reference the delegate is registered under.",
-          "type": "string"
-        },
-        "operation": {
-          "description": "When present, the preference applies only to resolving this operation; otherwise it is the delegate-level default.",
+        "id": {
+          "description": "Existing manager-local registration identifier.",
+          "minLength": 1,
           "type": "string"
         },
         "preference": {
-          "description": "The new preference value; higher is more preferred, 0 is the baseline, negatives rank below it. Null clears: with an operation, it removes that operation's override; without one, it resets the delegate-level preference to the baseline.",
-          "type": [
-            "number",
-            "null"
+          "description": "Finite JSON number to set as the override, or null to clear it. Omission is invalid.",
+          "oneOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
           ]
+        },
+        "role": {
+          "description": "Exact role ID already recorded on this registration.",
+          "minLength": 1,
+          "type": "string"
         }
       },
       "required": [
-        "location",
+        "id",
+        "role",
+        "bindingSpec",
+        "preference"
+      ],
+      "type": "object"
+    },
+    "SetDelegatePreferenceInput": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "description": "Existing manager-local registration identifier.",
+          "minLength": 1,
+          "type": "string"
+        },
+        "preference": {
+          "description": "Finite JSON number to set as the explicit role preference, or null to clear it. Omission is invalid; zero is a stored preference, not a clear request.",
+          "oneOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "role": {
+          "description": "Exact role ID already recorded on this registration.",
+          "minLength": 1,
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "role",
         "preference"
       ],
       "type": "object"
@@ -3687,6 +3942,20 @@
       },
       "required": [
         "interface"
+      ],
+      "type": "object"
+    },
+    "UnregisterDelegateInput": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "description": "The manager-local registration identifier to remove.",
+          "minLength": 1,
+          "type": "string"
+        }
+      },
+      "required": [
+        "id"
       ],
       "type": "object"
     },

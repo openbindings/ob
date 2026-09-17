@@ -1,6 +1,7 @@
 package app
 
 import (
+	"encoding/json"
 	"strings"
 	"testing"
 )
@@ -43,7 +44,7 @@ func TestDelegateRegistrationDoesNotAuthorizeExec(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	config.Delegates = []DelegateRecord{{Location: "exec:delegate-not-authorized", Operations: []string{}}}
+	config.LegacyDelegates = []json.RawMessage{json.RawMessage(`{"location":"exec:delegate-not-authorized","operations":[]}`)}
 	if err := SaveEnvConfig(path, config); err != nil {
 		t.Fatal(err)
 	}

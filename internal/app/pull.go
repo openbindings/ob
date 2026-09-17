@@ -146,6 +146,10 @@ type SourcePullInput struct {
 	OutputPath string   // write to a different path
 	Format     string   // output format override
 	Pure       bool     // strip all x-ob metadata from the output (publish-clean); requires OutputPath
+	// Registration is OB's native explicit selection: derive every pulled
+	// source through exactly this enrolled synthesize-role registration, with
+	// no built-in or alternate fallback. It is not part of the wire input.
+	Registration string
 }
 
 // SourcePullOutput reports what a pull changed. Each field is the set of keys
@@ -290,6 +294,7 @@ func SourcePull(input SourcePullInput) (SourcePullOutput, error) {
 	}
 
 	obiDir := filepath.Dir(input.OBIPath)
+	pullCtx := WithExplicitRegistration(context.Background(), CapSynthesize, input.Registration)
 	targetKeys, err := resolveTargetKeys(iface, input.SourceKeys)
 	if err != nil {
 		return SourcePullOutput{}, err
@@ -305,7 +310,7 @@ func SourcePull(input SourcePullInput) (SourcePullOutput, error) {
 		if rb, ok := reconstructBases(iface, key); ok {
 			oldBases = &rb
 		}
-		derived, ok, warning := reReadAndDerive(iface, key, obiDir)
+		derived, ok, warning := reReadAndDerive(pullCtx, iface, key, obiDir)
 		if warning != "" {
 			out.Warnings = append(out.Warnings, warning)
 		}
@@ -553,7 +558,7 @@ func sameContent(a, b any) bool {
 // interface, and returns the operations/bindings it now derives. ok is false
 // (with a possible warning) when the source is hand-authored (no x-ob) or
 // cannot be read or derived.
-func reReadAndDerive(iface *openbindings.Interface, key, obiDir string) (DeriveResult, bool, string) {
+func reReadAndDerive(ctx context.Context, iface *openbindings.Interface, key, obiDir string) (DeriveResult, bool, string) {
 	src := iface.Sources[key]
 	meta, err := GetSourceMeta(src)
 	if err != nil {
@@ -564,7 +569,7 @@ func reReadAndDerive(iface *openbindings.Interface, key, obiDir string) (DeriveR
 	}
 
 	if needsLiveDiscovery(src.BindingSpec, meta.Ref) {
-		ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+		ctx, cancel := context.WithTimeout(ctx, 60*time.Second)
 		derivedIface, derr := SynthesizeInterfaceFromSource(ctx, &synthesize.SynthesizeInput{
 			Sources: []synthesize.SynthesizeSource{{BindingSpec: src.BindingSpec, Location: meta.Ref}},
 		})
@@ -604,7 +609,7 @@ func reReadAndDerive(iface *openbindings.Interface, key, obiDir string) (DeriveR
 	// in-process spec cache without persisting content into the stored source.
 	deriveSrc := src
 	deriveSrc.Content = openbindings.TextContent(string(data))
-	derived, derr := DeriveFromSource(deriveSrc, key, obiDir)
+	derived, derr := deriveFromSourceContext(ctx, deriveSrc, key, obiDir)
 	if derr != nil {
 		return DeriveResult{}, false, fmt.Sprintf("source %q: derive failed: %v", key, derr)
 	}

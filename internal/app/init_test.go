@@ -1,8 +1,11 @@
 package app
 
 import (
+	"encoding/json"
 	"os"
 	"path/filepath"
+	"reflect"
+	"strings"
 	"testing"
 )
 
@@ -33,8 +36,8 @@ func TestInit(t *testing.T) {
 	}
 	// A fresh environment has an empty registry: the self-delegate is builtin,
 	// and every external delegate is an explicit, resolvable registration.
-	if len(config.Delegates) != 0 {
-		t.Errorf("expected an empty delegate registry, got %d", len(config.Delegates))
+	if len(config.LegacyDelegates) != 0 || len(config.DelegateRegistry) != 0 {
+		t.Errorf("expected an empty delegate registry, got %+v", config)
 	}
 }
 
@@ -113,15 +116,14 @@ func TestLoadSaveEnvConfig(t *testing.T) {
 	if err != nil {
 		t.Fatalf("LoadEnvConfig() failed: %v", err)
 	}
-	if len(config.Delegates) != 0 {
-		t.Errorf("expected an empty registry when no config exists, got %d", len(config.Delegates))
+	if len(config.LegacyDelegates) != 0 {
+		t.Errorf("expected an empty registry when no config exists, got %d", len(config.LegacyDelegates))
 	}
 
-	config.Delegates = append(config.Delegates, DelegateRecord{
-		Location:   "exec:my-tool",
-		Name:       "my-tool",
-		Operations: []string{"acme.tool.doThing"},
-	})
+	// A legacy row is retained byte-for-byte for explicit conversion; it is
+	// never projected through a typed record and never interpreted for routing.
+	legacy := json.RawMessage(`{"location":"exec:my-tool","name":"my-tool","operations":["acme.tool.doThing"],"preference":9007199254740993}`)
+	config.LegacyDelegates = append(config.LegacyDelegates, legacy)
 	if err := SaveEnvConfig(tmpDir, config); err != nil {
 		t.Fatalf("SaveEnvConfig() failed: %v", err)
 	}
@@ -130,10 +132,16 @@ func TestLoadSaveEnvConfig(t *testing.T) {
 	if err != nil {
 		t.Fatalf("LoadEnvConfig() failed: %v", err)
 	}
-	if len(loaded.Delegates) != 1 || loaded.Delegates[0].Location != "exec:my-tool" {
-		t.Errorf("expected the saved record to round-trip, got %+v", loaded.Delegates)
+	var want, got any
+	_ = json.Unmarshal(legacy, &want)
+	if len(loaded.LegacyDelegates) != 1 {
+		t.Fatalf("expected the legacy row to round-trip, got %+v", loaded.LegacyDelegates)
 	}
-	if !carriesOperation(loaded.Delegates[0].Operations, "acme.tool.doThing") {
-		t.Errorf("record operations should round-trip, got %v", loaded.Delegates[0].Operations)
+	_ = json.Unmarshal(loaded.LegacyDelegates[0], &got)
+	if !reflect.DeepEqual(want, got) || !strings.Contains(string(loaded.LegacyDelegates[0]), "9007199254740993") {
+		t.Errorf("legacy row changed in transit: %s", loaded.LegacyDelegates[0])
+	}
+	if _, err := readRoleState(loaded); !IsDelegateRegistryUnavailable(err) {
+		t.Errorf("legacy rows must refuse role-registry use, got %v", err)
 	}
 }

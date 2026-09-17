@@ -7,6 +7,7 @@ import (
 	"strings"
 	"time"
 
+	openbindings "github.com/openbindings/openbindings-go"
 	"github.com/openbindings/openbindings-go/synthesize"
 )
 
@@ -222,4 +223,88 @@ func consensusFormat(claims []DelegateClaim, subject string) (string, error) {
 		parts = append(parts, fmt.Sprintf("%s (via %s)", token, strings.Join(names, ", ")))
 	}
 	return "", fmt.Errorf("delegates disagree on format for %s: %s; specify the format explicitly", subject, strings.Join(parts, " vs "))
+}
+
+// DetectSourceCandidatesVia detects a source's binding specification through
+// exactly one enrolled inspect-role registration, using the admitted inspection
+// mechanism: the registration's own advertised identifiers (listBindingSpecs,
+// advisory), its authoritative support verdicts (checkBindingSpecs), and one
+// bounded inspectSource probe per supported identifier. No native probing, no
+// other registration and no fabricated token participates. A local file rides
+// as content; a URL rides as a location the provider resolves itself.
+func DetectSourceCandidatesVia(ctx context.Context, registrationID, location string) ([]DelegateClaim, error) {
+	runtime, err := explicitRoleRuntime(ctx, CapInspect, registrationID)
+	if err != nil {
+		return nil, err
+	}
+	listed, err := runtime.unary(ctx, "openbindings.source-inspector.listBindingSpecs", nil)
+	if err != nil {
+		return nil, fmt.Errorf("registration %s listBindingSpecs: %w", registrationID, err)
+	}
+	advertised, err := decodeOutput[[]openbindings.BindingSpecInfo](listed)
+	if err != nil {
+		return nil, fmt.Errorf("registration %s returned an invalid binding-specification list: %w", registrationID, err)
+	}
+	tokens := []string{}
+	seen := map[string]bool{}
+	for _, info := range *advertised {
+		if info.BindingSpec == "" || seen[info.BindingSpec] {
+			continue
+		}
+		seen[info.BindingSpec] = true
+		tokens = append(tokens, info.BindingSpec)
+	}
+	if len(tokens) == 0 {
+		return nil, fmt.Errorf("registration %s advertises no binding specifications for inspection", registrationID)
+	}
+	verdictValue, err := runtime.unary(ctx, "openbindings.interface-synthesizer.checkBindingSpecs", map[string]any{"bindingSpecs": tokens})
+	if err != nil {
+		return nil, fmt.Errorf("registration %s support assessment failed: %w", registrationID, err)
+	}
+	verdicts, err := decodeRoleSupport(verdictValue, tokens)
+	if err != nil {
+		return nil, fmt.Errorf("registration %s support assessment is malformed: %w", registrationID, err)
+	}
+	var claims []DelegateClaim
+	var data []byte
+	isURL := strings.HasPrefix(location, "http://") || strings.HasPrefix(location, "https://")
+	if !isURL {
+		if _, err := os.Stat(location); err != nil {
+			return nil, fmt.Errorf("source file not found: %s", location)
+		}
+		data, err = ReadSourceContent(location, "")
+		if err != nil {
+			return nil, fmt.Errorf("retrieve source: %w", err)
+		}
+	}
+	for _, verdict := range verdicts {
+		if !verdict.Supported {
+			continue
+		}
+		source := openbindings.Source{BindingSpec: verdict.BindingSpec}
+		if isURL {
+			source.Location = location
+		} else {
+			content, cerr := ParseContentForEmbed(data, verdict.BindingSpec)
+			if cerr != nil {
+				continue
+			}
+			source.Content = content
+		}
+		probeCtx, cancel := context.WithTimeout(ctx, probeTimeout)
+		out, ierr := runtime.unary(probeCtx, "openbindings.source-inspector.inspectSource", map[string]any{"source": source})
+		cancel()
+		if ierr != nil {
+			continue
+		}
+		inspection, cerr := decodeOutput[synthesize.SourceInspection](out)
+		if cerr != nil {
+			continue
+		}
+		claims = append(claims, DelegateClaim{DelegateName: registrationID, DelegateID: registrationID, BindingSpec: verdict.BindingSpec, OperationCount: len(inspection.Targets)})
+	}
+	if len(claims) == 0 {
+		return nil, fmt.Errorf("registration %s could not inspect the source under any of its supported binding specifications; select an exact binding specification", registrationID)
+	}
+	return claims, nil
 }

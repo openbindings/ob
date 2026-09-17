@@ -64,7 +64,7 @@ func TestServeBackend_DogfoodDocumentAuthoringViaOBI(t *testing.T) {
 	if err != nil {
 		t.Fatalf("resolve served OBI: %v", err)
 	}
-	if got, want := len(served.Operations), 50; got != want {
+	if got, want := len(served.Operations), 52; got != want {
 		t.Fatalf("served operations = %d, want %d", got, want)
 	}
 

@@ -349,18 +349,61 @@ ob conform host.json my-service.obi.json --dry-run
 
 ## Delegates
 
-Delegates extend `ob` with binding-specification handling. OB's runtime consumes
-explicit roles (`invoke`, `synthesize`, `inspect`) from retained OBI values.
-Registration is not execution authorization, and unrelated capabilities do not
-automatically become enrolled roles. Built-in handling needs no registration.
-Credentials/context remain recipient-scoped; a delegate never receives direct
-access to OB's context storage.
+Delegates extend `ob` with binding-specification handling. A delegate is an
+OpenBindings interface value enrolled for one or more of ob's roles: `invoke`
+(Binding Invoker), `synthesize` (Interface Synthesizer) and `inspect` (Source
+Inspector plus the Interface Synthesizer support query). Registration is
+candidacy under a role's documented rules, not execution authorization: it
+does not authorize a local executable, disclose credentials, or enroll roles
+that were not requested. Built-in handling needs no registration and is not
+an editable row. Credentials/context remain recipient-scoped.
 
-**Development candidate:** role-aware routing and diagnostics are implemented.
-Manager registration/preference/conversion commands are still being migrated;
-the remaining legacy mutation commands are not a setup path for the new runtime.
-Do not edit real registry state by hand. See the
-[candidate migration guide](docs/delegate-manager-migration.md).
+### Manage registrations
+
+```bash
+ob delegate roles                                   # roles and their accepted interfaces
+ob delegate register ./tool.obi.json --role invoke  # enroll a document; prints its registration ID
+ob resolve https://tools.example.com -F json | jq .interface | ob delegate register - --role synthesize --role inspect
+ob delegate list --role invoke -F json              # full retained values
+ob delegate prefer <id> 20 --role invoke            # exact number; 0 stays an explicit entry
+ob delegate prefer <id> --clear --role invoke
+ob delegate prefer <id> 10 --role invoke --binding-spec openbindings.grpc@1   # ob-native override
+ob delegate register ./tool.obi.json --id <id> --role invoke --clear-preferences  # replace, keep the ID
+ob delegate unregister <id>                         # idempotent, also for absent IDs
+```
+
+`register` takes an interface document (a file, or `-` for stdin) and retains
+it by value; a URL or `exec:` address is not a registration, fetch it first.
+Every requested role must accept the whole document: exact operation-key (or
+alias) correspondence plus directional schema compatibility for one complete
+accepted alternative. Enrolling the same document twice creates two
+registrations with different IDs; `--id` replaces an existing registration's
+complete interface and role set. `--preference role=number` entries form the
+complete explicit map, `--clear-preferences` stores `{}`, and with neither a
+fresh registration stores no explicit preferences while a replacement keeps
+entries for retained roles. Numbers are retained exactly, without rounding.
+
+Selection policy (ob's, not the shared interface's): eligible external
+registrations are those whose authoritative `checkBindingSpecs` verdict is
+`true` for the exact requested identifier and that have an executable
+binding. They are ordered by effective preference: the native binding-spec
+override for that identifier, else the role preference, else 0; ties keep
+registration order, and replacement keeps a registration's position.
+Ordinary operation invocation and raw `binding invoke` rank externals against
+the built-in handler, which wins equal-preference ties. Frame invocation
+(`ob start`), synthesis and inspection are native-first: the built-in handles
+identifiers it supports and only otherwise consults registrations. Once a
+workload starts there is no failover to another provider. A negative
+preference does not disable a registration.
+
+Limits: 1 MiB per retained interface, 256 registrations and 4 MiB of registry
+per environment. Requests beyond them are refused before any write. Mutations
+serialize on `.config.lock` in the environment with a bounded 5 s wait; the
+lock is never stolen. A rejection leaves no change; a failure reported after
+the atomic replacement is uncertain completion, so inspect `ob delegate list`
+before retrying a fresh registration (a blind retry enrolls a duplicate).
+Legacy location-based registrations are refused until converted with
+`ob delegate migrate`; see the [migration guide](docs/delegate-manager-migration.md).
 
 ### Explain routing
 
@@ -370,24 +413,34 @@ ob delegate resolve --role invoke --binding-spec openbindings.openapi-3.1@1 --pa
 ob delegate resolve --role synthesize --binding-spec example.format@1 --registration <id> -F json
 ```
 
-Ordinary operation/raw-binding invocation uses ranked selection. Frame invocation
-uses native-first; synthesis and inspection are also native-first. An explicit
-registration constraint checks only that enrolled ID, without falling back. The
-diagnostic reports role, token, path, availability and either built-in status or
-the selected registration ID. It checks live support without invoking workload.
-Unavailable is a normal result; invalid state and failed assessments are errors.
-A diagnostic does not reserve a provider for a later invocation.
+The diagnostic reports role, identifier, path, availability and either
+built-in status or the selected registration ID, using the same engine as
+actual routing. It checks live support without invoking workload; an
+unavailable result is a normal result, invalid state and failed assessments
+are errors, and it does not reserve a provider for a later invocation. The
+same diagnostic is `POST /delegates/resolve`; it is OB-native, not a shared
+Delegate Manager operation.
 
-The same diagnostic is available through authenticated `POST /delegates/resolve`
-with `role`, `bindingSpec`, and optional `path`/`registrationId`. It is OB-native,
-not an operation of the reusable Delegate Manager interface.
+### Explicit selection while authoring
+
+`ob inspect`, `ob synthesize`, `ob source pull` and (for format detection)
+`ob source add` accept `--registration <id>`: the operation's role is performed
+through exactly that enrolled registration, with no built-in or alternate
+fallback, and a registration that is absent, not enrolled for the role, unbound
+or unsupported for the identifier is refused before any provider work. Without
+it, ob applies the automatic policy above. Over HTTP the same option is the
+`registration` query parameter on `/sources/inspect`, `/interfaces/synthesize`
+and `/interfaces/sources/pull`; it is outside the shared operation bodies.
+A source's recorded `x-ob.delegate` value is provenance only and never selects
+a registration; `--delegate` is retired.
 
 ### Building a delegate
 
-`ob delegate requirements invoke` prints the exact unbound interface expected
-for that role; substitute `synthesize` or `inspect` for the other roles.
-A complete accepted interface establishes admission compatibility, not executable
-readiness. Work and support queries must have faithful callable bindings.
+`ob delegate requirements <role>` prints the accepted interface for a role
+(the same value `ob delegate roles` lists), so a prospective delegate can be
+checked with `ob compat`. A complete accepted interface establishes admission
+compatibility, not executable readiness: work and support queries must have
+faithful callable bindings.
 
 The shared binding/operation-invoker operations exchange bidirectional frame
 streams. Usage revision 1 is unary and cannot realize them. OB's native
@@ -489,11 +542,14 @@ ob source pull interface.json -o dist/interface.json --pure # publish clean
 
 | Command | Description |
 |---------|-------------|
-| `ob delegate register/unregister <location>` | Register or unregister a delegate (aliases: `add`, `remove`) |
-| `ob delegate list` | List the registry: every delegate, its operations snapshot, pin, and preferences |
+| `ob delegate roles` | List the roles ob accepts delegates for, with their accepted interfaces |
+| `ob delegate register <interface\|-> --role <role>...` | Enroll an interface document for explicit roles (alias: `add`; `--id` replaces) |
+| `ob delegate list [--role <role>]` | List registrations with their retained interfaces, roles and preferences |
+| `ob delegate prefer <id> [n] --role <role>` | Set or clear (`--clear`) a role preference; `--binding-spec` targets the native override |
+| `ob delegate unregister <id>` | Remove a registration (aliases: `remove`, `rm`; idempotent) |
 | `ob delegate resolve --role <role> --binding-spec <identifier>` | Explain role-specific routing; optionally select `--path` or constrain `--registration` |
-| `ob delegate prefer <location> [n]` | Set or clear (`--clear`) a delegate's preference, optionally per-operation |
-| `ob delegate requirements <capability>` | Print the interface a delegate must correspond to for a capability |
+| `ob delegate requirements <role>` | Print the accepted interface for a role |
+| `ob delegate migrate preview\|apply\|rollback` | Convert a legacy location-based registry deliberately (see the migration guide) |
 | `ob binding-specs` | List the binding specifications this `ob` instance can handle |
 
 ### Serve
@@ -584,7 +640,10 @@ The complete API is described by [`internal/server/openapi.yaml`](https://github
 | `/.well-known/openbindings` | GET | OBI for `ob start` itself (no auth) |
 | `/describe` | GET | Identity and version metadata |
 | `/binding-specs` | GET | Binding specifications this `ob` can handle |
-| `/delegates` | GET | Registered delegates |
+| `/delegates/roles` | GET | Roles and their accepted interfaces (`listRoles`) |
+| `/delegates` | GET | Registrations with full retained values; `?role=` filters (`listDelegates`) |
+| `/delegates/register`, `/delegates/unregister`, `/delegates/preference` | POST | Enroll or replace, remove, and set or clear a role preference (shared Delegate Manager operations) |
+| `/delegates/binding-preference`, `/delegates/resolve`, `/delegate-requirements/{role}` | POST / GET | OB-native override, routing diagnostic, and requirement projection |
 | `/environment` | GET | Environment status |
 | `/contexts` | GET | List per-host context entries |
 | `/contexts/{url}` | GET / PUT / DELETE | Inspect, set, or clear one host's context |
@@ -606,7 +665,7 @@ The complete API is described by [`internal/server/openapi.yaml`](https://github
 | `/interfaces/compare` | POST | Structural diff between two OBIs |
 | `/interfaces/merge` | POST | Merge one OBI into another |
 | `/interfaces/compatibility` | POST | Compatibility check |
-| `/delegates/*`, `/environment/initialize` | GET / POST | Inspect and manage this server's delegate environment |
+| `/environment/initialize` | POST | Initialize this server's environment |
 | `/oauth/authorize` + `/oauth/token` | GET / POST | OAuth2 Authorization Code + PKCE |
 | `/spec/{name}` | GET | Embedded spec resources |
 | `/openapi.yaml`, `/asyncapi.yaml` | GET | Self-description specs (no auth) |

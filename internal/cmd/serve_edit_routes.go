@@ -220,7 +220,8 @@ func handlePullSource(w http.ResponseWriter, r *http.Request) {
 		Interface  *openbindings.Interface `json:"interface"`
 		SourceKeys []string                `json:"sourceKeys,omitempty"`
 	}
-	if !decodeRequest(w, r, &body) || !requireInterface(w, body.Interface) {
+	query, ok := queryValue(w, r, "registration")
+	if !ok || !decodeRequest(w, r, &body) || !requireInterface(w, body.Interface) {
 		return
 	}
 	if relative := relativeTrackedSourceRefs(body.Interface, body.SourceKeys); len(relative) > 0 {
@@ -231,7 +232,7 @@ func handlePullSource(w http.ResponseWriter, r *http.Request) {
 	var out app.SourcePullOutput
 	_, err := editInterfaceFile(body.Interface, func(path string) error {
 		var err error
-		out, err = app.SourcePull(app.SourcePullInput{OBIPath: path, SourceKeys: body.SourceKeys})
+		out, err = app.SourcePull(app.SourcePullInput{OBIPath: path, SourceKeys: body.SourceKeys, Registration: query["registration"]})
 		return err
 	})
 	if err != nil {
@@ -566,17 +567,86 @@ func handleInitializeEnvironment(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, status)
 }
 
-func handleRegisterDelegate(w http.ResponseWriter, r *http.Request) {
-	var body struct {
-		Location   string   `json:"location"`
-		Preference *float64 `json:"preference,omitempty"`
+// writeDelegateStateError maps the facade's state classifications onto the
+// frozen route table and reports whether it wrote a response: registry state
+// that needs an operator (legacy rows, mixed state, changed catalogue, no
+// environment) is a 409; unreadable state and uncertain completion are 500s
+// that never disguise themselves as success or as a safe-to-retry rejection.
+// Malformed input is already a 400 invalid_request from decodeRequest; the
+// caller writes its own 400 domain code for everything else.
+func writeDelegateStateError(w http.ResponseWriter, err error) bool {
+	switch {
+	case app.IsDelegateRegistryUnavailable(err), app.IsNoEnvironment(err):
+		writeErrorJSON(w, http.StatusConflict, "registry_unavailable", err.Error())
+	case app.IsCommitUncertain(err), app.IsEnvironmentUnreadable(err):
+		writeErrorJSON(w, http.StatusInternalServerError, "environment_failed", err.Error())
+	default:
+		return false
 	}
-	if !decodeRequest(w, r, &body) {
+	return true
+}
+
+func handleDelegateRoles(w http.ResponseWriter, r *http.Request) {
+	roles, err := app.ListDelegateRoles()
+	if err != nil {
+		writeErrorJSON(w, http.StatusInternalServerError, "internal_error", err.Error())
 		return
 	}
-	result, err := app.RegisterDelegate(body.Location, body.Preference)
+	writeJSON(w, http.StatusOK, roles)
+}
+
+// queryValue reads one optional query parameter strictly: unknown names,
+// repeated names and empty values are refused rather than guessed.
+func queryValue(w http.ResponseWriter, r *http.Request, allowed ...string) (map[string]string, bool) {
+	values := map[string]string{}
+	for key, list := range r.URL.Query() {
+		known := false
+		for _, name := range allowed {
+			known = known || name == key
+		}
+		if !known {
+			writeErrorJSON(w, http.StatusBadRequest, "invalid_request", "unknown query parameter "+key)
+			return nil, false
+		}
+		if len(list) != 1 {
+			writeErrorJSON(w, http.StatusBadRequest, "invalid_request", "query parameter "+key+" must appear once")
+			return nil, false
+		}
+		if list[0] == "" {
+			writeErrorJSON(w, http.StatusBadRequest, "invalid_request", "query parameter "+key+" must not be empty; omit it instead")
+			return nil, false
+		}
+		values[key] = list[0]
+	}
+	return values, true
+}
+
+func handleDelegates(w http.ResponseWriter, r *http.Request) {
+	query, ok := queryValue(w, r, "role")
+	if !ok {
+		return
+	}
+	// The contract's listDelegates output: {"delegates": [...]} with full values.
+	output, err := app.ListDelegates(query["role"])
 	if err != nil {
-		writeErrorJSON(w, http.StatusBadRequest, "registration_failed", err.Error())
+		if !writeDelegateStateError(w, err) {
+			writeErrorJSON(w, http.StatusBadRequest, "list_failed", err.Error())
+		}
+		return
+	}
+	writeJSON(w, http.StatusOK, output)
+}
+
+func handleRegisterDelegate(w http.ResponseWriter, r *http.Request) {
+	var input app.RoleRegistrationInput
+	if !decodeRequest(w, r, &input) {
+		return
+	}
+	result, err := app.RegisterDelegate(input)
+	if err != nil {
+		if !writeDelegateStateError(w, err) {
+			writeErrorJSON(w, http.StatusBadRequest, "registration_failed", err.Error())
+		}
 		return
 	}
 	writeJSON(w, http.StatusOK, result)
@@ -584,43 +654,48 @@ func handleRegisterDelegate(w http.ResponseWriter, r *http.Request) {
 
 func handleUnregisterDelegate(w http.ResponseWriter, r *http.Request) {
 	var body struct {
-		Location string `json:"location"`
+		ID string `json:"id"`
 	}
 	if !decodeRequest(w, r, &body) {
 		return
 	}
-	if _, err := app.UnregisterDelegate(body.Location); err != nil {
-		writeErrorJSON(w, http.StatusBadRequest, "unregistration_failed", err.Error())
+	if body.ID == "" {
+		writeErrorJSON(w, http.StatusBadRequest, "invalid_request", "id is required")
+		return
+	}
+	if err := app.UnregisterDelegate(body.ID); err != nil {
+		if !writeDelegateStateError(w, err) {
+			writeErrorJSON(w, http.StatusBadRequest, "unregistration_failed", err.Error())
+		}
 		return
 	}
 	writeJSON(w, http.StatusOK, nil)
 }
 
 func handleSetDelegatePreference(w http.ResponseWriter, r *http.Request) {
-	var body struct {
-		Location    string          `json:"location"`
-		Preference  json.RawMessage `json:"preference"`
-		Operation   string          `json:"operation,omitempty"`
-		BindingSpec string          `json:"bindingSpec,omitempty"`
-	}
-	if !decodeRequest(w, r, &body) {
+	var input app.DelegatePreferenceInput
+	if !decodeRequest(w, r, &input) {
 		return
 	}
-	if body.Preference == nil {
-		writeErrorJSON(w, http.StatusBadRequest, "invalid_request", "preference is required (use null to clear it)")
+	if err := app.SetDelegatePreference(input.ID, input.Role, input.Preference); err != nil {
+		if !writeDelegateStateError(w, err) {
+			writeErrorJSON(w, http.StatusBadRequest, "preference_failed", err.Error())
+		}
 		return
 	}
-	var preference *float64
-	if err := json.Unmarshal(body.Preference, &preference); err != nil {
-		writeErrorJSON(w, http.StatusBadRequest, "invalid_request", "preference must be a number or null")
+	writeJSON(w, http.StatusOK, nil)
+}
+
+func handleSetDelegateBindingPreference(w http.ResponseWriter, r *http.Request) {
+	var input app.DelegateBindingPreferenceInput
+	if !decodeRequest(w, r, &input) {
 		return
 	}
-	result, err := app.SetDelegatePreference(app.SetDelegatePreferenceInput{
-		Location: body.Location, Preference: preference, Operation: body.Operation, BindingSpec: body.BindingSpec,
-	})
-	if err != nil {
-		writeErrorJSON(w, http.StatusBadRequest, "preference_failed", err.Error())
+	if err := app.SetDelegateBindingPreference(input.ID, input.Role, input.BindingSpec, input.Preference); err != nil {
+		if !writeDelegateStateError(w, err) {
+			writeErrorJSON(w, http.StatusBadRequest, "preference_failed", err.Error())
+		}
 		return
 	}
-	writeJSON(w, http.StatusOK, result)
+	writeJSON(w, http.StatusOK, nil)
 }

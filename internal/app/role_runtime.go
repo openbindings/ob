@@ -123,13 +123,65 @@ func (r *roleRuntime) unary(ctx context.Context, expectedKey string, input any) 
 	}
 	call := route.Invoke(ctx)
 	defer call.Cancel()
-	if err := call.Write(ctx, input); err != nil {
-		return nil, err
+	// An operation without an input (listBindingSpecs) is invoked by closing
+	// the input side; nil is never written as a value.
+	if input != nil {
+		if err := call.Write(ctx, input); err != nil {
+			return nil, err
+		}
 	}
 	if err := call.Close(); err != nil {
 		return nil, err
 	}
 	return invoke.Single(ctx, call.Outputs())
+}
+
+// explicitRoleRuntime prepares exactly one enrolled registration for a role
+// without querying support: the seam for explicit-selection flows that must
+// discover the provider's own advertised tokens first (source detection).
+// Missing enrollment, wrong role, unbound or invalid state all refuse; there
+// is no locator, display-name, native or alternate-provider fallback.
+func explicitRoleRuntime(ctx context.Context, role DelegateCapability, registrationID string) (*roleRuntime, error) {
+	if registrationID == "" {
+		return nil, errors.New("registration ID is required")
+	}
+	if _, known := capabilityOperation[role]; !known {
+		return nil, errors.New("unknown delegate role")
+	}
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	envPath, _, err := FindEnvironment()
+	if err != nil {
+		return nil, err
+	}
+	catalogue, err := defaultRoleCatalogue()
+	if err != nil {
+		return nil, err
+	}
+	registry := &roleRegistry{path: envPath, catalogue: catalogue}
+	rows, err := registry.candidates(string(role))
+	if err != nil {
+		return nil, err
+	}
+	for _, candidate := range rows {
+		if candidate.Record.ID != registrationID {
+			continue
+		}
+		runtime, err := newRoleRuntime(catalogue, candidate, delegateExecInvoker(candidate.Record.ID), nil)
+		if err != nil {
+			return nil, err
+		}
+		inspection, err := runtime.session.InspectDependency(ctx, capabilityOperation[role])
+		if err != nil {
+			return nil, err
+		}
+		if len(inspection.Providers) == 0 {
+			return nil, errors.New("requested registration has no executable realization for this role")
+		}
+		return runtime, nil
+	}
+	return nil, errors.New("requested registration is not enrolled for this role in the active environment")
 }
 
 // decodeRoleSupport requires actual boolean verdicts; decoding straight into a
@@ -156,6 +208,32 @@ func decodeRoleSupport(value any, tokens []string) ([]openbindings.BindingSpecVe
 		return nil, err
 	}
 	return verdicts, nil
+}
+
+func checkBindingSpecOperationNames(cap DelegateCapability) []string {
+	switch cap {
+	case CapInvoke:
+		return []string{"openbindings.binding-invoker.checkBindingSpecs", "checkBindingSpecs"}
+	case CapSynthesize, CapInspect:
+		return []string{"openbindings.interface-synthesizer.checkBindingSpecs", "checkBindingSpecs"}
+	default:
+		return []string{"checkBindingSpecs"}
+	}
+}
+
+// validateBindingSpecVerdicts requires one verdict per requested exact token in
+// request order; a provider answering for other tokens is malformed.
+func validateBindingSpecVerdicts(bindingSpecs []string, verdicts []openbindings.BindingSpecVerdict) error {
+	expected := openbindings.CheckBindingSpecs(bindingSpecs, nil)
+	if len(verdicts) != len(expected) {
+		return fmt.Errorf("got %d verdicts, want %d", len(verdicts), len(expected))
+	}
+	for i := range expected {
+		if verdicts[i].BindingSpec != expected[i].BindingSpec {
+			return fmt.Errorf("verdict %d names %q, want exact token %q", i, verdicts[i].BindingSpec, expected[i].BindingSpec)
+		}
+	}
+	return nil
 }
 
 // roleRoutingPath names OB policy, not an OBI or shared-interface concept.

@@ -43,6 +43,15 @@ jobs:
           # Flip ref to main once the 0.2 release line promotes.
           ref: release/0.2
           path: spec
+      # The Delegate Manager admission corpus is owned by the interfaces
+      # repository. Pin the exact selected commit (never a moving branch or a
+      # sibling-checkout fallback) so the gate certifies this corpus and no
+      # other; the absence of the corpus is a hard failure below.
+      - uses: actions/checkout@v7
+        with:
+          repository: openbindings/interfaces
+          ref: 5428293b3a60453ee9c64a314e0208288aa96fa3
+          path: interfaces
       - uses: actions/setup-go@v7
         with:
           go-version-file: ob/go.mod
@@ -62,6 +71,7 @@ jobs:
       - run: go test -race -short ./...
         env:
           OB_SPEC_CORPUS: ${{ github.workspace }}/spec/conformance
+          OB_INTERFACES_CORPUS: ${{ github.workspace }}/interfaces/conformance
           OB_CORPUS_REQUIRED: "1"
       # The exec-lane suites are -short-gated because they build and exec the
       # real binary, so the line above skips them. Wire conformance judges each
@@ -76,3 +86,20 @@ jobs:
           # The context cohort writes through the OS credential store, which a
           # headless runner has none of. Everything else in the lane runs.
           OB_TEST_NO_CREDENTIAL_STORE: "1"
+      # Delegate Manager gates: the mandatory manager, process-locking,
+      # conversion/recovery and public-surface tests are selected by name
+      # (outside -short, with race detection); the script refuses a missing
+      # corpus, a zero-match selector, a skipped mandatory test or any failure.
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '22'
+      - run: node scripts/verify-delegate-manager.mjs --evidence "$RUNNER_TEMP/delegate-manager-gates.json"
+        env:
+          OB_SPEC_CORPUS: ${{ github.workspace }}/spec/conformance
+          OB_INTERFACES_CORPUS: ${{ github.workspace }}/interfaces/conformance
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: delegate-manager-gates
+          path: ${{ runner.temp }}/delegate-manager-gates.json
+          if-no-files-found: warn

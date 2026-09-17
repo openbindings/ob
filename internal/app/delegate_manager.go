@@ -1,538 +1,398 @@
 package app
 
 import (
+	"bytes"
+	"encoding/json"
+	"errors"
 	"fmt"
+	"os"
+	"path/filepath"
+	"slices"
 	"sort"
 	"strings"
-	"sync"
 
 	openbindings "github.com/openbindings/openbindings-go"
-	"github.com/openbindings/openbindings-go/canonicaljson"
-
-	"github.com/openbindings/ob/internal/delegates"
+	"github.com/openbindings/openbindings-go/jsonvalue"
 )
 
-// This file is ob's realization of the published delegate-manager interface:
-// registerDelegate / unregisterDelegate / listDelegates / resolveDelegate /
-// setDelegatePreference, satisfied by alias from ob's own operations. The
-// contract's semantics are load-bearing here:
+// This file is OB's realization of the shared role-scoped Delegate Manager
+// interface (openbindings.delegate-manager 0.1): listRoles / registerDelegate /
+// listDelegates / setDelegatePreference / unregisterDelegate, plus the OB-native
+// binding-spec override. CLI and HTTP call exactly these functions; neither
+// surface carries its own policy. The registry, admission, locking and
+// exact-value facilities live in role_registry.go / role_admission.go.
 //
-//   - registration FAILS on an unresolvable location (a delegate is its OBI);
-//   - what is recorded is a SNAPSHOT, pinned by a content digest;
-//   - re-registering refreshes the snapshot and never the preferences
-//     (the snapshot is the delegate's data, the preferences the registrar's);
-//   - resolveDelegate matches per operation and orders by effective preference;
-//   - preference orders candidates, it never selects — ob's routing narrows
-//     further (format support) as its own application policy.
+// Registrations are values: the caller supplies an actual OBI document, never a
+// locator to dereference. Built-in handling is not a synthetic registration.
 
-// DelegateSummary is a registered delegate: its identity, the snapshot of what
-// it carries, ob's derived routing data, and its selection preferences. It is
-// the wire shape of the contract's DelegateSummary plus ob's extras.
-type DelegateSummary struct {
-	Name                 string                    `json:"name,omitempty"`
-	Location             string                    `json:"location"`
-	Operations           []string                  `json:"operations"`
-	ContentHash          string                    `json:"contentHash,omitempty"`
-	Capabilities         []DelegateCapability      `json:"capabilities,omitempty"`
-	BindingSpecs         []DelegateBindingSpecInfo `json:"bindingSpecs,omitempty"`
-	Preference           *float64                  `json:"preference,omitempty"`
-	OperationPreferences map[string]float64        `json:"operationPreferences,omitempty"`
-	// BindingSpecPreferences is ob's extra granularity beyond the delegate-manager
-	// contract's per-operation index: a preference scoped to one (operation,
-	// format) pair, overriding both the delegate-level and the per-operation
-	// value when resolving that operation for that binding-source format.
-	BindingSpecPreferences []BindingSpecPreference `json:"bindingSpecPreferences,omitempty"`
-	Builtin                bool                    `json:"builtin,omitempty"`
+// Sentinel classifications. Handlers map them to transport statuses; the CLI
+// maps them to exit codes. They never replace the specific message.
+var (
+	// errRegistryUnavailable: the environment holds legacy delegate rows, mixed
+	// legacy/new state, or a registry written under another role catalogue.
+	// Explicit operator action (conversion, review) is required; retrying the
+	// same request cannot succeed.
+	errRegistryUnavailable = errors.New("delegate registry requires explicit operator action")
+	// errEnvironmentUnreadable: the configuration or registry cannot be read
+	// or validated, or the lock could not be acquired in bounded time.
+	errEnvironmentUnreadable = errors.New("environment state is unreadable")
+	// errCommitUncertain: a failure after the atomic replacement. The caller
+	// must inspect state; anonymous registration must not be retried blindly.
+	errCommitUncertain = errors.New("environment commit may have completed; inspect state before retrying")
+	// errNoEnvironment: a mutation was requested with no initialized environment.
+	errNoEnvironment = errors.New("no environment found; run 'ob init' first")
+)
+
+func IsDelegateRegistryUnavailable(err error) bool { return errors.Is(err, errRegistryUnavailable) }
+func IsEnvironmentUnreadable(err error) bool       { return errors.Is(err, errEnvironmentUnreadable) }
+func IsCommitUncertain(err error) bool             { return errors.Is(err, errCommitUncertain) }
+func IsNoEnvironment(err error) bool               { return errors.Is(err, errNoEnvironment) }
+
+// DelegateRoleList is listRoles' output.
+type DelegateRoleList struct {
+	Roles []DelegateRole `json:"roles"`
 }
 
-func summaryFromRecord(rec DelegateRecord) DelegateSummary {
-	return DelegateSummary{
-		Name:                   rec.Name,
-		Location:               rec.Location,
-		Operations:             rec.Operations,
-		ContentHash:            rec.ContentHash,
-		Capabilities:           rec.Capabilities,
-		BindingSpecs:           rec.BindingSpecs,
-		Preference:             rec.Preference,
-		OperationPreferences:   rec.OperationPreferences,
-		BindingSpecPreferences: rec.BindingSpecPreferences,
-	}
-}
-
-// Render returns a human-readable summary (used by registration and
-// preference updates).
-func (d DelegateSummary) Render() string {
+// Render is the human view; the JSON payload is the complete catalogue.
+func (l DelegateRoleList) Render() string {
 	s := Styles
+	if len(l.Roles) == 0 {
+		return s.Dim.Render("No delegate roles are advertised.")
+	}
 	var sb strings.Builder
-	sb.WriteString(s.Header.Render("Delegate"))
-	sb.WriteString(" ")
-	sb.WriteString(s.Key.Render(d.Name))
-	if d.Location != "" && d.Location != d.Name {
-		sb.WriteString(s.Dim.Render(" " + d.Location))
-	}
-	if d.Builtin {
-		sb.WriteString(s.Dim.Render(" (builtin)"))
-	}
-
-	fmt.Fprintf(&sb, "\n  %s%d", s.Dim.Render("operations: "), len(d.Operations))
-	if d.ContentHash != "" {
-		sb.WriteString("\n  ")
-		sb.WriteString(s.Dim.Render("pinned: " + d.ContentHash))
-	}
-
-	if len(d.Capabilities) > 0 {
-		caps := make([]string, len(d.Capabilities))
-		for i, c := range d.Capabilities {
-			caps[i] = string(c)
+	sb.WriteString(s.Header.Render("Delegate roles"))
+	for _, role := range l.Roles {
+		fmt.Fprintf(&sb, "\n\n  %s", s.Key.Render(role.ID))
+		fmt.Fprintf(&sb, "\n    %s", role.Description)
+		for i, raw := range role.AcceptedInterfaces {
+			keys := "unreadable expected interface"
+			if iface, err := openbindings.ValidateDocument(raw); err == nil {
+				ops := make([]string, 0, len(iface.Operations))
+				for key := range iface.Operations {
+					ops = append(ops, key)
+				}
+				sort.Strings(ops)
+				keys = strings.Join(ops, ", ")
+			}
+			fmt.Fprintf(&sb, "\n    %s%s", s.Dim.Render(fmt.Sprintf("accepted interface %d: ", i+1)), keys)
 		}
-		sb.WriteString("\n  ")
-		sb.WriteString(s.Dim.Render("capabilities: "))
-		sb.WriteString(strings.Join(caps, ", "))
-	} else if !d.Builtin {
-		sb.WriteString("\n  ")
-		sb.WriteString(s.Warning.Render("! inert for ob — carries none of invoke/synthesize/inspect (other software may still use it)"))
-	}
-
-	if len(d.BindingSpecs) > 0 {
-		toks := make([]string, len(d.BindingSpecs))
-		for i, f := range d.BindingSpecs {
-			toks[i] = f.BindingSpec
-		}
-		sb.WriteString("\n  ")
-		sb.WriteString(s.Dim.Render("formats: "))
-		sb.WriteString(strings.Join(toks, ", "))
-	}
-	if d.Preference != nil {
-		fmt.Fprintf(&sb, "\n  %s%g", s.Dim.Render("preference: "), *d.Preference)
-	}
-	prefOps := make([]string, 0, len(d.OperationPreferences))
-	for op := range d.OperationPreferences {
-		prefOps = append(prefOps, op)
-	}
-	sort.Strings(prefOps)
-	for _, op := range prefOps {
-		fmt.Fprintf(&sb, "\n  %s%s = %g", s.Dim.Render("preference "), op, d.OperationPreferences[op])
-	}
-	specPrefs := append([]BindingSpecPreference(nil), d.BindingSpecPreferences...)
-	sort.Slice(specPrefs, func(i, j int) bool {
-		if specPrefs[i].Operation != specPrefs[j].Operation {
-			return specPrefs[i].Operation < specPrefs[j].Operation
-		}
-		return specPrefs[i].BindingSpec < specPrefs[j].BindingSpec
-	})
-	for _, fp := range specPrefs {
-		fmt.Fprintf(&sb, "\n  %s%s (%s) = %g", s.Dim.Render("preference "), fp.Operation, fp.BindingSpec, fp.Preference)
 	}
 	return sb.String()
 }
 
-// --- The self-delegate ---
-
-var (
-	selfRecordOnce sync.Once
-	selfRecord     DelegateRecord
-)
-
-// selfDelegateRecord is ob's own native handling in registry shape: location
-// "ob", every operation ob's embedded interface answers to, all three format
-// capabilities, and the native formats. It is synthesized, never persisted.
-func selfDelegateRecord() DelegateRecord {
-	selfRecordOnce.Do(func() {
-		selfRecord = DelegateRecord{
-			Location:     SelfDelegateLocation,
-			Name:         "ob",
-			Operations:   []string{},
-			Capabilities: []DelegateCapability{CapInvoke, CapSynthesize, CapInspect},
-		}
-		for _, tok := range getNativeTokens() {
-			selfRecord.BindingSpecs = append(selfRecord.BindingSpecs, DelegateBindingSpecInfo{BindingSpec: tok})
-		}
-		if iface, err := OpenBindingsInterface(); err == nil {
-			selfRecord.Operations = operationIdentifiers(&iface)
-			if hash, herr := interfaceContentHash(&iface); herr == nil {
-				selfRecord.ContentHash = hash
-			}
-		}
-	})
-	return selfRecord
+// DelegateList is listDelegates' output: complete retained records.
+type DelegateList struct {
+	Delegates []DelegateRegistration `json:"delegates"`
 }
 
-func selfDelegateSummary() DelegateSummary {
-	s := summaryFromRecord(selfDelegateRecord())
-	s.Builtin = true
-	return s
-}
-
-// --- Snapshotting ---
-
-// operationIdentifiers returns every identifier the interface's operations
-// answer to — keys and aliases, one flat sorted set (OBI-T-12's namespace).
-func operationIdentifiers(iface *openbindings.Interface) []string {
-	seen := make(map[string]struct{}, len(iface.Operations))
-	// Non-nil so the summary's operations marshals as [] — the contract's
-	// required array — even for an interface declaring no operations.
-	ids := []string{}
-	add := func(id string) {
-		if id == "" {
-			return
-		}
-		if _, ok := seen[id]; ok {
-			return
-		}
-		seen[id] = struct{}{}
-		ids = append(ids, id)
-	}
-	for key, op := range iface.Operations {
-		add(key)
-		for _, alias := range op.Aliases {
-			add(alias)
-		}
-	}
-	sort.Strings(ids)
-	return ids
-}
-
-// interfaceContentHash pins an interface document: sha256 over its RFC 8785
-// canonical form, so the pin tracks content rather than serialization
-// accidents. Opaque to consumers; compared for equality.
-func interfaceContentHash(iface *openbindings.Interface) (string, error) {
-	canonical, err := canonicaljson.Marshal(iface)
-	if err != nil {
-		return "", fmt.Errorf("canonicalize interface: %w", err)
-	}
-	return HashContent(canonical), nil
-}
-
-// snapshotDelegate resolves a location and takes the registration snapshot.
-// Resolution failure fails the snapshot: a delegate is its OBI, so an
-// unresolvable reference is nothing to register.
-func snapshotDelegate(location string) (DelegateRecord, error) {
-	iface, err := resolveDelegateInterface(location)
-	if err != nil {
-		return DelegateRecord{}, exitText(1, fmt.Sprintf(
-			"cannot resolve delegate %q: %v\na delegate is its OpenBindings interface; register it once it resolves", location, err), true)
-	}
-
-	rec := DelegateRecord{
-		Location:   location,
-		Name:       delegates.NameFromLocation(location),
-		Operations: operationIdentifiers(iface),
-	}
-	if iface.Name != "" {
-		rec.Name = iface.Name
-	}
-	if hash, err := interfaceContentHash(iface); err == nil {
-		rec.ContentHash = hash
-	}
-	rec.Capabilities = delegateCapabilities(iface)
-
-	// BindingSpecs are a best-effort probe of the delegate's listBindingSpecs; a delegate
-	// that does not answer simply snapshots with none.
-	if fmts, err := delegates.ProbeFormats(location, delegates.DefaultProbeTimeout); err == nil {
-		for _, f := range fmts {
-			rec.BindingSpecs = append(rec.BindingSpecs, DelegateBindingSpecInfo{BindingSpec: f})
-		}
-	}
-	return rec, nil
-}
-
-// normalizeDelegateLocation validates and canonicalizes a delegate location.
-func normalizeDelegateLocation(location string) (string, error) {
-	location = strings.TrimSpace(location)
-	if location == "" {
-		return "", exitText(2, "a delegate location is required", true)
-	}
-	if delegates.IsLocalPath(location) {
-		location = delegates.ExecScheme + location
-	}
-	if location != SelfDelegateLocation && !delegates.IsHTTPURL(location) && !delegates.IsExecURL(location) {
-		return "", exitText(1, "delegate location must be an exec:, http://, https://, or local path", true)
-	}
-	return location, nil
-}
-
-// --- The manager surface ---
-
-// RegisterDelegate registers (or refreshes) a delegate: resolve the location,
-// snapshot what it carries, pin the resolved document, persist. Fails when the
-// location cannot be resolved. Re-registration replaces the snapshot and
-// preserves the registrar's preferences; a non-nil preference sets the
-// delegate-level value.
-func RegisterDelegate(location string, preference *float64) (*DelegateSummary, error) {
-	location, err := normalizeDelegateLocation(location)
-	if err != nil {
-		return nil, err
-	}
-	if location == SelfDelegateLocation || isSelf(location) {
-		return nil, exitText(1, "ob is already registered as the self-delegate \"ob\"", true)
-	}
-
-	envPath, err := FindEnvPath()
-	if err != nil {
-		return nil, exitText(1, "no environment found; run 'ob init' first", true)
-	}
-
-	snapshot, err := snapshotDelegate(location)
-	if err != nil {
-		return nil, err
-	}
-
-	// The load-mutate-save cycle runs under mutateEnvConfig's optimistic-
-	// concurrency guard (internal/app/init.go): a concurrent `ob` process
-	// registering, unregistering, or re-preferring the same registry between
-	// this cycle's load and save is detected and retried against the fresh
-	// state, rather than silently lost. snapshotDelegate above is the
-	// expensive, non-idempotent part (it resolves and probes the delegate) and
-	// deliberately runs once, outside the retry loop; only the registry
-	// mutation itself — which IS safe to reapply — retries.
-	rec, err := mutateEnvConfig(envPath, func(config *EnvConfig) (DelegateRecord, error) {
-		rec := snapshot
-		if idx := findDelegateRecord(config, location); idx >= 0 {
-			// Refresh: the snapshot is the delegate's data; the preferences are
-			// the registrar's and persist untouched.
-			existing := config.Delegates[idx]
-			rec.Preference = existing.Preference
-			rec.OperationPreferences = existing.OperationPreferences
-			rec.BindingSpecPreferences = existing.BindingSpecPreferences
-			config.Delegates[idx] = rec
-		} else {
-			config.Delegates = append(config.Delegates, rec)
-		}
-		if preference != nil {
-			idx := findDelegateRecord(config, location)
-			config.Delegates[idx].Preference = preference
-			rec = config.Delegates[idx]
-		}
-		return rec, nil
-	})
-	if err != nil {
-		return nil, err
-	}
-	summary := summaryFromRecord(rec)
-	return &summary, nil
-}
-
-// UnregisterDelegate removes a registered delegate. Idempotent: unregistering
-// a location that is not registered succeeds (removed=false). The contract's
-// output is null; removed only feeds the human rendering.
-func UnregisterDelegate(location string) (removed bool, err error) {
-	location, err = normalizeDelegateLocation(location)
-	if err != nil {
-		return false, err
-	}
-	if location == SelfDelegateLocation || isSelf(location) {
-		return false, exitText(1, "the self-delegate cannot be unregistered", true)
-	}
-
-	envPath, err := FindEnvPath()
-	if err != nil {
-		return false, exitText(1, "no environment found; run 'ob init' first", true)
-	}
-
-	removed, err = mutateEnvConfig(envPath, func(config *EnvConfig) (bool, error) {
-		idx := findDelegateRecord(config, location)
-		if idx < 0 {
-			return false, errEnvConfigNoop
-		}
-		config.Delegates = append(config.Delegates[:idx], config.Delegates[idx+1:]...)
-		return true, nil
-	})
-	if err != nil {
-		return false, err
-	}
-	return removed, nil
-}
-
-// DelegateListOutput is listDelegates' output: every registered delegate, the
-// self-delegate first.
-type DelegateListOutput struct {
-	Delegates []DelegateSummary `json:"delegates"`
-}
-
-// Render returns a human-friendly representation.
-func (o DelegateListOutput) Render() string {
+// Render summarizes without becoming the machine payload.
+func (l DelegateList) Render() string {
 	s := Styles
+	if len(l.Delegates) == 0 {
+		return s.Dim.Render("No delegates are registered.")
+	}
 	var sb strings.Builder
-	sb.WriteString(s.Header.Render("Delegates:"))
-	for _, d := range o.Delegates {
+	sb.WriteString(s.Header.Render("Delegates"))
+	for _, record := range l.Delegates {
 		sb.WriteString("\n\n")
-		for _, line := range strings.Split(d.Render(), "\n") {
+		for _, line := range strings.Split(record.Render(), "\n") {
 			sb.WriteString("  " + line + "\n")
 		}
 	}
 	return strings.TrimSuffix(sb.String(), "\n")
 }
 
-// ListDelegates lists the registry from its records: the self-delegate first,
-// then registered delegates in registration order. No live resolution — a
-// summary reflects each delegate as of its last snapshot.
-func ListDelegates() DelegateListOutput {
-	out := DelegateListOutput{Delegates: []DelegateSummary{selfDelegateSummary()}}
-	for _, rec := range GetDelegateContext().Delegates {
-		out.Delegates = append(out.Delegates, summaryFromRecord(rec))
-	}
-	return out
-}
-
-// ResolveDelegateOutput is resolveDelegate's output: the operation echoed back
-// and the carriers, best first.
-type ResolveDelegateOutput struct {
-	Operation  string            `json:"operation"`
-	Candidates []DelegateSummary `json:"candidates"`
-}
-
-// Render returns a human-friendly representation.
-func (o ResolveDelegateOutput) Render() string {
+// Render is the human summary of one registration. The full value, including
+// the retained OBI, is the JSON output; the summary never stands in for it.
+func (r DelegateRegistration) Render() string {
 	s := Styles
-	if len(o.Candidates) == 0 {
-		return s.Dim.Render("No registered delegate carries ") + s.Key.Render(o.Operation)
-	}
 	var sb strings.Builder
-	sb.WriteString(s.Header.Render("Delegates carrying "))
-	sb.WriteString(s.Key.Render(o.Operation))
-	for i, d := range o.Candidates {
-		fmt.Fprintf(&sb, "\n  %d. %s", i+1, d.Name)
-		if d.Location != "" && d.Location != d.Name {
-			sb.WriteString(s.Dim.Render(" " + d.Location))
-		}
-		if d.Builtin {
-			sb.WriteString(s.Dim.Render(" (builtin)"))
-		}
+	sb.WriteString(s.Header.Render("Registration "))
+	sb.WriteString(s.Key.Render(r.ID))
+	fmt.Fprintf(&sb, "\n  %s%s", s.Dim.Render("roles: "), strings.Join(r.Roles, ", "))
+	prefs := make([]string, 0, len(r.RolePreferences))
+	for role := range r.RolePreferences {
+		prefs = append(prefs, role)
 	}
+	sort.Strings(prefs)
+	if len(prefs) == 0 {
+		fmt.Fprintf(&sb, "\n  %s%s", s.Dim.Render("explicit preferences: "), "none")
+	} else {
+		parts := make([]string, len(prefs))
+		for i, role := range prefs {
+			parts[i] = role + "=" + string(r.RolePreferences[role])
+		}
+		fmt.Fprintf(&sb, "\n  %s%s", s.Dim.Render("explicit preferences: "), strings.Join(parts, ", "))
+	}
+	name, operations := "(unnamed interface)", 0
+	if iface, err := openbindings.ValidateDocument(r.Interface); err == nil {
+		if iface.Name != "" {
+			name = iface.Name
+		}
+		operations = len(iface.Operations)
+	}
+	fmt.Fprintf(&sb, "\n  %s%s (%d operations)", s.Dim.Render("interface: "), name, operations)
 	return sb.String()
 }
 
-// ResolveDelegate resolves an operation to the registered delegates that carry
-// it — those whose snapshot answers to the operation identifier — ordered by
-// effective preference, best first; ties favor the self-delegate, then
-// registration order. It resolves candidates only: what to do with them
-// (route, aggregate, narrow) is the caller's, and an empty candidate list is
-// an answer, not an error.
-func ResolveDelegate(operation string) (*ResolveDelegateOutput, error) {
-	operation = strings.TrimSpace(operation)
-	if operation == "" {
-		return nil, usageExit("delegate resolve <operation>")
+// activeRoleRegistry binds the built-in catalogue to the active environment.
+// exists reports whether that environment has been initialized.
+func activeRoleRegistry() (registry *roleRegistry, exists bool, err error) {
+	catalogue, err := defaultRoleCatalogue()
+	if err != nil {
+		return nil, false, err
 	}
+	envPath, _, err := FindEnvironment()
+	if err != nil {
+		return nil, false, err
+	}
+	_, statErr := os.Stat(filepath.Join(envPath, EnvConfigFile))
+	return &roleRegistry{path: envPath, catalogue: catalogue}, statErr == nil, nil
+}
 
-	records := append([]DelegateRecord{selfDelegateRecord()}, GetDelegateContext().Delegates...)
-	type ranked struct {
-		summary DelegateSummary
-		pref    float64
+func requireActiveRoleRegistry() (*roleRegistry, error) {
+	registry, exists, err := activeRoleRegistry()
+	if err != nil {
+		return nil, err
 	}
-	var carriers []ranked
-	for i, rec := range records {
-		if !carriesOperation(rec.Operations, operation) {
+	if !exists {
+		return nil, errNoEnvironment
+	}
+	return registry, nil
+}
+
+// ListDelegateRoles returns the complete advertised catalogue. It needs no
+// environment and performs no registry read.
+func ListDelegateRoles() (*DelegateRoleList, error) {
+	catalogue, err := defaultRoleCatalogue()
+	if err != nil {
+		return nil, err
+	}
+	roles, err := catalogue.list()
+	if err != nil {
+		return nil, err
+	}
+	return &DelegateRoleList{Roles: roles}, nil
+}
+
+// ListDelegates lists stored registrations, optionally filtered by exact role.
+// A missing environment is an honest empty registry; legacy, mixed, corrupt or
+// unsupported state is an error, never an empty inventory.
+func ListDelegates(role string) (*DelegateList, error) {
+	registry, exists, err := activeRoleRegistry()
+	if err != nil {
+		return nil, err
+	}
+	if !exists {
+		return &DelegateList{Delegates: []DelegateRegistration{}}, nil
+	}
+	rows, err := registry.list(role)
+	if err != nil {
+		return nil, err
+	}
+	return &DelegateList{Delegates: rows}, nil
+}
+
+// RegisterDelegate enrolls or (with an ID) replaces a registration. The input's
+// interface is the retained value; omission, {} and null preferences keep their
+// distinct meanings all the way to the locked serialization point.
+func RegisterDelegate(input RoleRegistrationInput) (*DelegateRegistration, error) {
+	registry, err := requireActiveRoleRegistry()
+	if err != nil {
+		return nil, err
+	}
+	return registry.register(input)
+}
+
+// SetDelegatePreference sets (number) or clears (nil) one explicit role
+// preference of an existing registration enrolled in that exact role.
+func SetDelegatePreference(id, role string, preference *json.Number) error {
+	if id == "" || role == "" {
+		return errors.New("registration ID and role are required")
+	}
+	registry, err := requireActiveRoleRegistry()
+	if err != nil {
+		return err
+	}
+	return registry.prefer(id, role, preference)
+}
+
+// SetDelegateBindingPreference is the OB-native override keyed by registration,
+// role and exact binding-specification identifier. It never touches the shared
+// rolePreferences map and cannot enroll a role.
+func SetDelegateBindingPreference(id, role, bindingSpec string, preference *json.Number) error {
+	if id == "" || role == "" || bindingSpec == "" {
+		return errors.New("registration ID, role and exact binding specification are required")
+	}
+	registry, err := requireActiveRoleRegistry()
+	if err != nil {
+		return err
+	}
+	return registry.preferBindingSpec(id, role, bindingSpec, preference)
+}
+
+// UnregisterDelegate ensures the registration is absent. An absent ID, including
+// one in an uninitialized environment, succeeds; other records are untouched.
+func UnregisterDelegate(id string) error {
+	if id == "" {
+		return errors.New("registration ID is required")
+	}
+	registry, exists, err := activeRoleRegistry()
+	if err != nil {
+		return err
+	}
+	if !exists {
+		return nil
+	}
+	return registry.unregister(id)
+}
+
+// ValidDelegatePreference reports whether text is an exact JSON number OB can
+// retain and compare. Native surfaces parse preference text with this check;
+// no float64 conversion participates.
+func ValidDelegatePreference(value json.Number) bool { return validPreference(value) }
+
+// DelegateRegistryStatus reports the stored registration count for environment
+// summaries. Legacy/mixed/corrupt state is reported as an error with guidance.
+func delegateRegistryCount(envPath string) (int, error) {
+	config, err := LoadEnvConfig(envPath)
+	if err != nil {
+		return 0, fmt.Errorf("%w: %v", errEnvironmentUnreadable, err)
+	}
+	state, err := readRoleState(config)
+	if err != nil {
+		return 0, err
+	}
+	if state == nil {
+		return 0, nil
+	}
+	return len(state.Records), nil
+}
+
+// UnmarshalJSON keeps omission, {} and null distinct and refuses shapes that
+// would otherwise be coerced: a supplied empty ID is not absence, null roles
+// are not an empty set, and unknown fields are not ignored.
+func (in *RoleRegistrationInput) UnmarshalJSON(data []byte) error {
+	var fields map[string]json.RawMessage
+	if err := jsonvalue.Unmarshal(data, &fields); err != nil || fields == nil {
+		return errors.New("registration input must be an object")
+	}
+	var out RoleRegistrationInput
+	for key, raw := range fields {
+		switch key {
+		case "id":
+			var id string
+			if err := jsonvalue.Unmarshal(raw, &id); err != nil || id == "" {
+				return errors.New("id must be a nonempty registration identifier; omit it for a fresh enrollment")
+			}
+			out.ID = id
+		case "interface":
+			trimmed := bytes.TrimSpace(raw)
+			if len(trimmed) == 0 || trimmed[0] != '{' {
+				return errors.New("interface must be an OpenBindings interface object, not a locator")
+			}
+			out.Interface = raw
+		case "roles":
+			var roles []string
+			if err := jsonvalue.Unmarshal(raw, &roles); err != nil || roles == nil {
+				return errors.New("roles must be an array of role identifiers")
+			}
+			out.Roles = roles
+		case "rolePreferences":
+			var probe map[string]json.RawMessage
+			if err := jsonvalue.Unmarshal(raw, &probe); err != nil || probe == nil {
+				return errors.New("rolePreferences must be a numeric map, not null")
+			}
+			out.RolePreferences = raw
+		default:
+			return fmt.Errorf("unknown registration field %q", key)
+		}
+	}
+	if out.Interface == nil || out.Roles == nil {
+		return errors.New("interface and roles are required")
+	}
+	*in = out
+	return nil
+}
+
+// DelegatePreferenceInput is setDelegatePreference's wire input. A missing
+// preference key is malformed; null clears; a number sets. Nothing is rounded.
+type DelegatePreferenceInput struct {
+	ID         string
+	Role       string
+	Preference *json.Number
+}
+
+func (in *DelegatePreferenceInput) UnmarshalJSON(data []byte) error {
+	fields, err := preferenceFields(data, []string{"id", "role", "preference"})
+	if err != nil {
+		return err
+	}
+	out := DelegatePreferenceInput{ID: fields.strings["id"], Role: fields.strings["role"], Preference: fields.preference}
+	*in = out
+	return nil
+}
+
+// DelegateBindingPreferenceInput is the OB-native override's wire input.
+type DelegateBindingPreferenceInput struct {
+	ID          string
+	Role        string
+	BindingSpec string
+	Preference  *json.Number
+}
+
+func (in *DelegateBindingPreferenceInput) UnmarshalJSON(data []byte) error {
+	fields, err := preferenceFields(data, []string{"id", "role", "bindingSpec", "preference"})
+	if err != nil {
+		return err
+	}
+	*in = DelegateBindingPreferenceInput{ID: fields.strings["id"], Role: fields.strings["role"], BindingSpec: fields.strings["bindingSpec"], Preference: fields.preference}
+	return nil
+}
+
+type preferenceInputFields struct {
+	strings    map[string]string
+	preference *json.Number
+}
+
+func preferenceFields(data []byte, names []string) (preferenceInputFields, error) {
+	var raw map[string]json.RawMessage
+	if err := jsonvalue.Unmarshal(data, &raw); err != nil || raw == nil {
+		return preferenceInputFields{}, errors.New("preference input must be an object")
+	}
+	out := preferenceInputFields{strings: map[string]string{}}
+	for key, value := range raw {
+		if !slices.Contains(names, key) {
+			return preferenceInputFields{}, fmt.Errorf("unknown preference field %q", key)
+		}
+		if key == "preference" {
+			var probe any
+			if err := jsonvalue.Unmarshal(value, &probe); err != nil {
+				return preferenceInputFields{}, errors.New("preference must be a JSON number or null")
+			}
+			switch number := probe.(type) {
+			case nil:
+				out.preference = nil
+			case json.Number:
+				if !validPreference(number) {
+					return preferenceInputFields{}, errors.New("preference must be a finite JSON number OB can retain exactly")
+				}
+				out.preference = &number
+			default:
+				return preferenceInputFields{}, errors.New("preference must be a JSON number or null")
+			}
 			continue
 		}
-		s := summaryFromRecord(rec)
-		s.Builtin = i == 0
-		carriers = append(carriers, ranked{summary: s, pref: rec.effectiveOperationPreference(operation)})
+		var text string
+		if err := jsonvalue.Unmarshal(value, &text); err != nil || text == "" {
+			return preferenceInputFields{}, fmt.Errorf("%s must be a nonempty string", key)
+		}
+		out.strings[key] = text
 	}
-	// Stable sort: self was appended first and records follow registration
-	// order, so equal preferences keep self-first-then-registration ties.
-	sort.SliceStable(carriers, func(i, j int) bool { return carriers[i].pref > carriers[j].pref })
-
-	out := &ResolveDelegateOutput{Operation: operation, Candidates: []DelegateSummary{}}
-	for _, c := range carriers {
-		out.Candidates = append(out.Candidates, c.summary)
+	for _, name := range names {
+		if _, present := raw[name]; !present {
+			return preferenceInputFields{}, fmt.Errorf("%s is required (use null to clear a preference)", name)
+		}
 	}
 	return out, nil
-}
-
-func carriesOperation(operations []string, operation string) bool {
-	for _, op := range operations {
-		if op == operation {
-			return true
-		}
-	}
-	return false
-}
-
-// SetDelegatePreferenceInput configures a preference update. A nil Preference
-// clears: with an Operation it removes that entry from the index; without one
-// it resets the delegate-level value to the unset baseline. BindingSpec
-// scopes an operation entry to one binding specification (ob's extra
-// granularity).
-type SetDelegatePreferenceInput struct {
-	Location    string   `json:"location"`
-	Preference  *float64 `json:"preference"`
-	Operation   string   `json:"operation,omitempty"`
-	BindingSpec string   `json:"bindingSpec,omitempty"`
-}
-
-// SetDelegatePreference sets or clears a registered delegate's selection
-// preference. Preference orders the candidates resolveDelegate returns; which
-// candidate a caller uses stays the caller's decision. Returns the updated
-// summary.
-func SetDelegatePreference(in SetDelegatePreferenceInput) (*DelegateSummary, error) {
-	location, err := normalizeDelegateLocation(in.Location)
-	if err != nil {
-		return nil, err
-	}
-	if location == SelfDelegateLocation || isSelf(location) {
-		return nil, exitText(1, "the self-delegate sits at the baseline; prefer or bury external delegates relative to it", true)
-	}
-	if in.BindingSpec != "" && in.Operation == "" {
-		return nil, exitText(2, "a format scope requires an operation", true)
-	}
-
-	envPath, err := FindEnvPath()
-	if err != nil {
-		return nil, exitText(1, "no environment found; run 'ob init' first", true)
-	}
-
-	rec, err := mutateEnvConfig(envPath, func(config *EnvConfig) (DelegateRecord, error) {
-		idx := findDelegateRecord(config, location)
-		if idx < 0 {
-			return DelegateRecord{}, exitText(1, fmt.Sprintf("delegate %q is not registered; register it first", location), true)
-		}
-		rec := &config.Delegates[idx]
-
-		switch {
-		case in.Operation == "":
-			rec.Preference = in.Preference // nil clears to the baseline
-		case in.BindingSpec != "":
-			setFormatPreference(rec, in.Operation, in.BindingSpec, in.Preference)
-		default:
-			if in.Preference == nil {
-				delete(rec.OperationPreferences, in.Operation)
-				if len(rec.OperationPreferences) == 0 {
-					rec.OperationPreferences = nil
-				}
-			} else {
-				if rec.OperationPreferences == nil {
-					rec.OperationPreferences = map[string]float64{}
-				}
-				rec.OperationPreferences[in.Operation] = *in.Preference
-			}
-		}
-		return *rec, nil
-	})
-	if err != nil {
-		return nil, err
-	}
-	summary := summaryFromRecord(rec)
-	return &summary, nil
-}
-
-func setFormatPreference(rec *DelegateRecord, operation, format string, preference *float64) {
-	for i := range rec.BindingSpecPreferences {
-		fp := &rec.BindingSpecPreferences[i]
-		if fp.Operation == operation && fp.BindingSpec == format {
-			if preference == nil {
-				rec.BindingSpecPreferences = append(rec.BindingSpecPreferences[:i], rec.BindingSpecPreferences[i+1:]...)
-				if len(rec.BindingSpecPreferences) == 0 {
-					rec.BindingSpecPreferences = nil
-				}
-			} else {
-				fp.Preference = *preference
-			}
-			return
-		}
-	}
-	if preference != nil {
-		rec.BindingSpecPreferences = append(rec.BindingSpecPreferences, BindingSpecPreference{
-			Operation: operation, BindingSpec: format, Preference: *preference,
-		})
-	}
 }

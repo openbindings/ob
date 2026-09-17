@@ -499,11 +499,6 @@ func handleCheckBindingSpecs(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, app.CheckBindingSpecs(input.BindingSpecs))
 }
 
-func handleDelegates(w http.ResponseWriter, r *http.Request) {
-	// The contract's listDelegates output: {"delegates": [...]}.
-	writeJSON(w, http.StatusOK, app.ListDelegates())
-}
-
 // handleResolveRoleDelegate assesses live role support without invoking work.
 // A negative support verdict is a result; failed assessment remains an error.
 func handleResolveRoleDelegate(w http.ResponseWriter, r *http.Request) {
@@ -543,14 +538,14 @@ func handleSpecResource(w http.ResponseWriter, r *http.Request) {
 	w.Write(content)
 }
 
-// handleDelegateRequirements serves the interface a delegate must satisfy for a
-// capability (invoke/synthesize/inspect), so a prospective delegate can be checked
-// against a running ob. The requirement interfaces are immutable bundled
-// documents, served like spec resources.
+// handleDelegateRequirements serves the one accepted interface of a role, so a
+// prospective delegate can be checked against a running ob. It is a projection
+// of the catalogue served by GET /delegates/roles and refuses a role with more
+// than one alternative rather than picking the first.
 func handleDelegateRequirements(w http.ResponseWriter, r *http.Request) {
-	data, err := app.RequirementInterfaceJSON(app.DelegateCapability(r.PathValue("capability")))
+	data, err := app.DelegateRoleRequirementJSON(r.PathValue("capability"))
 	if err != nil {
-		writeErrorJSON(w, http.StatusNotFound, "unknown_capability", "unknown delegate capability (want invoke, synthesize, or inspect)")
+		writeErrorJSON(w, http.StatusNotFound, "unknown_capability", err.Error())
 		return
 	}
 	w.Header().Set("Content-Type", "application/vnd.openbindings+json; charset=utf-8")

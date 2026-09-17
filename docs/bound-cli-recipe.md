@@ -22,6 +22,7 @@ remain unbound in the CLI OBI; use their served streaming bindings instead.
 | `openbindings.ob.addOperation` | `ob operation add` | json | 0 (assumption) | obi-path=stdin-dash |
 | `openbindings.ob.addOperationAlias` | `ob operation alias add` | json | 0 (assumption) | obi-path=stdin-dash |
 | `openbindings.ob.addSource` | `ob source add` | json | 0 (assumption) | — |
+| `openbindings.ob.applyDelegateMigration` | `ob delegate migrate apply` | json | 0 (assumption) | plan=file |
 | `openbindings.ob.bindOperation` | `ob operation bind` | json | 0 (assumption) | obi-path=stdin-dash |
 | `openbindings.ob.checkBindingSpecs` | `ob binding-specs check` | json | 0 (assumption) | — |
 | `openbindings.ob.codegen` | `ob codegen` | json | 0 (assumption) | source=stdin-dash |
@@ -37,6 +38,7 @@ remain unbound in the CLI OBI; use their served streaming bindings instead.
 | `openbindings.ob.listBindingSpecs` | `ob binding-specs list` | json | 0 (assumption) | — |
 | `openbindings.ob.listBindings` | `ob binding list` | json | 0 (assumption) | obi-path=stdin-dash |
 | `openbindings.ob.listContexts` | `ob context list` | json | 0 (assumption) | — |
+| `openbindings.ob.listDelegateRoles` | `ob delegate roles` | json | 0 (assumption) | — |
 | `openbindings.ob.listDelegates` | `ob delegate list` | json | 0 (assumption) | — |
 | `openbindings.ob.listOperationAliases` | `ob operation alias list` | json | 0 (assumption) | obi=stdin-dash |
 | `openbindings.ob.listOperations` | `ob operation list` | json | 0 (assumption) | obi=stdin-dash |
@@ -45,9 +47,10 @@ remain unbound in the CLI OBI; use their served streaming bindings instead.
 | `openbindings.ob.newInterface` | `ob new` | json | 0 (assumption) | — |
 | `openbindings.ob.prepareBinding` | `ob binding prepare` | json | 0 (assumption) | — |
 | `openbindings.ob.prepareOperation` | `ob operation prepare` | json | 0 (assumption) | obi=stdin-dash |
+| `openbindings.ob.previewDelegateMigration` | `ob delegate migrate preview` | json | 0 (assumption) | — |
 | `openbindings.ob.pullSource` | `ob source pull` | json | 0 (assumption) | obi-path=file |
 | `openbindings.ob.purifyInterface` | `ob purify` | json | 0 (assumption) | obi-path=stdin-dash |
-| `openbindings.ob.registerDelegate` | `ob delegate register` | json | 0 (assumption) | — |
+| `openbindings.ob.registerDelegate` | `ob delegate register` | json | 0 (assumption) | interface=stdin-dash |
 | `openbindings.ob.removeContext` | `ob context remove` | json | 0 (assumption) | — |
 | `openbindings.ob.removeOperation` | `ob operation remove` | json | 0 (assumption) | obi-path=stdin-dash |
 | `openbindings.ob.removeOperationAlias` | `ob operation alias remove` | json | 0 (assumption) | obi-path=stdin-dash |
@@ -58,7 +61,9 @@ remain unbound in the CLI OBI; use their served streaming bindings instead.
 | `openbindings.ob.reportInterfaceStatus` | `ob status` | json | 0 (assumption) | obi-path=stdin-dash |
 | `openbindings.ob.resolveInterface` | `ob resolve` | json | 0 (assumption) | — |
 | `openbindings.ob.resolveRoleDelegate` | `ob delegate resolve` | json | 0 (assumption) | — |
+| `openbindings.ob.rollbackDelegateMigration` | `ob delegate migrate rollback` | json | 0 (assumption) | — |
 | `openbindings.ob.setContext` | `ob context set` | json | 0 (assumption) | value=stdin-dash |
+| `openbindings.ob.setDelegateBindingPreference` | `ob delegate prefer` | json | 0 (assumption) | — |
 | `openbindings.ob.setDelegatePreference` | `ob delegate prefer` | json | 0 (assumption) | — |
 | `openbindings.ob.setMetadata` | `ob meta set` | json | 0 (assumption) | obi-path=stdin-dash |
 | `openbindings.ob.setOperation` | `ob operation set` | json | 0 (assumption) | obi-path=stdin-dash |

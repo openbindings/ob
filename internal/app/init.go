@@ -17,9 +17,11 @@ type EnvConfig struct {
 	DelegateRegistry json.RawMessage            `json:"delegateRegistry,omitempty"`
 	Extra            map[string]json.RawMessage `json:"-"`
 	loaded           *envConfigFingerprint
-	// Delegates is the delegate registry: one record per registered delegate,
-	// in registration order. The self-delegate is builtin, never persisted.
-	Delegates []DelegateRecord `json:"delegates,omitempty"`
+	// LegacyDelegates holds the retired location-based registry rows exactly
+	// as written. They are never interpreted for routing: their presence makes
+	// the environment refuse role-registry use until explicit conversion
+	// (`ob delegate migrate`), which reads the original bytes itself.
+	LegacyDelegates []json.RawMessage `json:"delegates,omitempty"`
 
 	// AuthorizedExec is the USAGE-P-02 authorization list: exec addresses
 	// (exact strings, e.g. "exec:mytool usage") the operator has explicitly
@@ -172,10 +174,12 @@ func GetEnvironmentStatus() (*EnvironmentStatus, error) {
 		return nil, err
 	}
 
-	config, _ := LoadEnvConfig(envPath)
 	delegateCount := 0
-	if config != nil {
-		delegateCount = len(config.Delegates)
+	if _, statErr := os.Stat(filepath.Join(envPath, EnvConfigFile)); statErr == nil {
+		delegateCount, err = delegateRegistryCount(envPath)
+		if err != nil {
+			return nil, fmt.Errorf("delegate registry: %w", err)
+		}
 	}
 
 	contextCount := 0

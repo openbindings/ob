@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"context"
 	"fmt"
 	"github.com/openbindings/openbindings-go/jsonvalue"
 	"io"
@@ -12,11 +13,12 @@ import (
 
 func newSynthesizeCmd() *cobra.Command {
 	var (
-		name        string
-		version     string
-		description string
-		obVersion   string
-		inputJSON   string
+		name         string
+		version      string
+		description  string
+		obVersion    string
+		inputJSON    string
+		registration string
 	)
 
 	cmd := &cobra.Command{
@@ -52,6 +54,10 @@ support.
 Machine callers pass the operation's wire input wholesale instead:
 --input takes a SynthesizeInterfaceInput as a JSON string (exclusive with
 source arguments and metadata flags; formats must be explicit).
+
+--registration <id> synthesizes every source through exactly that enrolled
+synthesize-role registration (see 'ob delegate list'), with no built-in or
+alternate provider fallback; formats must then be explicit.
 
 Examples:
   ob synthesize openapi.json -o api.obi.json
@@ -115,6 +121,9 @@ Examples:
 						}
 					}
 					if src.BindingSpec == "" {
+						if registration != "" {
+							return app.ExitResult{Code: 2, Message: fmt.Sprintf("source %q: --registration requires an explicit binding specification (format:path)", s), ToStderr: true}
+						}
 						detected, derr := app.DetectSourceFormat(src.Location)
 						if derr != nil {
 							return app.ExitResult{Code: 2, Message: derr.Error(), ToStderr: true}
@@ -125,7 +134,18 @@ Examples:
 				}
 			}
 
-			iface, err := app.SynthesizeInterface(input)
+			if cmd.Flags().Changed("registration") && registration == "" {
+				return app.ExitResult{Code: 2, Message: "--registration must name an enrolled registration ID", ToStderr: true}
+			}
+			if registration != "" {
+				for _, src := range input.Sources {
+					if src.BindingSpec == "" {
+						return app.ExitResult{Code: 2, Message: "--registration requires an explicit binding specification on every source", ToStderr: true}
+					}
+				}
+			}
+			ctx := app.WithExplicitRegistration(context.Background(), app.CapSynthesize, registration)
+			iface, err := app.SynthesizeInterfaceWithSelection(ctx, input)
 			if err != nil {
 				return app.ExitResult{Code: 1, Message: fmt.Sprintf("synthesize interface: %v", err), ToStderr: true}
 			}
@@ -147,6 +167,7 @@ Examples:
 	cmd.Flags().StringVar(&description, "description", "", "interface description")
 	cmd.Flags().StringVar(&obVersion, "spec-version", "", "target OpenBindings spec version (default: latest tested)")
 	cmd.Flags().StringVar(&inputJSON, "input", "", "SynthesizeInterfaceInput as a JSON string (machine lane)")
+	cmd.Flags().StringVar(&registration, "registration", "", "synthesize through exactly this enrolled synthesize-role registration (no fallback)")
 
 	return cmd
 }

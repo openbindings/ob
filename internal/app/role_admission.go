@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"sort"
+	"sync"
 
 	openbindings "github.com/openbindings/openbindings-go"
 	"github.com/openbindings/openbindings-go/compare"
@@ -186,7 +187,12 @@ func exactRoleCorrespondence(expected, provider *openbindings.Interface) (map[st
 	return correspondence, nil
 }
 
-func defaultRoleCatalogue() (*roleCatalogue, error) {
+// defaultRoleCatalogue is OB's built-in catalogue. It derives from embedded
+// requirement documents and a policy constant, so it is computed once per
+// process; every lookup still reads a fresh registry snapshot.
+var defaultRoleCatalogue = sync.OnceValues(buildDefaultRoleCatalogue)
+
+func buildDefaultRoleCatalogue() (*roleCatalogue, error) {
 	roles := make([]DelegateRole, 0, len(DelegateCapabilities))
 	for _, capability := range DelegateCapabilities {
 		expected, err := RequirementInterface(capability)

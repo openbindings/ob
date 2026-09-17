@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"io"
 	"strings"
 	"sync"
 	"testing"
@@ -34,10 +35,11 @@ func (r *roleTestInvoker) InvokeBinding(ctx context.Context, args *invoke.Bindin
 	call := invoke.NewInvocationImpl[any, any](ctx)
 	go func() {
 		value, err := call.ReadInput(ctx)
-		if err != nil {
+		if err != nil && !errors.Is(err, io.EOF) {
 			call.FireError(invoke.AsInvocationError(err))
 			return
 		}
+		// An input-less operation (listBindingSpecs) closes without writing.
 		r.mu.Lock()
 		r.calls = append(r.calls, args.Selector)
 		r.inputs = append(r.inputs, value)

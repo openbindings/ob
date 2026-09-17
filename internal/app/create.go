@@ -255,6 +255,13 @@ func DeriveSourceKey(src SynthesizeInterfaceSource, index int) string {
 
 // SynthesizeInterface creates an OpenBindings interface from the given input.
 func SynthesizeInterface(input SynthesizeInterfaceInput) (*openbindings.Interface, error) {
+	return SynthesizeInterfaceWithSelection(context.Background(), input)
+}
+
+// SynthesizeInterfaceWithSelection is SynthesizeInterface with a caller context,
+// through which an OB-native explicit registration (WithExplicitRegistration)
+// constrains the synthesize role. The shared wire input carries no such option.
+func SynthesizeInterfaceWithSelection(ctx context.Context, input SynthesizeInterfaceInput) (*openbindings.Interface, error) {
 	targetVersion := input.OpenBindingsVersion
 	if targetVersion == "" {
 		targetVersion = openbindings.MaxTestedVersion
@@ -274,7 +281,7 @@ func SynthesizeInterface(input SynthesizeInterfaceInput) (*openbindings.Interfac
 	}
 
 	for i, src := range input.Sources {
-		if err := processSource(&iface, src, i); err != nil {
+		if err := processSource(ctx, &iface, src, i); err != nil {
 			return nil, fmt.Errorf("source %s (%s): %w", src.Location, src.BindingSpec, err)
 		}
 	}
@@ -306,10 +313,10 @@ func printSynthesizerWarning(w synthesize.SynthesizerWarning) {
 // processSource processes a single source and adds its operations/bindings to the interface.
 // It uses the OperationInvoker to dispatch format-specific conversion, then applies
 // format-agnostic merge logic.
-func processSource(iface *openbindings.Interface, src SynthesizeInterfaceSource, index int) error {
+func processSource(ctx context.Context, iface *openbindings.Interface, src SynthesizeInterfaceSource, index int) error {
 	sourceKey := DeriveSourceKey(src, index)
 
-	generated, err := SynthesizeInterfaceFromSource(context.Background(), &synthesize.SynthesizeInput{
+	generated, err := SynthesizeInterfaceFromSource(ctx, &synthesize.SynthesizeInput{
 		Sources: []synthesize.SynthesizeSource{
 			{
 				BindingSpec: src.BindingSpec,

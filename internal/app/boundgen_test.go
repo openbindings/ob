@@ -9,6 +9,7 @@ import (
 
 	openbindings "github.com/openbindings/openbindings-go"
 	"github.com/openbindings/openbindings-go/formats/usage"
+	"github.com/openbindings/openbindings-go/jsonvalue"
 )
 
 // TestBoundCLIConformsToContract is the drift guard: the committed bound CLI
@@ -336,21 +337,67 @@ func TestGenerateBoundCLI_AttachesWireInputTransforms(t *testing.T) {
 	if m, ok := out.(map[string]any); !ok || m["binding-spec"] != "openbindings.usage@1" || m["format"] != "json" || m["role"] != "invoke" || m["registration"] != "reg-example" || m["path"] != "explicit" || len(m) != 5 {
 		t.Errorf("resolveRoleDelegate: incorrect selector adaptation: %#v", out)
 	}
-	// setDelegatePreference: format scopes to --source-format; other fields
-	// pass through untouched.
+	// setDelegatePreference: the shared operation never emits --binding-spec;
+	// exact number text rides --preference, null becomes --clear.
 	b = bound.Bindings["openbindings.ob.setDelegatePreference.usage"]
 	if b.InputTransform == nil {
 		t.Fatal("setDelegatePreference: expected an adaptation transform")
 	}
-	out, terr = ApplyTransform(context.Background(), bound.Transforms, b.InputTransform, map[string]any{
-		"location": "exec:x", "preference": 5, "operation": "op.key", "bindingSpec": "openbindings.grpc@1",
-	})
+	var prefInput map[string]any
+	_ = jsonvalue.Unmarshal([]byte(`{"id": "dlg_1", "role": "invoke", "preference": 9007199254740993}`), &prefInput)
+	out, terr = ApplyTransform(context.Background(), bound.Transforms, b.InputTransform, prefInput)
 	if terr != nil {
 		t.Fatalf("setDelegatePreference: transform failed: %v", terr)
 	}
-	if m, ok := out.(map[string]any); !ok || m["binding-spec"] != "openbindings.grpc@1" || m["location"] != "exec:x" ||
-		m["operation"] != "op.key" || m["preference"] != "5" || m["format"] != "json" {
+	if m, ok := out.(map[string]any); !ok || m["id"] != "dlg_1" || m["role"] != "invoke" || m["preference"] != "9007199254740993" || m["format"] != "json" || len(m) != 4 {
 		t.Errorf("setDelegatePreference: unexpected adaptation output %#v", out)
+	}
+	out, terr = ApplyTransform(context.Background(), bound.Transforms, b.InputTransform, map[string]any{"id": "dlg_1", "role": "invoke", "preference": nil})
+	if terr != nil {
+		t.Fatalf("setDelegatePreference: null transform failed: %v", terr)
+	}
+	if m, ok := out.(map[string]any); !ok || m["clear"] != true || m["preference"] != nil || len(m) != 4 {
+		t.Errorf("setDelegatePreference: null must become --clear, got %#v", out)
+	}
+	// setDelegateBindingPreference: the native override always names the token.
+	b = bound.Bindings["openbindings.ob.setDelegateBindingPreference.usage"]
+	out, terr = ApplyTransform(context.Background(), bound.Transforms, b.InputTransform, map[string]any{"id": "dlg_1", "role": "invoke", "bindingSpec": "openbindings.grpc@1", "preference": nil})
+	if terr != nil {
+		t.Fatalf("setDelegateBindingPreference: transform failed: %v", terr)
+	}
+	if m, ok := out.(map[string]any); !ok || m["binding-spec"] != "openbindings.grpc@1" || m["clear"] != true || len(m) != 5 {
+		t.Errorf("setDelegateBindingPreference: unexpected adaptation output %#v", out)
+	}
+	// registerDelegate: the interface value is stringified for the stdin
+	// route, roles become repeated --role, and the preference map keeps its
+	// three meanings: omitted → nothing, {} → --clear-preferences, entries →
+	// repeated role=exact-number tokens.
+	b = bound.Bindings["openbindings.ob.registerDelegate.usage"]
+	var registerInput map[string]any
+	_ = jsonvalue.Unmarshal([]byte(`{"interface": {"openbindings": "0.2.0", "n": 9007199254740993}, "roles": ["invoke", "inspect"], "rolePreferences": {"invoke": 1e400, "inspect": 0}}`), &registerInput)
+	out, terr = ApplyTransform(context.Background(), bound.Transforms, b.InputTransform, registerInput)
+	if terr != nil {
+		t.Fatalf("registerDelegate: transform failed: %v", terr)
+	}
+	m, _ := out.(map[string]any)
+	doc, _ := m["interface"].(string)
+	if !strings.Contains(doc, "9007199254740993") || m["format"] != "json" || m["id"] != nil {
+		t.Errorf("registerDelegate: unexpected adaptation output %#v", out)
+	}
+	if roles, _ := m["role"].([]any); len(roles) != 2 {
+		t.Errorf("registerDelegate: roles not repeated: %#v", m["role"])
+	}
+	prefs, _ := m["preference"].([]any)
+	if len(prefs) != 2 || !(prefs[0] == "inspect=0" || prefs[1] == "inspect=0") || !(prefs[0] == "invoke=1e+400" || prefs[1] == "invoke=1e+400") {
+		t.Errorf("registerDelegate: preferences lost exactness or order: %#v", m["preference"])
+	}
+	out, _ = ApplyTransform(context.Background(), bound.Transforms, b.InputTransform, map[string]any{"interface": map[string]any{"openbindings": "0.2.0"}, "roles": []any{"invoke"}, "rolePreferences": map[string]any{}})
+	if m, _ := out.(map[string]any); m["clear-preferences"] != true || m["preference"] != nil {
+		t.Errorf("registerDelegate: {} must become --clear-preferences, got %#v", out)
+	}
+	out, _ = ApplyTransform(context.Background(), bound.Transforms, b.InputTransform, map[string]any{"id": "dlg_1", "interface": map[string]any{"openbindings": "0.2.0"}, "roles": []any{"invoke"}})
+	if m, _ := out.(map[string]any); m["clear-preferences"] != nil || m["preference"] != nil || m["id"] != "dlg_1" {
+		t.Errorf("registerDelegate: omission must emit no preference flags, got %#v", out)
 	}
 	// getContext: the wire key rides the CLI's natural <url> argument.
 	b = bound.Bindings["openbindings.ob.getContext.usage"]

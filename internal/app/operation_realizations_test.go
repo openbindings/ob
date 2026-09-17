@@ -158,19 +158,19 @@ func TestOperationRealizationMatrix(t *testing.T) {
 		}
 	}
 
-	if got, want := len(matrix), 53; got != want {
+	if got, want := len(matrix), 58; got != want {
 		t.Errorf("contract operation count = %d, want %d", got, want)
 	}
 	if got, want := len(CommandByShort), len(matrix); got != want {
 		t.Errorf("CLI realization count = %d, want %d", got, want)
 	}
-	if got, want := len(ServeHTTPRoutes()), 48; got != want {
+	if got, want := len(ServeHTTPRoutes()), 50; got != want {
 		t.Errorf("HTTP realization count = %d, want %d", got, want)
 	}
 	if got, want := len(ServeStreamRoutes()), 2; got != want {
 		t.Errorf("stream realization count = %d, want %d", got, want)
 	}
-	if got, want := len(LocalOnlyOperations()), 3; got != want {
+	if got, want := len(LocalOnlyOperations()), 6; got != want {
 		t.Errorf("local-only realization count = %d, want %d", got, want)
 	}
 }

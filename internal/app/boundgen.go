@@ -22,59 +22,75 @@ import (
 // usage.kdl conformance test (internal/cmd) cross-checks this table against
 // the kdl tree and the contract.
 var CommandByShort = map[string]string{
-	"addOperation":             "operation add",
-	"addOperationAlias":        "operation alias add",
-	"addSource":                "source add",
-	"bindOperation":            "operation bind",
-	"checkBindingSpecs":        "binding-specs check",
-	"codegen":                  "codegen",
-	"compareInterfaces":        "diff",
-	"conform":                  "conform",
-	"demo":                     "demo",
-	"describe":                 "describe",
-	"detachOperation":          "operation detach",
-	"getContext":               "context get",
-	"getDelegateRequirements":  "delegate requirements",
-	"initializeEnvironment":    "init",
-	"inspectSource":            "inspect",
-	"invokeBinding":            "binding invoke",
-	"invokeOperation":          "operation invoke",
-	"listContexts":             "context list",
-	"listDelegates":            "delegate list",
-	"listBindingSpecs":         "binding-specs list",
-	"listBindings":             "binding list",
-	"listOperationAliases":     "operation alias list",
-	"listOperations":           "operation list",
-	"listSources":              "source list",
-	"mergeInterfaces":          "merge",
-	"newInterface":             "new",
-	"prepareBinding":           "binding prepare",
-	"prepareOperation":         "operation prepare",
-	"pullSource":               "source pull",
-	"purifyInterface":          "purify",
-	"registerDelegate":         "delegate register",
-	"removeContext":            "context remove",
-	"removeOperation":          "operation remove",
-	"removeOperationAlias":     "operation alias remove",
-	"removeSource":             "source remove",
-	"renameOperation":          "operation rename",
-	"reportCompatibility":      "compat",
-	"reportEnvironmentStatus":  "environment",
-	"reportInterfaceStatus":    "status",
-	"resolveRoleDelegate":      "delegate resolve",
-	"resolveInterface":         "resolve",
-	"setContext":               "context set",
-	"setDelegatePreference":    "delegate prefer",
-	"setMetadata":              "meta set",
-	"setOperation":             "operation set",
-	"setOperationCodegenName":  "operation codegen-name",
-	"setOperationOutputSchema": "operation output-schema",
-	"startMCPServer":           "mcp",
-	"startServer":              "start",
-	"synthesizeInterface":      "synthesize",
-	"unbindOperation":          "operation unbind",
-	"unregisterDelegate":       "delegate unregister",
-	"validateInterface":        "validate",
+	"addOperation":                 "operation add",
+	"addOperationAlias":            "operation alias add",
+	"addSource":                    "source add",
+	"applyDelegateMigration":       "delegate migrate apply",
+	"bindOperation":                "operation bind",
+	"checkBindingSpecs":            "binding-specs check",
+	"codegen":                      "codegen",
+	"compareInterfaces":            "diff",
+	"conform":                      "conform",
+	"demo":                         "demo",
+	"describe":                     "describe",
+	"detachOperation":              "operation detach",
+	"getContext":                   "context get",
+	"getDelegateRequirements":      "delegate requirements",
+	"initializeEnvironment":        "init",
+	"inspectSource":                "inspect",
+	"invokeBinding":                "binding invoke",
+	"invokeOperation":              "operation invoke",
+	"listContexts":                 "context list",
+	"listDelegateRoles":            "delegate roles",
+	"listDelegates":                "delegate list",
+	"listBindingSpecs":             "binding-specs list",
+	"listBindings":                 "binding list",
+	"listOperationAliases":         "operation alias list",
+	"listOperations":               "operation list",
+	"listSources":                  "source list",
+	"mergeInterfaces":              "merge",
+	"newInterface":                 "new",
+	"prepareBinding":               "binding prepare",
+	"prepareOperation":             "operation prepare",
+	"previewDelegateMigration":     "delegate migrate preview",
+	"pullSource":                   "source pull",
+	"purifyInterface":              "purify",
+	"registerDelegate":             "delegate register",
+	"removeContext":                "context remove",
+	"removeOperation":              "operation remove",
+	"removeOperationAlias":         "operation alias remove",
+	"removeSource":                 "source remove",
+	"renameOperation":              "operation rename",
+	"reportCompatibility":          "compat",
+	"reportEnvironmentStatus":      "environment",
+	"reportInterfaceStatus":        "status",
+	"resolveRoleDelegate":          "delegate resolve",
+	"resolveInterface":             "resolve",
+	"rollbackDelegateMigration":    "delegate migrate rollback",
+	"setContext":                   "context set",
+	"setDelegateBindingPreference": "delegate prefer",
+	"setDelegatePreference":        "delegate prefer",
+	"setMetadata":                  "meta set",
+	"setOperation":                 "operation set",
+	"setOperationCodegenName":      "operation codegen-name",
+	"setOperationOutputSchema":     "operation output-schema",
+	"startMCPServer":               "mcp",
+	"startServer":                  "start",
+	"synthesizeInterface":          "synthesize",
+	"unbindOperation":              "operation unbind",
+	"unregisterDelegate":           "delegate unregister",
+	"validateInterface":            "validate",
+}
+
+// SharedCLICommands names the commands that realize more than one contract
+// operation, each through its own binding transform. Every other command
+// realizes exactly one operation; the usage.kdl conformance check refuses
+// accidental duplicates outside this table. `delegate prefer` realizes the
+// shared setDelegatePreference (never emits --binding-spec) and the OB-native
+// setDelegateBindingPreference (always emits --binding-spec): one natural CLI
+// command, two portable operations, adaptation in the bindings.
+var SharedCLICommands = map[string][]string{
+	"delegate prefer": {"setDelegatePreference", "setDelegateBindingPreference"},
 }
 
 // WireInputByShort names the machine-natured commands whose whole wire input
@@ -164,13 +180,23 @@ func GenerateBoundCLI(contractPath, usagePath string) (*openbindings.Interface, 
 	// are spec-level and stay on the OBI entry; transport mechanics
 	// (routing, decode, classify) are the hook table's.
 	adaptationByShort := map[string]string{
-		"resolveRoleDelegate": `{"role": $$.role, "binding-spec": $$.bindingSpec, "path": $$.path, "registration": $$.registrationId, "format": "json"}`,
-		// setDelegatePreference: wire `bindingSpec` → --binding-spec, same shadow.
-		"setDelegatePreference": `$merge([$sift($$, function($v, $k) { $k != "bindingSpec" and $k != "preference" }), $exists($$.bindingSpec) ? {"binding-spec": $$.bindingSpec} : {}, $exists($$.preference) ? {"preference": $string($$.preference)} : {}, {"format": "json"}])`,
-		// registerDelegate: the operation models preference as a number; the
-		// CLI artifact declares one value-bearing token and leaves its encoding
-		// open, so the binding explicitly elects the decimal token.
-		"registerDelegate": `$merge([$sift($$, function($v, $k) { $k != "preference" }), $exists($$.preference) ? {"preference": $string($$.preference)} : {}, {"format": "json"}])`,
+		"resolveRoleDelegate":     `{"role": $$.role, "binding-spec": $$.bindingSpec, "path": $$.path, "registration": $$.registrationId, "format": "json"}`,
+		"getDelegateRequirements": `{"role": $$.capability}`,
+		// Delegate Manager realizations. Preferences are exact JSON numbers:
+		// $string keeps their text (9007199254740993, 1e400) so the CLI parses
+		// them losslessly; null clears via --clear. The interface value rides
+		// stdin (routesByShort), never a locator or transform-side file I/O.
+		// The complete explicit map becomes repeated --preference role=number
+		// tokens; an empty map becomes --clear-preferences; omission emits nothing.
+		"registerDelegate":             `$merge([{"interface": $string($$.interface), "role": $$.roles, "id": $$.id, "format": "json"}, $exists($$.rolePreferences) ? ($count($keys($$.rolePreferences)) = 0 ? {"clear-preferences": true} : {"preference": $each($$.rolePreferences, function($v, $k) { $k & "=" & $string($v) })}) : {}])`,
+		"listDelegates":                `$merge([$type($$) = "object" ? {"role": $$.role} : {}, {"format": "json"}])`,
+		"setDelegatePreference":        `$merge([{"id": $$.id, "role": $$.role, "format": "json"}, $type($$.preference) = "null" ? {"clear": true} : {"preference": $string($$.preference)}])`,
+		"setDelegateBindingPreference": `$merge([{"id": $$.id, "role": $$.role, "binding-spec": $$.bindingSpec, "format": "json"}, $type($$.preference) = "null" ? {"clear": true} : {"preference": $string($$.preference)}])`,
+		"unregisterDelegate":           `{"id": $$.id, "format": "json"}`,
+		// Conversion facility: the reviewed plan is a document, so it rides a
+		// temp file (routesByShort); the acknowledgment is a bare flag.
+		"applyDelegateMigration":    `{"plan": $string($$.plan), "confirm-quiesced": $$.confirmQuiesced, "format": "json"}`,
+		"rollbackDelegateMigration": `{"plan-hash": $$.planHash, "confirm-quiesced": $$.confirmQuiesced, "format": "json"}`,
 		// getContext/removeContext: the wire key is the CLI's <url> argument.
 		"getContext":    `{"url": $$.key, "format": "json"}`,
 		"removeContext": `{"url": $$.key, "format": "json"}`,
@@ -561,6 +587,12 @@ var routesByShort = map[string]map[string]string{
 	"mergeInterfaces": {"target": usage.RouteFile, "source": usage.RouteFile},
 	// setContext: the Context value (credentials) rides stdin, never argv.
 	"setContext": {"value": usage.RouteStdinDash},
+	// registerDelegate: the interface VALUE rides stdin as the `-` document;
+	// no URL is fetched and no transform reads a file.
+	"registerDelegate": {"interface": usage.RouteStdinDash},
+	// applyDelegateMigration: the reviewed plan is materialized to a temp file
+	// (the CLI requires a regular file it can fingerprint).
+	"applyDelegateMigration": {"plan": usage.RouteFile},
 
 	// Editing family (batch 4): the document rides stdin as the `-` locator;
 	// the CLI answers with the modified document on stdout (its contract

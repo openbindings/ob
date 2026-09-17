@@ -755,6 +755,9 @@ func TestServeWellKnown_NoSecurityField_OpenAPISourceAbsolutized(t *testing.T) {
 // --- /delegates ---
 
 func TestServeDelegates(t *testing.T) {
+	// A test must not read whatever environment lies above the checkout.
+	t.Chdir(t.TempDir())
+	t.Setenv("OB_CONFIG_DIR", t.TempDir())
 	ts := testEnv(t)
 	defer ts.Close()
 
@@ -770,6 +773,8 @@ func TestServeDelegates(t *testing.T) {
 // --- /status ---
 
 func TestServeStatus(t *testing.T) {
+	t.Chdir(t.TempDir())
+	t.Setenv("OB_CONFIG_DIR", t.TempDir())
 	ts := testEnv(t)
 	defer ts.Close()
 

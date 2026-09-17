@@ -18,6 +18,28 @@ ship as part of 0.2.0.
 
 ### Changed
 
+- **Role-scoped, by-value delegate management.** `ob delegate` now realizes
+  the shared Delegate Manager interface (`openbindings.delegate-manager` 0.1):
+  `roles` lists the accepted interfaces per role (`invoke`, `synthesize`,
+  `inspect`); `register <interface|->` enrolls an interface document by value
+  for explicit `--role`s under a manager-issued ID (`--id` replaces, and
+  `--preference role=number` / `--clear-preferences` set the complete explicit
+  map exactly, without rounding); `list [--role]` returns full retained values;
+  `prefer <id> [n] --role` sets or clears one role preference; `unregister <id>`
+  is idempotent. `prefer --binding-spec` sets ob's native per-identifier
+  override, a separate OB-only operation. Over HTTP: `GET /delegates/roles`,
+  `POST /delegates/register`, `GET /delegates[?role=]`, `POST /delegates/preference`,
+  `POST /delegates/unregister` and the native `POST /delegates/binding-preference`;
+  registry state that needs an operator (legacy rows, mixed state, changed
+  catalogue) is `409 registry_unavailable`. Location-based registration,
+  `--preference <num>` on register, `prefer --operation/--capability` and
+  `source add --delegate` are retired and fail with guidance. Legacy
+  location-based registries are refused until converted with the new
+  `ob delegate migrate preview|apply|rollback` facility (CLI-only, reviewed
+  plan, owner-only backups, receipt-idempotent apply, guarded rollback).
+  `ob inspect`, `ob synthesize`, `ob source pull` and `ob source add` accept
+  `--registration <id>` (HTTP: `registration` query) for explicit selection
+  with no fallback. Built-in handling is no longer listed as a registration.
 - **Role-specific routing diagnostics.** `delegate resolve --role <role>
   --binding-spec <identifier>` and authenticated `POST /delegates/resolve` use
   the role-aware runtime. `--path` names the policy; `--registration` constrains

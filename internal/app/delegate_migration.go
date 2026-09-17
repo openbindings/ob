@@ -13,8 +13,20 @@ import (
 	"strings"
 
 	openbindings "github.com/openbindings/openbindings-go"
+	"github.com/openbindings/openbindings-go/canonicaljson"
 	"github.com/openbindings/openbindings-go/jsonvalue"
 )
+
+// interfaceContentHash reproduces the legacy registry's provider pin: sha256
+// over the RFC 8785 canonical form. It exists only to check an old pin during
+// conversion; retained values have no content identity.
+func interfaceContentHash(iface *openbindings.Interface) (string, error) {
+	canonical, err := canonicaljson.Marshal(iface)
+	if err != nil {
+		return "", fmt.Errorf("canonicalize interface: %w", err)
+	}
+	return HashContent(canonical), nil
+}
 
 const delegateMigrationFormat = "ob.delegate-migration@1"
 const maxDelegateMigrationBytes = 8 << 20

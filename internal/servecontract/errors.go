@@ -33,6 +33,7 @@ const (
 	CodePreflightFailed          ErrorCode = "preflight_failed"
 	CodePullFailed               ErrorCode = "pull_failed"
 	CodeRegistrationFailed       ErrorCode = "registration_failed"
+	CodeRegistryUnavailable      ErrorCode = "registry_unavailable"
 	CodeRelativeSourceReference  ErrorCode = "relative_source_reference"
 	CodeRequestTooLarge          ErrorCode = "request_too_large"
 	CodeResolutionFailed         ErrorCode = "resolution_failed"
@@ -56,7 +57,7 @@ var errorCodeSet = map[ErrorCode]struct{}{
 	CodeInternal: {}, CodeInvalidHost: {}, CodeInvalidRequest: {}, CodeInvalidUpstream: {},
 	CodeListFailed: {}, CodeMergeFailed: {}, CodeNotFound: {}, CodeOriginForbidden: {},
 	CodePreferenceFailed: {}, CodePreflightFailed: {}, CodePullFailed: {},
-	CodeRegistrationFailed: {}, CodeRelativeSourceReference: {}, CodeRequestTooLarge: {},
+	CodeRegistrationFailed: {}, CodeRegistryUnavailable: {}, CodeRelativeSourceReference: {}, CodeRequestTooLarge: {},
 	CodeResolutionFailed: {}, CodeResolutionForbidden: {}, CodeSourceExists: {},
 	CodeSourceFailed: {}, CodeStatusFailed: {}, CodeSynthesisFailed: {}, CodeUnauthorized: {},
 	CodeUnknownCapability: {}, CodeUnregistrationFailed: {}, CodeUnsupportedLanguage: {},

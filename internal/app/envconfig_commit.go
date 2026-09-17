@@ -69,7 +69,7 @@ func writeEnvConfigBytesLocked(envPath string, data []byte) error {
 		return err
 	}
 	if err := envCommitBoundary("after-rename"); err != nil {
-		return fmt.Errorf("environment commit may have completed; inspect state before retry: %w", err)
+		return fmt.Errorf("%w: %v", errCommitUncertain, err)
 	}
 	// File contents were synced before atomic replacement. Directory/power-loss
 	// durability is intentionally not claimed by this process-crash contract.

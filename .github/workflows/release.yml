@@ -32,6 +32,18 @@ jobs:
         with:
           repository: openbindings/spec
           path: spec
+      # Exact interfaces corpus for the Delegate Manager gates (same pin as CI;
+      # release validation must not certify a different corpus).
+      - uses: actions/checkout@v7
+        if: steps.check.outputs.skip != 'true'
+        with:
+          repository: openbindings/interfaces
+          ref: 5428293b3a60453ee9c64a314e0208288aa96fa3
+          path: interfaces
+      - uses: actions/setup-node@v6
+        if: steps.check.outputs.skip != 'true'
+        with:
+          node-version: '22'
       - uses: actions/setup-go@v7
         if: steps.check.outputs.skip != 'true'
         with:
@@ -65,6 +77,7 @@ jobs:
         env:
           GOWORK: "off"
           OB_SPEC_CORPUS: ${{ github.workspace }}/spec/conformance
+          OB_INTERFACES_CORPUS: ${{ github.workspace }}/interfaces/conformance
           OB_CORPUS_REQUIRED: "1"
       - name: Run exec-lane and cross-surface conformance tests
         if: steps.check.outputs.skip != 'true'
@@ -74,6 +87,13 @@ jobs:
           OB_SPEC_CORPUS: ${{ github.workspace }}/spec/conformance
           OB_CORPUS_REQUIRED: "1"
           OB_TEST_NO_CREDENTIAL_STORE: "1"
+      - name: Run Delegate Manager gates (non-publishing)
+        if: steps.check.outputs.skip != 'true'
+        run: node scripts/verify-delegate-manager.mjs --evidence "$RUNNER_TEMP/delegate-manager-gates.json"
+        env:
+          GOWORK: "off"
+          OB_SPEC_CORPUS: ${{ github.workspace }}/spec/conformance
+          OB_INTERFACES_CORPUS: ${{ github.workspace }}/interfaces/conformance
       - uses: goreleaser/goreleaser-action@v7
         if: steps.check.outputs.skip != 'true'
         with:
