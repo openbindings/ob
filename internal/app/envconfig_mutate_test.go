@@ -276,9 +276,24 @@ func startConfigProcess(t *testing.T, path, mode, value string) (*exec.Cmd, io.W
 
 func readProcessLine(t *testing.T, scanner *bufio.Scanner, expected string) {
 	t.Helper()
-	if !scanner.Scan() || scanner.Text() != expected {
-		t.Fatalf("child expected %q, got %q (%v)", expected, scanner.Text(), scanner.Err())
+	if scanner.Scan() && scanner.Text() == expected {
+		return
 	}
+	// The child's first line is a status token; when it is not the expected
+	// one the child is reporting its own failure on the following lines. Drain
+	// them (bounded) into the message, otherwise a remote failure on a
+	// platform this machine cannot run shows only "got FAIL" and is
+	// undiagnosable from CI alone.
+	first, err := scanner.Text(), scanner.Err()
+	var rest []string
+	for len(rest) < 40 && scanner.Scan() {
+		rest = append(rest, scanner.Text())
+	}
+	detail := ""
+	if len(rest) > 0 {
+		detail = "\nchild output:\n\t" + strings.Join(rest, "\n\t")
+	}
+	t.Fatalf("child expected %q, got %q (%v)%s", expected, first, err, detail)
 }
 
 func TestEnvConfigChild(t *testing.T) {

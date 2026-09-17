@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 
 	"github.com/openbindings/openbindings-go/jsonvalue"
+	"time"
 )
 
 // EnvConfig represents environment-level configuration stored in .openbindings/config.json.
@@ -127,10 +128,49 @@ type envConfigFingerprint struct {
 	absent bool
 }
 
+// readPublishedSnapshot reads a file that another process publishes by atomic
+// rename. On POSIX the replacement is instantaneous for a reader: the old inode
+// stays readable until the last handle closes. Windows has no such guarantee —
+// while the rename replaces the target, an opener gets a sharing violation
+// (ERROR_SHARING_VIOLATION / ERROR_ACCESS_DENIED) rather than either version.
+// A bounded retry restores the property the design actually promises, that a
+// lock-free reader observes the old or the new snapshot and never a mixed one;
+// it never invents content and never waits on a writer's lock. Absence is
+// returned immediately, because an absent environment is a real answer.
+func readPublishedSnapshot(path string) ([]byte, error) {
+	const attempts = 50
+	var err error
+	for attempt := 0; attempt < attempts; attempt++ {
+		var data []byte
+		data, err = os.ReadFile(path)
+		if err == nil || os.IsNotExist(err) || !isSharingViolation(err) {
+			return data, err
+		}
+		time.Sleep(2 * time.Millisecond)
+	}
+	return nil, err
+}
+
+// openPublishedFile opens a file another process may be replacing by atomic
+// rename, with the same bounded tolerance as readPublishedSnapshot.
+func openPublishedFile(path string) (*os.File, error) {
+	const attempts = 50
+	var err error
+	for attempt := 0; attempt < attempts; attempt++ {
+		var f *os.File
+		f, err = os.Open(path)
+		if err == nil || os.IsNotExist(err) || !isSharingViolation(err) {
+			return f, err
+		}
+		time.Sleep(2 * time.Millisecond)
+	}
+	return nil, err
+}
+
 // loadEnvConfigFingerprinted reads one atomically published snapshot.
 func loadEnvConfigFingerprinted(envPath string) (*EnvConfig, envConfigFingerprint, error) {
 	configPath := filepath.Join(envPath, EnvConfigFile)
-	data, err := os.ReadFile(configPath)
+	data, err := readPublishedSnapshot(configPath)
 	if err != nil {
 		if os.IsNotExist(err) {
 			fp := envConfigFingerprint{absent: true}

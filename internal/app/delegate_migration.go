@@ -69,7 +69,7 @@ func readMigrationFile(path string) ([]byte, error) {
 	if !info.Mode().IsRegular() {
 		return nil, errors.New("migration input must be a regular file")
 	}
-	f, err := os.Open(path)
+	f, err := openPublishedFile(path)
 	if err != nil {
 		return nil, err
 	}
