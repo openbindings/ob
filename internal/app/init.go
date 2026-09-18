@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 
@@ -138,17 +139,12 @@ type envConfigFingerprint struct {
 // it never invents content and never waits on a writer's lock. Absence is
 // returned immediately, because an absent environment is a real answer.
 func readPublishedSnapshot(path string) ([]byte, error) {
-	const attempts = 50
-	var err error
-	for attempt := 0; attempt < attempts; attempt++ {
-		var data []byte
-		data, err = os.ReadFile(path)
-		if err == nil || os.IsNotExist(err) || !isSharingViolation(err) {
-			return data, err
-		}
-		time.Sleep(2 * time.Millisecond)
+	f, err := openPublishedFile(path)
+	if err != nil {
+		return nil, err
 	}
-	return nil, err
+	defer f.Close()
+	return io.ReadAll(f)
 }
 
 // openPublishedFile opens a file another process may be replacing by atomic
@@ -158,7 +154,7 @@ func openPublishedFile(path string) (*os.File, error) {
 	var err error
 	for attempt := 0; attempt < attempts; attempt++ {
 		var f *os.File
-		f, err = os.Open(path)
+		f, err = openPublishedHandle(path)
 		if err == nil || os.IsNotExist(err) || !isSharingViolation(err) {
 			return f, err
 		}
