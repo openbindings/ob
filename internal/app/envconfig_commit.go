@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 
 	"github.com/openbindings/openbindings-go/jsonvalue"
+	"time"
 )
 
 // Injected only by process-recovery tests, never controlled by environment or
@@ -15,7 +16,32 @@ import (
 var envCommitBoundary = func(stage string) error { return nil }
 
 var envCommitSync = func(f *os.File) error { return f.Sync() }
-var envCommitReplace = os.Rename
+var envCommitReplace = replacePublishedFile
+
+// replacePublishedFile publishes a file by atomic rename, tolerating the
+// window in which Windows leaves the target's name transiently unusable.
+//
+// A reader holding the old file open with FILE_SHARE_DELETE lets a replacement
+// proceed, but the replaced file only disappears once that last handle closes;
+// until then the name is "delete pending" and a further replacement onto it
+// fails with ERROR_ACCESS_DENIED. Under a steady stream of readers that window
+// is reachable, so the writer waits it out rather than reporting a commit
+// failure for a name that is about to become free. The rename itself is still
+// a single atomic operation: a reader sees the old file or the new one, never
+// a partial write. On POSIX the predicate is constant false and this is one
+// call to os.Rename.
+func replacePublishedFile(temporary, target string) error {
+	const attempts = 50
+	var err error
+	for attempt := 0; attempt < attempts; attempt++ {
+		err = os.Rename(temporary, target)
+		if err == nil || !isSharingViolation(err) {
+			return err
+		}
+		time.Sleep(2 * time.Millisecond)
+	}
+	return err
+}
 
 func writeEnvConfigLocked(envPath string, config *EnvConfig) error {
 	data, err := jsonvalue.Marshal(config)
