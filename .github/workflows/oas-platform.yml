@@ -8,6 +8,14 @@ on:
       - 'scripts/verify-oas-platform.mjs'
       - 'scripts/verify-oas-browser-journeys.mjs'
       - 'scripts/verify-oas-public-corroboration.mjs'
+      - 'scripts/check-process-gates.mjs'
+      - 'scripts/delegate-manager-gates.json'
+      - 'scripts/verify-delegate-manager.mjs'
+      # This workflow carries the only cross-OS proof of the environment
+      # locking, registry process and migration recovery tests, so it must run
+      # whenever the code or the tests behind that proof change.
+      - 'internal/app/**'
+      - 'internal/cmd/**'
       - 'go.mod'
       - 'go.sum'
       - 'internal/server/workbench/dist/**'
@@ -46,6 +54,12 @@ jobs:
         run: npm install --prefix "$OB_PLATFORM_BROWSER_ROOT" --no-audit --no-fund playwright@1.61.1
       - name: Install browser
         run: node "$OB_PLATFORM_BROWSER_ROOT/node_modules/playwright/cli.js" install --with-deps chromium
+      # Delegate Manager locking, recovery and conversion are proven with real
+      # separate processes on every supported OS (flock on macOS/Linux,
+      # LockFileEx on Windows). Cross-compilation is not that proof.
+      - name: Prove local-filesystem locking, recovery and conversion with separate processes
+        working-directory: ob
+        run: go test -count=1 -run '^(TestEnvConfigProcesses|TestEnvConfigRecovery|TestEnvConfigLockTimeoutAndReentrancy|TestEnvConfigSyncAndRenameFailure|TestRoleRegistryProcesses|TestRoleRegistryRecovery|TestRoleRegistryConcurrentReaders|TestRoleRegistryUnrelatedConfigProcess|TestDelegateMigrationRecovery|TestDelegateMigrationRollbackRecovery)$' -v ./internal/app/ 2>&1 | tee "$RUNNER_TEMP/delegate-process-tests.log" && node scripts/check-process-gates.mjs "$RUNNER_TEMP/delegate-process-tests.log"
       - name: Prove normal installed-process invocation and browser journey
         id: platform
         run: node ob/scripts/verify-oas-platform.mjs "$GITHUB_WORKSPACE" | tee "$RUNNER_TEMP/oas-platform-result.json"
@@ -54,7 +68,7 @@ jobs:
         uses: actions/checkout@v7
         with:
           repository: openbindings/elements
-          ref: eb590acafecb94c4701bf16e878f59212cbf032c
+          ref: abfc919574731116e155e6288bbc0ed4130c1e96
           path: elements
       - name: Install isolated workbench test runner
         if: always() && matrix.runner == 'ubuntu-24.04'

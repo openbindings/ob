@@ -39,12 +39,9 @@ func TestCrossSurfaceConformance(t *testing.T) {
 	}
 	t.Setenv("PATH", binDir+string(os.PathListSeparator)+os.Getenv("PATH"))
 
-	// Build before replacing HOME: otherwise the Go command populates the test
-	// fixture directory with a module cache containing read-only files, which
-	// TempDir cannot clean up.
+	// Application state is separate from the Go toolchain and module cache.
 	home := t.TempDir()
-	t.Setenv("HOME", home)
-	t.Setenv("XDG_CONFIG_HOME", "")
+	t.Setenv("OB_CONFIG_DIR", home)
 	t.Setenv("OB_CREDENTIALS_FILE", filepath.Join(home, "credentials.json"))
 
 	cliPath, err := filepath.Abs("../app/ob.bound.obi.json")
@@ -57,6 +54,11 @@ func TestCrossSurfaceConformance(t *testing.T) {
 	}
 	var cli openbindings.Interface
 	if err := json.Unmarshal(cliData, &cli); err != nil {
+		t.Fatal(err)
+	}
+	// The diagnostic reads environment state; isolate it from ancestor installs.
+	t.Chdir(t.TempDir())
+	if _, err := app.Init(false); err != nil {
 		t.Fatal(err)
 	}
 
@@ -150,6 +152,9 @@ func TestCrossSurfaceConformance(t *testing.T) {
 		input any
 	}{
 		{name: "describe", short: "describe"},
+		{name: "role diagnostic ranked", short: "resolveRoleDelegate", input: map[string]any{"role": "invoke", "bindingSpec": "openbindings.usage@1"}},
+		{name: "role diagnostic frame path", short: "resolveRoleDelegate", input: map[string]any{"role": "invoke", "bindingSpec": "openbindings.usage@1", "path": "native-first"}},
+		{name: "role diagnostic negative", short: "resolveRoleDelegate", input: map[string]any{"role": "synthesize", "bindingSpec": "example.unsupported@1"}},
 		{name: "binding specs", short: "listBindingSpecs"},
 		{name: "check binding specs", short: "checkBindingSpecs", input: map[string]any{
 			"bindingSpecs": []any{"openbindings.openapi-3.1@1", "unknown@1", "openbindings.openapi-3.1@1"},

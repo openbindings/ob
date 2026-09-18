@@ -57,12 +57,13 @@ async function frames(url,token,iface,inputJSON) {
 }
 try {
   const binary=path.join(dir,process.platform==='win32'?'ob.exe':'ob');
-  if(process.platform==='win32')await command('go',['build','-mod=readonly','-o',binary,'./cmd/ob'],path.join(cohort,'ob'));
-  else {
-    env.OB_OUT=binary;env.OB_BIN_DIR=path.join(dir,'bin');env.OB_SKIP_WORKBENCH='1';env.OB_LOCAL_WORKSPACE='0';env.GOFLAGS='-mod=readonly';
-    await command('bash',['scripts/dev-install.sh'],path.join(cohort,'ob'));
-    assert.equal(fs.realpathSync(path.join(env.OB_BIN_DIR,'ob')),fs.realpathSync(binary));
-    await command(path.join(env.OB_BIN_DIR,'ob'),['--help'],dir);
+  await command('go',['build','-mod=readonly','-o',binary,'./cmd/ob'],path.join(cohort,'ob'));
+  if(process.platform!=='win32') {
+    // Exercise an installed command without depending on a private developer installer.
+    const binDir=path.join(dir,'bin');fs.mkdirSync(binDir);
+    const installed=path.join(binDir,'ob');fs.symlinkSync(binary,installed);
+    assert.equal(fs.realpathSync(installed),fs.realpathSync(binary));
+    await command(installed,['--help'],dir);
   }
   const payload='{"id":9223372036854775807,"amount":0.12345678901234567890123456789,"huge":1e400,"tiny":1e-400,"label":"😀 e\\u0301","isLosslessNumber":true}';
   const captured=[],scalarReceipts=[];

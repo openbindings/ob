@@ -30,6 +30,7 @@ func obiFromUsage(t *testing.T, dir, kdl string) string {
 // A usage (CLI) binding declares no context requirements, so the preflight
 // returns nil — the conformant "nothing required" answer.
 func TestPrepareOperation_ResolvesAndPreflights(t *testing.T) {
+	t.Chdir(t.TempDir())
 	dir := t.TempDir()
 	obiPath := obiFromUsage(t, dir, `min_usage_version "2.0.0"
 bin "app"

@@ -99,31 +99,9 @@ func GenerateBindingSpecSupportContract(path string) error {
 		}
 	}
 
-	// Keep the public capability descriptions aligned with the actual minimal
-	// operation subsets. These replacements are intentionally idempotent: the
-	// root contract is an input and an output of the artifact generator, so a
-	// second go-generate pass must be a no-op.
-	metadata := [][2]string{
-		{
-			`Return the exact operation subset a delegate must satisfy to provide an ob capability (invoke → listBindingSpecs + invokeBinding, synthesize → listBindingSpecs + synthesizeInterface, inspect → listBindingSpecs + inspectSource).`,
-			`Return the exact operation subset a delegate must satisfy to provide an ob capability (invoke → listBindingSpecs + checkBindingSpecs + invokeBinding, synthesize → listBindingSpecs + checkBindingSpecs + synthesizeInterface, inspect → listBindingSpecs + checkBindingSpecs + inspectSource).`,
-		},
-		{
-			`One of ob's three binding-specification handling needs, derived from a minimal operation subset of a published interface: invoke (binding-invoker), synthesize (interface-synthesizer), inspect (source-inspector).`,
-			`One of ob's three binding-specification handling needs, derived from a minimal operation subset of published interfaces: invoke (binding-invoker), synthesize (interface-synthesizer), inspect (source-inspector plus the interface-synthesizer support query).`,
-		},
-	}
-	for _, replacement := range metadata {
-		old, next := []byte(replacement[0]), []byte(replacement[1])
-		switch {
-		case bytes.Count(data, old) == 1:
-			data = bytes.Replace(data, old, next, 1)
-		case bytes.Count(data, next) == 1:
-			// Already generated.
-		default:
-			return fmt.Errorf("generate binding-spec support contract: expected current or generated text for %q", replacement[0])
-		}
-	}
+	// The role catalogue (listDelegateRoles) is the authoritative description of
+	// what each role requires; the contract's delegate descriptions are authored
+	// alongside it and need no generated text migration.
 	if _, err := openbindings.ValidateDocument(data); err != nil {
 		return fmt.Errorf("validate generated root contract: %w", err)
 	}

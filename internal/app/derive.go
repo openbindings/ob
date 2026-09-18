@@ -50,6 +50,12 @@ type DeriveResult struct {
 // conversion and is the shared building block for diff --from-sources
 // and merge --from-sources.
 func DeriveFromSource(source openbindings.Source, sourceKey string, obiDir string) (DeriveResult, error) {
+	return deriveFromSourceContext(context.Background(), source, sourceKey, obiDir)
+}
+
+// deriveFromSourceContext is DeriveFromSource with the caller's context, which
+// may carry an OB-native explicit synthesize-role registration.
+func deriveFromSourceContext(ctx context.Context, source openbindings.Source, sourceKey string, obiDir string) (DeriveResult, error) {
 	locationPath := source.Location
 	if locationPath != "" && obiDir != "" && !filepath.IsAbs(locationPath) && !strings.Contains(locationPath, "://") && !isHostPort(locationPath) {
 		locationPath = filepath.Join(obiDir, locationPath)
@@ -63,7 +69,7 @@ func DeriveFromSource(source openbindings.Source, sourceKey string, obiDir strin
 		createSrc.Content = source.Content
 	}
 
-	generated, err := SynthesizeInterfaceFromSource(context.Background(), &synthesize.SynthesizeInput{
+	generated, err := SynthesizeInterfaceFromSource(ctx, &synthesize.SynthesizeInput{
 		Sources:   []synthesize.SynthesizeSource{createSrc},
 		OnWarning: printSynthesizerWarning,
 	})

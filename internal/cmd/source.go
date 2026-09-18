@@ -37,13 +37,13 @@ operations — use 'ob source pull' for that.`,
 
 func newSourceAddCmd() *cobra.Command {
 	var (
-		key         string
-		resolveArg  string
-		uriArg      string
-		delegateArg string
-		description string
-		yes         bool
-		inputJSON   string
+		key          string
+		resolveArg   string
+		uriArg       string
+		registration string
+		description  string
+		yes          bool
+		inputJSON    string
 	)
 
 	cmd := &cobra.Command{
@@ -52,15 +52,14 @@ func newSourceAddCmd() *cobra.Command {
 		Long: `Register a binding source reference on an OpenBindings interface document.
 
 The source can be a bare file path or an explicit format:path. When a
-bare path is given, the format is auto-detected by trying each
-registered delegate.
-
-When multiple delegates can handle the source, you are prompted to
-choose which delegate to use. Use --delegate to select non-interactively,
-or --yes to accept the first capable delegate.
-
-The delegate choice is stored in the source's x-ob metadata so that
-'ob source pull' knows which delegate to use later.
+bare path is given, ob's built-in inspectors detect the format; when more
+than one format fits, you are prompted to choose, or pass --yes to accept
+the first. --registration <id> detects through exactly that enrolled
+inspect-role registration instead (see 'ob delegate list'), with no
+built-in or alternate fallback; it applies to detection only, so it needs a
+bare path. The detecting provider is recorded in the source's x-ob metadata
+as provenance; it never selects a registration for 'ob source pull', which
+has its own --registration.
 
 A LOCAL FILE artifact is embedded by default: its content rides the
 spec 'content' field so the document is conformant (OBI-D-05) and works
@@ -99,7 +98,7 @@ Examples:
   ob source add my.obi.json openapi.json
   ob source add my.obi.json ./api.yaml --key restApi
   ob source add my.obi.json openbindings.openapi-3.1@1:./api.yaml
-  ob source add my.obi.json openapi.json --delegate ob
+  ob source add my.obi.json ./thing.custom --registration dlg_...
   ob source add my.obi.json 'openbindings.openapi-3.1@1:https://example.com/openapi.json?embed'
   ob source add my.obi.json openbindings.openapi-3.1@1:./api.yaml --uri https://cdn.example.com/api.yaml
   ob source add --input '{"interface":{"openbindings":"0.2.0","operations":{}},"source":{"bindingSpec":"openbindings.openapi-3.1@1","content":{"openapi":"3.1.0","info":{"title":"Example","version":"1"},"paths":{}}}}'`,
@@ -107,7 +106,7 @@ Examples:
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if inputJSON != "" {
 				exclusiveFlag := false
-				for _, name := range []string{"key", "resolve", "uri", "delegate", "description", "yes"} {
+				for _, name := range []string{"key", "resolve", "uri", "registration", "description", "yes"} {
 					exclusiveFlag = exclusiveFlag || cmd.Flags().Changed(name)
 				}
 				if len(args) != 0 || exclusiveFlag {
@@ -137,30 +136,25 @@ Examples:
 				return app.ExitResult{Code: 2, Message: err.Error(), ToStderr: true}
 			}
 
-			delegateID := delegateArg
+			if cmd.Flags().Changed("registration") && registration == "" {
+				return app.ExitResult{Code: 2, Message: "--registration must name an enrolled registration ID", ToStderr: true}
+			}
+			// Provenance only: which inspector detected the format. It is
+			// never a routing authority; pull selects its own provider.
+			delegateID := ""
 
 			if src.BindingSpec == "" {
-				claim, claimErr := selectDelegate(cmd, src.Location, delegateArg, yes)
+				claim, claimErr := selectDelegate(cmd, src.Location, registration, yes)
 				if claimErr != nil {
 					return claimErr
 				}
 				src.BindingSpec = claim.BindingSpec
 				delegateID = claim.DelegateID
 				fmt.Fprintf(cmd.ErrOrStderr(), "detected format: %s (via %s)\n", claim.BindingSpec, claim.DelegateName)
-			} else if delegateID == "" {
-				// The format is explicit: route by the token through the
-				// delegate registry. Probe-detection is for format-less adds
-				// only (a probe would try every synthesizer against the
-				// location — including ones that dial it as an endpoint).
-				resolved, resErr := app.ResolveDelegateForBindingSpec(src.BindingSpec)
-				if resErr != nil {
-					return resErr
-				}
-				if resolved.Builtin {
-					delegateID = "ob"
-				} else {
-					delegateID = resolved.Location
-				}
+			} else if registration != "" {
+				return app.ExitResult{Code: 2, Message: "--registration applies to format detection; the format is already explicit (use 'ob source pull --registration' to derive through a registration)", ToStderr: true}
+			} else if app.BuiltinSupportsFormat(src.BindingSpec) {
+				delegateID = "ob"
 			}
 
 			// Source-string options are honored, never silently dropped: the
@@ -229,36 +223,30 @@ Examples:
 	cmd.Flags().StringVar(&key, "key", "", "explicit source key (default: derived from format and path)")
 	cmd.Flags().StringVar(&resolveArg, "resolve", "", "resolution mode: content (default for local files) or location (default for URLs)")
 	cmd.Flags().StringVar(&uriArg, "uri", "", "explicit published URI for location mode")
-	cmd.Flags().StringVar(&delegateArg, "delegate", "", "delegate to use for this source (skips detection)")
+	cmd.Flags().StringVar(&registration, "registration", "", "detect the format through exactly this enrolled inspect-role registration (no fallback)")
 	cmd.Flags().StringVar(&description, "description", "", "human-readable description for this source")
-	cmd.Flags().BoolVarP(&yes, "yes", "y", false, "accept first capable delegate without prompting")
+	cmd.Flags().BoolVarP(&yes, "yes", "y", false, "accept the first detected format without prompting")
 	cmd.Flags().StringVar(&inputJSON, "input", "", "AddSourceInput as a JSON string (machine lane)")
+	cmd.SetFlagErrorFunc(retiredFlagGuidance(map[string]string{
+		"delegate": "delegates are enrolled registrations, not names or locations; use --registration <id> (see 'ob delegate list') to detect through an enrolled inspector, and 'ob source pull --registration <id>' to derive through one",
+	}))
 
 	return cmd
 }
 
-// selectDelegate discovers capable delegates for a source and either
-// auto-selects or prompts the user to choose one.
-func selectDelegate(cmd *cobra.Command, location, delegateArg string, yes bool) (app.DelegateClaim, error) {
-	claims, err := withSpinner(cmd.ErrOrStderr(), "Checking delegates…", func() ([]app.DelegateClaim, error) {
+// selectDelegate detects the source's format through ob's built-in inspectors
+// or, with a registration ID, through exactly that enrolled inspect-role
+// registration, then prompts or auto-selects among the resulting claims.
+// --yes suppresses the prompt only; it never widens which provider is used.
+func selectDelegate(cmd *cobra.Command, location, registration string, yes bool) (app.DelegateClaim, error) {
+	claims, err := withSpinner(cmd.ErrOrStderr(), "Detecting format…", func() ([]app.DelegateClaim, error) {
+		if registration != "" {
+			return app.DetectSourceCandidatesVia(cmd.Context(), registration, location)
+		}
 		return app.DetectSourceCandidates(location)
 	})
 	if err != nil {
 		return app.DelegateClaim{}, app.ExitResult{Code: 1, Message: err.Error(), ToStderr: true}
-	}
-
-	// If --delegate was specified, find that specific one.
-	if delegateArg != "" {
-		for _, c := range claims {
-			if c.DelegateName == delegateArg || c.DelegateID == delegateArg {
-				return c, nil
-			}
-		}
-		return app.DelegateClaim{}, app.ExitResult{
-			Code:     1,
-			Message:  fmt.Sprintf("delegate %q is not capable of handling this source; capable: %s", delegateArg, claimNames(claims)),
-			ToStderr: true,
-		}
 	}
 
 	if len(claims) == 0 {
@@ -350,6 +338,7 @@ func claimNames(claims []app.DelegateClaim) string {
 
 func newSourcePullCmd() *cobra.Command {
 	var pure bool
+	var pullRegistration string
 
 	cmd := &cobra.Command{
 		Use:   "pull <obi-path> [source-key]...",
@@ -371,6 +360,11 @@ With no source keys, every registered source is pulled.
 Use --pure with -o to write a clean, spec-only copy (x-ob metadata
 stripped) suitable for publishing.
 
+--registration <id> derives every pulled source through exactly that
+enrolled synthesize-role registration (see 'ob delegate list'), with no
+built-in or alternate provider fallback. A source's recorded x-ob provenance
+never selects a registration.
+
 Pass '-' as <obi-path> to read the document from stdin and write the
 pulled document to stdout (the change log moves to stderr). Relative
 x-ob pull paths then resolve against the current directory.
@@ -383,12 +377,16 @@ Examples:
 		Args: cobra.MinimumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			format, outputPath := getOutputFlags(cmd)
+			if cmd.Flags().Changed("registration") && pullRegistration == "" {
+				return app.ExitResult{Code: 2, Message: "--registration must name an enrolled registration ID", ToStderr: true}
+			}
 			result, err := app.SourcePull(app.SourcePullInput{
-				OBIPath:    args[0],
-				SourceKeys: args[1:],
-				OutputPath: outputPath,
-				Format:     format,
-				Pure:       pure,
+				OBIPath:      args[0],
+				SourceKeys:   args[1:],
+				OutputPath:   outputPath,
+				Format:       format,
+				Pure:         pure,
+				Registration: pullRegistration,
 			})
 			if err != nil {
 				return app.ExitResult{Code: 1, Message: fmt.Sprintf("pull sources in %s: %v", args[0], err), ToStderr: true}
@@ -410,6 +408,7 @@ Examples:
 		},
 	}
 
+	cmd.Flags().StringVar(&pullRegistration, "registration", "", "derive every pulled source through exactly this enrolled synthesize-role registration (no fallback)")
 	cmd.Flags().BoolVar(&pure, "pure", false, "strip x-ob metadata from the output (publish-clean); requires -o")
 	return cmd
 }

@@ -54,8 +54,7 @@ func invokeServedOperation(t *testing.T, ctx context.Context, iface *openbinding
 // authoring operation, and get another valid document back.
 func TestServeBackend_DogfoodDocumentAuthoringViaOBI(t *testing.T) {
 	home := t.TempDir()
-	t.Setenv("HOME", home)
-	t.Setenv("XDG_CONFIG_HOME", "")
+	t.Setenv("OB_CONFIG_DIR", home)
 	t.Setenv("OB_CREDENTIALS_FILE", filepath.Join(home, "credentials.json"))
 
 	ts := testEnv(t)
@@ -65,7 +64,7 @@ func TestServeBackend_DogfoodDocumentAuthoringViaOBI(t *testing.T) {
 	if err != nil {
 		t.Fatalf("resolve served OBI: %v", err)
 	}
-	if got, want := len(served.Operations), 51; got != want {
+	if got, want := len(served.Operations), 52; got != want {
 		t.Fatalf("served operations = %d, want %d", got, want)
 	}
 

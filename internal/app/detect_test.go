@@ -29,6 +29,9 @@ func (s additionalDetectionClaim) SynthesizeInterface(ctx context.Context, in *s
 }
 
 func TestDetectionKeepsOtherProviderClaims(t *testing.T) {
+	// This fixture installs a synthesis-only token. Its fallback lookup must
+	// not discover a developer's ancestor-directory delegate environment.
+	t.Chdir(t.TempDir())
 	ResetDefaultInvoker()
 	t.Cleanup(ResetDefaultInvoker)
 	runtime := defaultCLIRuntime()

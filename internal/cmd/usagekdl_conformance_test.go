@@ -64,10 +64,25 @@ func TestUsageKDLMatchesCommandTree(t *testing.T) {
 	}
 
 	// Reverse table: command path -> contract short. Two shorts mapping to
-	// one command is a table bug (each CLI command realizes one operation).
+	// one command is a table bug (each CLI command realizes one operation)
+	// unless the command is declared in SharedCLICommands with exactly those
+	// operations, each carrying its own binding transform.
 	shortByCommand := map[string]string{}
+	sharedShorts := map[string]map[string]bool{}
+	for path, shorts := range app.SharedCLICommands {
+		sharedShorts[path] = map[string]bool{}
+		for _, short := range shorts {
+			sharedShorts[path][short] = true
+			if app.CommandByShort[short] != path {
+				addf("SharedCLICommands: %q lists %q, but CommandByShort maps it to %q", path, short, app.CommandByShort[short])
+			}
+		}
+	}
 	for short, path := range app.CommandByShort {
 		if prev, dup := shortByCommand[path]; dup {
+			if sharedShorts[path][short] && sharedShorts[path][prev] {
+				continue
+			}
 			lo, hi := short, prev
 			if lo > hi {
 				lo, hi = hi, lo

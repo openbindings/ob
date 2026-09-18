@@ -1,288 +1,286 @@
 package app
 
 import (
+	"bytes"
+	"encoding/json"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/openbindings/openbindings-go/jsonvalue"
 )
 
-// fakeDelegateOBI is a minimal delegate interface: it carries the
-// document-store get operation by alias (and a couple of local ops), but
-// satisfies none of ob's three format capabilities — an inert-for-ob delegate.
-const fakeDelegateOBI = `{"openbindings":"0.2.0","name":"fake-kv","version":"0.1.0","operations":{"get":{"aliases":["openbindings.document-store.get"]},"translate":{"aliases":["acme.fake.translate"]}}}`
-
-// fakeDelegateOBIv2 is the same delegate after a change (an extra operation).
-const fakeDelegateOBIv2 = `{"openbindings":"0.2.0","name":"fake-kv","version":"0.1.0","operations":{"get":{"aliases":["openbindings.document-store.get"]},"translate":{"aliases":["acme.fake.translate"]},"delete":{}}}`
-
-// writeFakeDelegate writes an executable that answers --openbindings with the
-// given OBI, returning its exec: location.
-func writeFakeDelegate(t *testing.T, dir, name, obiJSON string) string {
+// invokeProvider is a complete, unbound provider value for the invoke role:
+// the role's own accepted interface, carried by value.
+func invokeProvider(t *testing.T) json.RawMessage {
 	t.Helper()
-	path := filepath.Join(dir, name)
-	script := "#!/bin/sh\nif [ \"$1\" = \"--openbindings\" ]; then\ncat <<'OBI'\n" + obiJSON + "\nOBI\nfi\n"
-	if err := os.WriteFile(path, []byte(script), 0o755); err != nil {
+	iface, err := RequirementInterface(CapInvoke)
+	if err != nil {
 		t.Fatal(err)
 	}
-	return "exec:" + path
-}
-
-// delegateTestEnv gives the test its own environment (registry) in a temp
-// working directory.
-func delegateTestEnv(t *testing.T) string {
-	t.Helper()
-	dir := t.TempDir()
-	t.Chdir(dir)
-	if _, err := Init(false); err != nil {
-		t.Fatalf("init environment: %v", err)
-	}
-	return dir
-}
-
-func TestRegisterDelegate_FailsOnUnresolvable(t *testing.T) {
-	delegateTestEnv(t)
-	if _, err := RegisterDelegate("exec:/definitely/not/a/real/binary-xyz", nil); err == nil {
-		t.Fatal("expected registration to fail for an unresolvable location — a delegate is its OBI")
-	}
-}
-
-func TestRegisterDelegate_SnapshotsAndPins(t *testing.T) {
-	dir := delegateTestEnv(t)
-	loc := writeFakeDelegate(t, dir, "fake-kv", fakeDelegateOBI)
-
-	summary, err := RegisterDelegate(loc, nil)
+	iface.Name = "facade-provider"
+	raw, err := jsonvalue.Marshal(iface)
 	if err != nil {
-		t.Fatalf("register: %v", err)
+		t.Fatal(err)
 	}
-	if summary.Location != loc {
-		t.Errorf("location = %q, want %q", summary.Location, loc)
+	return raw
+}
+
+func TestDelegateFacadeWithoutEnvironment(t *testing.T) {
+	t.Chdir(t.TempDir())
+	t.Setenv("OB_CONFIG_DIR", t.TempDir())
+	roles, err := ListDelegateRoles()
+	if err != nil || len(roles.Roles) != 3 {
+		t.Fatalf("roles need no environment: %v %v", roles, err)
 	}
-	if summary.Name != "fake-kv" {
-		t.Errorf("name = %q, want the delegate OBI's name", summary.Name)
+	list, err := ListDelegates("")
+	if err != nil || list.Delegates == nil || len(list.Delegates) != 0 {
+		t.Fatalf("missing environment must be an honest empty registry: %+v %v", list, err)
 	}
-	// The snapshot's operations are keys AND aliases — the flat identifier set.
-	for _, want := range []string{"get", "openbindings.document-store.get", "acme.fake.translate"} {
-		if !carriesOperation(summary.Operations, want) {
-			t.Errorf("snapshot should carry %q; got %v", want, summary.Operations)
+	if _, err := RegisterDelegate(RoleRegistrationInput{Interface: invokeProvider(t), Roles: []string{"invoke"}}); !IsNoEnvironment(err) {
+		t.Fatalf("register without environment: %v", err)
+	}
+	if err := SetDelegatePreference("dlg_x", "invoke", nil); !IsNoEnvironment(err) {
+		t.Fatalf("prefer without environment: %v", err)
+	}
+	if err := UnregisterDelegate("dlg_absent"); err != nil {
+		t.Fatalf("absent ID in absent environment must succeed: %v", err)
+	}
+	if _, err := os.Stat(filepath.Join(os.Getenv("OB_CONFIG_DIR"), EnvConfigFile)); !os.IsNotExist(err) {
+		t.Fatal("facade created an environment implicitly")
+	}
+}
+
+func TestDelegateFacadeLifecycle(t *testing.T) {
+	envPath := envConfigTestEnv(t)
+	provider := invokeProvider(t)
+	before, _ := os.ReadFile(filepath.Join(envPath, EnvConfigFile))
+
+	// Rejections leave storage untouched.
+	if _, err := RegisterDelegate(RoleRegistrationInput{Interface: provider, Roles: []string{"synthesize"}}); err == nil {
+		t.Fatal("invoke provider admitted for synthesize")
+	}
+	if _, err := RegisterDelegate(RoleRegistrationInput{Interface: provider, Roles: []string{"invoke"}, RolePreferences: json.RawMessage(`{"synthesize": 1}`)}); err == nil {
+		t.Fatal("preference outside requested roles admitted")
+	}
+	if _, err := RegisterDelegate(RoleRegistrationInput{ID: "dlg_missing", Interface: provider, Roles: []string{"invoke"}}); err == nil {
+		t.Fatal("unknown ID replacement admitted")
+	}
+	after, _ := os.ReadFile(filepath.Join(envPath, EnvConfigFile))
+	if !bytes.Equal(before, after) {
+		t.Fatal("rejected mutations changed storage")
+	}
+
+	first, err := RegisterDelegate(RoleRegistrationInput{Interface: provider, Roles: []string{"invoke"}, RolePreferences: json.RawMessage(`{"invoke": 9007199254740993}`)})
+	if err != nil {
+		t.Fatal(err)
+	}
+	second, err := RegisterDelegate(RoleRegistrationInput{Interface: provider, Roles: []string{"invoke"}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if first.ID == second.ID || first.RolePreferences["invoke"] != "9007199254740993" || len(second.RolePreferences) != 0 {
+		t.Fatalf("identity/preference semantics: %+v %+v", first, second)
+	}
+	status, err := GetEnvironmentStatus()
+	if err != nil || status.DelegateCount != 2 {
+		t.Fatalf("environment count: %+v %v", status, err)
+	}
+	for role, want := range map[string]int{"": 2, "invoke": 2, "synthesize": 0, "not-a-role": 0} {
+		list, err := ListDelegates(role)
+		if err != nil || len(list.Delegates) != want {
+			t.Fatalf("list %q: %d records, want %d (%v)", role, len(list.Delegates), want, err)
 		}
 	}
-	if !strings.HasPrefix(summary.ContentHash, "sha256:") {
-		t.Errorf("snapshot should pin the resolved document; contentHash = %q", summary.ContentHash)
+	zero := json.Number("0")
+	if err := SetDelegatePreference(first.ID, "invoke", &zero); err != nil {
+		t.Fatal(err)
 	}
-	// Inert for ob (none of the three format capabilities) — registered anyway.
-	if len(summary.Capabilities) != 0 {
-		t.Errorf("expected an inert-for-ob delegate, got capabilities %v", summary.Capabilities)
+	list, _ := ListDelegates("invoke")
+	if list.Delegates[0].ID != first.ID || list.Delegates[0].RolePreferences["invoke"] != "0" {
+		t.Fatalf("explicit zero lost or order changed: %+v", list.Delegates)
 	}
-}
-
-func TestRegisterDelegate_RefreshPreservesPreferences(t *testing.T) {
-	dir := delegateTestEnv(t)
-	loc := writeFakeDelegate(t, dir, "fake-kv", fakeDelegateOBI)
-	if _, err := RegisterDelegate(loc, nil); err != nil {
-		t.Fatalf("register: %v", err)
+	if err := SetDelegatePreference(first.ID, "synthesize", &zero); err == nil {
+		t.Fatal("preference for an unenrolled role accepted")
 	}
-
-	// The registrar builds a preference index...
-	if _, err := SetDelegatePreference(SetDelegatePreferenceInput{
-		Location: loc, Preference: prefOf(7), Operation: "openbindings.document-store.get",
-	}); err != nil {
-		t.Fatalf("set operation preference: %v", err)
+	if err := SetDelegatePreference("dlg_absent", "invoke", nil); err == nil {
+		t.Fatal("clearing an absent registration succeeded")
 	}
-
-	// ...the delegate changes, and the registrar re-registers to refresh.
-	writeFakeDelegate(t, dir, "fake-kv", fakeDelegateOBIv2)
-	before, _ := RegisterDelegate(loc, nil)
-
-	// The snapshot is the delegate's data: refreshed.
-	if !carriesOperation(before.Operations, "delete") {
-		t.Errorf("refresh should replace the snapshot; operations = %v", before.Operations)
+	override := json.Number("-1.25")
+	if err := SetDelegateBindingPreference(first.ID, "invoke", "example.test@1", &override); err != nil {
+		t.Fatal(err)
 	}
-	// The preferences are the registrar's data: untouched.
-	if got := before.OperationPreferences["openbindings.document-store.get"]; got != 7 {
-		t.Errorf("refresh must preserve the preference index; got %v", before.OperationPreferences)
+	if err := SetDelegateBindingPreference(first.ID, "inspect", "example.test@1", &override); err == nil {
+		t.Fatal("override enrolled an unrequested role")
 	}
-}
-
-func TestSetDelegatePreference_NullClears(t *testing.T) {
-	dir := delegateTestEnv(t)
-	loc := writeFakeDelegate(t, dir, "fake-kv", fakeDelegateOBI)
-	if _, err := RegisterDelegate(loc, prefOf(5)); err != nil {
-		t.Fatalf("register: %v", err)
+	if err := SetDelegatePreference(first.ID, "invoke", nil); err != nil {
+		t.Fatal(err)
 	}
-
-	// Clear the delegate-level value back to the unset baseline.
-	s, err := SetDelegatePreference(SetDelegatePreferenceInput{Location: loc, Preference: nil})
-	if err != nil {
-		t.Fatalf("clear delegate-level: %v", err)
+	list, _ = ListDelegates("")
+	if _, present := list.Delegates[0].RolePreferences["invoke"]; present {
+		t.Fatal("null clear did not remove the explicit entry")
 	}
-	if s.Preference != nil {
-		t.Errorf("delegate-level preference should be cleared to unset, got %v", *s.Preference)
+	config, _ := LoadEnvConfig(envPath)
+	state, err := readRoleState(config)
+	if err != nil || state.BindingPreferences[first.ID]["invoke"]["example.test@1"] != "-1.25" {
+		t.Fatal("shared clear erased the native override or override not retained")
 	}
-
-	// Set then remove an operation entry.
-	op := "openbindings.document-store.get"
-	if _, err := SetDelegatePreference(SetDelegatePreferenceInput{Location: loc, Preference: prefOf(9), Operation: op}); err != nil {
-		t.Fatalf("set op preference: %v", err)
+	replaced, err := RegisterDelegate(RoleRegistrationInput{ID: first.ID, Interface: provider, Roles: []string{"invoke"}, RolePreferences: json.RawMessage(`{}`)})
+	if err != nil || replaced.ID != first.ID || len(replaced.RolePreferences) != 0 {
+		t.Fatalf("replacement: %+v %v", replaced, err)
 	}
-	s, err = SetDelegatePreference(SetDelegatePreferenceInput{Location: loc, Preference: nil, Operation: op})
-	if err != nil {
-		t.Fatalf("clear op preference: %v", err)
+	if err := UnregisterDelegate(first.ID); err != nil {
+		t.Fatal(err)
 	}
-	if len(s.OperationPreferences) != 0 {
-		t.Errorf("operation entry should be removed, got %v", s.OperationPreferences)
+	if err := UnregisterDelegate(first.ID); err != nil {
+		t.Fatal("repeated removal must succeed")
+	}
+	list, _ = ListDelegates("")
+	if len(list.Delegates) != 1 || list.Delegates[0].ID != second.ID {
+		t.Fatalf("removal touched the other record: %+v", list.Delegates)
+	}
+	if _, err := RegisterDelegate(RoleRegistrationInput{ID: first.ID, Interface: provider, Roles: []string{"invoke"}}); err == nil {
+		t.Fatal("removed ID resurrected")
 	}
 }
 
-func TestSetDelegatePreference_RequiresRegistration(t *testing.T) {
-	delegateTestEnv(t)
-	if _, err := SetDelegatePreference(SetDelegatePreferenceInput{Location: "exec:ghost", Preference: prefOf(1)}); err == nil {
-		t.Fatal("expected an error for an unregistered delegate")
+func TestDelegateFacadeStateClassification(t *testing.T) {
+	envPath := envConfigTestEnv(t)
+	legacy := []byte(`{"delegates":[{"location":"exec:old","operations":[]}]}` + "\n")
+	if err := os.WriteFile(filepath.Join(envPath, EnvConfigFile), legacy, 0600); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := ListDelegates(""); !IsDelegateRegistryUnavailable(err) || !strings.Contains(err.Error(), "migrate") {
+		t.Fatalf("legacy rows must be an unavailable registry with guidance, got %v", err)
+	}
+	if _, err := RegisterDelegate(RoleRegistrationInput{Interface: invokeProvider(t), Roles: []string{"invoke"}}); !IsDelegateRegistryUnavailable(err) {
+		t.Fatalf("register over legacy rows: %v", err)
+	}
+	if err := UnregisterDelegate("dlg_x"); !IsDelegateRegistryUnavailable(err) {
+		t.Fatalf("unregister over legacy rows must not report absence: %v", err)
+	}
+	if _, err := GetEnvironmentStatus(); err == nil || !strings.Contains(err.Error(), "migrat") {
+		t.Fatalf("environment status must surface legacy state: %v", err)
+	}
+	if got, _ := os.ReadFile(filepath.Join(envPath, EnvConfigFile)); !bytes.Equal(got, legacy) {
+		t.Fatal("legacy state was modified by refused operations")
+	}
+	if err := os.WriteFile(filepath.Join(envPath, EnvConfigFile), []byte(`{"delegateRegistry":{"format":"ob.delegate-registry@1"}}`), 0600); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := ListDelegates(""); !IsEnvironmentUnreadable(err) {
+		t.Fatalf("corrupt registry must be unreadable, got %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(envPath, EnvConfigFile), []byte(`not json`), 0600); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := ListDelegates(""); err == nil {
+		t.Fatal("unparsable configuration listed as empty")
 	}
 }
 
-// TestSetDelegatePreference_FormatScopeSurfacesInSummary pins Fix B4-4:
-// DelegateRecord.BindingSpecPreferences used to be write-only — set by
-// SetDelegatePreference's Format scope but never copied by
-// summaryFromRecord, so it never appeared in the summary SetDelegatePreference
-// itself returns, in listDelegates' output, or in the human-readable Render().
-func TestSetDelegatePreference_FormatScopeSurfacesInSummary(t *testing.T) {
-	dir := delegateTestEnv(t)
-	loc := writeFakeDelegate(t, dir, "fake-kv", fakeDelegateOBI)
-	if _, err := RegisterDelegate(loc, nil); err != nil {
-		t.Fatalf("register: %v", err)
+func TestRoleRegistrationInputDecoding(t *testing.T) {
+	provider := string(invokeProvider(t))
+	for _, tc := range []struct {
+		name, body string
+		ok         bool
+		prefs      string
+	}{
+		{"fresh omitted preferences", `{"interface": ` + provider + `, "roles": ["invoke"]}`, true, ""},
+		{"empty map", `{"interface": ` + provider + `, "roles": ["invoke"], "rolePreferences": {}}`, true, "{}"},
+		{"null map", `{"interface": ` + provider + `, "roles": ["invoke"], "rolePreferences": null}`, false, ""},
+		{"empty id", `{"id": "", "interface": ` + provider + `, "roles": ["invoke"]}`, false, ""},
+		{"null roles", `{"interface": ` + provider + `, "roles": null}`, false, ""},
+		{"locator interface", `{"interface": "exec:tool", "roles": ["invoke"]}`, false, ""},
+		{"unknown field", `{"interface": ` + provider + `, "roles": ["invoke"], "location": "x"}`, false, ""},
+		{"not an object", `[]`, false, ""},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			var input RoleRegistrationInput
+			err := jsonvalue.Unmarshal([]byte(tc.body), &input)
+			if (err == nil) != tc.ok {
+				t.Fatalf("ok=%v want %v: %v", err == nil, tc.ok, err)
+			}
+			if tc.ok && string(input.RolePreferences) != tc.prefs {
+				t.Fatalf("preferences %q, want %q", input.RolePreferences, tc.prefs)
+			}
+		})
 	}
+}
 
-	op := "openbindings.document-store.get"
-	s, err := SetDelegatePreference(SetDelegatePreferenceInput{
-		Location: loc, Preference: prefOf(3), Operation: op, BindingSpec: "grpc",
-	})
-	if err != nil {
-		t.Fatalf("set format preference: %v", err)
-	}
-
-	// The summary SetDelegatePreference itself returns.
-	if len(s.BindingSpecPreferences) != 1 {
-		t.Fatalf("summary.BindingSpecPreferences = %+v, want exactly one entry", s.BindingSpecPreferences)
-	}
-	fp := s.BindingSpecPreferences[0]
-	if fp.Operation != op || fp.BindingSpec != "grpc" || fp.Preference != 3 {
-		t.Errorf("format preference = %+v, want {%s grpc 3}", fp, op)
-	}
-
-	// A fresh read through listDelegates (persisted registry -> summaryFromRecord).
-	var found bool
-	for _, d := range ListDelegates().Delegates {
-		if d.Location != loc {
+func TestDelegatePreferenceInputDecoding(t *testing.T) {
+	for _, tc := range []struct {
+		body   string
+		ok     bool
+		number string
+		clear  bool
+	}{
+		{`{"id":"dlg_1","role":"invoke","preference":1e400}`, true, "1e400", false},
+		{`{"id":"dlg_1","role":"invoke","preference":0}`, true, "0", false},
+		{`{"id":"dlg_1","role":"invoke","preference":null}`, true, "", true},
+		{`{"id":"dlg_1","role":"invoke"}`, false, "", false},
+		{`{"id":"dlg_1","role":"invoke","preference":"1"}`, false, "", false},
+		{`{"id":"","role":"invoke","preference":1}`, false, "", false},
+		{`{"id":"dlg_1","role":"invoke","preference":1,"bindingSpec":"x"}`, false, "", false},
+	} {
+		var input DelegatePreferenceInput
+		err := jsonvalue.Unmarshal([]byte(tc.body), &input)
+		if (err == nil) != tc.ok {
+			t.Fatalf("%s: ok=%v want %v: %v", tc.body, err == nil, tc.ok, err)
+		}
+		if !tc.ok {
 			continue
 		}
-		found = true
-		if len(d.BindingSpecPreferences) != 1 || d.BindingSpecPreferences[0].BindingSpec != "grpc" {
-			t.Errorf("listDelegates summary.BindingSpecPreferences = %+v, want the grpc override", d.BindingSpecPreferences)
+		if tc.clear != (input.Preference == nil) || (!tc.clear && string(*input.Preference) != tc.number) {
+			t.Fatalf("%s: decoded %+v", tc.body, input)
 		}
 	}
-	if !found {
-		t.Fatalf("registered delegate missing from listDelegates")
+	var binding DelegateBindingPreferenceInput
+	if err := jsonvalue.Unmarshal([]byte(`{"id":"dlg_1","role":"invoke","bindingSpec":"example.test@1","preference":9007199254740993}`), &binding); err != nil || binding.BindingSpec != "example.test@1" || string(*binding.Preference) != "9007199254740993" {
+		t.Fatalf("binding preference decoding: %+v %v", binding, err)
 	}
-
-	// The human-readable rendering.
-	rendered := s.Render()
-	if !strings.Contains(rendered, op) || !strings.Contains(rendered, "grpc") || !strings.Contains(rendered, "3") {
-		t.Errorf("Render() missing the format-scoped preference; got:\n%s", rendered)
+	if err := jsonvalue.Unmarshal([]byte(`{"id":"dlg_1","role":"invoke","preference":1}`), &binding); err == nil {
+		t.Fatal("missing bindingSpec accepted for the native override")
 	}
 }
 
-func TestUnregisterDelegate_Idempotent(t *testing.T) {
-	dir := delegateTestEnv(t)
-	loc := writeFakeDelegate(t, dir, "fake-kv", fakeDelegateOBI)
-	if _, err := RegisterDelegate(loc, nil); err != nil {
-		t.Fatalf("register: %v", err)
+func TestDelegateRoleRequirementProjection(t *testing.T) {
+	for _, role := range []string{"invoke", "synthesize", "inspect"} {
+		data, err := DelegateRoleRequirementJSON(role)
+		if err != nil {
+			t.Fatal(err)
+		}
+		catalogue, _ := defaultRoleCatalogue()
+		var want, got any
+		_ = json.Unmarshal(catalogue.alternatives[role][0].value, &want)
+		_ = json.Unmarshal(data, &got)
+		if equal, err := jsonvalue.Equal(want, got); err != nil || !equal {
+			t.Fatalf("%s: projection differs from the catalogue alternative", role)
+		}
 	}
-
-	removed, err := UnregisterDelegate(loc)
-	if err != nil || !removed {
-		t.Fatalf("first unregister: removed=%v err=%v", removed, err)
+	if _, err := DelegateRoleRequirementJSON("bogus"); err == nil {
+		t.Fatal("unknown role projected")
 	}
-	removed, err = UnregisterDelegate(loc)
-	if err != nil || removed {
-		t.Fatalf("second unregister should be a no-op success: removed=%v err=%v", removed, err)
-	}
-}
-
-func TestResolveDelegate_OrdersByEffectivePreference(t *testing.T) {
-	dir := delegateTestEnv(t)
-	// An operation ob itself does not carry, so the candidates are exactly the
-	// two externals. (Resolving openbindings.document-store.get would return
-	// three: ob's own context store carries the document-store keys by alias.)
-	op := "acme.fake.translate"
-	locA := writeFakeDelegate(t, dir, "kv-a", fakeDelegateOBI)
-	locB := writeFakeDelegate(t, dir, "kv-b", fakeDelegateOBI)
-	if _, err := RegisterDelegate(locA, nil); err != nil {
-		t.Fatal(err)
-	}
-	if _, err := RegisterDelegate(locB, prefOf(5)); err != nil {
-		t.Fatal(err)
-	}
-
-	out, err := ResolveDelegate(op)
+	multi, err := newRoleCatalogue([]DelegateRole{{ID: "A", Description: "two alternatives", AcceptedInterfaces: []json.RawMessage{
+		json.RawMessage(`{"openbindings":"0.2.0","operations":{"one":{}}}`), json.RawMessage(`{"openbindings":"0.2.0","operations":{"two":{}}}`),
+	}}})
 	if err != nil {
-		t.Fatalf("resolve: %v", err)
-	}
-	if len(out.Candidates) != 2 {
-		t.Fatalf("expected both carriers, got %d", len(out.Candidates))
-	}
-	if out.Candidates[0].Location != locB {
-		t.Errorf("higher preference should come first; got %q", out.Candidates[0].Location)
-	}
-
-	// A per-operation entry on A overrides B's delegate-level value.
-	if _, err := SetDelegatePreference(SetDelegatePreferenceInput{Location: locA, Preference: prefOf(10), Operation: op}); err != nil {
 		t.Fatal(err)
 	}
-	out, _ = ResolveDelegate(op)
-	if out.Candidates[0].Location != locA {
-		t.Errorf("operation entry should outrank delegate-level; got %q", out.Candidates[0].Location)
+	if _, err := roleRequirementJSON(multi, "A"); err == nil || !strings.Contains(err.Error(), "2 alternative") {
+		t.Fatalf("multi-alternative role must refuse the projection, got %v", err)
 	}
-
-	// An operation nothing carries resolves to an empty candidate list — an
-	// answer, not an error.
-	out, err = ResolveDelegate("acme.nothing.carries.this")
-	if err != nil || len(out.Candidates) != 0 {
-		t.Errorf("expected empty candidates, got %v (err %v)", out.Candidates, err)
+	if first, second := mustCatalogue(t), mustCatalogue(t); first != second {
+		t.Fatal("built-in catalogue is not cached")
 	}
 }
 
-func TestResolveDelegate_SelfCarriesItsOwnOperations(t *testing.T) {
-	delegateTestEnv(t)
-	// ob's own interface answers to the software-descriptor describe operation.
-	out, err := ResolveDelegate("openbindings.software-descriptor.describe")
+func mustCatalogue(t *testing.T) *roleCatalogue {
+	t.Helper()
+	c, err := defaultRoleCatalogue()
 	if err != nil {
-		t.Fatalf("resolve: %v", err)
+		t.Fatal(err)
 	}
-	if len(out.Candidates) == 0 || !out.Candidates[0].Builtin {
-		t.Fatalf("the self-delegate should carry ob's own operations; got %+v", out.Candidates)
-	}
-	if out.Candidates[0].Location != SelfDelegateLocation {
-		t.Errorf("self location = %q, want %q", out.Candidates[0].Location, SelfDelegateLocation)
-	}
-}
-
-func TestResolvePinnedDelegateInterface_DetectsDrift(t *testing.T) {
-	dir := delegateTestEnv(t)
-	loc := writeFakeDelegate(t, dir, "fake-kv", fakeDelegateOBI)
-	if _, err := RegisterDelegate(loc, nil); err != nil {
-		t.Fatalf("register: %v", err)
-	}
-	rec := GetDelegateContext().Delegates[0]
-
-	// Unchanged: resolves and verifies.
-	if _, err := resolvePinnedDelegateInterface(rec); err != nil {
-		t.Fatalf("pin verification should pass for an unchanged delegate: %v", err)
-	}
-
-	// The document behind the location changes wholesale — the location is an
-	// address, not a trust anchor, so use must detect it.
-	writeFakeDelegate(t, dir, "fake-kv", fakeDelegateOBIv2)
-	if _, err := resolvePinnedDelegateInterface(rec); err == nil || !strings.Contains(err.Error(), "re-register") {
-		t.Fatalf("expected a digest-mismatch error directing re-registration, got %v", err)
-	}
+	return c
 }

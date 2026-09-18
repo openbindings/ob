@@ -1,7 +1,8 @@
 package cmd
 
 import (
-	"strconv"
+	"encoding/json"
+	"fmt"
 	"strings"
 
 	"github.com/openbindings/ob/internal/app"
@@ -9,79 +10,83 @@ import (
 )
 
 func newDelegatePreferCmd() *cobra.Command {
-	var operation, capability, sourceFormat string
+	var role, bindingSpec string
 	var clear bool
 
 	cmd := &cobra.Command{
-		Use:   "prefer <location> [preference]",
-		Short: "Set or clear a delegate's selection preference (higher = more preferred)",
-		Long: `Set or clear a delegate's selection preference. Higher is more preferred;
-the baseline is 0 (where an unset delegate sits, alongside ob's own native
-handling), and negatives rank a delegate below that baseline.
+		Use:   "prefer <id> [preference]",
+		Short: "Set or clear a registration's preference for one role (higher = more preferred)",
+		Long: `Set or clear the explicit preference of one registration in one of its
+roles. Higher numbers express stronger preference among eligible registrations
+in that role; equal numbers express no ordering, and ob keeps registration
+order on ties. Numbers are retained exactly; an explicit 0 stays explicit
+until cleared. --clear removes the explicit entry (effective preference stays 0).
 
-With no scope, sets the delegate-level preference (the default for every
-operation it carries). With --operation (or the --capability shorthand for
-ob's three format needs), sets that operation's entry in the delegate's
-preference index; --binding-spec additionally scopes an operation entry to
-one binding-source format. --clear removes the targeted entry instead.
-
-Preference orders the candidates 'ob delegate resolve' returns; which
-candidate is used stays with the caller.
+--binding-spec targets ob's native override instead: the preference applies
+only when that exact binding specification is requested in that role, and it
+takes priority over the role preference. Overrides are separate from the
+shared role preference map and cannot enroll a role.
 
 Examples:
-  ob delegate prefer exec:acme 5
-  ob delegate prefer exec:acme 10 --capability synthesize
-  ob delegate prefer exec:acme 10 --operation openbindings.document-store.get
-  ob delegate prefer exec:acme 10 --capability invoke --binding-spec openbindings.grpc@1
-  ob delegate prefer exec:acme --clear --capability synthesize`,
+  ob delegate prefer dlg_... 20 --role invoke
+  ob delegate prefer dlg_... 0 --role synthesize
+  ob delegate prefer dlg_... --clear --role invoke
+  ob delegate prefer dlg_... 10 --role invoke --binding-spec openbindings.grpc@1
+  ob delegate prefer dlg_... --clear --role invoke --binding-spec openbindings.grpc@1`,
 		Args: cobra.RangeArgs(1, 2),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			var pref *float64
+			if looksLikeLocation(args[0]) {
+				return app.ExitResult{Code: 2, Message: fmt.Sprintf("%q is a location; preferences belong to a registration ID and role (see 'ob delegate list')", args[0]), ToStderr: true}
+			}
+			if strings.TrimSpace(role) == "" {
+				return app.ExitResult{Code: 2, Message: "--role is required: preferences are scoped to a registration and role", ToStderr: true}
+			}
+			if cmd.Flags().Changed("binding-spec") && bindingSpec == "" {
+				return app.ExitResult{Code: 2, Message: "--binding-spec must name an exact binding specification identifier", ToStderr: true}
+			}
+			var preference *json.Number
 			switch {
 			case clear && len(args) == 2:
 				return app.ExitResult{Code: 2, Message: "--clear takes no preference value", ToStderr: true}
 			case clear:
-				// pref stays nil: clear the targeted entry
+				// nil clears the explicit entry
 			case len(args) < 2:
-				return app.ExitResult{Code: 2, Message: "provide a preference value, or pass --clear", ToStderr: true}
+				return app.ExitResult{Code: 2, Message: "provide a preference number, or pass --clear", ToStderr: true}
 			default:
-				v, err := strconv.ParseFloat(strings.TrimSpace(args[1]), 64)
-				if err != nil {
-					return app.ExitResult{Code: 2, Message: "preference must be a number", ToStderr: true}
+				number := json.Number(strings.TrimSpace(args[1]))
+				if !app.ValidDelegatePreference(number) {
+					return app.ExitResult{Code: 2, Message: fmt.Sprintf("%q is not an exact JSON number ob can retain", args[1]), ToStderr: true}
 				}
-				pref = &v
+				preference = &number
 			}
-
-			op := strings.TrimSpace(operation)
-			if capability != "" {
-				if op != "" {
-					return app.ExitResult{Code: 2, Message: "use --operation or --capability, not both", ToStderr: true}
-				}
-				var ok bool
-				op, ok = app.CapabilityOperation(app.DelegateCapability(strings.ToLower(strings.TrimSpace(capability))))
-				if !ok {
-					return app.ExitResult{Code: 2, Message: "capability must be invoke, synthesize, or inspect", ToStderr: true}
-				}
+			var err error
+			if bindingSpec != "" {
+				err = app.SetDelegateBindingPreference(args[0], role, bindingSpec, preference)
+			} else {
+				err = app.SetDelegatePreference(args[0], role, preference)
 			}
-
-			result, err := app.SetDelegatePreference(app.SetDelegatePreferenceInput{
-				Location:    args[0],
-				Preference:  pref,
-				Operation:   op,
-				BindingSpec: sourceFormat,
-			})
 			if err != nil {
-				return err
+				return app.ExitResult{Code: 1, Message: err.Error(), ToStderr: true}
+			}
+			text := fmt.Sprintf("Set preference of %s for role %s", args[0], role)
+			if preference == nil {
+				text = fmt.Sprintf("Cleared preference of %s for role %s", args[0], role)
+			}
+			if bindingSpec != "" {
+				text += " (binding specification " + bindingSpec + ")"
 			}
 			format, outputPath := getOutputFlags(cmd)
-			return app.OutputResult(result, format, outputPath)
+			// The contract's output is null; the text rendering is the human view.
+			return app.OutputResultText(nil, format, outputPath, func() string { return text })
 		},
 	}
 
-	cmd.Flags().StringVar(&operation, "operation", "", "scope to one operation identifier")
-	cmd.Flags().StringVar(&capability, "capability", "", "shorthand for the operation of an ob capability: invoke, synthesize, or inspect")
-	cmd.Flags().StringVar(&sourceFormat, "binding-spec", "", "scope an operation entry to one binding specification (requires --operation or --capability)")
-	cmd.Flags().BoolVar(&clear, "clear", false, "remove the targeted preference entry instead of setting it")
-
+	cmd.Flags().StringVar(&role, "role", "", "role the preference applies to (required)")
+	cmd.Flags().StringVar(&bindingSpec, "binding-spec", "", "target ob's native override for this exact binding specification instead of the role preference")
+	cmd.Flags().BoolVar(&clear, "clear", false, "remove the explicit entry instead of setting it")
+	cmd.SetFlagErrorFunc(retiredFlagGuidance(map[string]string{
+		"operation":  "preferences are scoped to a registration and role; use --role <invoke|synthesize|inspect>, with --binding-spec for a native override",
+		"capability": "roles replaced capabilities; use --role <invoke|synthesize|inspect>",
+	}))
 	return cmd
 }

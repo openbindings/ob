@@ -45,7 +45,7 @@ type SourceMeta struct {
 	ContentHash string `json:"contentHash,omitempty"` // "sha256:<hex>" of source at last sync
 	LastSynced  string `json:"lastSynced,omitempty"`  // ISO 8601
 	OBVersion   string `json:"obVersion,omitempty"`   // ob version that last synced
-	Delegate    string `json:"delegate,omitempty"`    // delegate that handles this source (e.g. "ob", "exec:my-cli")
+	Delegate    string `json:"delegate,omitempty"`    // legacy authoring provenance only; never role enrollment or routing authority
 }
 
 // GetSourceMeta reads x-ob metadata from a Source's Extensions.
@@ -388,7 +388,7 @@ func ReadSourceContent(ref string, obiDir string) ([]byte, error) {
 		// here — not only on the SDK's usage invoker — or the served surface
 		// would auto-authorize execution ob's own contract says it never does.
 		if !authorizeExecAddress(args) {
-			return nil, fmt.Errorf("exec address %q is not authorized (USAGE-P-02); authorize it explicitly or register the delegate that owns it", ref)
+			return nil, fmt.Errorf("exec address %q is not authorized (USAGE-P-02); authorize this exact address explicitly", ref)
 		}
 		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 		defer cancel()

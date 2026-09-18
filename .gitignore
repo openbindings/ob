@@ -26,3 +26,10 @@ dist/
 # Local-dev workspace against sibling openbindings-go (test-before-tag)
 go.work
 go.work.sum
+
+# Machine-local build/install helper
+/scripts/dev-install.sh
+
+# Consumer qualification build outputs
+/qualification/delegate-manager/go/provider
+/qualification/delegate-manager/ts/node_modules/

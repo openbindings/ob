@@ -64,12 +64,12 @@ var tokenClock = time.Now
 // close an initialization cycle (resolver → mint → invoker → resolver).
 var (
 	mintInvoker     func(ctx context.Context, iface *openbindings.Interface, opKey, bindingKey string, input any, config *InvokeConfig) (*ConfiguredInvocation, error)
-	bindingResolver func(iface *openbindings.Interface, opKey, bindingKey string, input any) (*resolvedBinding, error)
+	bindingResolver func(ctx context.Context, iface *openbindings.Interface, opKey, bindingKey string, input any, callerContext map[string]any) (*resolvedBinding, error)
 )
 
 func init() {
 	mintInvoker = invokeOnInterface
-	bindingResolver = resolveBindingAndSource
+	bindingResolver = resolveBindingAndSourceWithContext
 }
 
 // ensurePinnedToken guarantees a live bearerToken in the stored context for
@@ -207,13 +207,19 @@ func mintFromPinnedProvider(ctx context.Context, provider string, credential any
 		input["credential"] = cred
 	}
 
+	// The pin authorizes the provider, not a registered binding invoker that
+	// offers to act on its behalf. Carry this private routing constraint through
+	// BOTH binding assessment and invocation; JSON context cannot forge it.
+	mintCtx := context.WithValue(ctx, mintingContextKey{}, true)
+	mintCtx = context.WithValue(mintCtx, nativeInvocationRoutingKey{}, true)
+
 	// M5 destination floor + cross-origin transparency, where the mint's source
 	// NAMES a network artifact (a located OpenAPI doc, a gRPC host, …). An
 	// embedded artifact's dispatch host is inside binding-family knowledge ob
 	// does not read here; for it the locator floor above is the backstop, and
 	// the binding — authored by a provider whose OBI ob fetched over TLS —
 	// owns the target (OB doctrine: ob does not second-guess the binding).
-	if resolved, rerr := bindingResolver(iface, opKey, "", input); rerr == nil {
+	if resolved, rerr := bindingResolver(mintCtx, iface, opKey, "", input, nil); rerr == nil {
 		destOrigin, destPlaintext, destIsNet := credentialOrigin(resolved.source.Location)
 		switch {
 		case destIsNet && destPlaintext:
@@ -223,7 +229,6 @@ func mintFromPinnedProvider(ctx context.Context, provider string, credential any
 		}
 	}
 
-	mintCtx := context.WithValue(ctx, mintingContextKey{}, true)
 	run, err := mintInvoker(mintCtx, iface, opKey, "", input, nil)
 	if err != nil {
 		return nil, fmt.Errorf("invoking %s: %w", opKey, err)

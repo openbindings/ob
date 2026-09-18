@@ -60,6 +60,7 @@ func skipIfKeychainUnavailable(t *testing.T) {
 //     via NormalizeContextKey and looks up context from the store internally
 //  5. Validates the response contains the authenticated user's login
 func TestContextGitHub_OperationInvokerDriven(t *testing.T) {
+	t.Chdir(t.TempDir())
 	skipIfKeychainUnavailable(t)
 	setupContextTestDir(t)
 	github := newGitHubAPIStub(t)
@@ -208,6 +209,8 @@ func TestContextGitHub_HierarchicalAPIBaseURL(t *testing.T) {
 // correctly reads securitySchemes and places the bearer token in the
 // Authorization header.
 func TestContextGitHub_SecuritySchemeApplication(t *testing.T) {
+	// Ranked invocation must not discover an operator's ancestor environment.
+	t.Chdir(t.TempDir())
 	github := newGitHubAPIStub(t)
 
 	dir := t.TempDir()
@@ -279,6 +282,7 @@ func TestContextGitHub_SecuritySchemeApplication(t *testing.T) {
 // authenticated endpoint returns its 401 without supplied credentials. The
 // server is local so this transport/error classification test is hermetic.
 func TestContextGitHub_NoCredentialsFails(t *testing.T) {
+	t.Chdir(t.TempDir())
 	github := newGitHubAPIStub(t)
 
 	dir := t.TempDir()

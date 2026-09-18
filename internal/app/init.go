@@ -4,15 +4,26 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
+
+	"github.com/openbindings/openbindings-go/jsonvalue"
+	"time"
 )
 
 // EnvConfig represents environment-level configuration stored in .openbindings/config.json.
 type EnvConfig struct {
-	// Delegates is the delegate registry: one record per registered delegate,
-	// in registration order. The self-delegate is builtin, never persisted.
-	Delegates []DelegateRecord `json:"delegates,omitempty"`
+	// DelegateRegistry is the new native registry block. It stays raw here so
+	// unrelated environment writers cannot project away metadata they do not own.
+	DelegateRegistry json.RawMessage            `json:"delegateRegistry,omitempty"`
+	Extra            map[string]json.RawMessage `json:"-"`
+	loaded           *envConfigFingerprint
+	// LegacyDelegates holds the retired location-based registry rows exactly
+	// as written. They are never interpreted for routing: their presence makes
+	// the environment refuse role-registry use until explicit conversion
+	// (`ob delegate migrate`), which reads the original bytes itself.
+	LegacyDelegates []json.RawMessage `json:"delegates,omitempty"`
 
 	// AuthorizedExec is the USAGE-P-02 authorization list: exec addresses
 	// (exact strings, e.g. "exec:mytool usage") the operator has explicitly
@@ -111,33 +122,66 @@ func LoadEnvConfig(envPath string) (*EnvConfig, error) {
 	return config, err
 }
 
-// envConfigFingerprint identifies the on-disk config.json content at a point
-// in time: the sha256 of its raw bytes, or the absent sentinel for "no file
-// yet". Comparable with ==; used by mutateEnvConfig to detect whether the
-// file changed between a load and its save.
+// envConfigFingerprint identifies a loaded snapshot. Conditional whole-document
+// saves compare it while holding the same lock as transactional mutations.
 type envConfigFingerprint struct {
 	hash   string
 	absent bool
 }
 
-// loadEnvConfigFingerprinted is LoadEnvConfig plus the fingerprint of what it
-// read, for callers that need to detect a later change to the same file
-// (mutateEnvConfig's optimistic-concurrency guard).
+// readPublishedSnapshot reads a file that another process publishes by atomic
+// rename. On POSIX the replacement is instantaneous for a reader: the old inode
+// stays readable until the last handle closes. Windows has no such guarantee —
+// while the rename replaces the target, an opener gets a sharing violation
+// (ERROR_SHARING_VIOLATION / ERROR_ACCESS_DENIED) rather than either version.
+// A bounded retry restores the property the design actually promises, that a
+// lock-free reader observes the old or the new snapshot and never a mixed one;
+// it never invents content and never waits on a writer's lock. Absence is
+// returned immediately, because an absent environment is a real answer.
+func readPublishedSnapshot(path string) ([]byte, error) {
+	f, err := openPublishedFile(path)
+	if err != nil {
+		return nil, err
+	}
+	defer f.Close()
+	return io.ReadAll(f)
+}
+
+// openPublishedFile opens a file another process may be replacing by atomic
+// rename, with the same bounded tolerance as readPublishedSnapshot.
+func openPublishedFile(path string) (*os.File, error) {
+	const attempts = 50
+	var err error
+	for attempt := 0; attempt < attempts; attempt++ {
+		var f *os.File
+		f, err = openPublishedHandle(path)
+		if err == nil || os.IsNotExist(err) || !isSharingViolation(err) {
+			return f, err
+		}
+		time.Sleep(2 * time.Millisecond)
+	}
+	return nil, err
+}
+
+// loadEnvConfigFingerprinted reads one atomically published snapshot.
 func loadEnvConfigFingerprinted(envPath string) (*EnvConfig, envConfigFingerprint, error) {
 	configPath := filepath.Join(envPath, EnvConfigFile)
-	data, err := os.ReadFile(configPath)
+	data, err := readPublishedSnapshot(configPath)
 	if err != nil {
 		if os.IsNotExist(err) {
-			return &EnvConfig{}, envConfigFingerprint{absent: true}, nil
+			fp := envConfigFingerprint{absent: true}
+			return &EnvConfig{loaded: &fp}, fp, nil
 		}
 		return nil, envConfigFingerprint{}, err
 	}
 
 	var config EnvConfig
-	if err := json.Unmarshal(data, &config); err != nil {
+	if err := jsonvalue.Unmarshal(data, &config); err != nil {
 		return nil, envConfigFingerprint{}, err
 	}
-	return &config, envConfigFingerprint{hash: HashContent(data)}, nil
+	fp := envConfigFingerprint{hash: HashContent(data)}
+	config.loaded = &fp
+	return &config, fp, nil
 }
 
 // EnvironmentStatus holds the status of an OpenBindings environment.
@@ -166,10 +210,12 @@ func GetEnvironmentStatus() (*EnvironmentStatus, error) {
 		return nil, err
 	}
 
-	config, _ := LoadEnvConfig(envPath)
 	delegateCount := 0
-	if config != nil {
-		delegateCount = len(config.Delegates)
+	if _, statErr := os.Stat(filepath.Join(envPath, EnvConfigFile)); statErr == nil {
+		delegateCount, err = delegateRegistryCount(envPath)
+		if err != nil {
+			return nil, fmt.Errorf("delegate registry: %w", err)
+		}
 	}
 
 	contextCount := 0
@@ -189,21 +235,31 @@ func GetEnvironmentStatus() (*EnvironmentStatus, error) {
 	}, nil
 }
 
-// SaveEnvConfig saves the environment configuration to config.json atomically.
+// SaveEnvConfig conditionally saves a loaded snapshot. A fresh value may only
+// create an absent config. Callers applying mutations use mutateEnvConfig;
+// stale full-document saves are refused, never merged by guessing ownership.
 func SaveEnvConfig(envPath string, config *EnvConfig) error {
-	configPath := filepath.Join(envPath, EnvConfigFile)
-	data, err := json.MarshalIndent(config, "", "  ")
-	if err != nil {
-		return err
+	if config == nil {
+		return errors.New("nil environment configuration")
 	}
-	data = append(data, '\n')
-	return AtomicWriteFile(configPath, data, FilePerm)
+	_, err := withEnvConfigLock(envPath, func() (struct{}, error) {
+		_, current, err := loadEnvConfigFingerprinted(envPath)
+		if err != nil {
+			return struct{}{}, err
+		}
+		expected := envConfigFingerprint{absent: true}
+		if config.loaded != nil {
+			expected = *config.loaded
+		}
+		if current != expected {
+			return struct{}{}, errEnvConfigConflict
+		}
+		return struct{}{}, writeEnvConfigLocked(envPath, config)
+	})
+	return err
 }
 
-// errEnvConfigConflict signals that config.json changed on disk between a
-// mutateEnvConfig attempt's load and its save: another process's own
-// load-mutate-save cycle landed in between. It never escapes mutateEnvConfig;
-// a caller only sees the loud error after retries are exhausted.
+// errEnvConfigConflict refuses a stale whole-document SaveEnvConfig call.
 var errEnvConfigConflict = errors.New("environment config changed concurrently")
 
 // errEnvConfigNoop lets a mutateEnvConfig callback report "nothing to
@@ -212,51 +268,14 @@ var errEnvConfigConflict = errors.New("environment config changed concurrently")
 // for the write or bumps the file's mtime.
 var errEnvConfigNoop = errors.New("no change")
 
-// maxEnvConfigMutateAttempts bounds mutateEnvConfig's retry loop. Three
-// attempts absorbs an ordinary race between two concurrent `ob` invocations
-// without looping indefinitely against a stuck or pathological writer.
-const maxEnvConfigMutateAttempts = 3
-
-// saveEnvConfigIfUnchanged writes config back to envPath's config.json only
-// if the file's on-disk content still matches the fingerprint captured at
-// load. AtomicWriteFile already makes the write itself atomic (temp file +
-// rename); this closes the separate load-mutate-save window a second,
-// independent `ob` process could land its own write inside, which an atomic
-// write alone does not guard against.
-func saveEnvConfigIfUnchanged(envPath string, fp envConfigFingerprint, config *EnvConfig) error {
-	_, current, err := loadEnvConfigFingerprinted(envPath)
-	if err != nil {
-		return err
-	}
-	if current != fp {
-		return errEnvConfigConflict
-	}
-	return SaveEnvConfig(envPath, config)
-}
-
-// mutateEnvConfig performs one load-mutate-save cycle against the
-// environment config with an optimistic-concurrency guard: it captures the
-// file's fingerprint at load, lets mutate apply its change, and refuses the
-// save (via saveEnvConfigIfUnchanged) if another process's cycle wrote the
-// file in between. On a refusal it retries — reloading the fresh on-disk
-// state and re-running mutate against it, so a retried registration or
-// preference update is genuinely reapplied against current data rather than
-// blindly repeated — up to maxEnvConfigMutateAttempts times, then fails
-// loudly rather than silently clobbering the other writer's update.
-//
-// mutate returns the domain result the caller ultimately wants (e.g. the
-// updated DelegateRecord, or whether a record was removed) alongside any
-// config mutation; returning errEnvConfigNoop skips the save entirely (nothing
-// changed, so nothing to write and nothing that can conflict).
-//
-// This is the config load/save seam every registry-mutating operation must
-// go through — RegisterDelegate, UnregisterDelegate, SetDelegatePreference —
-// instead of each doing its own unguarded LoadEnvConfig-mutate-SaveEnvConfig.
+// mutateEnvConfig serializes the ENTIRE reload/validate/mutate/commit cycle
+// across processes. Callbacks must not recursively acquire this same lock.
+// This is advisory local-filesystem coordination among participating versions;
+// legacy binaries must be quiesced before conversion.
 func mutateEnvConfig[T any](envPath string, mutate func(*EnvConfig) (T, error)) (T, error) {
 	var zero T
-	var lastErr error
-	for attempt := 0; attempt < maxEnvConfigMutateAttempts; attempt++ {
-		config, fp, err := loadEnvConfigFingerprinted(envPath)
+	return withEnvConfigLock(envPath, func() (T, error) {
+		config, _, err := loadEnvConfigFingerprinted(envPath)
 		if err != nil {
 			return zero, err
 		}
@@ -267,18 +286,11 @@ func mutateEnvConfig[T any](envPath string, mutate func(*EnvConfig) (T, error)) 
 			}
 			return zero, err
 		}
-		if err := saveEnvConfigIfUnchanged(envPath, fp, config); err != nil {
-			if errors.Is(err, errEnvConfigConflict) {
-				lastErr = err
-				continue
-			}
+		if err := writeEnvConfigLocked(envPath, config); err != nil {
 			return zero, err
 		}
 		return result, nil
-	}
-	return zero, exitText(1, fmt.Sprintf(
-		"environment config at %s changed concurrently; gave up after %d attempts: %v",
-		envPath, maxEnvConfigMutateAttempts, lastErr), true)
+	})
 }
 
 // FindEnvPath finds the environment path, returning an error if none exists.

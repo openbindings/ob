@@ -19,10 +19,29 @@ type ServeRoute struct {
 	RuntimePath  string
 	Operation    string
 	PathParam    string
+	Query        []ServeQueryParam
 	BodySchema   openbindings.JSONSchema
 	Success      int
 	ResponseType string
 	Notes        string
+}
+
+// ServeQueryParam is one declared query parameter of a route. Operation
+// fields ride the query only where the operation's input has no body (GET);
+// native execution options are OB-only and never part of the shared input.
+type ServeQueryParam struct {
+	Name        string
+	Description string
+	Native      bool
+}
+
+// registrationQueryParam is the OB-native explicit-selection option shared by
+// the authoring routes. It constrains provider selection to one enrolled
+// registration and is outside the shared operation input.
+var registrationQueryParam = ServeQueryParam{
+	Name:        "registration",
+	Description: "OB-native execution option: perform the operation's delegated role through exactly this enrolled registration ID (no built-in or alternate-provider fallback). Not part of the shared operation input.",
+	Native:      true,
 }
 
 // ServeStreamRoute is one canonical WebSocket realization of a cardinality-
@@ -64,7 +83,14 @@ func ServeStreamRoutes() []ServeStreamRoute {
 // ob start would either create a second server lifecycle inside the first or
 // detach a foreground experience from the terminal that owns it.
 func LocalOnlyOperations() []string {
-	return []string{"demo", "startMCPServer", "startServer"}
+	return []string{
+		"demo", "startMCPServer", "startServer",
+		// Legacy-registry conversion is a CLI-native operator facility over the
+		// selected environment's files: previewed, reviewed and applied by the
+		// operator who can quiesce old writers. It is deliberately not a remote
+		// filesystem-administration API and not a shared manager operation.
+		"previewDelegateMigration", "applyDelegateMigration", "rollbackDelegateMigration",
+	}
 }
 
 // ServeHTTPRoutes returns the canonical, document-oriented HTTP surface.
@@ -76,8 +102,8 @@ func ServeHTTPRoutes() []ServeRoute {
 		{Method: "get", Path: "/binding-specs", Operation: "listBindingSpecs"},
 		{Method: "post", Path: "/binding-specs/check", Operation: "checkBindingSpecs"},
 		{Method: "post", Path: "/interfaces/resolve", Operation: "resolveInterface"},
-		{Method: "post", Path: "/interfaces/synthesize", Operation: "synthesizeInterface"},
-		{Method: "post", Path: "/sources/inspect", Operation: "inspectSource"},
+		{Method: "post", Path: "/interfaces/synthesize", Operation: "synthesizeInterface", Query: []ServeQueryParam{registrationQueryParam}},
+		{Method: "post", Path: "/sources/inspect", Operation: "inspectSource", Query: []ServeQueryParam{registrationQueryParam}},
 		{Method: "post", Path: "/interfaces/sources/add", Operation: "addSource"},
 		{Method: "post", Path: "/interfaces/sources/remove", Operation: "removeSource"},
 		{Method: "post", Path: "/interfaces/sources/list", Operation: "listSources"},
@@ -96,13 +122,14 @@ func ServeHTTPRoutes() []ServeRoute {
 		{Method: "put", Path: "/contexts/{url}", RuntimePath: "/contexts/{url...}", Operation: "setContext", PathParam: "url", BodySchema: map[string]any{"$ref": "#/components/schemas/BindingContext"}, Success: 204},
 		{Method: "delete", Path: "/contexts/{url}", RuntimePath: "/contexts/{url...}", Operation: "removeContext", PathParam: "url", Success: 204},
 		{Method: "get", Path: "/contexts", Operation: "listContexts"},
+		{Method: "get", Path: "/delegates/roles", Operation: "listDelegateRoles"},
 		{Method: "post", Path: "/delegates/register", Operation: "registerDelegate"},
 		{Method: "post", Path: "/delegates/unregister", Operation: "unregisterDelegate"},
-		{Method: "get", Path: "/delegates", Operation: "listDelegates"},
-		{Method: "get", Path: "/delegates/resolve/{operation}", Operation: "resolveDelegate", PathParam: "operation"},
-		{Method: "post", Path: "/delegates/resolve-binding-spec", Operation: "resolveDelegateForBindingSpec"},
+		{Method: "get", Path: "/delegates", Operation: "listDelegates", Query: []ServeQueryParam{{Name: "role", Description: "Exact role identifier; keeps only registrations enrolled in it without trimming their records."}}},
+		{Method: "post", Path: "/delegates/resolve", Operation: "resolveRoleDelegate"},
 		{Method: "get", Path: "/delegate-requirements/{capability}", Operation: "getDelegateRequirements", PathParam: "capability"},
 		{Method: "post", Path: "/delegates/preference", Operation: "setDelegatePreference"},
+		{Method: "post", Path: "/delegates/binding-preference", Operation: "setDelegateBindingPreference"},
 		{Method: "post", Path: "/environment/initialize", Operation: "initializeEnvironment"},
 		{Method: "get", Path: "/environment", Operation: "reportEnvironmentStatus"},
 		{Method: "post", Path: "/interfaces/status", Operation: "reportInterfaceStatus"},
@@ -111,7 +138,7 @@ func ServeHTTPRoutes() []ServeRoute {
 		{Method: "post", Path: "/interfaces/operations/aliases/add", Operation: "addOperationAlias"},
 		{Method: "post", Path: "/interfaces/operations/aliases/remove", Operation: "removeOperationAlias"},
 		{Method: "post", Path: "/interfaces/operations/aliases/list", Operation: "listOperationAliases"},
-		{Method: "post", Path: "/interfaces/sources/pull", Operation: "pullSource", Notes: "Inline interface documents have no originating directory. Tracked relative source references are rejected; embed the source or use an absolute reference before calling this endpoint."},
+		{Method: "post", Path: "/interfaces/sources/pull", Operation: "pullSource", Query: []ServeQueryParam{registrationQueryParam}, Notes: "Inline interface documents have no originating directory. Tracked relative source references are rejected; embed the source or use an absolute reference before calling this endpoint."},
 		{Method: "post", Path: "/interfaces/purify", Operation: "purifyInterface", ResponseType: "obi"},
 		{Method: "post", Path: "/interfaces/operations/set", Operation: "setOperation"},
 		{Method: "post", Path: "/interfaces/operations/detach", Operation: "detachOperation"},
@@ -164,11 +191,28 @@ func GenerateServeOpenAPI(contractPath, serverURL string) ([]byte, error) {
 			"description": description,
 			"responses":   responses,
 		}
+		var parameters []any
 		if route.PathParam != "" {
-			operation["parameters"] = []any{map[string]any{
+			parameters = append(parameters, map[string]any{
 				"name": route.PathParam, "in": "path", "required": true,
 				"schema": map[string]any{"type": "string"},
-			}}
+			})
+		}
+		for _, query := range route.Query {
+			parameter := map[string]any{
+				"name": query.Name, "in": "query", "required": false,
+				"schema": map[string]any{"type": "string", "minLength": 1},
+			}
+			if query.Description != "" {
+				parameter["description"] = query.Description
+			}
+			if query.Native {
+				parameter["x-ob-native"] = true
+			}
+			parameters = append(parameters, parameter)
+		}
+		if len(parameters) > 0 {
+			operation["parameters"] = parameters
 		}
 		if route.Method != "get" && route.Method != "delete" {
 			schema := route.BodySchema
@@ -258,10 +302,10 @@ func GenerateServeAsyncAPI(contractPath, serverHost, serverProtocol string) ([]b
 		inputMessage := inv.Operation + "InputFrame"
 		outputMessage := inv.Operation + "OutputFrame"
 		messages[inputMessage] = map[string]any{
-			"name": inputMessage, "payload": map[string]any{"$ref": "#/components/schemas/" + inv.InputSchema},
+			"name": inputMessage, "contentType": "application/json", "payload": map[string]any{"$ref": "#/components/schemas/" + inv.InputSchema},
 		}
 		messages[outputMessage] = map[string]any{
-			"name": outputMessage, "payload": map[string]any{"$ref": "#/components/schemas/" + inv.OutputSchema},
+			"name": outputMessage, "contentType": "application/json", "payload": map[string]any{"$ref": "#/components/schemas/" + inv.OutputSchema},
 		}
 		channels[inv.Channel] = map[string]any{
 			"address":  inv.Path,

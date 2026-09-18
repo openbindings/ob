@@ -114,57 +114,43 @@ func RequirementInterface(cap DelegateCapability) (*openbindings.Interface, erro
 	return iface, nil
 }
 
-// RequirementInterfaceJSON returns the derived capability requirement for
-// printing or serving. It is deterministic and contains the canonical
-// operation/schema definitions from the vendored published interface.
-func RequirementInterfaceJSON(cap DelegateCapability) ([]byte, error) {
-	iface, err := RequirementInterface(cap)
+// capabilityOperation names each role's primary consumed operation: the
+// workload OB dispatches after a positive support verdict. Legacy per-operation
+// preferences map onto a role only through this table.
+var capabilityOperation = map[DelegateCapability]string{
+	CapInvoke:     "openbindings.binding-invoker.invokeBinding",
+	CapSynthesize: "openbindings.interface-synthesizer.synthesizeInterface",
+	CapInspect:    "openbindings.source-inspector.inspectSource",
+}
+
+// DelegateRoleRequirementJSON is the native convenience behind
+// `ob delegate requirements <role>` and GET /delegate-requirements/{role}: the
+// one accepted alternative of an advertised role, pretty-printed. A role with
+// several alternatives has no single requirement and is refused rather than
+// silently projected to its first entry; `listRoles` is the complete surface.
+func DelegateRoleRequirementJSON(role string) ([]byte, error) {
+	catalogue, err := defaultRoleCatalogue()
 	if err != nil {
 		return nil, err
 	}
-	data, err := json.MarshalIndent(iface, "", "  ")
+	return roleRequirementJSON(catalogue, role)
+}
+
+func roleRequirementJSON(catalogue *roleCatalogue, role string) ([]byte, error) {
+	alternatives, known := catalogue.alternatives[role]
+	if !known {
+		return nil, fmt.Errorf("unknown delegate role %q", role)
+	}
+	if len(alternatives) != 1 {
+		return nil, fmt.Errorf("role %q accepts %d alternative interfaces; use 'ob delegate roles' for the complete catalogue", role, len(alternatives))
+	}
+	var value any
+	if err := json.Unmarshal(alternatives[0].value, &value); err != nil {
+		return nil, err
+	}
+	data, err := json.MarshalIndent(value, "", "  ")
 	if err != nil {
-		return nil, fmt.Errorf("encode requirement interface for %q: %w", cap, err)
+		return nil, fmt.Errorf("encode requirement interface for %q: %w", role, err)
 	}
 	return append(data, '\n'), nil
-}
-
-// delegateCapabilities returns the capabilities a delegate OBI provides, decided
-// by conformance (compat) against each requirement interface — not by operation
-// name matching. A delegate provides whichever subset it satisfies.
-func delegateCapabilities(delegate *openbindings.Interface) []DelegateCapability {
-	var caps []DelegateCapability
-	for _, cap := range DelegateCapabilities {
-		req, err := RequirementInterface(cap)
-		if err != nil {
-			continue
-		}
-		if satisfiesInterface(delegate, req) {
-			caps = append(caps, cap)
-		}
-	}
-	return caps
-}
-
-// satisfiesInterface reports whether the candidate conforms to every operation
-// the requirement interface declares (each paired and affirmatively
-// compatible). This runs the v1 comparison engine — the same pairing
-// (OBI-T-12 key+alias resolution) and schema verdicts `ob compat` reports.
-func satisfiesInterface(candidate, requirement *openbindings.Interface) bool {
-	deltas := compareOperationDeltas(
-		resolvedComparisonInput{iface: requirement},
-		resolvedComparisonInput{iface: candidate},
-		"subsume",
-	)
-	satisfied := false
-	for _, d := range deltas {
-		if d.Left == nil {
-			continue // only_right: candidate operations beyond the requirement are fine
-		}
-		if d.Status != "paired" || deltaNeedsWork(d) {
-			return false
-		}
-		satisfied = true
-	}
-	return satisfied
 }

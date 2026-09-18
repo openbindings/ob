@@ -20,6 +20,8 @@ import (
 // pre-outputTransform, unvalidated, because the wire lane sits below the operation boundary (no T-07/T-08 subject)
 // below the contract boundary.
 func TestBindingInvoke_WireLaneReadsWhatT08Refuses(t *testing.T) {
+	// This journey has no delegate registry; keep ancestor installations out.
+	t.Chdir(t.TempDir())
 	drifted := `{"orders":[{"quantity":2},{"quantity":"three"}]}`
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")

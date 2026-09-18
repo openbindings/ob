@@ -83,7 +83,7 @@ func newDefaultRuntime() *cliRuntime {
 	invoker.AddBindingInvoker(grpc.NewInvoker())
 	invoker.AddBindingInvoker(connectbinding.NewInvoker())
 	invoker.AddBindingInvoker(mcp.NewInvoker(mcp.WithClientVersion(OBVersion)))
-	invoker.AddBindingInvoker(asyncapi.NewInvoker())
+	invoker.AddBindingInvoker(asyncapi.NewInvokerWithClient(GuardedHTTPClient(0)))
 	invoker.AddBindingInvoker(graphqlbinding.NewInvoker())
 	invoker.AddBindingInvoker(newUsageInvoker())
 	// Operation graph invoker needs the OperationInvoker itself (recursive:
@@ -311,21 +311,14 @@ func OverrideInvokerForTest(invoker *invoke.OperationInvoker) func() {
 // authorizeExecAddress is ob's USAGE-P-02 policy: an exec address may be
 // dereferenced when the operator explicitly authorized it — recorded in the
 // environment config's authorizedExec list (intake records addresses the
-// operator types), or standing via delegate registration (a registered
-// delegate's own exec location, and exec sources in its pinned interface,
-// were authorized by the explicit act of registering it). Anything else is
-// refused, per the specification's default.
+// operator types). Registering an interface, by value or under the old locator
+// model, does not confer execution authority. Anything else is refused.
 func authorizeExecAddress(argv []string) bool {
 	address := "exec:" + strings.Join(argv, " ")
 	if envPath, err := FindEnvPath(); err == nil {
 		if config, err := LoadEnvConfig(envPath); err == nil {
 			for _, allowed := range config.AuthorizedExec {
 				if allowed == address {
-					return true
-				}
-			}
-			for _, rec := range config.Delegates {
-				if rec.Location == address {
 					return true
 				}
 			}
@@ -355,15 +348,14 @@ func RecordAuthorizedExec(address string) error {
 	if err != nil {
 		return err
 	}
-	config, err := LoadEnvConfig(envPath)
-	if err != nil {
-		return err
-	}
-	for _, existing := range config.AuthorizedExec {
-		if existing == address {
-			return nil
+	_, err = mutateEnvConfig(envPath, func(config *EnvConfig) (struct{}, error) {
+		for _, existing := range config.AuthorizedExec {
+			if existing == address {
+				return struct{}{}, errEnvConfigNoop
+			}
 		}
-	}
-	config.AuthorizedExec = append(config.AuthorizedExec, address)
-	return SaveEnvConfig(envPath, config)
+		config.AuthorizedExec = append(config.AuthorizedExec, address)
+		return struct{}{}, nil
+	})
+	return err
 }

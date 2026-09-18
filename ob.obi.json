@@ -411,8 +411,46 @@
         "context"
       ]
     },
+    "openbindings.ob.resolveRoleDelegate": {
+      "description": "Assess OB's live provider selection for a role and exact binding specification identifier. Invocation defaults to ranked selection; its native-first frame path can be requested. Synthesis and inspection use native-first. An explicit registration ID constrains assessment to that enrolled registration, without fallback. Negative support is available=false; invalid state or failed assessment is an error. No workload is invoked. This is a point-in-time diagnostic, not a reservation, authorization grant or shared Delegate Manager operation.",
+      "idempotent": true,
+      "input": {
+        "$ref": "#/schemas/RoleResolutionInput"
+      },
+      "output": {
+        "$ref": "#/schemas/RoleResolutionOutput"
+      },
+      "tags": [
+        "delegates"
+      ]
+    },
+    "openbindings.ob.listDelegateRoles": {
+      "description": "Return the complete catalogue of roles this ob accepts delegates for: invoke (Binding Invoker), synthesize (Interface Synthesizer) and inspect (Source Inspector with the Interface Synthesizer support query). Each role carries its purpose and use policy and its accepted interfaces as actual unbound OBI values. ob's policy per role: admission records compatibility, not trust or activation; runtime requires an authoritative support verdict for the exact binding specification, an executable binding and existing recipient authorization; eligible external registrations are ordered by preference, ties keep registration order; ordinary operation and raw binding invocation rank externals against the built-in (built-in wins ties), while frame invocation, synthesis and inspection are native-first; no workload failover.",
+      "aliases": [
+        "openbindings.delegate-manager.listRoles"
+      ],
+      "idempotent": true,
+      "output": {
+        "type": "object",
+        "properties": {
+          "roles": {
+            "type": "array",
+            "description": "All advertised roles. Order is unspecified and has no selection semantics.",
+            "items": {
+              "$ref": "#/schemas/DelegateRole"
+            }
+          }
+        },
+        "required": [
+          "roles"
+        ]
+      },
+      "tags": [
+        "delegates"
+      ]
+    },
     "openbindings.ob.registerDelegate": {
-      "description": "Register a delegate — any referenceable OpenBindings interface (an exec: or http(s) location) that ob may route operations to. ob resolves the location to the delegate's OBI and records a snapshot: the operation identifiers it carries (keys and aliases), a content digest pinning the resolved document, and what ob derives for its own routing — which of ob's format capabilities the delegate satisfies (checked by conformance, not name-matching) and the formats it handles. Registration fails when the location cannot be resolved to an interface. Re-registering a location re-resolves and replaces the snapshot; the registrar's preferences persist unless a new preference is supplied. An OBI carrying none of ob's three format capabilities registers successfully but is inert for ob; registration warns.",
+      "description": "Enroll an interface value for every requested role under a fresh manager-issued ID, or with id replace an existing registration's complete interface and role set. Every requested role must accept the whole document (exact key correspondence plus directional schema compatibility for one complete alternative); matching an unrequested role never enrolls it. The supplied document is retained exactly, extensions included, and no provider is fetched or invoked. rolePreferences, when supplied, is the complete explicit map (empty clears); when omitted a fresh registration stores {} and a replacement keeps entries for retained roles only. Interface, roles and preferences commit atomically under the environment lock; a rejection leaves no mutation, and a lost response after commit is uncertain completion, not rollback. This operation is not idempotent: a call without id allocates a new registration even for an identical document. ob accepts at most 1 MiB per interface and 256 registrations per environment.",
       "aliases": [
         "openbindings.delegate-manager.registerDelegate"
       ],
@@ -420,98 +458,41 @@
         "$ref": "#/schemas/RegisterDelegateInput"
       },
       "output": {
-        "$ref": "#/schemas/DelegateSummary"
-      },
-      "tags": [
-        "delegates"
-      ]
-    },
-    "openbindings.ob.unregisterDelegate": {
-      "description": "Remove a registered delegate by its location. Idempotent: unregistering a location that is not registered succeeds.",
-      "aliases": [
-        "openbindings.delegate-manager.unregisterDelegate"
-      ],
-      "idempotent": true,
-      "input": {
-        "$ref": "#/schemas/DelegateLocationInput"
-      },
-      "output": {
-        "type": "null"
+        "$ref": "#/schemas/DelegateRegistration"
       },
       "tags": [
         "delegates"
       ]
     },
     "openbindings.ob.listDelegates": {
-      "description": "List every registered delegate — the self-delegate included — with the operations each carried when last resolved, the capabilities and formats ob derived for routing, and its selection preferences.",
+      "description": "Return every registration of the active environment with its retained interface value, complete role set and explicit preference map; with role, only registrations enrolled in that exact role, records untrimmed. Built-in handling is not a registration and is not listed. A missing environment is an empty list; legacy, mixed, corrupt or unsupported registry state is an error rather than an empty inventory.",
       "aliases": [
         "openbindings.delegate-manager.listDelegates"
       ],
       "idempotent": true,
+      "input": {
+        "$ref": "#/schemas/ListDelegatesInput"
+      },
       "output": {
         "type": "object",
         "properties": {
           "delegates": {
             "type": "array",
             "items": {
-              "$ref": "#/schemas/DelegateSummary"
-            },
-            "description": "The registered delegates."
+              "$ref": "#/schemas/DelegateRegistration"
+            }
           }
         },
         "required": [
           "delegates"
-        ],
-        "additionalProperties": false
-      },
-      "tags": [
-        "delegates"
-      ]
-    },
-    "openbindings.ob.resolveDelegate": {
-      "description": "Resolve an operation to the registered delegates that carry it — those whose interface answers to the operation's key or an alias — ordered by effective preference: the per-operation override when set, else the delegate-level preference, else the baseline; ties favor the self-delegate, then registration order. Returns candidates only; it does not invoke anything, and ob's routing applies its own narrowing (format support) on top.",
-      "aliases": [
-        "openbindings.delegate-manager.resolveDelegate"
-      ],
-      "idempotent": true,
-      "input": {
-        "$ref": "#/schemas/ResolveDelegateInput"
-      },
-      "output": {
-        "$ref": "#/schemas/ResolveDelegateResult"
-      },
-      "tags": [
-        "delegates"
-      ]
-    },
-    "openbindings.ob.resolveDelegateForBindingSpec": {
-      "description": "Report which delegate ob's routing would select for a format token, and the capabilities it offers for it — ob's format-narrowing diagnostic, layered on top of the operation-keyed resolveDelegate.",
-      "idempotent": true,
-      "input": {
-        "$ref": "#/schemas/ResolveDelegateForBindingSpecInput"
-      },
-      "output": {
-        "$ref": "#/schemas/ResolveDelegateForBindingSpecResult"
-      },
-      "tags": [
-        "delegates"
-      ]
-    },
-    "openbindings.ob.getDelegateRequirements": {
-      "description": "Return the exact operation subset a delegate must satisfy to provide an ob capability (invoke → listBindingSpecs + checkBindingSpecs + invokeBinding, synthesize → listBindingSpecs + checkBindingSpecs + synthesizeInterface, inspect → listBindingSpecs + checkBindingSpecs + inspectSource). Definitions are derived from immutable published interfaces bundled with this ob release. Correspondence is per operation, so unrelated operations from the same published interface are not imposed on a delegate.",
-      "idempotent": true,
-      "input": {
-        "$ref": "#/schemas/GetDelegateRequirementsInput"
-      },
-      "output": {
-        "$ref": "#/schemas/OpenBindingsInterface"
+        ]
       },
       "tags": [
         "delegates"
       ]
     },
     "openbindings.ob.setDelegatePreference": {
-      "description": "Set or clear a delegate's selection preference (higher = more preferred; 0 is the baseline; negatives rank below it; null clears). Without an operation, sets the delegate-level default; with one, sets that operation's entry in the delegate's preference index. ob additionally accepts a binding-source format scope on an operation entry — how synthesis of one format can prefer one delegate while everything else prefers another. Preference governs the order resolveDelegate returns candidates in; routing applies OBI-T-09's selection semantics to delegates — ob's own narrowing, not a spec rule — with effective preference the per-operation value, else the delegate-level value, else 0. Returns the updated summary.",
+      "description": "Set (number) or clear (null) the explicit preference of one existing registration in one of its recorded roles. Numbers are retained exactly; an explicit zero stays a stored entry until cleared. Everything else about the registration is unchanged. Higher orders eligible external registrations within the role; equal values keep registration order. ob's native binding-specification overrides are separate and unaffected.",
       "aliases": [
         "openbindings.delegate-manager.setDelegatePreference"
       ],
@@ -520,7 +501,83 @@
         "$ref": "#/schemas/SetDelegatePreferenceInput"
       },
       "output": {
-        "$ref": "#/schemas/DelegateSummary"
+        "type": "null"
+      },
+      "tags": [
+        "delegates"
+      ]
+    },
+    "openbindings.ob.unregisterDelegate": {
+      "description": "Ensure the registration is absent, removing all of its role memberships, preferences and native overrides together. An absent id succeeds. Removal stops new lookups from offering the record; it does not cancel in-flight invocations, revoke credentials or undo provider effects.",
+      "aliases": [
+        "openbindings.delegate-manager.unregisterDelegate"
+      ],
+      "idempotent": true,
+      "input": {
+        "$ref": "#/schemas/UnregisterDelegateInput"
+      },
+      "output": {
+        "type": "null"
+      },
+      "tags": [
+        "delegates"
+      ]
+    },
+    "openbindings.ob.setDelegateBindingPreference": {
+      "description": "ob-native: set (number) or clear (null) a preference override scoped to one registration, one recorded role and one exact binding-specification identifier. When that identifier is requested in that role the override replaces the role preference; otherwise the role preference (else zero) applies. Overrides never change the shared rolePreferences map and cannot enroll a role. This is an OB operation, not part of the shared Delegate Manager interface.",
+      "idempotent": true,
+      "input": {
+        "$ref": "#/schemas/SetDelegateBindingPreferenceInput"
+      },
+      "output": {
+        "type": "null"
+      },
+      "tags": [
+        "delegates"
+      ]
+    },
+    "openbindings.ob.previewDelegateMigration": {
+      "description": "ob-native conversion facility (CLI only): inventory the retired location-based delegate rows of the active environment as a reviewable plan with every row unresolved. Nothing is written, fetched or executed. The operator reviews dispositions, roles and recovered interface values before applying.",
+      "idempotent": true,
+      "output": {
+        "$ref": "#/schemas/DelegateMigrationPlan"
+      },
+      "tags": [
+        "delegates"
+      ]
+    },
+    "openbindings.ob.applyDelegateMigration": {
+      "description": "ob-native conversion facility (CLI only): validate a reviewed plan losslessly against the unchanged environment, write owner-only backups of the original configuration and plan, and commit the whole conversion once under the environment lock with a receipt. Every row needs an explicit disposition; converted rows need explicit roles and a recovered interface that passes admission; unrelated configuration is preserved. Repeating the same plan reports the recorded receipt instead of converting twice; a failure after the commit is uncertain completion. confirmQuiesced records the operator's acknowledgment that older writers are stopped.",
+      "input": {
+        "$ref": "#/schemas/ApplyDelegateMigrationInput"
+      },
+      "output": {
+        "$ref": "#/schemas/DelegateMigrationReceipt"
+      },
+      "tags": [
+        "delegates"
+      ]
+    },
+    "openbindings.ob.rollbackDelegateMigration": {
+      "description": "ob-native conversion facility (CLI only): restore the exact original configuration of an applied conversion when the current registry and configuration still match its receipt. Newer edits are preserved in a private recovery copy and refused, never overwritten. Restoring configuration does not undo delegated work.",
+      "input": {
+        "$ref": "#/schemas/RollbackDelegateMigrationInput"
+      },
+      "output": {
+        "type": "null"
+      },
+      "tags": [
+        "delegates"
+      ]
+    },
+    "openbindings.ob.getDelegateRequirements": {
+      "description": "Return the one accepted interface a delegate must correspond to for a role, as a convenience projection of listDelegateRoles; a role that accepts several alternatives is refused rather than reduced to its first entry. Correspondence is exact-key plus directional schema compatibility for the whole alternative.",
+      "idempotent": true,
+      "input": {
+        "$ref": "#/schemas/GetDelegateRequirementsInput"
+      },
+      "output": {
+        "$ref": "#/schemas/OpenBindingsInterface"
       },
       "tags": [
         "delegates"
@@ -2208,165 +2265,135 @@
       ],
       "additionalProperties": false
     },
-    "RegisterDelegateInput": {
+    "RoleResolutionInput": {
       "type": "object",
       "properties": {
-        "location": {
+        "role": {
           "type": "string",
-          "description": "Delegate location: the exec: or http(s) URL of the delegate's OpenBindings interface. Also the delegate's registration identity."
+          "enum": [
+            "invoke",
+            "synthesize",
+            "inspect"
+          ]
         },
-        "preference": {
-          "type": "number",
-          "description": "Initial delegate-level selection preference (higher = more preferred). May be changed later with setDelegatePreference."
+        "bindingSpec": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Exact opaque binding specification identifier."
+        },
+        "path": {
+          "type": "string",
+          "enum": [
+            "ranked",
+            "native-first",
+            "explicit"
+          ],
+          "description": "Omit for the role default, or explicit with registrationId. Ranked is only available for invoke."
+        },
+        "registrationId": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Exact enrolled registration ID, not a display name or locator. No fallback."
         }
       },
       "required": [
-        "location"
+        "role",
+        "bindingSpec"
       ],
-      "additionalProperties": false
+      "additionalProperties": false,
+      "allOf": [
+        {
+          "if": {
+            "required": [
+              "registrationId"
+            ]
+          },
+          "then": {
+            "properties": {
+              "path": {
+                "const": "explicit"
+              }
+            }
+          },
+          "else": {
+            "properties": {
+              "path": {
+                "enum": [
+                  "ranked",
+                  "native-first"
+                ]
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "role": {
+                "enum": [
+                  "synthesize",
+                  "inspect"
+                ]
+              }
+            },
+            "not": {
+              "required": [
+                "registrationId"
+              ]
+            }
+          },
+          "then": {
+            "properties": {
+              "path": {
+                "const": "native-first"
+              }
+            }
+          }
+        }
+      ]
     },
-    "DelegateSummary": {
+    "RoleResolutionOutput": {
       "type": "object",
-      "description": "A registered delegate: its identity, the snapshot of what it carries, ob's derived routing data, and its selection preferences.",
       "properties": {
-        "name": {
+        "role": {
           "type": "string",
-          "description": "Display name: the delegate OBI's name, or one derived from its location."
+          "enum": [
+            "invoke",
+            "synthesize",
+            "inspect"
+          ]
         },
-        "location": {
+        "bindingSpec": {
+          "type": "string"
+        },
+        "path": {
           "type": "string",
-          "description": "The reference the delegate is registered under (exec: or http(s) URL). The self-delegate's location is \"ob\"."
+          "enum": [
+            "ranked",
+            "native-first",
+            "explicit"
+          ]
         },
-        "operations": {
-          "type": "array",
-          "items": {
-            "type": "string"
-          },
-          "description": "Every operation identifier the delegate answers to — the keys and aliases its interface declared when last resolved. A snapshot: re-registering the location refreshes it."
-        },
-        "contentHash": {
-          "type": "string",
-          "description": "Digest of the delegate's interface document as last resolved (sha256: over its RFC 8785 canonical form). Pins the snapshot; opaque — compare for equality, don't recompute."
-        },
-        "capabilities": {
-          "type": "array",
-          "items": {
-            "$ref": "#/schemas/DelegateCapability"
-          },
-          "description": "Which of ob's format capabilities the delegate satisfies, checked by conformance at registration."
-        },
-        "bindingSpecs": {
-          "type": "array",
-          "items": {
-            "$ref": "#/schemas/DelegateBindingSpecInfo"
-          },
-          "description": "The formats the delegate reported handling when last resolved."
-        },
-        "preference": {
-          "type": "number",
-          "description": "Delegate-level selection preference — the default for every operation it carries. Higher is more preferred; absent is the baseline."
-        },
-        "operationPreferences": {
-          "type": "object",
-          "additionalProperties": {
-            "type": "number"
-          },
-          "description": "Per-operation preference overrides, keyed by operation identifier. The override replaces the delegate-level preference when resolving that operation."
-        },
-        "bindingSpecPreferences": {
-          "type": "array",
-          "items": {
-            "$ref": "#/schemas/BindingSpecPreference"
-          },
-          "description": "Preference overrides scoped to one (operation, format) pair — ob's extra granularity beyond the delegate-manager contract's per-operation index."
+        "available": {
+          "type": "boolean",
+          "description": "False only for a completed assessment with no supported provider; failures are errors."
         },
         "builtin": {
           "type": "boolean",
-          "description": "True for ob's own native handling — the self-delegate."
+          "description": "True only for the built-in provider; built-ins have no registration ID."
+        },
+        "registrationId": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Selected registration, present only for an available external provider."
         }
       },
       "required": [
-        "location",
-        "operations"
-      ],
-      "additionalProperties": false
-    },
-    "ResolveDelegateInput": {
-      "type": "object",
-      "properties": {
-        "operation": {
-          "type": "string",
-          "description": "The operation identifier a delegate is needed for."
-        }
-      },
-      "required": [
-        "operation"
-      ],
-      "additionalProperties": false
-    },
-    "ResolveDelegateResult": {
-      "type": "object",
-      "properties": {
-        "operation": {
-          "type": "string",
-          "description": "The requested operation identifier, echoed back."
-        },
-        "candidates": {
-          "type": "array",
-          "items": {
-            "$ref": "#/schemas/DelegateSummary"
-          },
-          "description": "Registered delegates that carry the operation, ordered by effective preference, best first. Empty when none carry it."
-        }
-      },
-      "required": [
-        "operation",
-        "candidates"
-      ],
-      "additionalProperties": false
-    },
-    "ResolveDelegateForBindingSpecInput": {
-      "type": "object",
-      "properties": {
-        "bindingSpec": {
-          "type": "string",
-          "description": "Binding specification identifier to resolve to a delegate."
-        }
-      },
-      "required": [
-        "bindingSpec"
-      ],
-      "additionalProperties": false
-    },
-    "ResolveDelegateForBindingSpecResult": {
-      "type": "object",
-      "properties": {
-        "bindingSpec": {
-          "type": "string",
-          "description": "The requested format token."
-        },
-        "name": {
-          "type": "string",
-          "description": "Display name of the delegate ob's routing would select."
-        },
-        "location": {
-          "type": "string",
-          "description": "The delegate's location."
-        },
-        "capabilities": {
-          "type": "array",
-          "items": {
-            "$ref": "#/schemas/DelegateCapability"
-          },
-          "description": "The capabilities the delegate offers for this format."
-        },
-        "builtin": {
-          "type": "boolean",
-          "description": "True when ob's own native handling is selected for the format."
-        }
-      },
-      "required": [
-        "bindingSpec"
+        "role",
+        "bindingSpec",
+        "path",
+        "available",
+        "builtin"
       ],
       "additionalProperties": false
     },
@@ -2749,19 +2776,6 @@
       ],
       "additionalProperties": false
     },
-    "DelegateLocationInput": {
-      "type": "object",
-      "properties": {
-        "location": {
-          "type": "string",
-          "description": "Delegate location: the exec: or http(s) URL of the delegate's OpenBindings interface."
-        }
-      },
-      "required": [
-        "location"
-      ],
-      "additionalProperties": false
-    },
     "DelegateCapability": {
       "type": "string",
       "enum": [
@@ -2769,24 +2783,7 @@
         "synthesize",
         "inspect"
       ],
-      "description": "One of ob's three binding-specification handling needs, derived from a minimal operation subset of published interfaces: invoke (binding-invoker), synthesize (interface-synthesizer), inspect (source-inspector plus the interface-synthesizer support query). A delegate offers whichever subsets it satisfies; operations outside a subset remain independent capabilities."
-    },
-    "DelegateBindingSpecInfo": {
-      "type": "object",
-      "properties": {
-        "bindingSpec": {
-          "type": "string",
-          "description": "Format token the delegate handles (e.g. grpc, openapi@3.1)."
-        },
-        "description": {
-          "type": "string",
-          "description": "Human-readable description of the format, when the delegate provides one."
-        }
-      },
-      "required": [
-        "bindingSpec"
-      ],
-      "additionalProperties": false
+      "description": "One of ob's three delegation roles: invoke (Binding Invoker), synthesize (Interface Synthesizer) and inspect (Source Inspector plus the Interface Synthesizer support query). Role identifiers are local to this ob; the complete catalogue with accepted interfaces is returned by listDelegateRoles."
     },
     "BindingSpecPreference": {
       "type": "object",
@@ -2816,40 +2813,12 @@
       "type": "object",
       "properties": {
         "capability": {
-          "$ref": "#/schemas/DelegateCapability"
+          "$ref": "#/schemas/DelegateCapability",
+          "description": "Role identifier (invoke, synthesize or inspect)."
         }
       },
       "required": [
         "capability"
-      ],
-      "additionalProperties": false
-    },
-    "SetDelegatePreferenceInput": {
-      "type": "object",
-      "properties": {
-        "location": {
-          "type": "string",
-          "description": "The reference the delegate is registered under."
-        },
-        "preference": {
-          "type": [
-            "number",
-            "null"
-          ],
-          "description": "The new preference value; higher is more preferred, 0 is the baseline, negatives rank below it. Null clears: with an operation, it removes that operation's override; without one, it resets the delegate-level preference to the baseline."
-        },
-        "operation": {
-          "type": "string",
-          "description": "When present, the preference applies only to resolving this operation; otherwise it is the delegate-level default."
-        },
-        "bindingSpec": {
-          "type": "string",
-          "description": "Optional binding-source format scope for an operation entry (requires operation) — ob's extra granularity beyond the delegate-manager contract."
-        }
-      },
-      "required": [
-        "location",
-        "preference"
       ],
       "additionalProperties": false
     },
@@ -3436,6 +3405,365 @@
         "code",
         "message"
       ]
+    },
+    "DelegateRole": {
+      "type": "object",
+      "description": "An application-defined responsibility for which interfaces may be registered. A role is local to the manager's scope; it is not an authorization role, an operation identifier, a binding specification, or a new OpenBindings Core concept.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Opaque role identifier, unique in this manager's scope. Compared exactly; no global role vocabulary or identifier format is prescribed. An existing identifier must not be reassigned to an unrelated responsibility."
+        },
+        "description": {
+          "type": "string",
+          "minLength": 1,
+          "description": "The responsibility's purpose and application-owned admission and use rules. Explain the effect of enrollment, multiple registrations, preferences (including whether and when they affect selection and how ties are handled), built-in implementations, provider changes, and absence or failure of an eligible delegate. This is human-readable documentation, not an executable policy language."
+        },
+        "acceptedInterfaces": {
+          "type": "array",
+          "minItems": 1,
+          "description": "Alternative expected interfaces, carried as actual OBI values, not locations or interface-name assertions. Each must be a valid unbound OBI with at least one operation and no dependency entries. All operations in one alternative are the required capability set for that alternative. A candidate must correspond to and be schema-compatible with at least one complete alternative; it may carry additional operations. Array order is not a preference. These meanings are defined by this manager interface, not by Core. Expected bindings, dependency declarations, or operation names alone must not be used as proof that a candidate can safely be invoked.",
+          "items": {
+            "$ref": "#/schemas/OpenBindingsInterface"
+          }
+        }
+      },
+      "required": [
+        "id",
+        "description",
+        "acceptedInterfaces"
+      ]
+    },
+    "DelegateRoleIds": {
+      "type": "array",
+      "minItems": 1,
+      "description": "A nonempty set of role identifiers, carried as an array. Entries must be distinct, with exact string equality; duplicates are invalid. Array order carries no meaning or priority. Each role is selected explicitly by the caller; matching an unrequested role does not enroll the interface for it.",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      }
+    },
+    "DelegateRolePreferences": {
+      "type": "object",
+      "description": "Explicit preferences keyed by exact enrolled role ID. Every key must belong to this registration's roles; an unlisted role is invalid, not an implicit enrollment. Missing entries have effective preference zero. Values are finite JSON numbers, preserved without silent rounding; larger values express stronger preference between registrations in the same role and manager scope. Equal values express no ordering. Magnitude is not a weight, probability, permission, mandatory failover order, or comparison across roles. The application's documented role policy determines how preference affects use. An explicitly supplied zero must remain an explicit entry until changed, cleared, or its role membership or registration is removed. It is distinct as stored data from an absent entry, but has the same effective preference. These are not preferences on the carried OBI's bindings.",
+      "additionalProperties": {
+        "type": "number"
+      }
+    },
+    "DelegateRegistration": {
+      "type": "object",
+      "description": "One manager-local enrollment of an interface value in one or more roles. The same interface may occur in several registrations, and several registrations may occupy the same role subject to that role's rules. Listing a registration reports recorded enrollment, not current health, trust, authorization, binding support, selection, or proof of implementation behavior.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Opaque manager-assigned registration identifier. Unique and not reused within this manager's scope, including after removal. This is not the interface's identity, a locator, or an authorization credential."
+        },
+        "interface": {
+          "$ref": "#/schemas/OpenBindingsInterface",
+          "description": "The complete supplied OBI value retained for this registration. Preserve its declared values, including extensions and the schema, source, binding, and transform graphs; textual formatting is not significant. The manager must not replace it with a summary, locator, or silently refreshed remote document. Retaining this value does not freeze resources or services it references."
+        },
+        "roles": {
+          "$ref": "#/schemas/DelegateRoleIds",
+          "description": "The complete recorded set of roles for this registration. Matching an additional role does not implicitly add it. Each role's configuration and selection remain independent; shared registration does not imply shared credentials, namespace, trust, or permission."
+        },
+        "rolePreferences": {
+          "$ref": "#/schemas/DelegateRolePreferences",
+          "description": "The complete explicit preference map for this registration. Empty when none are set. Listing must not synthesize explicit entries for roles using the implicit zero default."
+        }
+      },
+      "required": [
+        "id",
+        "interface",
+        "roles",
+        "rolePreferences"
+      ]
+    },
+    "RegisterDelegateInput": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1,
+          "description": "When supplied, the existing registration to re-enroll with the supplied interface and complete role set. Omit for a new registration. Passing an unknown id fails."
+        },
+        "interface": {
+          "$ref": "#/schemas/OpenBindingsInterface",
+          "description": "The actual provider OBI value. It may come from memory, a file, synthesis, another operation, or caller-managed retrieval; no published address is required. The provider's own dependencies, if present, are not automatically satisfied by registration."
+        },
+        "roles": {
+          "$ref": "#/schemas/DelegateRoleIds"
+        },
+        "rolePreferences": {
+          "$ref": "#/schemas/DelegateRolePreferences",
+          "description": "Optional complete explicit preference map, committed atomically with enrollment. An empty object clears all explicit preferences. If omitted, a new registration has none; re-enrollment preserves current preferences for retained roles only."
+        }
+      },
+      "required": [
+        "interface",
+        "roles"
+      ],
+      "additionalProperties": false
+    },
+    "ListDelegatesInput": {
+      "type": "object",
+      "properties": {
+        "role": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Optional exact role identifier by which to filter registrations. Omit to list all registrations."
+        }
+      },
+      "additionalProperties": false
+    },
+    "SetDelegatePreferenceInput": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Existing manager-local registration identifier."
+        },
+        "role": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Exact role ID already recorded on this registration."
+        },
+        "preference": {
+          "description": "Finite JSON number to set as the explicit role preference, or null to clear it. Omission is invalid; zero is a stored preference, not a clear request.",
+          "oneOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "id",
+        "role",
+        "preference"
+      ],
+      "additionalProperties": false
+    },
+    "UnregisterDelegateInput": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1,
+          "description": "The manager-local registration identifier to remove."
+        }
+      },
+      "required": [
+        "id"
+      ],
+      "additionalProperties": false
+    },
+    "SetDelegateBindingPreferenceInput": {
+      "type": "object",
+      "description": "ob-native override input: a preference that applies to one registration, one role and one exact binding-specification identifier. Overrides are stored separately from the shared rolePreferences map and cannot enroll a role.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Existing manager-local registration identifier."
+        },
+        "role": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Exact role ID already recorded on this registration."
+        },
+        "bindingSpec": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Exact binding-specification identifier the override applies to."
+        },
+        "preference": {
+          "description": "Finite JSON number to set as the override, or null to clear it. Omission is invalid.",
+          "oneOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "id",
+        "role",
+        "bindingSpec",
+        "preference"
+      ],
+      "additionalProperties": false
+    },
+    "DelegateMigrationEntry": {
+      "type": "object",
+      "description": "One legacy registry row and its reviewed disposition. Preview emits every row as unresolved; the operator sets convert (with the recovered interface value and explicit roles) or exclude, each with a review explanation. Archive names discarded legacy fields (JSON Pointer paths within the row) that have no safe mapping.",
+      "properties": {
+        "index": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Original row position; conversion preserves relative order."
+        },
+        "original": {
+          "type": "object",
+          "description": "The exact legacy row, retained for review and backup."
+        },
+        "disposition": {
+          "type": "string",
+          "enum": [
+            "unresolved",
+            "convert",
+            "exclude"
+          ]
+        },
+        "review": {
+          "type": "string",
+          "description": "Operator's explanation for the disposition (required to apply)."
+        },
+        "providerReview": {
+          "type": "string",
+          "description": "Required when the legacy provider pin is missing or no longer matches the recovered interface."
+        },
+        "interface": {
+          "$ref": "#/schemas/OpenBindingsInterface",
+          "description": "The explicitly recovered provider interface value to enroll (convert only)."
+        },
+        "roles": {
+          "$ref": "#/schemas/DelegateRoleIds",
+          "description": "Explicit roles to enroll for (convert only); suggestions are never activation."
+        },
+        "archive": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "JSON Pointer paths of legacy fields discarded with explicit acknowledgment; they remain in the original backup."
+        }
+      },
+      "required": [
+        "index",
+        "original",
+        "disposition"
+      ],
+      "additionalProperties": false
+    },
+    "DelegateMigrationPlan": {
+      "type": "object",
+      "description": "A reviewable conversion plan for the retired location-based registry of one environment. It pins the exact source document (sourceHash), the target format and role catalogue, and every legacy row with a disposition. Plans may contain sensitive provider configuration; treat them as private files.",
+      "properties": {
+        "format": {
+          "type": "string",
+          "const": "ob.delegate-migration@1"
+        },
+        "environment": {
+          "type": "string",
+          "description": "Absolute path of the selected environment directory."
+        },
+        "sourceHash": {
+          "type": "string",
+          "description": "sha256 fingerprint of the exact legacy configuration bytes the plan was previewed from; apply refuses a changed source."
+        },
+        "targetFormat": {
+          "type": "string",
+          "const": "ob.delegate-registry@1"
+        },
+        "catalogue": {
+          "type": "string",
+          "description": "Identity of the role catalogue and policy the plan targets."
+        },
+        "entries": {
+          "type": "array",
+          "items": {
+            "$ref": "#/schemas/DelegateMigrationEntry"
+          }
+        }
+      },
+      "required": [
+        "format",
+        "environment",
+        "sourceHash",
+        "targetFormat",
+        "catalogue",
+        "entries"
+      ],
+      "additionalProperties": false
+    },
+    "DelegateMigrationReceipt": {
+      "type": "object",
+      "description": "The recorded result of one applied conversion: the plan identity (also the name of the private backup directory and the argument of rollback), the source fingerprint, the committed state hash and registry revision, and the registration ID created for each original row (empty for excluded rows).",
+      "properties": {
+        "planHash": {
+          "type": "string"
+        },
+        "sourceHash": {
+          "type": "string"
+        },
+        "commitHash": {
+          "type": "string"
+        },
+        "revision": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "registrations": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "required": [
+        "planHash",
+        "sourceHash",
+        "commitHash",
+        "revision",
+        "registrations"
+      ],
+      "additionalProperties": false
+    },
+    "ApplyDelegateMigrationInput": {
+      "type": "object",
+      "properties": {
+        "plan": {
+          "$ref": "#/schemas/DelegateMigrationPlan"
+        },
+        "confirmQuiesced": {
+          "type": "boolean",
+          "const": true,
+          "description": "The operator's acknowledgment that every older ob process and other writer of the environment has been stopped. It is an acknowledgment, not proof."
+        }
+      },
+      "required": [
+        "plan",
+        "confirmQuiesced"
+      ],
+      "additionalProperties": false
+    },
+    "RollbackDelegateMigrationInput": {
+      "type": "object",
+      "properties": {
+        "planHash": {
+          "type": "string",
+          "minLength": 1,
+          "description": "The plan identity from the migration receipt (sha256:...)."
+        },
+        "confirmQuiesced": {
+          "type": "boolean",
+          "const": true
+        }
+      },
+      "required": [
+        "planHash",
+        "confirmQuiesced"
+      ],
+      "additionalProperties": false
     }
   }
 }

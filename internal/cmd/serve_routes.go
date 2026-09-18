@@ -522,11 +522,15 @@ func handleInterfaceSynthesize(w http.ResponseWriter, r *http.Request) {
 		Version             string                          `json:"version,omitempty"`
 		Description         string                          `json:"description,omitempty"`
 	}
-	if !decodeRequest(w, r, &body) {
+	query, ok := queryValue(w, r, "registration")
+	if !ok || !decodeRequest(w, r, &body) {
 		return
 	}
 
-	iface, err := app.SynthesizeInterface(app.SynthesizeInterfaceInput{
+	// The OB-native explicit registration rides the query string, outside the
+	// shared synthesizer input; it constrains the synthesize role only.
+	ctx := app.WithExplicitRegistration(r.Context(), app.CapSynthesize, query["registration"])
+	iface, err := app.SynthesizeInterfaceWithSelection(ctx, app.SynthesizeInterfaceInput{
 		OpenBindingsVersion: body.OpenBindingsVersion,
 		Sources:             body.Sources,
 		Name:                body.Name,
@@ -544,7 +548,8 @@ func handleSourceInspect(w http.ResponseWriter, r *http.Request) {
 	var body struct {
 		Source openbindings.Source `json:"source"`
 	}
-	if !decodeRequest(w, r, &body) {
+	query, ok := queryValue(w, r, "registration")
+	if !ok || !decodeRequest(w, r, &body) {
 		return
 	}
 	if body.Source.BindingSpec == "" {
@@ -552,7 +557,8 @@ func handleSourceInspect(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	result, err := app.InspectSource(r.Context(), &body.Source)
+	ctx := app.WithExplicitRegistration(r.Context(), app.CapInspect, query["registration"])
+	result, err := app.InspectSource(ctx, &body.Source)
 	if err != nil {
 		writeErrorJSON(w, http.StatusBadRequest, "inspection_failed", err.Error())
 		return

@@ -1,36 +1,37 @@
 package cmd
 
 import (
+	"fmt"
+
 	"github.com/openbindings/ob/internal/app"
 	"github.com/spf13/cobra"
 )
 
 func newDelegateUnregisterCmd() *cobra.Command {
 	c := &cobra.Command{
-		Use:     "unregister <location>",
+		Use:     "unregister <id>",
 		Aliases: []string{"remove", "rm"},
-		Short:   "Unregister a delegate",
-		Long: `Remove a registered delegate by its location.
-
-Idempotent: unregistering a location that is not registered succeeds.
+		Short:   "Remove a registration by ID",
+		Long: `Remove a registration: all of its role memberships and preferences go
+together. Repeating the removal, including for an ID that was never
+registered, succeeds. Removal stops new lookups from offering the record; it
+does not cancel in-flight work, revoke credentials or undo provider effects.
 
 Examples:
-  ob delegate unregister exec:my-cli
-  ob delegate rm https://api.example.com`,
+  ob delegate unregister dlg_...
+  ob delegate rm dlg_...`,
 		Args: cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			removed, err := app.UnregisterDelegate(args[0])
-			if err != nil {
-				return err
+			if looksLikeLocation(args[0]) {
+				return app.ExitResult{Code: 2, Message: fmt.Sprintf("%q is a location; unregister takes a registration ID (see 'ob delegate list'); legacy location-based rows need 'ob delegate migrate'", args[0]), ToStderr: true}
 			}
-			// The contract's output is null; the text rendering is the human view.
-			text := "Unregistered delegate " + args[0]
-			if !removed {
-				text = "Delegate " + args[0] + " was not registered (no-op)"
+			if err := app.UnregisterDelegate(args[0]); err != nil {
+				return app.ExitResult{Code: 1, Message: err.Error(), ToStderr: true}
 			}
 			format, outputPath := getOutputFlags(cmd)
+			// The contract's output is null; the text rendering is the human view.
 			return app.OutputResultText(nil, format, outputPath, func() string {
-				return text
+				return "Registration " + args[0] + " is absent"
 			})
 		},
 	}

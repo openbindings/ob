@@ -70,46 +70,69 @@ cmd "context" help="Manage binding context (credentials, headers, environment)" 
 
 cmd "delegate" help="Manage delegates" subcommand_required=#true {
   alias "delegates"
-  cmd "register" help="Register a delegate" {
-    alias "add"
-    flag "--preference <num>" help="Initial delegate-level selection preference (higher = more preferred)"
+  cmd "roles" help="List the roles ob accepts delegates for, with their accepted interfaces" {
     flag "-o --output <path>" help="Write output to file"
     flag "-F --format <format>" help="Output format: json|yaml|text"
-    arg "<location>" help="Delegate location (e.g., exec:my-cli, https://api.example.com)"
   }
-  cmd "unregister" help="Unregister a delegate" {
+  cmd "register" help="Enroll an interface document for one or more roles" {
+    alias "add"
+    flag "--role <role>" required=#true var=#true help="Role to enroll for (repeatable, required)"
+    flag "--id <id>" help="Existing registration ID to replace (complete interface and role set)"
+    flag "--preference <role=number>" var=#true help="Explicit preference as role=number (repeatable; together they form the complete map)"
+    flag "--clear-preferences" help="Store an empty explicit preference map"
+    flag "-o --output <path>" help="Write output to file"
+    flag "-F --format <format>" help="Output format: json|yaml|text"
+    arg "<interface>" help="Interface document: a file path, or - to read the document from stdin"
+  }
+  cmd "list" help="List registrations with their retained interfaces, roles and preferences" {
+    alias "ls"
+    flag "--role <role>" help="Keep only registrations enrolled in this exact role"
+    flag "-o --output <path>" help="Write output to file"
+    flag "-F --format <format>" help="Output format: json|yaml|text"
+  }
+  cmd "prefer" help="Set or clear a registration's preference for one role (higher = more preferred)" {
+    flag "--role <role>" required=#true help="Role the preference applies to (required)"
+    flag "--binding-spec <identifier>" help="Target ob's native override for this exact binding specification instead of the role preference"
+    flag "--clear" help="Remove the explicit entry instead of setting it"
+    flag "-o --output <path>" help="Write output to file"
+    flag "-F --format <format>" help="Output format: json|yaml|text"
+    arg "<id>" help="Registration ID"
+    arg "[preference]" double_dash="optional" help="Exact JSON number (omit with --clear); a negative value follows --"
+  }
+  cmd "unregister" help="Remove a registration by ID" {
     alias "remove" "rm"
     flag "-o --output <path>" help="Write output to file"
     flag "-F --format <format>" help="Output format: json|yaml|text"
-    arg "<location>" help="Delegate location"
+    arg "<id>" help="Registration ID"
   }
-  cmd "list" help="List delegates" {
-    alias "ls"
+  cmd "requirements" help="Print the interface a delegate must correspond to for a role" {
+    arg "<role>" help="Role: invoke, synthesize, or inspect"
+  }
+  cmd "resolve" help="Explain delegate selection for a role and binding specification" {
+    flag "--role <role>" required=#true help="Role: invoke, synthesize, or inspect"
+    flag "--binding-spec <identifier>" required=#true help="Exact binding specification identifier"
+    flag "--path <path>" help="Selection policy: ranked or native-first; explicit with --registration"
+    flag "--registration <id>" help="Check only this enrolled registration ID (no fallback)"
     flag "-o --output <path>" help="Write output to file"
     flag "-F --format <format>" help="Output format: json|yaml|text"
   }
-  cmd "resolve" help="Resolve an operation to the delegates that carry it" {
-    flag "-o --output <path>" help="Write output to file"
-    flag "-F --format <format>" help="Output format: json|yaml|text"
-    arg "<operation>" help="Operation identifier to resolve"
-  }
-  cmd "resolve-binding-spec" help="Show which delegate ob's routing would select for a binding specification" {
-    flag "-o --output <path>" help="Write output to file"
-    flag "-F --format <format>" help="Output format: json|yaml|text"
-    arg "<binding-spec>" help="Binding specification identifier to resolve"
-  }
-  cmd "requirements" help="Print the interface a delegate must correspond to for a capability" {
-    arg "<capability>" help="Capability: invoke, synthesize, or inspect"
-  }
-  cmd "prefer" help="Set or clear a delegate's selection preference (higher = more preferred)" {
-    flag "--operation <op>" help="Scope to one operation identifier"
-    flag "--capability <cap>" help="Shorthand for the operation of an ob capability: invoke, synthesize, or inspect"
-    flag "--binding-spec <identifier>" help="Scope an operation entry to one binding specification (requires --operation or --capability)"
-    flag "--clear" help="Remove the targeted preference entry instead of setting it"
-    flag "-o --output <path>" help="Write output to file"
-    flag "-F --format <format>" help="Output format: json|yaml|text"
-    arg "<location>" help="Delegate location"
-    arg "[preference]" help="Preference value (omit with --clear)"
+  cmd "migrate" help="Convert a legacy location-based delegate registry to role-scoped registrations" subcommand_required=#true {
+    cmd "preview" help="Inventory the legacy registry as a reviewable plan (no changes)" {
+      flag "-o --output <path>" help="Write the plan to a new owner-only file"
+      flag "-F --format <format>" help="Output format: json|yaml|text"
+    }
+    cmd "apply" help="Apply a reviewed migration plan once, with backups and a receipt" {
+      flag "--confirm-quiesced" help="Acknowledge that all older writers of this environment are stopped (required)"
+      flag "-o --output <path>" help="Write output to file"
+      flag "-F --format <format>" help="Output format: json|yaml|text"
+      arg "<plan>" help="Reviewed plan file"
+    }
+    cmd "rollback" help="Restore the original configuration of an applied migration" {
+      flag "--confirm-quiesced" help="Acknowledge that all older writers of this environment are stopped (required)"
+      flag "-o --output <path>" help="Write output to file"
+      flag "-F --format <format>" help="Output format: json|yaml|text"
+      arg "<plan-hash>" help="Plan identity from the migration receipt (sha256:...)"
+    }
   }
 }
 
@@ -152,6 +175,7 @@ cmd "meta" help="Manage interface-level metadata" subcommand_required=#true {
 
 cmd "inspect" help="Inspect a binding source and list its bindable targets" {
   flag "--input <json>" help="InspectSourceInput as a JSON string (machine lane; exclusive with <source>)"
+  flag "--registration <id>" help="Inspect through exactly this enrolled inspect-role registration (no fallback)"
   flag "-o --output <path>" help="Write output to file"
   flag "-F --format <format>" help="Output format: json|yaml|text"
   arg "[source]" help="Binding source as [format:]path[?options] (e.g., openapi.json; path - reads the artifact from stdin)"
@@ -163,6 +187,7 @@ cmd "synthesize" help="Synthesize an interface from binding sources" {
   flag "--description <desc>" help="Interface description"
   flag "--spec-version <version>" help="Target OpenBindings spec version (default: latest tested)"
   flag "--input <json>" help="SynthesizeInterfaceInput as a JSON string (machine lane; exclusive with sources and metadata flags)"
+  flag "--registration <id>" help="Synthesize through exactly this enrolled synthesize-role registration (no fallback)"
   flag "-o --output <path>" help="Write output to file"
   flag "-F --format <format>" help="Output format: json|yaml|text"
   arg "[source]..." help="Binding sources as [format:]path[?options] (none: empty interface; path - reads the artifact from stdin)"
@@ -175,15 +200,16 @@ cmd "source" help="Manage source references on an OBI" subcommand_required=#true
     flag "--key <name>" help="Explicit source key (default: derived from format and path)"
     flag "--resolve <mode>" help="Resolution mode: content (default for local files) or location (default for URLs)"
     flag "--uri <url>" help="Explicit published URI for location mode"
-    flag "--delegate <delegate>" help="Delegate to use for this source (skips detection)"
+    flag "--registration <id>" help="Detect the format through exactly this enrolled inspect-role registration (no fallback)"
     flag "--description <desc>" help="Human-readable description for this source"
-    flag "-y --yes" help="Accept first capable delegate without prompting"
+    flag "-y --yes" help="Accept the first detected format without prompting"
     flag "-o --output <path>" help="Write output to file"
     flag "-F --format <format>" help="Output format: json|yaml|text"
     arg "[obi-path]" help="Path to the OBI file (- reads stdin and writes the modified document to stdout)"
     arg "[source]" help="Source path or bindingSpec:path (e.g., openapi.json or openbindings.usage@1:./cli.kdl)"
   }
   cmd "pull" help="Derive operations and bindings from registered sources" {
+    flag "--registration <id>" help="Derive every pulled source through exactly this enrolled synthesize-role registration (no fallback)"
     flag "--pure" help="Strip x-ob metadata from the output (publish-clean); requires -o"
     flag "-o --output <path>" help="Write output to file"
     flag "-F --format <format>" help="Output format: json|yaml|text"

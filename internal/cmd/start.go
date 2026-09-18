@@ -499,18 +499,14 @@ func handleCheckBindingSpecs(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, app.CheckBindingSpecs(input.BindingSpecs))
 }
 
-func handleDelegates(w http.ResponseWriter, r *http.Request) {
-	// The contract's listDelegates output: {"delegates": [...]}.
-	writeJSON(w, http.StatusOK, app.ListDelegates())
-}
-
-// handleResolveDelegate serves the read-only counterpart of `ob delegate
-// resolve`: which registered delegates carry an operation identifier,
-// ordered by effective preference. Resolves candidates only — it does not
-// invoke anything — so an operation nothing carries is a literal 200 with an
-// empty candidate list, not an error.
-func handleResolveDelegate(w http.ResponseWriter, r *http.Request) {
-	result, err := app.ResolveDelegate(r.PathValue("operation"))
+// handleResolveRoleDelegate assesses live role support without invoking work.
+// A negative support verdict is a result; failed assessment remains an error.
+func handleResolveRoleDelegate(w http.ResponseWriter, r *http.Request) {
+	var input app.RoleResolutionInput
+	if !decodeRequest(w, r, &input) {
+		return
+	}
+	result, err := app.ResolveRoleDelegate(r.Context(), input)
 	if err != nil {
 		writeErrorJSON(w, http.StatusBadRequest, "delegate_resolution_failed", err.Error())
 		return
@@ -542,14 +538,14 @@ func handleSpecResource(w http.ResponseWriter, r *http.Request) {
 	w.Write(content)
 }
 
-// handleDelegateRequirements serves the interface a delegate must satisfy for a
-// capability (invoke/synthesize/inspect), so a prospective delegate can be checked
-// against a running ob. The requirement interfaces are immutable bundled
-// documents, served like spec resources.
+// handleDelegateRequirements serves the one accepted interface of a role, so a
+// prospective delegate can be checked against a running ob. It is a projection
+// of the catalogue served by GET /delegates/roles and refuses a role with more
+// than one alternative rather than picking the first.
 func handleDelegateRequirements(w http.ResponseWriter, r *http.Request) {
-	data, err := app.RequirementInterfaceJSON(app.DelegateCapability(r.PathValue("capability")))
+	data, err := app.DelegateRoleRequirementJSON(r.PathValue("capability"))
 	if err != nil {
-		writeErrorJSON(w, http.StatusNotFound, "unknown_capability", "unknown delegate capability (want invoke, synthesize, or inspect)")
+		writeErrorJSON(w, http.StatusNotFound, "unknown_capability", err.Error())
 		return
 	}
 	w.Header().Set("Content-Type", "application/vnd.openbindings+json; charset=utf-8")

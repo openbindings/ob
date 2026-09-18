@@ -1,86 +1,166 @@
 package cmd
 
 import (
+	"encoding/json"
+	"io"
+	"net/http"
 	"os"
 	"path/filepath"
+	"reflect"
+	"strings"
 	"testing"
 
 	"github.com/openbindings/ob/internal/app"
 )
 
-// writeResolvableDelegateFixture writes an executable that answers
-// --openbindings with a minimal OBI carrying one operation, returning its
-// exec: location. A local copy of internal/app's writeFakeDelegate test
-// helper: that one lives in a _test.go file in a different package and
-// isn't importable from here.
-func writeResolvableDelegateFixture(t *testing.T, dir string) string {
-	t.Helper()
-	obi := `{"openbindings":"0.2.0","name":"resolve-fixture","version":"0.1.0","operations":{"acme.fixture.ping":{}}}`
-	path := filepath.Join(dir, "resolve-fixture")
-	script := "#!/bin/sh\nif [ \"$1\" = \"--openbindings\" ]; then\ncat <<'OBI'\n" + obi + "\nOBI\nfi\n"
-	if err := os.WriteFile(path, []byte(script), 0o755); err != nil {
+func TestRoleDiagnosticSurfaces(t *testing.T) {
+	t.Chdir(t.TempDir())
+	t.Setenv("OB_CONFIG_DIR", t.TempDir())
+	if _, err := app.Init(false); err != nil {
 		t.Fatal(err)
 	}
-	return "exec:" + path
-}
-
-// --- /delegates/resolve/{operation} ---
-
-// TestServeResolveDelegate exercises the read-only counterpart of `ob
-// delegate resolve` (fix B4-3: resolveDelegate was missing from the served
-// HTTP surface despite the ob-lexicon's H marker). A registered scratch
-// delegate carrying the requested operation must resolve as a candidate; an
-// operation nothing carries must still answer 200 with an empty candidate
-// list — resolveDelegate never invokes anything, so "nothing carries this"
-// is a literal answer, not an error.
-func TestServeResolveDelegate(t *testing.T) {
-	dir := t.TempDir()
-	t.Setenv("HOME", t.TempDir())
-	t.Setenv("XDG_CONFIG_HOME", "") // linux: fall back to HOME/.config
-	t.Chdir(dir)
-	if _, err := app.Init(false); err != nil {
-		t.Fatalf("init environment: %v", err)
-	}
-	loc := writeResolvableDelegateFixture(t, dir)
-	if _, err := app.RegisterDelegate(loc, nil); err != nil {
-		t.Fatalf("register delegate: %v", err)
-	}
-
 	ts := testEnv(t)
 	defer ts.Close()
-
-	resp, err := authedGet(ts.URL+"/delegates/resolve/acme.fixture.ping", "test-token")
+	for _, test := range []struct {
+		role, token, path, wantPath string
+		available                   bool
+	}{
+		{"invoke", "openbindings.usage@1", "", "ranked", true},
+		{"invoke", "openbindings.usage@1", "native-first", "native-first", true},
+		{"synthesize", "openbindings.openapi-3.1@1", "", "native-first", true},
+		{"inspect", "openbindings.openapi-3.1@1", "", "native-first", true},
+		{"invoke", "example.UNSUPPORTED@1", "", "ranked", false},
+	} {
+		t.Run(test.role+"/"+test.wantPath+"/"+test.token, func(t *testing.T) {
+			input := map[string]any{"role": test.role, "bindingSpec": test.token}
+			args := []string{"delegate", "resolve", "--role", test.role, "--binding-spec", test.token, "-F", "json"}
+			if test.path != "" {
+				input["path"] = test.path
+				args = append(args, "--path", test.path)
+			}
+			root := NewRoot()
+			root.SetArgs(args)
+			result, ok := root.ExecuteContext(t.Context()).(app.ExitResult)
+			if !ok || result.Code != 0 {
+				t.Fatalf("CLI: %+v", result)
+			}
+			var cli map[string]any
+			if err := json.Unmarshal([]byte(result.Message), &cli); err != nil {
+				t.Fatal(err)
+			}
+			raw, _ := json.Marshal(input)
+			resp, err := authedPost(ts.URL+"/delegates/resolve", "test-token", string(raw))
+			if err != nil {
+				t.Fatal(err)
+			}
+			if resp.StatusCode != 200 {
+				t.Fatalf("HTTP %d: %v", resp.StatusCode, mustJSON(t, resp))
+			}
+			httpValue := mustJSON(t, resp)
+			want := map[string]any{"role": test.role, "bindingSpec": test.token, "path": test.wantPath, "available": test.available, "builtin": test.available}
+			if !reflect.DeepEqual(cli, want) || !reflect.DeepEqual(httpValue, want) {
+				t.Fatalf("CLI=%v HTTP=%v want=%v", cli, httpValue, want)
+			}
+		})
+	}
+	for _, body := range []string{
+		`{}`, `null`, `[]`,
+		`{"role":"invoke","bindingSpec":""}`,
+		`{"role":"other","bindingSpec":"openbindings.usage@1"}`,
+		`{"role":"inspect","bindingSpec":"openbindings.usage@1","path":"ranked"}`,
+		`{"role":"invoke","bindingSpec":"openbindings.usage@1","path":"explicit"}`,
+		`{"role":"invoke","bindingSpec":"openbindings.usage@1","registrationId":"missing"}`,
+		`{"role":"invoke","bindingSpec":"openbindings.usage@1","registrationId":"exec:ob"}`,
+		`{"role":"invoke","bindingSpec":"openbindings.usage@1","registrationId":null}`,
+		`{"role":"invoke","bindingSpec":"openbindings.usage@1","registrationId":""}`,
+		`{"role":"invoke","bindingSpec":"openbindings.usage@1","path":null}`,
+		`{"role":"invoke","bindingSpec":"openbindings.usage@1","path":""}`,
+		`{"role":"invoke","bindingSpec":"openbindings.usage@1","registrationId":"id","path":"ranked"}`,
+		`{"role":"invoke","bindingSpec":"openbindings.usage@1","unknown":true}`,
+		`{"role":"invoke","bindingSpec":"openbindings.usage@1"} {}`,
+	} {
+		resp, err := authedPost(ts.URL+"/delegates/resolve", "test-token", body)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if resp.StatusCode != 400 {
+			t.Errorf("accepted %s: %d", body, resp.StatusCode)
+		}
+		response := mustJSON(t, resp)
+		if _, ok := response["available"]; ok {
+			t.Fatalf("refusal became negative result: %v", response)
+		}
+	}
+	for _, args := range [][]string{
+		{"delegate", "resolve"},
+		{"delegate", "resolve", "old-operation"},
+		{"delegate", "resolve-binding-spec", "openbindings.usage@1"},
+		{"delegate", "resolve", "--role", "invoke", "--binding-spec", "openbindings.usage@1", "--registration", ""},
+		{"delegate", "resolve", "--role", "invoke", "--binding-spec", "openbindings.usage@1", "--registration", "missing"},
+		{"delegate", "resolve", "--role", "inspect", "--binding-spec", "openbindings.usage@1", "--path", "ranked"},
+	} {
+		root := NewRoot()
+		root.SetArgs(args)
+		err := root.Execute()
+		if err == nil {
+			t.Fatalf("accepted invalid args: %v", args)
+		}
+		if result, ok := err.(app.ExitResult); ok && result.Code == 0 {
+			t.Fatalf("invalid args succeeded: %v", args)
+		}
+	}
+	for _, route := range []string{"/delegates/resolve/old-operation", "/delegates/resolve-binding-spec"} {
+		resp, err := authedPost(ts.URL+route, "test-token", `{}`)
+		if err != nil {
+			t.Fatal(err)
+		}
+		resp.Body.Close()
+		if resp.StatusCode < 400 {
+			t.Fatalf("retired route active: %s", route)
+		}
+	}
+	// Existing middleware must protect the diagnostic too.
+	for _, test := range []struct {
+		token, origin string
+		status        int
+	}{
+		{"wrong", "", 401}, {"test-token", "https://untrusted.example", 200},
+	} {
+		req, _ := http.NewRequest("POST", ts.URL+"/delegates/resolve", strings.NewReader(`{"role":"invoke","bindingSpec":"openbindings.usage@1"}`))
+		req.Header.Set("Authorization", "Bearer "+test.token)
+		if test.origin != "" {
+			req.Header.Set("Origin", test.origin)
+		}
+		resp, err := http.DefaultClient.Do(req)
+		if err != nil {
+			t.Fatal(err)
+		}
+		resp.Body.Close()
+		if resp.StatusCode != test.status {
+			t.Fatalf("guard status %d, want %d", resp.StatusCode, test.status)
+		}
+		// CORS is a browser disclosure guard, not bearer authentication.
+		if test.origin != "" && resp.Header.Get("Access-Control-Allow-Origin") != "" {
+			t.Fatal("untrusted browser origin was granted response access")
+		}
+	}
+	// Corrupt or legacy registry state is not unavailable/builtin fallback.
+	envPath, err := app.FindEnvPath()
 	if err != nil {
 		t.Fatal(err)
 	}
-	if resp.StatusCode != 200 {
-		t.Fatalf("status = %d, want 200", resp.StatusCode)
-	}
-	body := mustJSON(t, resp)
-	if body["operation"] != "acme.fixture.ping" {
-		t.Errorf("operation echoed = %v, want acme.fixture.ping", body["operation"])
-	}
-	candidates, ok := body["candidates"].([]any)
-	if !ok || len(candidates) != 1 {
-		t.Fatalf("candidates = %v, want exactly the registered delegate", body["candidates"])
-	}
-	cand, ok := candidates[0].(map[string]any)
-	if !ok || cand["location"] != loc {
-		t.Errorf("candidate location = %v, want %q", cand["location"], loc)
-	}
-
-	// An operation nothing carries is a literal 200 with empty candidates,
-	// not an error.
-	resp2, err := authedGet(ts.URL+"/delegates/resolve/acme.nothing.carries.this", "test-token")
-	if err != nil {
-		t.Fatal(err)
-	}
-	if resp2.StatusCode != 200 {
-		t.Fatalf("status = %d, want 200", resp2.StatusCode)
-	}
-	body2 := mustJSON(t, resp2)
-	candidates2, ok := body2["candidates"].([]any)
-	if !ok || len(candidates2) != 0 {
-		t.Errorf("candidates = %v, want an empty array for an operation nothing carries", body2["candidates"])
+	for _, contents := range []string{`{"delegateRegistry":null}`, `{"delegates":[{"location":"exec:never-run"}]}`} {
+		if err := os.WriteFile(filepath.Join(envPath, app.EnvConfigFile), []byte(contents), 0600); err != nil {
+			t.Fatal(err)
+		}
+		resp, err := authedPost(ts.URL+"/delegates/resolve", "test-token", `{"role":"invoke","bindingSpec":"openbindings.usage@1"}`)
+		if err != nil {
+			t.Fatal(err)
+		}
+		body, _ := io.ReadAll(resp.Body)
+		resp.Body.Close()
+		if resp.StatusCode != 400 || strings.Contains(string(body), `"available"`) {
+			t.Fatalf("state refusal lost: %d %s", resp.StatusCode, body)
+		}
 	}
 }

@@ -1,0 +1,19 @@
+{
+  "name": "@openbindings/delegate-manager-consumer-qualification",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "description": "Independent TypeScript consumer for the Delegate Manager: discovers the candidate's bound CLI OBI and served OBI and invokes the five shared operations through @openbindings/invoke over the published Usage and OpenAPI bindings. Installs the SDK packages from exact packed tarballs (see ../../../scripts/verify-delegate-consumers.mjs); no OB source, no manager-specific SDK class.",
+  "scripts": {
+    "test": "node --test test/"
+  },
+  "devDependencies": {
+    "@openbindings/core": "*",
+    "@openbindings/invoke": "*",
+    "@openbindings/json": "*",
+    "@openbindings/openapi": "*",
+    "@openbindings/synthesize": "*",
+    "@openbindings/usage": "*",
+    "@openbindings/jsonata": "*"
+  }
+}

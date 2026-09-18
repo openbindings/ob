@@ -14,6 +14,7 @@ import (
 
 func newInspectCmd() *cobra.Command {
 	var inputJSON string
+	var registration string
 
 	cmd := &cobra.Command{
 		Use:   "inspect [source]",
@@ -31,6 +32,12 @@ openbindings.openapi-3.1@1:-).
 Machine callers pass the operation's wire input wholesale instead:
 --input takes an InspectSourceInput as a JSON string (exclusive with the
 <source> argument; the source's format must be explicit).
+
+--registration <id> inspects through exactly that enrolled inspect-role
+registration (see 'ob delegate list'), with no built-in or alternate
+provider fallback; the source's format must then be explicit. Without it,
+ob uses its built-in inspector when it supports the format and otherwise
+its documented automatic selection among enrolled registrations.
 
 Examples:
   ob inspect openapi.json
@@ -90,7 +97,7 @@ Examples:
 						fmt.Fprintf(cmd.ErrOrStderr(), "authorized exec address %q (recorded in environment config)\n", parsed.Location)
 					}
 				}
-				if parsed.BindingSpec == "" {
+				if parsed.BindingSpec == "" && registration == "" {
 					detected, derr := app.DetectSourceFormat(parsed.Location)
 					if derr != nil {
 						return app.ExitResult{Code: 2, Message: derr.Error(), ToStderr: true}
@@ -106,7 +113,14 @@ Examples:
 				return app.ExitResult{Code: 2, Message: "provide a <source> argument or --input", ToStderr: true}
 			}
 
-			inspection, err := app.InspectSource(context.Background(), source)
+			if cmd.Flags().Changed("registration") && registration == "" {
+				return app.ExitResult{Code: 2, Message: "--registration must name an enrolled registration ID", ToStderr: true}
+			}
+			if registration != "" && source.BindingSpec == "" {
+				return app.ExitResult{Code: 2, Message: "--registration requires an explicit binding specification (format:path)", ToStderr: true}
+			}
+			ctx := app.WithExplicitRegistration(context.Background(), app.CapInspect, registration)
+			inspection, err := app.InspectSource(ctx, source)
 			if err != nil {
 				return app.ExitResult{Code: 1, Message: err.Error(), ToStderr: true}
 			}
@@ -127,6 +141,7 @@ Examples:
 	}
 
 	cmd.Flags().StringVar(&inputJSON, "input", "", "InspectSourceInput as a JSON string (machine lane)")
+	cmd.Flags().StringVar(&registration, "registration", "", "inspect through exactly this enrolled inspect-role registration (no fallback)")
 
 	return cmd
 }

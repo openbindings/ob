@@ -3,6 +3,7 @@ package cmd
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -82,8 +83,9 @@ func TestWireConformance_ErrorFramesMatchServedInvokerSchema(t *testing.T) {
 // Coverage spans the wire-conformance loop's cohorts
 // (ob-pj/wire-conformance.md): A (flat inputs), B (--input machine lanes),
 // C (document filters: the read/analysis cases plus the editing chain).
-// Cohort F (foreground) and the frame ops (unary realizations of the frame
-// contract) are excluded by design, with notes on their binding entries.
+// Cohort F (foreground) is excluded with notes on its binding entries.
+// Frame operations have no Usage bindings; native unary commands are not frame
+// realizations. Their actual streaming bindings are tested on the served surface.
 func TestWireConformance_ExecLane(t *testing.T) {
 	if testing.Short() {
 		t.Skip("builds and execs the real binary")
@@ -114,8 +116,10 @@ func TestWireConformance_ExecLane(t *testing.T) {
 	}
 	t.Setenv("PATH", binDir+string(os.PathListSeparator)+os.Getenv("PATH"))
 
-	// A registrable delegate fixture: the same binary under a different name
-	// (registering `exec:ob` itself is refused as the self-delegate).
+	// A registrable delegate fixture: the same binary under a different name.
+	// By-value registration carries an interface, not a locator, so there is no
+	// self-delegate refusal to rely on; the chain is bounded instead
+	// (armDelegateChildDepth, TestRoleDelegateChainIsBounded).
 	binBytes, err := os.ReadFile(filepath.Join(binDir, "ob"))
 	if err != nil {
 		t.Fatal(err)
@@ -133,10 +137,8 @@ func TestWireConformance_ExecLane(t *testing.T) {
 	}))
 	defer ts.Close()
 
-	// Sandbox: HOME redirects the global config dir (contexts, delegates,
-	// global environment); a temp cwd catches local-environment writes.
-	t.Setenv("HOME", t.TempDir())
-	t.Setenv("XDG_CONFIG_HOME", "") // linux: fall back to HOME/.config
+	// Isolate global app state; a temp cwd catches local-environment writes.
+	t.Setenv("OB_CONFIG_DIR", t.TempDir())
 	workDir := t.TempDir()
 	origDir, _ := os.Getwd()
 	if err := os.Chdir(workDir); err != nil {
@@ -197,6 +199,23 @@ func TestWireConformance_ExecLane(t *testing.T) {
 		t.Fatal(err)
 	}
 
+	// A provider document that satisfies the invoke role exactly: the role's
+	// own accepted interface, carried by value. No locator is registered.
+	providerIface, err := app.RequirementInterface(app.CapInvoke)
+	if err != nil {
+		t.Fatal(err)
+	}
+	providerIface.Name = "wire-provider"
+	providerRaw, err := json.Marshal(providerIface)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var providerDoc map[string]any
+	if err := json.Unmarshal(providerRaw, &providerDoc); err != nil {
+		t.Fatal(err)
+	}
+	var registeredID string
+
 	// Ordered: later cases depend on earlier state (the initialized
 	// environment, the registered delegate, the stored context).
 	cases := []struct {
@@ -213,8 +232,19 @@ func TestWireConformance_ExecLane(t *testing.T) {
 		{"initializeEnvironment", "openbindings.ob.initializeEnvironment", map[string]any{"global": true}, nil},
 		{"reportEnvironmentStatus", "openbindings.ob.reportEnvironmentStatus", nil, nil},
 		{"listContexts", "openbindings.ob.listContexts", nil, nil},
-		{"listDelegates", "openbindings.ob.listDelegates", nil, nil},
-		{"resolveDelegate", "openbindings.ob.resolveDelegate", map[string]any{"operation": "openbindings.ob.describe"}, nil},
+		{"listDelegateRoles", "openbindings.ob.listDelegateRoles", nil, func(t *testing.T, output any) {
+			m, _ := output.(map[string]any)
+			if roles, _ := m["roles"].([]any); len(roles) != 3 {
+				t.Errorf("expected the three ob roles, got %#v", output)
+			}
+		}},
+		{"listDelegates_empty", "openbindings.ob.listDelegates", nil, func(t *testing.T, output any) {
+			m, _ := output.(map[string]any)
+			if delegates, _ := m["delegates"].([]any); len(delegates) != 0 {
+				t.Errorf("expected an empty registry, got %#v", output)
+			}
+		}},
+		{"resolveRoleDelegate", "openbindings.ob.resolveRoleDelegate", map[string]any{"role": "invoke", "bindingSpec": "openbindings.usage@1"}, nil},
 		{"getDelegateRequirements", "openbindings.ob.getDelegateRequirements", map[string]any{"capability": "invoke"}, nil},
 		{"getContext_missing", "openbindings.ob.getContext", map[string]any{"key": "https://missing.example.com"}, func(t *testing.T, output any) {
 			if output != nil {
@@ -232,14 +262,100 @@ func TestWireConformance_ExecLane(t *testing.T) {
 			}
 		}},
 		{"removeContext", "openbindings.ob.removeContext", map[string]any{"key": "https://wire.example.com"}, nil},
-		{"resolveDelegateForBindingSpec", "openbindings.ob.resolveDelegateForBindingSpec", map[string]any{"bindingSpec": "openbindings.usage@1"}, nil},
-		// Keep this aliased copy tied with the builtin (the builtin wins ties)
-		// while exercising registry writes: it is a transport fixture, not a
-		// second independent runtime, and routing ob back through itself would
-		// recurse by construction.
-		{"registerDelegate", "openbindings.ob.registerDelegate", map[string]any{"location": "exec:ob-fixture", "preference": 0}, nil},
-		{"setDelegatePreference", "openbindings.ob.setDelegatePreference", map[string]any{"location": "exec:ob-fixture", "preference": 0}, nil},
-		{"unregisterDelegate", "openbindings.ob.unregisterDelegate", map[string]any{"location": "exec:ob-fixture"}, nil},
+		// Delegate Manager lifecycle by value through the exec lane: the
+		// provider document rides stdin (never a locator), preferences ride as
+		// exact number text, null clears, {} empties, absent IDs still succeed.
+		{"registerDelegate", "openbindings.ob.registerDelegate", func() any {
+			return map[string]any{"interface": providerDoc, "roles": []any{"invoke"}, "rolePreferences": map[string]any{"invoke": json.Number("9007199254740993")}}
+		}, func(t *testing.T, output any) {
+			m, _ := output.(map[string]any)
+			id, _ := m["id"].(string)
+			if id == "" {
+				t.Fatalf("expected a registration ID, got %#v", output)
+			}
+			registeredID = id
+			if fmt.Sprint(m["rolePreferences"].(map[string]any)["invoke"]) != "9007199254740993" {
+				t.Errorf("preference not retained exactly: %#v", m["rolePreferences"])
+			}
+			if roles, _ := m["roles"].([]any); len(roles) != 1 || roles[0] != "invoke" {
+				t.Errorf("roles not retained: %#v", m["roles"])
+			}
+		}},
+		{"listDelegates_filtered", "openbindings.ob.listDelegates", map[string]any{"role": "invoke"}, func(t *testing.T, output any) {
+			m, _ := output.(map[string]any)
+			delegates, _ := m["delegates"].([]any)
+			if len(delegates) != 1 {
+				t.Fatalf("expected the one registration, got %#v", output)
+			}
+			record, _ := delegates[0].(map[string]any)
+			if record["id"] != registeredID {
+				t.Errorf("listed ID %v != registered %s", record["id"], registeredID)
+			}
+			if iface, _ := record["interface"].(map[string]any); iface["name"] != providerDoc["name"] {
+				t.Errorf("retained interface lost its value: %#v", record["interface"])
+			}
+		}},
+		{"setDelegatePreference_zero", "openbindings.ob.setDelegatePreference", func() any {
+			return map[string]any{"id": registeredID, "role": "invoke", "preference": json.Number("0")}
+		}, func(t *testing.T, output any) {
+			if output != nil {
+				t.Errorf("expected null, got %#v", output)
+			}
+		}},
+		{"listDelegates_explicitZero", "openbindings.ob.listDelegates", nil, func(t *testing.T, output any) {
+			m, _ := output.(map[string]any)
+			delegates, _ := m["delegates"].([]any)
+			record, _ := delegates[0].(map[string]any)
+			prefs, _ := record["rolePreferences"].(map[string]any)
+			if value, present := prefs["invoke"]; !present || fmt.Sprint(value) != "0" {
+				t.Errorf("explicit zero not retained: %#v", prefs)
+			}
+		}},
+		// A negative preference is a positional that looks like a flag; the
+		// descriptor's optional double_dash puts the structural `--` before it
+		// (found by the independent Go consumer, F-09 of the completion ledger).
+		{"setDelegatePreference_negative", "openbindings.ob.setDelegatePreference", func() any {
+			return map[string]any{"id": registeredID, "role": "invoke", "preference": json.Number("-1.25")}
+		}, func(t *testing.T, output any) {
+			if output != nil {
+				t.Errorf("expected null, got %#v", output)
+			}
+		}},
+		{"listDelegates_negative", "openbindings.ob.listDelegates", nil, func(t *testing.T, output any) {
+			m, _ := output.(map[string]any)
+			delegates, _ := m["delegates"].([]any)
+			record, _ := delegates[0].(map[string]any)
+			prefs, _ := record["rolePreferences"].(map[string]any)
+			if value, present := prefs["invoke"]; !present || fmt.Sprint(value) != "-1.25" {
+				t.Errorf("negative preference not retained exactly: %#v", prefs)
+			}
+		}},
+		{"setDelegatePreference_clear", "openbindings.ob.setDelegatePreference", func() any {
+			return map[string]any{"id": registeredID, "role": "invoke", "preference": nil}
+		}, nil},
+		{"registerDelegate_replace", "openbindings.ob.registerDelegate", func() any {
+			return map[string]any{"id": registeredID, "interface": providerDoc, "roles": []any{"invoke"}, "rolePreferences": map[string]any{}}
+		}, func(t *testing.T, output any) {
+			m, _ := output.(map[string]any)
+			if m["id"] != registeredID {
+				t.Errorf("replacement changed the ID: %#v", output)
+			}
+			if prefs, _ := m["rolePreferences"].(map[string]any); len(prefs) != 0 {
+				t.Errorf("empty map did not clear preferences: %#v", prefs)
+			}
+		}},
+		{"unregisterDelegate", "openbindings.ob.unregisterDelegate", func() any { return map[string]any{"id": registeredID} }, nil},
+		{"unregisterDelegate_repeat", "openbindings.ob.unregisterDelegate", func() any { return map[string]any{"id": registeredID} }, func(t *testing.T, output any) {
+			if output != nil {
+				t.Errorf("expected null for an absent ID, got %#v", output)
+			}
+		}},
+		{"listDelegates_afterRemoval", "openbindings.ob.listDelegates", nil, func(t *testing.T, output any) {
+			m, _ := output.(map[string]any)
+			if delegates, _ := m["delegates"].([]any); len(delegates) != 0 {
+				t.Errorf("removed registration still listed: %#v", output)
+			}
+		}},
 		{"resolveInterface", "openbindings.ob.resolveInterface", map[string]any{"address": ts.URL}, func(t *testing.T, output any) {
 			m, _ := output.(map[string]any)
 			iface, _ := m["interface"].(map[string]any)
@@ -328,10 +444,8 @@ func TestWireConformance_ExecLane(t *testing.T) {
 		// as JSON (the batch-5 audit ratified inspect/synthesize as
 		// machine-natured alongside binding invoke/prepare), and --input
 		// implies wire-shaped JSON output. The frame ops (invokeBinding,
-		// invokeOperation) are NOT here: their exec bindings are the
-		// documented UNARY REALIZATION of the frame contract — a unary
-		// transport cannot carry the frame grammar, so they are excluded
-		// like cohort F, with the note stamped on their binding entries.
+		// invokeOperation) are NOT here: they have no Usage bindings.
+		// A unary command cannot carry their bidirectional frame protocol.
 		{"inspectSource", "openbindings.ob.inspectSource", map[string]any{
 			"source": map[string]any{"bindingSpec": "openbindings.openapi-3.1@1", "location": "openapi.json"},
 		}, func(t *testing.T, output any) {
@@ -427,7 +541,11 @@ func TestWireConformance_ExecLane(t *testing.T) {
 			if skipCredentialStore && needsCredentialStore[tc.name] {
 				t.Skip("OB_TEST_NO_CREDENTIAL_STORE: no OS credential store on this host")
 			}
-			out := invokeConformant(t, tc.op, tc.input)
+			input := tc.input
+			if lazy, ok := input.(func() any); ok {
+				input = lazy() // resolved at run time: later cases use IDs issued earlier
+			}
+			out := invokeConformant(t, tc.op, input)
 			if tc.check != nil {
 				tc.check(t, out)
 			}

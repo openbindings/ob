@@ -1,6 +1,7 @@
 package app
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"path/filepath"
@@ -421,7 +422,7 @@ func detectSourceDrift(iface *openbindings.Interface, key, obiDir string, ss *So
 	if rb, rok := reconstructBases(clone, key); rok {
 		oldBases = &rb
 	}
-	derived, ok, warning := reReadAndDerive(clone, key, obiDir)
+	derived, ok, warning := reReadAndDerive(context.Background(), clone, key, obiDir)
 	if !ok {
 		if warning != "" {
 			return fmt.Errorf("%s", warning)

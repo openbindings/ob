@@ -10,7 +10,8 @@ import (
 // TestOperationRealizationMatrix proves that the contract, CLI, and served
 // surfaces form one complete and non-overlapping operation inventory:
 //
-//   - every contract operation has exactly one CLI usage binding;
+//   - every contract operation maps to one native CLI command; frame operations
+//     remain unbound over Usage, whose revision 1 excludes streaming;
 //   - every remotely meaningful operation has exactly one HTTP or WebSocket
 //     realization;
 //   - foreground operations are explicitly local-only; and
@@ -64,6 +65,12 @@ func TestOperationRealizationMatrix(t *testing.T) {
 		row.cli++
 		key := prefix + short
 		binding, ok := cli.Bindings[key+".usage"]
+		if short == "invokeBinding" || short == "invokeOperation" {
+			if ok {
+				t.Errorf("%s: unary command must not claim frame realization", key)
+			}
+			continue
+		}
 		if !ok {
 			t.Errorf("%s: generated CLI has no usage binding", key)
 		} else if binding.Operation != key || binding.Source != "usage" {
@@ -151,19 +158,19 @@ func TestOperationRealizationMatrix(t *testing.T) {
 		}
 	}
 
-	if got, want := len(matrix), 54; got != want {
+	if got, want := len(matrix), 58; got != want {
 		t.Errorf("contract operation count = %d, want %d", got, want)
 	}
 	if got, want := len(CommandByShort), len(matrix); got != want {
 		t.Errorf("CLI realization count = %d, want %d", got, want)
 	}
-	if got, want := len(ServeHTTPRoutes()), 49; got != want {
+	if got, want := len(ServeHTTPRoutes()), 50; got != want {
 		t.Errorf("HTTP realization count = %d, want %d", got, want)
 	}
 	if got, want := len(ServeStreamRoutes()), 2; got != want {
 		t.Errorf("stream realization count = %d, want %d", got, want)
 	}
-	if got, want := len(LocalOnlyOperations()), 3; got != want {
+	if got, want := len(LocalOnlyOperations()), 6; got != want {
 		t.Errorf("local-only realization count = %d, want %d", got, want)
 	}
 }

@@ -517,6 +517,7 @@ func TestReentrancyGuardPropagates(t *testing.T) {
 // contract alias is up and reachable throughout — and must never be contacted:
 // capability never implies use.
 func TestPinnedProviderEndToEnd(t *testing.T) {
+	t.Chdir(t.TempDir())
 	dir := t.TempDir()
 	contextsDirFunc = func() (string, error) { return dir, nil }
 	t.Cleanup(func() { contextsDirFunc = defaultContextsDir })

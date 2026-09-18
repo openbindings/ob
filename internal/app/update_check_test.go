@@ -63,11 +63,7 @@ func TestParseVersion(t *testing.T) {
 func TestUpdateCheckCacheRoundTrip(t *testing.T) {
 	// Redirect cache dir to a temp location.
 	tmp := t.TempDir()
-	t.Setenv("XDG_CACHE_HOME", tmp)
-	// On macOS, os.UserCacheDir consults HOME to build
-	// ~/Library/Caches. Override HOME too so we don't scribble
-	// outside the sandbox.
-	t.Setenv("HOME", tmp)
+	t.Setenv("OB_CACHE_DIR", tmp)
 
 	in := updateCheckCache{Latest: "0.1.1", CheckedAt: time.Now().UTC().Truncate(time.Second)}
 	if err := writeUpdateCache(in); err != nil {
@@ -139,8 +135,7 @@ func TestStartUpdateCheckSkipsDevBuild(t *testing.T) {
 
 func TestUpdateCachePathUnderCacheDir(t *testing.T) {
 	tmp := t.TempDir()
-	t.Setenv("XDG_CACHE_HOME", tmp)
-	t.Setenv("HOME", tmp)
+	t.Setenv("OB_CACHE_DIR", tmp)
 	path, err := updateCachePath()
 	if err != nil {
 		t.Fatal(err)

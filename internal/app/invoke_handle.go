@@ -7,13 +7,11 @@ import (
 	openbindings "github.com/openbindings/openbindings-go"
 
 	"github.com/openbindings/openbindings-go/invoke"
-
-	"github.com/openbindings/ob/internal/delegates"
 )
 
 // InvokeBindingHandle returns the raw cardinality-agnostic Invocation handle
 // for a binding invocation, routing by source format: the builtin invoker, or
-// a resolved delegate (see DelegateBindingInvoker). This is the entrypoint of
+// a retained invoke-role provider. This is the entrypoint of
 // `ob start`'s frame endpoint — the frame stream is this handle, serialized.
 //
 // Builtin invocations get a store-backed preflight (prepareBinding): when the
@@ -112,34 +110,20 @@ func InvokeOperationHandle(ctx context.Context, input OperationHandleInput) invo
 	return invoke.Invoke(ctx, DefaultInvoker(), input.Interface, sig, opts...)
 }
 
-// resolveDelegateInvoker selects an invoke-capable delegate that handles the
-// format via the unified delegate selection (OBI-T-09's semantics applied to
-// delegates — ob's narrowing, not a spec rule: capability + format,
-// preference, self-first ties), then wraps it as a BindingInvoker. The
-// self-delegate is excluded here by construction — it has no iface (it runs
-// natively, and native handling was already tried before falling through to a
-// delegate). The chosen delegate's frame/CLI transport is still carried by
-// DelegateBindingInvoker (the frame-transport collapse remains a tracked
-// follow-up; its owner is the serve-pass handoff note in
-// ob-pj/wire-conformance.md).
+// resolveDelegateInvoker retains the invoke-role provider and exact admitted
+// workload route selected alongside its authoritative support query. Native
+// handling has already been tried by the frame entrypoint. The Binding Invoker
+// interface supplies frame semantics; the SDK owns the selected realization.
+// No locator refetch or second selection occurs when work starts.
 func resolveDelegateInvoker(ctx context.Context, format string) (invoke.BindingInvoker, error) {
-	chosen, selectionErr := selectDelegate(ctx, CapInvoke, format)
+	chosen, selectionErr := selectInstalledRole(ctx, CapInvoke, format, roleNativeFirst)
 	if selectionErr != nil {
 		return nil, selectionErr
 	}
-	if chosen == nil || chosen.builtin {
+	if chosen == nil || chosen.Builtin {
 		return nil, fmt.Errorf("no invoker or delegate handles format %q", format)
 	}
-	iface, err := chosen.resolveInterface()
-	if err != nil {
-		return nil, err
-	}
-	return DelegateBindingInvoker(delegates.Resolved{
-		Format:   format,
-		Delegate: chosen.name(),
-		Location: chosen.location(),
-		OBI:      &delegates.ResolvedOBI{Interface: *iface},
-	})
+	return &roleBindingInvoker{spec: format, route: chosen.Work}, nil
 }
 
 // withStoredContext runs the side-effect-free preflight and adds only the
