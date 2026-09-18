@@ -17,7 +17,7 @@ const evidence=path.resolve(process.argv[4]);
 assert(!fs.existsSync(evidence),'Evidence directory must be fresh');
 fs.mkdirSync(evidence,{recursive:true});
 const elements=path.join(cohort,'elements');
-const elementsSHA='eb590acafecb94c4701bf16e878f59212cbf032c';
+const elementsSHA='abfc919574731116e155e6288bbc0ed4130c1e96';
 const hash=bytes=>createHash('sha256').update(bytes).digest('hex');
 const git=(folder,args)=>execFileSync('git',args,{cwd:folder,encoding:'utf8'}).trim();
 const record={started:new Date().toISOString(),scope:'Same normal binary; exact copied Elements tests; no source/storage overlay',host:{platform:process.platform,arch:process.arch,disposableHostedRunner:true},commands:[],testInputs:{},assets:[]};
