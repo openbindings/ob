@@ -315,7 +315,7 @@ func TestWireConformance_ExecLane(t *testing.T) {
 			"openbindings": "0.2.0", "name": "wire-mtgt", "operations": map[string]any{"oldOp": map[string]any{}},
 		}, "source": docSrc}, func(t *testing.T, output any) {
 			m, _ := output.(map[string]any)
-			if applied, _ := m["applied"].(float64); applied < 1 {
+			if applied, ok := jsonNumberValue(m["applied"]); !ok || applied < 1 {
 				t.Errorf("expected at least one applied merge entry, got %#v", output)
 			}
 			if _, ok := m["interface"].(map[string]any); !ok {
@@ -656,6 +656,29 @@ func TestWireConformance_ExecLane(t *testing.T) {
 }
 
 // repoRoot locates the module root (two levels above internal/cmd).
+// jsonNumberValue reads a JSON number out of a decoded output value.
+//
+// The machine lane decodes with exact values, so a number arrives as a
+// json.Number token rather than collapsing to float64. Other lanes hand back
+// float64. An assertion about the value should not depend on which boundary
+// produced it.
+func jsonNumberValue(v any) (float64, bool) {
+	switch n := v.(type) {
+	case json.Number:
+		f, err := n.Float64()
+		return f, err == nil
+	case float64:
+		return n, true
+	case float32:
+		return float64(n), true
+	case int:
+		return float64(n), true
+	case int64:
+		return float64(n), true
+	}
+	return 0, false
+}
+
 func repoRoot(t *testing.T) string {
 	t.Helper()
 	root, err := filepath.Abs("../..")
