@@ -9,7 +9,7 @@ import { after, before, test } from 'node:test';
 import { OperationInvoker, USE_DEFAULT, operationSignature } from '@openbindings/invoke';
 import { UsageInvoker } from '@openbindings/usage';
 import { OpenAPIInvoker } from '@openbindings/openapi';
-import { compareNumberTokens, parse as parseExact, stringify as stringifyExact } from '@openbindings/json';
+import { compareNumberTokens, equal as equalExact, parse as parseExact, stringify as stringifyExact } from '@openbindings/json';
 import { createJSONataEvaluator } from '@openbindings/invoke/jsonata';
 import { createJSONataExecutor } from '@openbindings/jsonata';
 
@@ -98,6 +98,8 @@ const usageInvoker = new UsageInvoker({
 const usageEngine = new OperationInvoker([usageInvoker], { transformEvaluator });
 function cliContext(operation) {
   const configuration = { decode: 'json' };
+  // The binding's transform already renders the document as JSON text, so the
+  // value reaching stdin is a string and needs no byte encoding of its own.
   if (operation === ops.register) configuration.route = { interface: { kind: 'stdin', operand: 'dash' } };
   return {
     configuration,
@@ -149,7 +151,11 @@ for (const [name, call, discover] of [['usage', cli, http], ['openapi', http, ht
     assert.ok(typeof record.id === 'string' && record.id.length > 0);
     assert.equal(exact(record.rolePreferences), '{"invoke":9007199254740993}');
     assert.equal(exact(record.roles), '["invoke"]');
-    assert.equal(exact(record.interface), exact(providerValue), 'retained interface differs from the supplied value');
+    // Value fidelity, not token spelling: the CLI lane carries the document as
+    // JSONata text, which renders numbers canonically (1e400 as 1e+400). The
+    // interface promises the retained document, without pruning, rewriting or
+    // rounding; it does not promise the spelling a number arrived in.
+    assert.ok(equalExact(record.interface, providerValue), 'retained interface differs in value from the supplied one');
     const second = await call(ops.register, { interface: providerValue, roles: ['invoke'] });
     assert.notEqual(second.id, record.id);
     assert.equal(exact(second.rolePreferences), '{}');

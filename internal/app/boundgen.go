@@ -188,7 +188,7 @@ func GenerateBoundCLI(contractPath, usagePath string) (*openbindings.Interface, 
 		// stdin (routesByShort), never a locator or transform-side file I/O.
 		// The complete explicit map becomes repeated --preference role=number
 		// tokens; an empty map becomes --clear-preferences; omission emits nothing.
-		"registerDelegate":             `$merge([{"interface": $string($$.interface), "role": $$.roles, "id": $$.id, "format": "json"}, $exists($$.rolePreferences) ? ($count($keys($$.rolePreferences)) = 0 ? {"clear-preferences": true} : {"preference": $each($$.rolePreferences, function($v, $k) { $k & "=" & $string($v) })}) : {}])`,
+		"registerDelegate":             `$merge([{"interface": $string($$.interface), "role": $$.roles, "id": $$.id, "format": "json"}, $exists($$.rolePreferences) ? ($count($keys($$.rolePreferences)) = 0 ? {"clear-preferences": true} : {"preference": [$each($$.rolePreferences, function($v, $k) { $k & "=" & $string($v) })]}) : {}])`,
 		"listDelegates":                `$merge([$type($$) = "object" ? {"role": $$.role} : {}, {"format": "json"}])`,
 		"setDelegatePreference":        `$merge([{"id": $$.id, "role": $$.role, "format": "json"}, $type($$.preference) = "null" ? {"clear": true} : {"preference": $string($$.preference)}])`,
 		"setDelegateBindingPreference": `$merge([{"id": $$.id, "role": $$.role, "binding-spec": $$.bindingSpec, "format": "json"}, $type($$.preference) = "null" ? {"clear": true} : {"preference": $string($$.preference)}])`,

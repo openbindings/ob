@@ -187,7 +187,7 @@
       "source": "usage"
     },
     "openbindings.ob.registerDelegate.usage": {
-      "inputTransform": "$merge([{\"interface\": $string($$.interface), \"role\": $$.roles, \"id\": $$.id, \"format\": \"json\"}, $exists($$.rolePreferences) ? ($count($keys($$.rolePreferences)) = 0 ? {\"clear-preferences\": true} : {\"preference\": $each($$.rolePreferences, function($v, $k) { $k \u0026 \"=\" \u0026 $string($v) })}) : {}])",
+      "inputTransform": "$merge([{\"interface\": $string($$.interface), \"role\": $$.roles, \"id\": $$.id, \"format\": \"json\"}, $exists($$.rolePreferences) ? ($count($keys($$.rolePreferences)) = 0 ? {\"clear-preferences\": true} : {\"preference\": [$each($$.rolePreferences, function($v, $k) { $k \u0026 \"=\" \u0026 $string($v) })]}) : {}])",
       "operation": "openbindings.ob.registerDelegate",
       "selector": "delegate register",
       "source": "usage"
