@@ -16,7 +16,7 @@ require (
 	github.com/openbindings/openbindings-go/formats/mcp v0.1.1-0.20260911030355-4b176954a677
 	github.com/openbindings/openbindings-go/formats/openapi v0.1.1-0.20260911030355-4b176954a677
 	github.com/openbindings/openbindings-go/formats/operationgraph v0.1.1-0.20260911030355-4b176954a677
-	github.com/openbindings/openbindings-go/formats/usage v0.1.1-0.20260917203834-e894be7a6463
+	github.com/openbindings/openbindings-go/formats/usage v0.1.1-0.20260918010839-c4cea2693faf
 	github.com/spf13/cobra v1.10.2
 	gopkg.in/yaml.v3 v3.0.1
 )

@@ -53,6 +53,8 @@ github.com/openbindings/openbindings-go/formats/openapi v0.1.1-0.20260911030355-
 github.com/openbindings/openbindings-go/formats/openapi v0.1.1-0.20260911030355-4b176954a677/go.mod h1:XoB4GLLxVZMbQ0YOr309RkQ3FQG1zr3BJTIqC8BW3jc=
 github.com/openbindings/openbindings-go/formats/usage v0.1.1-0.20260917203834-e894be7a6463 h1:SPYayZW0vNtm/3EIVDfIXh/r7OLFygagcuLazTaNGOI=
 github.com/openbindings/openbindings-go/formats/usage v0.1.1-0.20260917203834-e894be7a6463/go.mod h1:fnzPViD8AnZz+KZnDm2bOMcMT32aA6BrqX8KOWIHoS8=
+github.com/openbindings/openbindings-go/formats/usage v0.1.1-0.20260918010839-c4cea2693faf h1:jiBgXlumfng3OYHpEI8Feqe1x3ujW5mK0ERcQiv2hsc=
+github.com/openbindings/openbindings-go/formats/usage v0.1.1-0.20260918010839-c4cea2693faf/go.mod h1:fnzPViD8AnZz+KZnDm2bOMcMT32aA6BrqX8KOWIHoS8=
 github.com/pierrec/lz4/v4 v4.1.26 h1:GrpZw1gZttORinvzBdXPUXATeqlJjqUG/D87TKMnhjY=
 github.com/pierrec/lz4/v4 v4.1.26/go.mod h1:EoQMVJgeeEOMsCqCzqFm2O0cJvljX2nGZjcRIPL34O4=
 github.com/pmezard/go-difflib v1.0.0 h1:4DBwDE0NGyQoBHbLQYPwSUPoCMWR5BEzIk/f1lZbAQM=

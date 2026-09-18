@@ -15,7 +15,7 @@ require (
 	github.com/openbindings/openbindings-go v0.2.0
 	github.com/openbindings/openbindings-go/formats/asyncapi v0.1.1-0.20260917182618-48ba4edd3567
 	github.com/openbindings/openbindings-go/formats/openapi v0.1.1-0.20260911030355-4b176954a677
-	github.com/openbindings/openbindings-go/formats/usage v0.1.1-0.20260917203834-e894be7a6463
+	github.com/openbindings/openbindings-go/formats/usage v0.1.1-0.20260918010839-c4cea2693faf
 )
 
 require (
