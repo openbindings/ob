@@ -68,7 +68,7 @@ jobs:
         uses: actions/checkout@v7
         with:
           repository: openbindings/elements
-          ref: eb590acafecb94c4701bf16e878f59212cbf032c
+          ref: abfc919574731116e155e6288bbc0ed4130c1e96
           path: elements
       - name: Install isolated workbench test runner
         if: always() && matrix.runner == 'ubuntu-24.04'
