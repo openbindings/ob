@@ -74,6 +74,6 @@ func TestEmbeddedAgentPrimerMatchesCanonicalSpec(t *testing.T) {
 		t.Fatal(err)
 	}
 	if !bytes.Equal(got, want) {
-		t.Fatal("embedded agent primer is stale; copy spec/agent-primer.md to internal/server/resources/agent-primer.md")
+		t.Fatal("embedded agent primer is stale; run `go generate ./internal/server/...` to refresh it from the canonical spec")
 	}
 }
