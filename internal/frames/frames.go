@@ -74,39 +74,44 @@ type WireError struct {
 
 func (e WireError) MarshalJSON() ([]byte, error) {
 	if e.dataPresent {
-		return json.Marshal(struct {
+		return jsonvalue.Marshal(struct {
 			Code string `json:"code"`
 			Data any    `json:"data"`
 		}{Code: e.Code, Data: e.Data})
 	}
-	return json.Marshal(struct {
+	return jsonvalue.Marshal(struct {
 		Code string `json:"code"`
 	}{Code: e.Code})
 }
 
 func (e *WireError) UnmarshalJSON(raw []byte) error {
-	var fields map[string]json.RawMessage
-	if err := jsonvalue.Unmarshal(raw, &fields); err != nil || fields == nil {
-		return fmt.Errorf("InvocationError must be an object")
+	var value any
+	if err := jsonvalue.Unmarshal(raw, &value); err != nil {
+		return err
+	}
+	decoded, err := wireErrorFromValue(value)
+	if err == nil {
+		*e = *decoded
+	}
+	return err
+}
+
+func wireErrorFromValue(value any) (*WireError, error) {
+	fields, ok := value.(map[string]any)
+	if !ok || fields == nil {
+		return nil, fmt.Errorf("InvocationError must be an object")
 	}
 	for key := range fields {
 		if key != "code" && key != "data" {
-			return fmt.Errorf("unknown InvocationError property %q", key)
+			return nil, fmt.Errorf("unknown InvocationError property %q", key)
 		}
 	}
-	codeRaw, ok := fields["code"]
-	if !ok || jsonvalue.Unmarshal(codeRaw, &e.Code) != nil || e.Code == "" {
-		return fmt.Errorf("InvocationError.code must be a non-empty string")
+	code, ok := fields["code"].(string)
+	if !ok || code == "" {
+		return nil, fmt.Errorf("InvocationError.code must be a non-empty string")
 	}
-	e.Data = nil
-	e.dataPresent = false
-	if dataRaw, ok := fields["data"]; ok {
-		if err := jsonvalue.Unmarshal(dataRaw, &e.Data); err != nil {
-			return fmt.Errorf("InvocationError.data: %w", err)
-		}
-		e.dataPresent = true
-	}
-	return nil
+	data, present := fields["data"]
+	return &WireError{Code: code, Data: data, dataPresent: present}, nil
 }
 
 // WireErrorFrom converts an SDK terminal error to its wire shape.
@@ -182,17 +187,17 @@ func OperationClose() OperationInputFrame { return OperationInputFrame{Kind: Kin
 func (f OperationInputFrame) MarshalJSON() ([]byte, error) {
 	switch f.Kind {
 	case KindOpen:
-		return json.Marshal(struct {
+		return jsonvalue.Marshal(struct {
 			Kind  string                    `json:"kind"`
 			Input *OperationInvocationInput `json:"input"`
 		}{f.Kind, f.Input})
 	case KindInput:
-		return json.Marshal(struct {
+		return jsonvalue.Marshal(struct {
 			Kind  string `json:"kind"`
 			Value any    `json:"value"`
 		}{f.Kind, f.Value})
 	case KindClose:
-		return json.Marshal(struct {
+		return jsonvalue.Marshal(struct {
 			Kind string `json:"kind"`
 		}{f.Kind})
 	default:
@@ -250,18 +255,18 @@ func Close() InputFrame { return InputFrame{Kind: KindClose} }
 func (f InputFrame) MarshalJSON() ([]byte, error) {
 	switch f.Kind {
 	case KindOpen:
-		return json.Marshal(struct {
+		return jsonvalue.Marshal(struct {
 			Kind  string                  `json:"kind"`
 			Input *BindingInvocationInput `json:"input"`
 		}{f.Kind, f.Input})
 	case KindInput:
 		// `value` is required by the schema even when null: no omitempty.
-		return json.Marshal(struct {
+		return jsonvalue.Marshal(struct {
 			Kind  string `json:"kind"`
 			Value any    `json:"value"`
 		}{f.Kind, f.Value})
 	case KindClose:
-		return json.Marshal(struct {
+		return jsonvalue.Marshal(struct {
 			Kind string `json:"kind"`
 		}{f.Kind})
 	default:
@@ -415,16 +420,16 @@ func (f OutputFrame) MarshalJSON() ([]byte, error) {
 	switch f.Kind {
 	case KindOutput:
 		// `value` is required by the schema even when null: no omitempty.
-		return json.Marshal(struct {
+		return jsonvalue.Marshal(struct {
 			Kind  string `json:"kind"`
 			Value any    `json:"value"`
 		}{f.Kind, f.Value})
 	case KindInputClosed, KindComplete:
-		return json.Marshal(struct {
+		return jsonvalue.Marshal(struct {
 			Kind string `json:"kind"`
 		}{f.Kind})
 	case KindError:
-		return json.Marshal(struct {
+		return jsonvalue.Marshal(struct {
 			Kind  string     `json:"kind"`
 			Error *WireError `json:"error"`
 		}{f.Kind, f.Error})
@@ -437,41 +442,52 @@ func (f OutputFrame) MarshalJSON() ([]byte, error) {
 // rules on the consumer side (rule 7's SHOULD). Violations return
 // *ProtocolError.
 func (f *OutputFrame) UnmarshalJSON(b []byte) error {
-	fields, kind, err := decodeFrameObject(b)
-	if err != nil {
-		return err
+	var value any
+	if err := jsonvalue.Unmarshal(b, &value); err != nil {
+		return protocolErrorf("invalid output frame: %v", err)
 	}
+	decoded, err := outputFrameFromValue(value)
+	if err == nil {
+		*f = decoded
+	}
+	return err
+}
+
+// outputFrameFromValue also serves the SDK carrier, where values already have
+// a logical object shape and no wire encoding is necessary.
+func outputFrameFromValue(value any) (OutputFrame, error) {
+	fields, ok := value.(map[string]any)
+	if !ok || fields == nil {
+		return OutputFrame{}, protocolErrorf("frame must be a JSON object")
+	}
+	kind, ok := fields["kind"].(string)
+	if !ok {
+		return OutputFrame{}, protocolErrorf("frame kind must be a string")
+	}
+	frame := OutputFrame{Kind: kind}
 	switch kind {
 	case KindOutput:
 		if err := requireExactKeys(fields, kind, "kind", "value"); err != nil {
-			return err
+			return OutputFrame{}, err
 		}
-		var value any
-		if err := jsonvalue.Unmarshal(fields["value"], &value); err != nil {
-			return protocolErrorf("output frame: invalid value: %v", err)
-		}
-		*f = OutputFrame{Kind: kind, Value: value}
+		frame.Value = fields["value"]
 	case KindInputClosed, KindComplete:
 		if err := requireExactKeys(fields, kind, "kind"); err != nil {
-			return err
+			return OutputFrame{}, err
 		}
-		*f = OutputFrame{Kind: kind}
 	case KindError:
 		if err := requireExactKeys(fields, kind, "kind", "error"); err != nil {
-			return err
+			return OutputFrame{}, err
 		}
-		var wireErr WireError
-		if err := jsonvalue.Unmarshal(fields["error"], &wireErr); err != nil {
-			return protocolErrorf("error frame: invalid error: %v", err)
+		wireErr, err := wireErrorFromValue(fields["error"])
+		if err != nil {
+			return OutputFrame{}, protocolErrorf("error frame: invalid error: %v", err)
 		}
-		if wireErr.Code == "" {
-			return protocolErrorf("error frame: error.code is required")
-		}
-		*f = OutputFrame{Kind: kind, Error: &wireErr}
+		frame.Error = wireErr
 	default:
-		return protocolErrorf("unknown output frame kind %q", kind)
+		return OutputFrame{}, protocolErrorf("unknown output frame kind %q", kind)
 	}
-	return nil
+	return frame, nil
 }
 
 // ---------------------------------------------------------------------------
@@ -499,7 +515,7 @@ func decodeFrameObject(b []byte) (map[string]json.RawMessage, string, error) {
 // requireExactKeys enforces a variant's additionalProperties: false plus its
 // required-property set: fields must contain exactly `allowed` (rule 7; the
 // variants happen to require every property they allow).
-func requireExactKeys(fields map[string]json.RawMessage, kind string, allowed ...string) error {
+func requireExactKeys[T any](fields map[string]T, kind string, allowed ...string) error {
 	for k := range fields {
 		found := false
 		for _, a := range allowed {

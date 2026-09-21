@@ -1,6 +1,7 @@
 package app
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"strings"
@@ -41,7 +42,15 @@ func FormatOutput(v any, format OutputFormat) ([]byte, error) {
 		case ComparisonReport, *ComparisonReport:
 			return jsonvalue.Marshal(v)
 		}
-		return json.MarshalIndent(v, "", "  ")
+		data, err := jsonvalue.Marshal(v)
+		if err != nil {
+			return nil, err
+		}
+		var pretty bytes.Buffer
+		if err := json.Indent(&pretty, data, "", "  "); err != nil {
+			return nil, err
+		}
+		return pretty.Bytes(), nil
 	case OutputFormatYAML:
 		return MarshalJSONAsYAML(v)
 	default:

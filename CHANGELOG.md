@@ -10,6 +10,7 @@ is tagged.
 
 ## 0.2.0 (working draft)
 
+
 **Spec:** implements OpenBindings 0.2.0 (working draft).
 
 A 0.1.1 patch release was prepared in April 2026 but never tagged or
@@ -17,6 +18,18 @@ released; its changes (TLS setup bulletproofing, the newer-version notice)
 ship as part of 0.2.0.
 
 ### Changed
+
+- SDK invocation values use snapshot ownership: accepted input can be reused,
+  and returned mutable results remain independent. Unsupported host values are
+  rejected at admission; a rejected input does not terminate a usable stream.
+- The SDK-backed frame carrier constructs and inspects logical frame objects
+  directly. JSON encoding remains at actual wire boundaries. The shared output
+  grammar still rejects unknown or missing properties and preserves explicit
+  null error data.
+- Requested JSON output uses the maintained codec, retaining supported exact
+  numeric and string values. Application evaluator selection is unchanged.
+- This consumer change is qualified with the SDK migration candidate; coordinated
+  dependency pins and release qualification remain prerequisites for release.
 
 - **Role-scoped, by-value delegate management.** `ob delegate` now realizes
   the shared Delegate Manager interface (`openbindings.delegate-manager` 0.1):

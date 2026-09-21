@@ -23,25 +23,25 @@ jobs:
       - uses: actions/checkout@v7
         with:
           repository: openbindings/openbindings-go
-          ref: release/0.2
+          # Exact migration candidate; advance together with the consumer.
+          ref: 9a69a38acb5e14bf7724350ef1db6f233f13ad88
           path: openbindings-go
       - uses: actions/checkout@v7
         with:
           repository: openbindings/openapi-client
-          ref: main
+          ref: 7b15d57e960faa6a9e010eb9cbea80fd83f0d02e
           path: openapi-client
       - uses: actions/checkout@v7
         with:
           repository: openbindings/asyncapi-client
-          ref: main
+          ref: 7326ce4e18c12e1dcb36c3587fbe0f7fe52ec749
           path: asyncapi-client
       # The conformance corpora (transforms, binding-specs) are normative and
       # live in the spec repo; without this checkout the gates skip silently.
       - uses: actions/checkout@v7
         with:
           repository: openbindings/spec
-          # Flip ref to main once the 0.2 release line promotes.
-          ref: release/0.2
+          ref: d7fba38d8c389b165fdeb980ab4b28ea4a72cfde
           path: spec
       # The Delegate Manager admission corpus is owned by the interfaces
       # repository. Pin the exact selected commit (never a moving branch or a
@@ -50,7 +50,7 @@ jobs:
       - uses: actions/checkout@v7
         with:
           repository: openbindings/interfaces
-          ref: 5428293b3a60453ee9c64a314e0208288aa96fa3
+          ref: fe526cc5c750a21f4dd61efaa758c35c6af91192
           path: interfaces
       - uses: actions/setup-go@v7
         with:
