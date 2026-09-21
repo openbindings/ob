@@ -30,10 +30,16 @@ func InvokeOperation(ctx context.Context, operation invoke.Invocation[any, any],
 				caller.FireError(&invoke.InvocationError{Code: invoke.ErrCodeFrameProtocol})
 				return err
 			}
-			// Local encoding failure is ours to report. Write rejection is
-			// only fast-fail; the underlying output terminal remains the
-			// authoritative outcome, including completion racing a write.
-			return operation.Write(ctx, value)
+			// Admission can reject an invalid host value (for example in the
+			// open context) without terminating the underlying stream. This
+			// frame cannot be forwarded, so waiting for its terminal would hang.
+			err = operation.Write(ctx, value)
+			if err != nil && invoke.AsInvocationError(err).Code == invoke.ErrCodeTypeMismatch {
+				caller.FireError(invoke.NewInvocationError(invoke.ErrCodeFrameProtocol))
+			}
+			// Closure/terminal write rejection remains only fast-fail: the
+			// underlying output terminal owns completion racing a write.
+			return err
 		}
 		if err := write(Open(input)); err != nil {
 			return

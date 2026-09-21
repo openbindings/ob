@@ -121,7 +121,7 @@ func TestOperationClientTerminals(t *testing.T) {
 }
 
 func TestOperationClientEncodingFailure(t *testing.T) {
-	for _, phase := range []string{"open", "input"} {
+	for _, phase := range []string{"open", "open-context", "input"} {
 		t.Run(phase, func(t *testing.T) {
 			ctx, cancel := context.WithTimeout(t.Context(), time.Second)
 			defer cancel()
@@ -129,6 +129,9 @@ func TestOperationClientEncodingFailure(t *testing.T) {
 			input := &BindingInvocationInput{Source: InvokeSource{BindingSpec: "example.test@1", Content: json.RawMessage(`{}`)}, Selector: "echo"}
 			if phase == "open" {
 				input.Source.Content = json.RawMessage(`{`)
+			}
+			if phase == "open-context" {
+				input.Context = map[string]any{"unsupported": make(chan int)}
 			}
 			caller := InvokeOperation(ctx, operation, input)
 			defer caller.Cancel()

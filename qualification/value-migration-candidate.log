@@ -1,0 +1,28 @@
+go: downloading github.com/openbindings/openbindings-go/formats/asyncapi v0.1.1-0.20260921130534-9a69a38acb5e
+go: downloading github.com/openbindings/openbindings-go/formats/connect v0.1.1-0.20260921130534-9a69a38acb5e
+go: downloading github.com/openbindings/openbindings-go/formats/graphql v0.1.1-0.20260921130534-9a69a38acb5e
+go: downloading github.com/openbindings/openbindings-go/formats/grpc v0.1.1-0.20260921130534-9a69a38acb5e
+go: downloading github.com/openbindings/openbindings-go/formats/mcp v0.1.1-0.20260921130534-9a69a38acb5e
+go: downloading github.com/openbindings/openbindings-go/formats/openapi v0.1.1-0.20260921130534-9a69a38acb5e
+go: downloading github.com/openbindings/openbindings-go/formats/operationgraph v0.1.1-0.20260921130534-9a69a38acb5e
+go: downloading github.com/openbindings/openbindings-go/formats/usage v0.1.1-0.20260921130534-9a69a38acb5e
+?   	github.com/openbindings/ob/cmd/ob	[no test files]
+ok  	github.com/openbindings/ob/internal/app	205.860s
+ok  	github.com/openbindings/ob/internal/cmd	20.611s
+ok  	github.com/openbindings/ob/internal/codegen	3.047s
+ok  	github.com/openbindings/ob/internal/delegates	3.255s
+ok  	github.com/openbindings/ob/internal/demo	2.334s
+?   	github.com/openbindings/ob/internal/demo/proto/blend	[no test files]
+?   	github.com/openbindings/ob/internal/execref	[no test files]
+ok  	github.com/openbindings/ob/internal/frames	2.974s
+?   	github.com/openbindings/ob/internal/genbound	[no test files]
+?   	github.com/openbindings/ob/internal/graphjsonata	[no test files]
+?   	github.com/openbindings/ob/internal/graphjsonata/functions	[no test files]
+?   	github.com/openbindings/ob/internal/graphjsonata/internal/evaluator	[no test files]
+?   	github.com/openbindings/ob/internal/graphjsonata/internal/lexer	[no test files]
+?   	github.com/openbindings/ob/internal/graphjsonata/internal/parser	[no test files]
+ok  	github.com/openbindings/ob/internal/mcpbridge	3.014s
+ok  	github.com/openbindings/ob/internal/servecontract	(cached)
+ok  	github.com/openbindings/ob/internal/server	(cached)
+?   	github.com/openbindings/ob/internal/testenv	[no test files]
+verified CLI against SDK/core-format candidate v0.1.1-0.20260921130534-9a69a38acb5e with no workspace or local replacements
