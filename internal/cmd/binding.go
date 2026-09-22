@@ -12,7 +12,7 @@ func newBindingCmd() *cobra.Command {
 		Short: "Low-level binding operations",
 		Long: `Low-level binding operations.
 
-'binding invoke' and 'binding prepare' operate on pre-resolved bindings — the
+'binding invoke' and 'binding preflight' operate on pre-resolved bindings — the
 machine-to-machine building blocks used by delegates and orchestrators.
 'binding list' reads the bindings an OBI declares, so what 'operation
 bind'/'unbind' produced is visible without opening the raw JSON.`,
@@ -21,7 +21,7 @@ bind'/'unbind' produced is visible without opening the raw JSON.`,
 
 	c.AddCommand(
 		newBindingInvokeCmd(),
-		newBindingPrepareCmd(),
+		newBindingPreflightCmd(),
 		newBindingListCmd(),
 	)
 

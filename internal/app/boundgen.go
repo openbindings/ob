@@ -50,8 +50,8 @@ var CommandByShort = map[string]string{
 	"listSources":                  "source list",
 	"mergeInterfaces":              "merge",
 	"newInterface":                 "new",
-	"prepareBinding":               "binding prepare",
-	"prepareOperation":             "operation prepare",
+	"preflightBinding":             "binding preflight",
+	"preflightOperation":           "operation preflight",
 	"previewDelegateMigration":     "delegate migrate preview",
 	"pullSource":                   "source pull",
 	"purifyInterface":              "purify",
@@ -105,7 +105,7 @@ var SharedCLICommands = map[string][]string{
 var WireInputByShort = map[string]string{
 	"addSource":           "input",
 	"inspectSource":       "input",
-	"prepareBinding":      "input",
+	"preflightBinding":    "input",
 	"synthesizeInterface": "input",
 }
 
@@ -217,7 +217,7 @@ func GenerateBoundCLI(contractPath, usagePath string) (*openbindings.Interface, 
 		"listBindings":          `{"obi-path": $string($$.interface), "operation": $$.operation, "format": "json"}`,
 		"listOperations":        `{"obi": $string($$.interface), "tag": $$.tag, "format": "json"}`,
 		"listOperationAliases":  `{"obi": $string($$.interface), "operation": $$.operation, "format": "json"}`,
-		"prepareOperation":      `{"obi": $string($$.interface), "operation": $$.operation, "binding": $$.binding, "format": "json"}`,
+		"preflightOperation":    `{"obi": $string($$.interface), "operation": $$.operation, "binding": $$.binding, "format": "json"}`,
 		"compareInterfaces":     `{"baseline": $string($$.baseline), "comparison": $string($$.comparison), "from-sources": $$.fromSources, "only": $$.only, "format": "json"}`,
 		"reportCompatibility":   `{"target": $string($$.target), "candidate": $string($$.candidate), "format": "json"}`,
 
@@ -502,7 +502,7 @@ func GenerateBoundServe(contractPath, openapiPath, existingServePath, servedBase
 		// the request representation through its whole-body field. The public ob
 		// contract already is that body, so adapt it before applying the emitted
 		// caller-envelope transform.
-		"prepareOperation": `{ "payload": $$ }`,
+		"preflightOperation": `{ "payload": $$ }`,
 		// Conditional selectors preserve the whole diagnostic request body.
 		"resolveRoleDelegate": `{ "payload": $$ }`,
 		// The public ob contract uses this dynamic object as the operation input;
@@ -577,7 +577,7 @@ var routesByShort = map[string]map[string]string{
 	"listBindings":          {"obi-path": usage.RouteStdinDash},
 	"listOperations":        {"obi": usage.RouteStdinDash},
 	"listOperationAliases":  {"obi": usage.RouteStdinDash},
-	"prepareOperation":      {"obi": usage.RouteStdinDash},
+	"preflightOperation":    {"obi": usage.RouteStdinDash},
 	"compareInterfaces":     {"baseline": usage.RouteStdinDash, "comparison": usage.RouteFile},
 	"reportCompatibility":   {"target": usage.RouteStdinDash, "candidate": usage.RouteFile},
 	"codegen":               {"source": usage.RouteStdinDash},

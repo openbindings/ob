@@ -12,7 +12,7 @@ import (
 // ob derives its delegate capability requirements. They are pinned to this ob
 // release. A capability requirement selects only the operations ob actually
 // consumes; correspondence is per-operation, so an invoke-only delegate is not
-// forced to implement prepareBinding and a strict synthesizer is not forced to
+// forced to implement preflightBinding and a strict synthesizer is not forced to
 // implement the independent coverage operation.
 //
 //go:embed requirements/*.json

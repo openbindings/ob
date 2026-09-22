@@ -32,7 +32,7 @@ func TestCapabilityRequirementsContainOnlyConsumedOperations(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, ok := invoke.Operations["openbindings.binding-invoker.prepareBinding"]; ok {
+	if _, ok := invoke.Operations["openbindings.binding-invoker.preflightBinding"]; ok {
 		t.Fatal("invoke capability must not require the independent preflight operation")
 	}
 }

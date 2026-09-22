@@ -1565,13 +1565,13 @@ func TestServeBindingInvoke_FrameRoundTripViaClient(t *testing.T) {
 	}
 }
 
-// --- /bindings/prepare ---
+// --- /bindings/preflight ---
 
-func TestServeBindingPrepare_InvalidBody(t *testing.T) {
+func TestServeBindingPreflight_InvalidBody(t *testing.T) {
 	ts := testEnv(t)
 	defer ts.Close()
 
-	resp, err := authedPost(ts.URL+"/bindings/prepare", "test-token", `not json`)
+	resp, err := authedPost(ts.URL+"/bindings/preflight", "test-token", `not json`)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1581,13 +1581,13 @@ func TestServeBindingPrepare_InvalidBody(t *testing.T) {
 	}
 }
 
-func TestServeBindingPrepare_UnknownPropertyRejected(t *testing.T) {
+func TestServeBindingPreflight_UnknownPropertyRejected(t *testing.T) {
 	// BindingInvocationInput declares additionalProperties: false; the legacy
 	// unary body's `input` field is rejected.
 	ts := testEnv(t)
 	defer ts.Close()
 
-	resp, err := authedPost(ts.URL+"/bindings/prepare", "test-token",
+	resp, err := authedPost(ts.URL+"/bindings/preflight", "test-token",
 		`{"source":{"bindingSpec":"openbindings.openapi-3.1@1","location":"x"},"selector":"#/paths/~1t/get","input":{}}`)
 	if err != nil {
 		t.Fatal(err)
@@ -1598,14 +1598,14 @@ func TestServeBindingPrepare_UnknownPropertyRejected(t *testing.T) {
 	}
 }
 
-func TestServeBindingPrepare_AcceptsExtensibleSource(t *testing.T) {
+func TestServeBindingPreflight_AcceptsExtensibleSource(t *testing.T) {
 	mock := &mockEchoInvoker{formats: []openbindings.BindingSpecInfo{{BindingSpec: "mock-echo@1.0"}}}
 	cleanup := app.OverrideInvokerForTest(invoke.NewOperationInvoker(mock))
 	defer cleanup()
 
 	ts := testEnv(t)
 	defer ts.Close()
-	resp, err := authedPost(ts.URL+"/bindings/prepare", "test-token",
+	resp, err := authedPost(ts.URL+"/bindings/preflight", "test-token",
 		`{"source":{"bindingSpec":"mock-echo@1.0","location":"mock://test","x-driver":{"mode":"fast"}},"selector":"#/test"}`)
 	if err != nil {
 		t.Fatal(err)
@@ -1617,10 +1617,10 @@ func TestServeBindingPrepare_AcceptsExtensibleSource(t *testing.T) {
 	}
 }
 
-func TestServeBindingPrepare_RequiresSourceCarrier(t *testing.T) {
+func TestServeBindingPreflight_RequiresSourceCarrier(t *testing.T) {
 	ts := testEnv(t)
 	defer ts.Close()
-	resp, err := authedPost(ts.URL+"/bindings/prepare", "test-token",
+	resp, err := authedPost(ts.URL+"/bindings/preflight", "test-token",
 		`{"source":{"bindingSpec":"openbindings.openapi-3.1@1"},"selector":"#/test"}`)
 	if err != nil {
 		t.Fatal(err)
@@ -1689,8 +1689,8 @@ func TestRelativeTrackedSourceRefs(t *testing.T) {
 	}
 }
 
-func TestServeBindingPrepare_NullForFormatWithoutPreparer(t *testing.T) {
-	// A format whose invoker has no BindingPreparer reports null — the
+func TestServeBindingPreflight_NullForFormatWithoutPreflighter(t *testing.T) {
+	// A format whose invoker has no BindingPreflighter reports null — the
 	// conformant "cannot determine statically" answer.
 	mock := &mockEchoInvoker{formats: []openbindings.BindingSpecInfo{{BindingSpec: "mock-echo@1.0"}}}
 	cleanup := app.OverrideInvokerForTest(invoke.NewOperationInvoker(mock))
@@ -1699,7 +1699,7 @@ func TestServeBindingPrepare_NullForFormatWithoutPreparer(t *testing.T) {
 	ts := testEnv(t)
 	defer ts.Close()
 
-	resp, err := authedPost(ts.URL+"/bindings/prepare", "test-token",
+	resp, err := authedPost(ts.URL+"/bindings/preflight", "test-token",
 		`{"source": {"bindingSpec":"mock-echo@1.0","location":"mock://test"},"selector":"#/test"}`)
 	if err != nil {
 		t.Fatal(err)
@@ -1717,7 +1717,7 @@ func TestServeBindingPrepare_NullForFormatWithoutPreparer(t *testing.T) {
 	}
 }
 
-func TestServeOperationPrepare_InlineInterface(t *testing.T) {
+func TestServeOperationPreflight_InlineInterface(t *testing.T) {
 	t.Chdir(t.TempDir())
 	mock := &mockEchoInvoker{formats: []openbindings.BindingSpecInfo{{BindingSpec: "mock-echo@1.0"}}}
 	cleanup := app.OverrideInvokerForTest(invoke.NewOperationInvoker(mock))
@@ -1732,7 +1732,7 @@ func TestServeOperationPrepare_InlineInterface(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	resp, err := authedPost(ts.URL+"/operations/prepare", "test-token", string(body))
+	resp, err := authedPost(ts.URL+"/operations/preflight", "test-token", string(body))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1746,16 +1746,16 @@ func TestServeOperationPrepare_InlineInterface(t *testing.T) {
 		t.Fatal(err)
 	}
 	if strings.TrimSpace(string(payload)) != "null" {
-		t.Fatalf("prepareOperation body = %s, want null", payload)
+		t.Fatalf("preflightOperation body = %s, want null", payload)
 	}
 }
 
-func TestServeOperationPrepare_RejectsMalformedInput(t *testing.T) {
+func TestServeOperationPreflight_RejectsMalformedInput(t *testing.T) {
 	ts := testEnv(t)
 	defer ts.Close()
 	for _, body := range []string{`null`, `{}`, `{"input":{}}`, `{"operation":"echo","unknown":true}`, `{} {}`} {
 		t.Run(body, func(t *testing.T) {
-			resp, err := authedPost(ts.URL+"/operations/prepare", "test-token", body)
+			resp, err := authedPost(ts.URL+"/operations/preflight", "test-token", body)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -1806,7 +1806,7 @@ func TestServeAuthRequired_AllProtectedEndpoints(t *testing.T) {
 
 	postPaths := []string{
 		"/resolve", "/validate", "/diff", "/compatibility",
-		"/bindings/prepare", "/interfaces/synthesize",
+		"/bindings/preflight", "/interfaces/synthesize",
 	}
 	for _, path := range postPaths {
 		t.Run("POST "+path, func(t *testing.T) {

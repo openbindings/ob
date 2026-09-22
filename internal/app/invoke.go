@@ -888,26 +888,31 @@ func t08Failure(ev InvocationOutput, verr error, schema openbindings.JSONSchema,
 	return invoke.NewInvocationError(invoke.ErrCodeValidationFailed)
 }
 
-// PrepareOperation is the operation-level preflight: it resolves an operation
-// (or a specific binding) on an interface to a concrete binding, then reports
-// the context that binding would require before invocation, without invoking it
-// or causing side effects. It is the by-reference counterpart to PrepareBinding.
-// Returns nil when requirements cannot be determined without invoking (the
-// always-satisfiable answer). Context resolution is not performed here; any
-// supplied callerContext narrows the reported requirements to what is still
-// unsatisfied, exactly as for PrepareBinding.
-func PrepareOperation(ctx context.Context, obiPath string, opKey string, bindingKey string, callerContext map[string]any) (*invoke.ContextRequiredDetails, error) {
+// PreflightOperation is the operation-level preflight: it resolves an
+// operation (or a specific binding) on an interface to a concrete binding and
+// asks that binding which context requirements it already knows it would
+// raise. It is the by-reference counterpart to PreflightBinding. A non-nil
+// result is what a live CONTEXT_REQUIRED would carry; nil means none known,
+// not ready. An error means the binding could not answer; it is not a refusal
+// and does not predict invocation. The answer is advisory: the binding may do
+// the work its binding specification names as needed to answer, but it never
+// dispatches the requested operation. Context resolution is not performed
+// here; any supplied callerContext is supplied for this call alone and narrows
+// the reported requirements to what is still unsatisfied, exactly as for
+// PreflightBinding.
+func PreflightOperation(ctx context.Context, obiPath string, opKey string, bindingKey string, callerContext map[string]any) (*invoke.ContextRequiredDetails, error) {
 	iface, err := resolveInterface(obiPath)
 	if err != nil {
 		return nil, fmt.Errorf("load OBI %q: %w", obiPath, err)
 	}
-	return PrepareInterfaceOperation(ctx, iface, opKey, bindingKey, callerContext)
+	return PreflightInterfaceOperation(ctx, iface, opKey, bindingKey, callerContext)
 }
 
-// PrepareInterfaceOperation is PrepareOperation's document-valued form. It is
-// used by remote APIs, where the interface is request data rather than a local
-// path, while preserving the CLI path's acquisition and preflight semantics.
-func PrepareInterfaceOperation(ctx context.Context, iface *openbindings.Interface, opKey string, bindingKey string, callerContext map[string]any) (*invoke.ContextRequiredDetails, error) {
+// PreflightInterfaceOperation is PreflightOperation's document-valued form. It
+// is used by remote APIs, where the interface is request data rather than a
+// local path, while preserving the CLI path's acquisition and preflight
+// semantics.
+func PreflightInterfaceOperation(ctx context.Context, iface *openbindings.Interface, opKey string, bindingKey string, callerContext map[string]any) (*invoke.ContextRequiredDetails, error) {
 	if iface == nil {
 		return nil, fmt.Errorf("interface is required")
 	}
@@ -921,12 +926,13 @@ func PrepareInterfaceOperation(ctx context.Context, iface *openbindings.Interfac
 		return nil, err
 	}
 
-	// The binding-layer preflight performs no I/O (its contract), so a
-	// location-only source would answer "unknown" from a cold cache even
-	// when auth is statically declared in the document. Document
-	// ACQUISITION is the CLI's job: read or fetch the source exactly as
-	// invoke would (read-only, side-effect-free) and ask the question
-	// against the materialized content.
+	// The binding-layer preflight does only the answer-work its binding
+	// specification names, so a location-only source could answer "none
+	// known" from a cold cache even when auth is statically declared in the
+	// document. Document ACQUISITION is the CLI's job: read or fetch the
+	// source exactly as invoke would (a read of the artifact, never a
+	// dispatch of the requested operation) and ask the question against
+	// the materialized content.
 	if es.Content == nil && es.Location != "" {
 		if data := acquireSourceDocument(ctx, es.Location); data != nil {
 			// The acquired document is artifact TEXT; text rides the content
@@ -935,8 +941,8 @@ func PrepareInterfaceOperation(ctx context.Context, iface *openbindings.Interfac
 		}
 	}
 
-	// Prepare through the same SDK runtime and binding registration used by
-	// invocation. Materialize only the selected source on a shallow interface
+	// Preflight through the same SDK runtime and binding registration used
+	// by invocation. Materialize only the selected source on a shallow interface
 	// copy so callers never observe preflight acquisition as a document edit.
 	prepared := *iface
 	prepared.Sources = make(map[string]openbindings.Source, len(iface.Sources))
@@ -952,7 +958,7 @@ func PrepareInterfaceOperation(ctx context.Context, iface *openbindings.Interfac
 	if len(callerContext) > 0 {
 		options = append(options, invoke.WithContext(callerContext))
 	}
-	return DefaultInvoker().PrepareOperation(ctx, &prepared, resolved.binding.Operation, options...)
+	return DefaultInvoker().PreflightOperation(ctx, &prepared, resolved.binding.Operation, options...)
 }
 
 // acquireSourceDocument materializes a source artifact for the preflight:
@@ -1000,14 +1006,14 @@ func acquireSourceDocument(ctx context.Context, location string) []byte {
 	}
 }
 
-// RenderContextRequirements renders prepareOperation/prepareBinding details
-// for humans. Nil means no requirements could be determined without invoking
-// (the always-conformant answer). The wire shape is the details themselves
+// RenderContextRequirements renders preflightOperation/preflightBinding
+// details for humans. Nil means the binding knows of no requirements (the
+// always-conformant answer); it is not a promise that invocation will succeed. The wire shape is the details themselves
 // (or null) per the contract's oneOf — no envelope.
 func RenderContextRequirements(details *invoke.ContextRequiredDetails) string {
 	s := Styles
 	if details == nil {
-		return s.Dim.Render("No context requirements (none determinable without invoking)")
+		return s.Dim.Render("No context requirements known (advisory; the live CONTEXT_REQUIRED challenge is authoritative)")
 	}
 	var sb strings.Builder
 	sb.WriteString(s.Header.Render("Context required"))

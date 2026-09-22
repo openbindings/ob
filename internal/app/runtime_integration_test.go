@@ -17,9 +17,9 @@ import (
 )
 
 type singleRetryInvoker struct {
-	prepareCalls int
-	invokeCalls  int
-	details      *invoke.ContextRequiredDetails
+	preflightCalls int
+	invokeCalls    int
+	details        *invoke.ContextRequiredDetails
 }
 
 func (i *singleRetryInvoker) BindingSpecs() []openbindings.BindingSpecInfo {
@@ -30,8 +30,8 @@ func (i *singleRetryInvoker) CheckBindingSpecs(bindingSpecs []string) []openbind
 	return openbindings.CheckBindingSpecs(bindingSpecs, i.BindingSpecs())
 }
 
-func (i *singleRetryInvoker) PrepareBinding(_ context.Context, args *invoke.BindingInvocationArgs) (*invoke.ContextRequiredDetails, error) {
-	i.prepareCalls++
+func (i *singleRetryInvoker) PreflightBinding(_ context.Context, args *invoke.BindingInvocationArgs) (*invoke.ContextRequiredDetails, error) {
+	i.preflightCalls++
 	if invoke.ContextSatisfies(args.Context, i.details) {
 		return nil, nil
 	}
@@ -168,12 +168,12 @@ func TestOpenAPIFamilyUsesOneRuntimeVertically(t *testing.T) {
 			if err != nil {
 				t.Fatalf("synthesize: %v", err)
 			}
-			preflight, err := PrepareInterfaceOperation(context.Background(), iface, "ping", "", nil)
+			preflight, err := PreflightInterfaceOperation(context.Background(), iface, "ping", "", nil)
 			if err != nil {
-				t.Fatalf("prepare: %v", err)
+				t.Fatalf("preflight: %v", err)
 			}
 			if preflight != nil {
-				t.Fatalf("prepare requirements = %#v, want none", preflight)
+				t.Fatalf("preflight requirements = %#v, want none", preflight)
 			}
 
 			before := requests.Load()

@@ -134,10 +134,10 @@ paths:
                                 $ref: '#/components/schemas/ErrorResponse'
                     description: The operation failed.
             summary: Authoritatively determine support for exact, opaque binding-specification identifier tokens.
-    /bindings/prepare:
+    /bindings/preflight:
         post:
-            description: 'Preflight a binding: report the context it would require before invocation, without invoking it or causing side effects. Returns ContextRequiredDetails the runtime can resolve proactively, or null when requirements cannot be determined statically. Advisory; invokeBinding''s reactive CONTEXT_REQUIRED error is authoritative. When context is supplied, reports only the requirements still unsatisfied by it.'
-            operationId: prepareBinding
+            description: 'Preflight a binding: tell it that an invocation of this selection may follow and let it report the context requirements it can already identify from the source and the supplied context. Returns ContextRequiredDetails in the same shape a CONTEXT_REQUIRED challenge carries, or null. Advisory: it may omit requirements, null is always conformant, and invokeBinding''s live CONTEXT_REQUIRED challenge remains authoritative; invocation never requires a prior preflight. Context supplied here is used for this call alone and narrows the result to what it leaves unsatisfied. Preflight never dispatches the requested operation, consumes its input, emits its outputs, or spends an approval for it; what else a binding does to answer is its governing binding specification''s to require. An unsuccessful completion means the binding could not answer and carries no prediction.'
+            operationId: preflightBinding
             requestBody:
                 content:
                     application/json:
@@ -183,7 +183,7 @@ paths:
                             schema:
                                 $ref: '#/components/schemas/ErrorResponse'
                     description: The operation failed.
-            summary: 'Preflight a binding: report the context it would require before invocation, without invoking it or causing side effects.'
+            summary: 'Preflight a binding: tell it that an invocation of this selection may follow and let it report the context requirements it can already identify from the source and the supplied context.'
     /contexts:
         get:
             description: 'List metadata-only summaries for stored contexts; never returns stored context values. Completes the context surface with listing and inspection: the generic document-store substrate these contexts are stored under (satisfied by getContext/setContext/removeContext) standardizes only opaque get/set/delete, so this management view is ob''s own.'
@@ -2515,10 +2515,10 @@ paths:
                     description: Successful response.
             security: []
             summary: Return this OpenAPI document.
-    /operations/prepare:
+    /operations/preflight:
         post:
-            description: 'Operation-level preflight: report the context invoking an operation would require, without invoking it or causing side effects. The by-reference counterpart to prepareBinding. Resolves the named operation (or binding) on the supplied interface to a concrete binding and reports that binding''s ContextRequiredDetails, or null when requirements cannot be determined without invoking. Returning null is always conformant. Advisory: invokeOperation''s reactive CONTEXT_REQUIRED is authoritative. When context is supplied, the result reports only the requirements still unsatisfied by it.'
-            operationId: prepareOperation
+            description: 'Operation-level preflight, the by-reference counterpart to preflightBinding: resolve the named operation (or binding) on the supplied interface with invocation''s selection rules and preflight the selected binding under the binding-invoker contract. Returns that binding''s ContextRequiredDetails in the same shape a CONTEXT_REQUIRED challenge carries, or null. Advisory: it may omit requirements, null is always conformant, and invokeOperation''s live CONTEXT_REQUIRED challenge remains authoritative; invocation never requires a prior preflight. Context supplied here is used for this call alone and narrows the result to what it leaves unsatisfied. Preflight never dispatches the requested operation and does not pin a later selection; a resolution failure is this operation''s own error, not the binding''s answer. An unsuccessful completion means the binding could not answer and carries no prediction.'
+            operationId: preflightOperation
             requestBody:
                 content:
                     application/json:
@@ -2564,7 +2564,7 @@ paths:
                             schema:
                                 $ref: '#/components/schemas/ErrorResponse'
                     description: The operation failed.
-            summary: 'Operation-level preflight: report the context invoking an operation would require, without invoking it or causing side effects.'
+            summary: 'Operation-level preflight, the by-reference counterpart to preflightBinding: resolve the named operation (or binding) on the supplied interface with invocation''s selection rules and preflight the selected binding under the binding-invoker contract.'
     /sources/inspect:
         post:
             description: Inspect a binding source artifact and report the bindable targets it contains, before any interface is created. Lets tooling show a user what an artifact offers.

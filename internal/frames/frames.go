@@ -46,7 +46,7 @@ type InvokeSource struct {
 }
 
 // BindingInvocationInput is the payload of the open frame (and the input of
-// prepareBinding): the binding to invoke plus opaque runtime context.
+// preflightBinding): the binding to invoke plus opaque runtime context.
 type BindingInvocationInput struct {
 	Source   InvokeSource   `json:"source"`
 	Selector string         `json:"selector"`
@@ -313,7 +313,7 @@ func (f *InputFrame) UnmarshalJSON(b []byte) error {
 }
 
 // DecodeInvocationInput strictly decodes a BindingInvocationInput (the open
-// frame's payload and prepareBinding's input), enforcing the contract's
+// frame's payload and preflightBinding's input), enforcing the contract's
 // additionalProperties: false on the invocation object and required
 // properties on it and its extensible Source value.
 func DecodeInvocationInput(raw json.RawMessage) (*BindingInvocationInput, error) {

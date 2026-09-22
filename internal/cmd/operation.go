@@ -34,7 +34,7 @@ exposes. Use subcommands to list, rename, remove, or invoke operations.`,
 	cmd.AddCommand(
 		newOperationListCmd(),
 		newOperationInvokeCmd(),
-		newOperationPrepareCmd(),
+		newOperationPreflightCmd(),
 		newOperationAddCmd(),
 		newOperationSetCmd(),
 		newOperationDetachCmd(),
@@ -453,29 +453,34 @@ func readJSONObjectArg(arg, flagName string) (map[string]any, error) {
 	return configuration, nil
 }
 
-func newOperationPrepareCmd() *cobra.Command {
+func newOperationPreflightCmd() *cobra.Command {
 	var bindingKey string
 	var selection []string
 	var configurationArg string
 
 	cmd := &cobra.Command{
-		Use:   "prepare <obi> [operation]",
-		Short: "Preflight an operation's required context without invoking it",
-		Long: `Report the context invoking an operation would require, without invoking
-it or causing any side effect.
+		Use:   "preflight <obi> [operation]",
+		Short: "Preflight an operation: report the context it already knows it would require",
+		Long: `Tell an operation's binding that an invocation may follow and report the
+context requirements it can already identify.
 
 Resolves the operation (or, with --binding, a specific binding) to a
-concrete binding and reports its context requirements, or reports none
-when they cannot be determined without invoking. Repeat --select-binding
-to supply the same ordered caller choice accepted by invocation. Use
+concrete binding as invocation would and asks it which context it already
+knows it would require. The answer is ContextRequiredDetails in the shape a
+live CONTEXT_REQUIRED challenge carries, or null when the binding knows of
+none. It is advisory: null is always conformant, it may omit requirements,
+and the CONTEXT_REQUIRED error from 'ob op invoke' remains authoritative.
+Preflight never dispatches the requested operation; any other work the
+binding does to answer is its binding specification's to define. Any
+context supplied is used for this call alone. Repeat --select-binding to
+supply the same ordered caller choice accepted by invocation. Use
 --configuration (inline JSON, @file, or - for stdin) when binding-spec
-interpretation points are already known. This is advisory:
-the reactive CONTEXT_REQUIRED error from 'ob op invoke' is authoritative.
+interpretation points are already known.
 
 Examples:
-  ob op prepare interface.json createOrder
-  ob op prepare interface.json --binding createOrder.openapi
-  ob op prepare interface.json --binding viewer.graphql \
+  ob op preflight interface.json createOrder
+  ob op preflight interface.json --binding createOrder.openapi
+  ob op preflight interface.json --binding viewer.graphql \
     --configuration '{"document":"query { viewer { id } }"}'`,
 		Args: cobra.RangeArgs(1, 2),
 		RunE: func(cmd *cobra.Command, args []string) error {
@@ -504,13 +509,13 @@ Examples:
 				Selection:     append([]string(nil), selection...),
 				Configuration: configuration,
 			}
-			details, err := app.PrepareOperation(context.Background(), obiFile, operationKey, bindingKey, config.Context())
+			details, err := app.PreflightOperation(context.Background(), obiFile, operationKey, bindingKey, config.Context())
 			if err != nil {
-				return app.ExitResult{Code: 1, Message: fmt.Sprintf("prepare %s in %s: %v", operationKey, obiFile, err), ToStderr: true}
+				return app.ExitResult{Code: 1, Message: fmt.Sprintf("preflight %s in %s: %v", operationKey, obiFile, err), ToStderr: true}
 			}
 
 			// Wire shape per the contract: the details themselves, or null —
-			// no envelope (matching `ob binding prepare`).
+			// no envelope (matching `ob binding preflight`).
 			format, outputPath := getOutputFlags(cmd)
 			return app.OutputResultText(details, format, outputPath, func() string {
 				return app.RenderContextRequirements(details)

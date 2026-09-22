@@ -14,7 +14,7 @@ import (
 // a retained invoke-role provider. This is the entrypoint of
 // `ob start`'s frame endpoint — the frame stream is this handle, serialized.
 //
-// Builtin invocations get a store-backed preflight (prepareBinding): when the
+// Builtin invocations get a store-backed preflight (preflightBinding): when the
 // invoker reports its requirements statically and ob's context store satisfies
 // them under the key derived from the challenge's target, the stored context
 // merges beneath the per-call context (per-call wins). Anything still missing
@@ -126,15 +126,15 @@ func resolveDelegateInvoker(ctx context.Context, format string) (invoke.BindingI
 	return &roleBindingInvoker{spec: format, route: chosen.Work}, nil
 }
 
-// withStoredContext runs the side-effect-free preflight and adds only the
-// challenge-scoped subset of stored context beneath the explicitly supplied
-// per-call context. The caller's context is not store-derived ambient
+// withStoredContext runs the advisory preflight (which never dispatches the
+// requested operation) and adds only the challenge-scoped subset of stored
+// context beneath the explicitly supplied per-call context. The caller's context is not store-derived ambient
 // authority, so it remains intact and wins on collision. If stored plus
 // per-call context cannot satisfy the reported requirements, only the
 // per-call context passes through and the binding's own CONTEXT_REQUIRED
 // challenge reaches the caller.
 func withStoredContext(ctx context.Context, invoker *invoke.OperationInvoker, args *invoke.BindingInvocationArgs) map[string]any {
-	details, err := invoker.PrepareBinding(ctx, args)
+	details, err := invoker.PreflightBinding(ctx, args)
 	if err != nil || details == nil {
 		return args.Context
 	}
@@ -166,13 +166,15 @@ func withStoredContext(ctx context.Context, invoker *invoke.OperationInvoker, ar
 	return out
 }
 
-// PrepareBinding is the prepareBinding operation: a side-effect-free
-// preflight reporting the context a binding would require, or nil when the
-// requirements cannot be determined statically. Formats without a builtin
-// preparer — including formats handled by delegates — report nil, the
-// always-satisfiable conformant answer; invokeBinding's reactive
+// PreflightBinding is the preflightBinding operation: it tells the binding
+// that an invocation of this selection may follow and reports the context
+// requirements it can already identify, or nil when it knows of none. The
+// answer is advisory and never dispatches the requested operation; the
+// binding may do the answer-work its binding specification names. Formats
+// without a builtin preflighter — including formats handled by delegates —
+// report nil, the always-conformant answer; invokeBinding's live
 // CONTEXT_REQUIRED challenge remains authoritative.
-func PrepareBinding(ctx context.Context, input InvocationInput) (*invoke.ContextRequiredDetails, error) {
+func PreflightBinding(ctx context.Context, input InvocationInput) (*invoke.ContextRequiredDetails, error) {
 	if input.Source.BindingSpec == "" {
 		return nil, fmt.Errorf("source.bindingSpec is required")
 	}
@@ -182,7 +184,7 @@ func PrepareBinding(ctx context.Context, input InvocationInput) (*invoke.Context
 	if !BuiltinSupportsFormat(input.Source.BindingSpec) {
 		return nil, nil
 	}
-	return DefaultInvoker().PrepareBinding(ctx, &invoke.BindingInvocationArgs{
+	return DefaultInvoker().PreflightBinding(ctx, &invoke.BindingInvocationArgs{
 		Source: invoke.InvocationSource{
 			BindingSpec: input.Source.BindingSpec,
 			Location:    input.Source.Location,

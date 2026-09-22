@@ -13,15 +13,15 @@ import (
 	"github.com/openbindings/openbindings-go/invoke"
 )
 
-type prepareHTTPTransforms struct{}
+type preflightHTTPTransforms struct{}
 
-func (prepareHTTPTransforms) Evaluate(ctx context.Context, expression string, data any) (any, error) {
+func (preflightHTTPTransforms) Evaluate(ctx context.Context, expression string, data any) (any, error) {
 	return app.ApplyTransform(ctx, nil, &openbindings.TransformOrRef{Inline: expression}, data)
 }
 
 // This drives the published binding and its real transform, rather than writing
 // a request that merely agrees with the handler's private implementation.
-func TestServeOperationPrepare_PublishedHTTPBinding(t *testing.T) {
+func TestServeOperationPreflight_PublishedHTTPBinding(t *testing.T) {
 	t.Chdir(t.TempDir())
 	mock := &mockEchoInvoker{formats: []openbindings.BindingSpecInfo{{BindingSpec: "mock-echo@1.0"}}}
 	cleanup := app.OverrideInvokerForTest(invoke.NewOperationInvoker(mock))
@@ -38,7 +38,7 @@ func TestServeOperationPrepare_PublishedHTTPBinding(t *testing.T) {
 		t.Fatal(err)
 	}
 	client := invoke.NewOperationInvoker(openapiformat.NewInvoker())
-	client.TransformEvaluator = prepareHTTPTransforms{}
+	client.TransformEvaluator = preflightHTTPTransforms{}
 	for _, withContext := range []bool{false, true} {
 		t.Run(map[bool]string{false: "bare", true: "context"}[withContext], func(t *testing.T) {
 			input := map[string]any{"interface": echoOperationInterface(), "operation": "echo"}
@@ -47,8 +47,8 @@ func TestServeOperationPrepare_PublishedHTTPBinding(t *testing.T) {
 			}
 			ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 			defer cancel()
-			call := invoke.Invoke(ctx, client, &document, invoke.NewOperationSignature[any, any]("openbindings.ob.prepareOperation"),
-				invoke.WithBindingKey("openbindings.ob.prepareOperation.openapi"),
+			call := invoke.Invoke(ctx, client, &document, invoke.NewOperationSignature[any, any]("openbindings.ob.preflightOperation"),
+				invoke.WithBindingKey("openbindings.ob.preflightOperation.openapi"),
 				invoke.WithContext(map[string]any{"configuration": map[string]any{"security": map[string]any{"index": 1}}, "credentials": map[string]any{"bearerAuth": "test-token"}}))
 			if err := call.Write(ctx, input); err != nil {
 				t.Fatalf("prepare invocation: %#v", err)

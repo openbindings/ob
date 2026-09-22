@@ -150,16 +150,16 @@
       "selector": "#/paths/~1interfaces/post",
       "source": "openapi"
     },
-    "openbindings.ob.prepareBinding.openapi": {
+    "openbindings.ob.preflightBinding.openapi": {
       "inputTransform": "($parameters := {}; $bodyObject := $merge([$sift($,function($value,$key){$key != \"context\" and $key != \"selector\" and $key != \"source\"}),{\"context\":$lookup($,\"context\"),\"selector\":$lookup($,\"selector\"),\"source\":$lookup($,\"source\")}]); {\"parameters\":$count($keys($parameters)) \u003e 0 ? $parameters : $lookup({},\"__openbindings_absent\"),\"body\":($exists($lookup($,\"context\")) or $exists($lookup($,\"selector\")) or $exists($lookup($,\"source\")) or $count($keys($sift($,function($value,$key){$key != \"context\" and $key != \"selector\" and $key != \"source\"}))) \u003e 0 or true) ? $bodyObject : $lookup({},\"__openbindings_absent\")})",
-      "operation": "openbindings.ob.prepareBinding",
-      "selector": "#/paths/~1bindings~1prepare/post",
+      "operation": "openbindings.ob.preflightBinding",
+      "selector": "#/paths/~1bindings~1preflight/post",
       "source": "openapi"
     },
-    "openbindings.ob.prepareOperation.openapi": {
+    "openbindings.ob.preflightOperation.openapi": {
       "inputTransform": "({ \"payload\": $$ }).(($parameters := {}; $bodyObject := {}; {\"parameters\":$count($keys($parameters)) \u003e 0 ? $parameters : $lookup({},\"__openbindings_absent\"),\"body\":$exists($lookup($,\"payload\")) ? $lookup($,\"payload\") : ((false) ? $bodyObject : $lookup({},\"__openbindings_absent\"))}))",
-      "operation": "openbindings.ob.prepareOperation",
-      "selector": "#/paths/~1operations~1prepare/post",
+      "operation": "openbindings.ob.preflightOperation",
+      "selector": "#/paths/~1operations~1preflight/post",
       "source": "openapi"
     },
     "openbindings.ob.pullSource.openapi": {
@@ -720,11 +720,11 @@
         "authoring"
       ]
     },
-    "openbindings.ob.prepareBinding": {
+    "openbindings.ob.preflightBinding": {
       "aliases": [
-        "openbindings.binding-invoker.prepareBinding"
+        "openbindings.binding-invoker.preflightBinding"
       ],
-      "description": "Preflight a binding: report the context it would require before invocation, without invoking it or causing side effects. Returns ContextRequiredDetails the runtime can resolve proactively, or null when requirements cannot be determined statically. Advisory; invokeBinding's reactive CONTEXT_REQUIRED error is authoritative. When context is supplied, reports only the requirements still unsatisfied by it.",
+      "description": "Preflight a binding: tell it that an invocation of this selection may follow and let it report the context requirements it can already identify from the source and the supplied context. Returns ContextRequiredDetails in the same shape a CONTEXT_REQUIRED challenge carries, or null. Advisory: it may omit requirements, null is always conformant, and invokeBinding's live CONTEXT_REQUIRED challenge remains authoritative; invocation never requires a prior preflight. Context supplied here is used for this call alone and narrows the result to what it leaves unsatisfied. Preflight never dispatches the requested operation, consumes its input, emits its outputs, or spends an approval for it; what else a binding does to answer is its governing binding specification's to require. An unsuccessful completion means the binding could not answer and carries no prediction.",
       "idempotent": true,
       "input": {
         "$ref": "#/schemas/BindingInvocationInput"
@@ -744,11 +744,11 @@
         "invocation"
       ]
     },
-    "openbindings.ob.prepareOperation": {
+    "openbindings.ob.preflightOperation": {
       "aliases": [
-        "openbindings.operation-invoker.prepareOperation"
+        "openbindings.operation-invoker.preflightOperation"
       ],
-      "description": "Operation-level preflight: report the context invoking an operation would require, without invoking it or causing side effects. The by-reference counterpart to prepareBinding. Resolves the named operation (or binding) on the supplied interface to a concrete binding and reports that binding's ContextRequiredDetails, or null when requirements cannot be determined without invoking. Returning null is always conformant. Advisory: invokeOperation's reactive CONTEXT_REQUIRED is authoritative. When context is supplied, the result reports only the requirements still unsatisfied by it.",
+      "description": "Operation-level preflight, the by-reference counterpart to preflightBinding: resolve the named operation (or binding) on the supplied interface with invocation's selection rules and preflight the selected binding under the binding-invoker contract. Returns that binding's ContextRequiredDetails in the same shape a CONTEXT_REQUIRED challenge carries, or null. Advisory: it may omit requirements, null is always conformant, and invokeOperation's live CONTEXT_REQUIRED challenge remains authoritative; invocation never requires a prior preflight. Context supplied here is used for this call alone and narrows the result to what it leaves unsatisfied. Preflight never dispatches the requested operation and does not pin a later selection; a resolution failure is this operation's own error, not the binding's answer. An unsuccessful completion means the binding could not answer and carries no prediction.",
       "idempotent": true,
       "input": {
         "$ref": "#/schemas/OperationInvocationInput"
