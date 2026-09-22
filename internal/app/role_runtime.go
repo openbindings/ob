@@ -30,7 +30,7 @@ func roleConsumerInterface(catalogue *roleCatalogue, candidate roleCandidate) (*
 		if alternative.identity != candidate.Admission.Alternative {
 			continue
 		}
-		consumer, err := openbindings.ValidateDocument(alternative.value)
+		consumer, _, err := openbindings.ValidateDocument(alternative.value)
 		if err != nil {
 			return nil, errors.New("invalid retained role expectation")
 		}
@@ -67,7 +67,7 @@ func newRoleRuntime(catalogue *roleCatalogue, candidate roleCandidate, runtime i
 	if err != nil {
 		return nil, err
 	}
-	providerValue, err := openbindings.ValidateDocument(candidate.Record.Interface)
+	providerValue, _, err := openbindings.ValidateDocument(candidate.Record.Interface)
 	if err != nil {
 		return nil, errors.New("invalid retained provider interface")
 	}

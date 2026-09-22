@@ -20,11 +20,11 @@ import (
 func TestDelegateMigrationPrerequisiteExactAdmission(t *testing.T) {
 	const expected = `{"openbindings":"0.2.0","operations":{"example.role.read":{"input":{"type":"integer","enum":[9007199254740992]},"output":{"type":"string"}}}}`
 	const supplied = `{"openbindings":"0.2.0","operations":{"read":{"aliases":["example.role.read"],"input":{"type":"integer","enum":[9007199254740993]},"output":{"type":"string"}}}}`
-	target, err := openbindings.ValidateDocument([]byte(expected))
+	target, _, err := openbindings.ValidateDocument([]byte(expected))
 	if err != nil {
 		t.Fatalf("valid expected document: %v", err)
 	}
-	provider, err := openbindings.ValidateDocument([]byte(supplied))
+	provider, _, err := openbindings.ValidateDocument([]byte(supplied))
 	if err != nil {
 		t.Fatalf("valid provider document: %v", err)
 	}

@@ -134,7 +134,7 @@ func ServeHTTPRoutes() []ServeRoute {
 		{Method: "get", Path: "/environment", Operation: "reportEnvironmentStatus"},
 		{Method: "post", Path: "/interfaces/status", Operation: "reportInterfaceStatus"},
 		{Method: "post", Path: "/interfaces/codegen", Operation: "codegen"},
-		{Method: "post", Path: "/interfaces/conform", Operation: "conform"},
+		{Method: "post", Path: "/interfaces/correspond", Operation: "correspond"},
 		{Method: "post", Path: "/interfaces/operations/aliases/add", Operation: "addOperationAlias"},
 		{Method: "post", Path: "/interfaces/operations/aliases/remove", Operation: "removeOperationAlias"},
 		{Method: "post", Path: "/interfaces/operations/aliases/list", Operation: "listOperationAliases"},

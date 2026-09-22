@@ -17,7 +17,7 @@ import (
 
 func roleDiagnosticProvider(t *testing.T, tag string) json.RawMessage {
 	t.Helper()
-	provider, err := openbindings.ValidateDocument(roleFrameProvider(t))
+	provider, _, err := openbindings.ValidateDocument(roleFrameProvider(t))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -26,7 +26,7 @@ func roleDiagnosticProvider(t *testing.T, tag string) json.RawMessage {
 		if err != nil {
 			t.Fatal(err)
 		}
-		extra, err := openbindings.ValidateDocument(roleTestProvider(t, expected))
+		extra, _, err := openbindings.ValidateDocument(roleTestProvider(t, expected))
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -125,7 +125,7 @@ func TestRoleDiagnosticRefusals(t *testing.T) {
 			}
 			provider := roleDiagnosticProvider(t, "selected")
 			if mode == "unbound" {
-				iface, err := openbindings.ValidateDocument(provider)
+				iface, _, err := openbindings.ValidateDocument(provider)
 				if err != nil {
 					t.Fatal(err)
 				}

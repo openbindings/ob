@@ -561,64 +561,6 @@ components:
                 - summary
                 - operations
             type: object
-        ConformAction:
-            additionalProperties: false
-            description: A single change conform made or would make to the target.
-            properties:
-                action:
-                    description: scaffold (add a missing operation), replace (update a drifted one), skip, or compatible (already conforms).
-                    enum:
-                        - scaffold
-                        - replace
-                        - skip
-                        - compatible
-                    type: string
-                details:
-                    description: Human-readable description of the change.
-                    type: string
-                operation:
-                    description: The operation key the change concerns.
-                    type: string
-            required:
-                - operation
-                - action
-            type: object
-        ConformInput:
-            additionalProperties: false
-            description: 'conform input: `interface` is the reference contract whose operations `target` must satisfy; `target` is the interface scaffolded to conform, returned modified as `interface` in the result.'
-            properties:
-                dryRun:
-                    description: Report the changes without applying them.
-                    type: boolean
-                interface:
-                    $ref: '#/components/schemas/OpenBindingsInterface'
-                target:
-                    $ref: '#/components/schemas/OpenBindingsInterface'
-            required:
-                - interface
-                - target
-            type: object
-        ConformResult:
-            additionalProperties: true
-            description: The conformed target document plus a report of each change made or proposed.
-            properties:
-                actions:
-                    items:
-                        $ref: '#/components/schemas/ConformAction'
-                    type: array
-                interface:
-                    $ref: '#/components/schemas/OpenBindingsInterface'
-                interfaceName:
-                    description: Display name of the reference interface being conformed to.
-                    type: string
-                modified:
-                    description: Whether the target was changed (false under dryRun or when already conformant).
-                    type: boolean
-            required:
-                - interface
-                - actions
-                - modified
-            type: object
         Context:
             additionalProperties: true
             description: 'Opaque per-target context payload: credentials, session state, headers, cookies, environment, metadata, or any other invoker-managed state. Well-known fields include bearerToken, apiKey, basic, headers, cookies, environment, metadata.'
@@ -714,6 +656,64 @@ components:
             required:
                 - url
                 - hasCredentials
+            type: object
+        CorrespondAction:
+            additionalProperties: false
+            description: A single change correspond made or would make to the target.
+            properties:
+                action:
+                    description: scaffold (add a missing operation), replace (update a drifted one), skip, or compatible (already corresponds).
+                    enum:
+                        - scaffold
+                        - replace
+                        - skip
+                        - compatible
+                    type: string
+                details:
+                    description: Human-readable description of the change.
+                    type: string
+                operation:
+                    description: The operation key the change concerns.
+                    type: string
+            required:
+                - operation
+                - action
+            type: object
+        CorrespondInput:
+            additionalProperties: false
+            description: 'correspond input: `interface` is the reference contract whose operations `target` must correspond to; `target` is the interface scaffolded to correspond, returned updated as `interface` in the result.'
+            properties:
+                dryRun:
+                    description: Report the changes without applying them.
+                    type: boolean
+                interface:
+                    $ref: '#/components/schemas/OpenBindingsInterface'
+                target:
+                    $ref: '#/components/schemas/OpenBindingsInterface'
+            required:
+                - interface
+                - target
+            type: object
+        CorrespondResult:
+            additionalProperties: true
+            description: The updated target document plus a report of each change made or proposed.
+            properties:
+                actions:
+                    items:
+                        $ref: '#/components/schemas/CorrespondAction'
+                    type: array
+                interface:
+                    $ref: '#/components/schemas/OpenBindingsInterface'
+                interfaceName:
+                    description: Display name of the reference interface the target corresponds to.
+                    type: string
+                modified:
+                    description: Whether the target was changed (false under dryRun or when it already corresponds).
+                    type: boolean
+            required:
+                - interface
+                - actions
+                - modified
             type: object
         DelegateCapability:
             description: 'One of ob''s three delegation roles: invoke (Binding Invoker), synthesize (Interface Synthesizer) and inspect (Source Inspector plus the Interface Synthesizer support query). Role identifiers are local to this ob; the complete catalogue with accepted interfaces is returned by listDelegateRoles.'
@@ -2108,26 +2108,97 @@ components:
             properties:
                 interface:
                     $ref: '#/components/schemas/OpenBindingsInterface'
-                strict:
-                    description: Additionally reject unknown (non-x-) fields. A spec version newer than the tool supports is refused in every mode.
-                    type: boolean
             required:
                 - interface
             type: object
+        ValidationDiagnostic:
+            additionalProperties: false
+            description: Advice a rule asks tools to surface without affecting the conclusion.
+            properties:
+                message:
+                    type: string
+                path:
+                    description: Where in the document the diagnostic applies; absent when it concerns the whole document.
+                    type: string
+                rule:
+                    description: The rule that asks for the diagnostic, such as OBI-T-02.
+                    type: string
+            required:
+                - rule
+                - message
+            type: object
+        ValidationFinding:
+            additionalProperties: false
+            description: 'One located piece of rule evidence: a violation, or a check that could not be decided.'
+            properties:
+                message:
+                    description: What was established, or why it could not be decided.
+                    type: string
+                path:
+                    description: Where in the document the finding applies; absent when it concerns the whole document.
+                    type: string
+                rule:
+                    description: The stable rule identifier, such as OBI-D-08.
+                    type: string
+                status:
+                    enum:
+                        - violated
+                        - inconclusive
+                    type: string
+            required:
+                - rule
+                - status
+                - message
+            type: object
         ValidationReport:
             additionalProperties: true
+            description: A validator's account of one document under the core specification's §10.5 vocabulary. conclusion is absent when the document was refused (refusal), which is not a conformance conclusion.
             properties:
-                problems:
+                conclusion:
+                    description: The §10.5 conformance conclusion. conformant only when every document rule was decided and none is violated; conformance-undetermined when no violation was established but some rules are inconclusive.
+                    enum:
+                        - conformant
+                        - non-conformant
+                        - conformance-undetermined
+                    type: string
+                diagnostics:
+                    description: Advice a rule asks tools to surface without affecting the conclusion, such as OBI-T-02's notice of an unknown field.
+                    items:
+                        $ref: '#/components/schemas/ValidationDiagnostic'
+                    type: array
+                findings:
+                    description: Every established violation and every check that could not be decided, located in the document.
+                    items:
+                        $ref: '#/components/schemas/ValidationFinding'
+                    type: array
+                inconclusive:
+                    description: Identifiers of the rules neither satisfied nor violated, as OBI-T-17 requires.
                     items:
                         type: string
                     type: array
-                valid:
-                    type: boolean
+                refusal:
+                    $ref: '#/components/schemas/VersionRefusal'
                 version:
                     description: The spec version the document declares.
                     type: string
+                violated:
+                    description: Identifiers of the rules violated, as OBI-T-17 requires.
+                    items:
+                        type: string
+                    type: array
+            type: object
+        VersionRefusal:
+            additionalProperties: false
+            description: The document declares a version outside the supported set, so it was not interpreted (OBI-T-04).
+            properties:
+                reason:
+                    type: string
+                version:
+                    description: The version the document declares.
+                    type: string
             required:
-                - valid
+                - version
+                - reason
             type: object
     securitySchemes:
         bearer:

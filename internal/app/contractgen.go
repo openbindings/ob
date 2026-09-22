@@ -102,7 +102,7 @@ func GenerateBindingSpecSupportContract(path string) error {
 	// The role catalogue (listDelegateRoles) is the authoritative description of
 	// what each role requires; the contract's delegate descriptions are authored
 	// alongside it and need no generated text migration.
-	if _, err := openbindings.ValidateDocument(data); err != nil {
+	if _, _, err := openbindings.ValidateDocument(data); err != nil {
 		return fmt.Errorf("validate generated root contract: %w", err)
 	}
 	if bytes.Equal(data, original) {

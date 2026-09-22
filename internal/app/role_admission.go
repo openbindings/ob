@@ -78,7 +78,7 @@ func newRoleCatalogue(roles []DelegateRole) (*roleCatalogue, error) {
 			if len(raw) > maxDelegateInterfaceBytes {
 				return nil, errors.New("expected interface exceeds OB capacity")
 			}
-			iface, err := openbindings.ValidateDocument(raw)
+			iface, _, err := openbindings.ValidateDocument(raw)
 			if err != nil {
 				return nil, errors.New("invalid expected interface")
 			}
@@ -139,7 +139,7 @@ func (c *roleCatalogue) admit(raw json.RawMessage, roles []string) (map[string]r
 		}
 		seen[id] = true
 	}
-	provider, err := openbindings.ValidateDocument(raw)
+	provider, _, err := openbindings.ValidateDocument(raw)
 	if err != nil {
 		return nil, errors.New("invalid supplied interface")
 	}

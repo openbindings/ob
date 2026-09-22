@@ -66,7 +66,7 @@ func (l DelegateRoleList) Render() string {
 		fmt.Fprintf(&sb, "\n    %s", role.Description)
 		for i, raw := range role.AcceptedInterfaces {
 			keys := "unreadable expected interface"
-			if iface, err := openbindings.ValidateDocument(raw); err == nil {
+			if iface, _, err := openbindings.ValidateDocument(raw); err == nil {
 				ops := make([]string, 0, len(iface.Operations))
 				for key := range iface.Operations {
 					ops = append(ops, key)
@@ -125,7 +125,7 @@ func (r DelegateRegistration) Render() string {
 		fmt.Fprintf(&sb, "\n  %s%s", s.Dim.Render("explicit preferences: "), strings.Join(parts, ", "))
 	}
 	name, operations := "(unnamed interface)", 0
-	if iface, err := openbindings.ValidateDocument(r.Interface); err == nil {
+	if iface, _, err := openbindings.ValidateDocument(r.Interface); err == nil {
 		if iface.Name != "" {
 			name = iface.Name
 		}
