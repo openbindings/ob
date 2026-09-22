@@ -7,11 +7,11 @@ import (
 	"strings"
 
 	openbindings "github.com/openbindings/openbindings-go"
-
 	asyncapiformat "github.com/openbindings/openbindings-go/formats/asyncapi"
 	openapiformat "github.com/openbindings/openbindings-go/formats/openapi"
 	"github.com/openbindings/openbindings-go/formats/usage"
 	"github.com/openbindings/openbindings-go/invoke"
+	"github.com/openbindings/openbindings-go/jsonvalue"
 )
 
 // CommandByShort maps each contract operation's short name to its CLI
@@ -352,7 +352,7 @@ func GenerateBoundCLI(contractPath, usagePath string) (*openbindings.Interface, 
 	}
 	bound.Sources["usage"] = openbindings.Source{
 		BindingSpec: usage.BindingSpec,
-		Content:     openbindings.TextContent(usageText), // the pristine artifact, verbatim
+		Content:     jsonvalue.TextContent(usageText), // the pristine artifact, verbatim
 	}
 
 	return bound, nil
@@ -421,7 +421,7 @@ func GenerateBoundServe(contractPath, openapiPath, existingServePath, servedBase
 	httpDerived, err := DeriveFromSource(openbindings.Source{
 		BindingSpec: openapiformat.BindingSpecOpenAPI31,
 		Location:    openapiPath,
-		Content:     openbindings.TextContent(resolvedOpenAPI),
+		Content:     jsonvalue.TextContent(resolvedOpenAPI),
 	}, "openapi", "")
 	if err != nil {
 		return nil, fmt.Errorf("derive openapi: %w", err)

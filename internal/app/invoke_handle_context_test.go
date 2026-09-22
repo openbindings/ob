@@ -4,8 +4,7 @@ import (
 	"context"
 	"testing"
 
-	openbindings "github.com/openbindings/openbindings-go"
-
+	"github.com/openbindings/openbindings-go/bindingsupport"
 	"github.com/openbindings/openbindings-go/invoke"
 )
 
@@ -13,12 +12,12 @@ type storedContextPreflighter struct {
 	details *invoke.ContextRequiredDetails
 }
 
-func (p storedContextPreflighter) BindingSpecs() []openbindings.BindingSpecInfo {
-	return []openbindings.BindingSpecInfo{{BindingSpec: "example.binding@1"}}
+func (p storedContextPreflighter) BindingSpecs() []bindingsupport.BindingSpecInfo {
+	return []bindingsupport.BindingSpecInfo{{BindingSpec: "example.binding@1"}}
 }
 
-func (p storedContextPreflighter) CheckBindingSpecs(bindingSpecs []string) []openbindings.BindingSpecVerdict {
-	return openbindings.CheckBindingSpecs(bindingSpecs, p.BindingSpecs())
+func (p storedContextPreflighter) CheckBindingSpecs(bindingSpecs []string) []bindingsupport.BindingSpecVerdict {
+	return bindingsupport.CheckBindingSpecs(bindingSpecs, p.BindingSpecs())
 }
 
 func (p storedContextPreflighter) InvokeBinding(context.Context, *invoke.BindingInvocationArgs) invoke.Invocation[any, any] {

@@ -12,15 +12,16 @@ import (
 	"time"
 
 	gomcp "github.com/modelcontextprotocol/go-sdk/mcp"
+	"github.com/openbindings/ob/internal/app"
+	"github.com/openbindings/ob/internal/mcpbridge"
 	openbindings "github.com/openbindings/openbindings-go"
 	"github.com/openbindings/openbindings-go/acquire"
+	"github.com/openbindings/openbindings-go/bindingsupport"
 	mcpbinding "github.com/openbindings/openbindings-go/formats/mcp"
 	openapibinding "github.com/openbindings/openbindings-go/formats/openapi"
 	"github.com/openbindings/openbindings-go/invoke"
+	"github.com/openbindings/openbindings-go/jsonvalue"
 	"github.com/openbindings/openbindings-go/synthesize"
-
-	"github.com/openbindings/ob/internal/app"
-	"github.com/openbindings/ob/internal/mcpbridge"
 )
 
 // TestMCPRoundTrip_Differential is the keystone fidelity test:
@@ -640,7 +641,7 @@ func TestMCPGenericProjection_OpenAPISynthesizedDifferential(t *testing.T) {
 		context.Background(),
 		&synthesize.SynthesizeInput{Sources: []synthesize.SynthesizeSource{{
 			BindingSpec: openapibinding.BindingSpecOpenAPI31,
-			Content:     openbindings.TextContent(artifact),
+			Content:     jsonvalue.TextContent(artifact),
 		}}},
 	)
 	if err != nil {
@@ -829,28 +830,28 @@ func TestObStartServedInterfaceBridgesToMCP(t *testing.T) {
 // real mcpbridge → invoker flow without depending on a network protocol.
 type echoMockInvoker struct{}
 
-func (e *echoMockInvoker) BindingSpecs() []openbindings.BindingSpecInfo {
-	return []openbindings.BindingSpecInfo{{BindingSpec: "x-mock", Description: "echo mock"}}
+func (e *echoMockInvoker) BindingSpecs() []bindingsupport.BindingSpecInfo {
+	return []bindingsupport.BindingSpecInfo{{BindingSpec: "x-mock", Description: "echo mock"}}
 }
 
-func (e *echoMockInvoker) CheckBindingSpecs(bindingSpecs []string) []openbindings.BindingSpecVerdict {
-	return openbindings.CheckBindingSpecs(bindingSpecs, e.BindingSpecs())
+func (e *echoMockInvoker) CheckBindingSpecs(bindingSpecs []string) []bindingsupport.BindingSpecVerdict {
+	return bindingsupport.CheckBindingSpecs(bindingSpecs, e.BindingSpecs())
 }
 
 type familyEchoInvoker struct {
 	families []string
 }
 
-func (e *familyEchoInvoker) BindingSpecs() []openbindings.BindingSpecInfo {
-	out := make([]openbindings.BindingSpecInfo, 0, len(e.families))
+func (e *familyEchoInvoker) BindingSpecs() []bindingsupport.BindingSpecInfo {
+	out := make([]bindingsupport.BindingSpecInfo, 0, len(e.families))
 	for _, family := range e.families {
-		out = append(out, openbindings.BindingSpecInfo{BindingSpec: family})
+		out = append(out, bindingsupport.BindingSpecInfo{BindingSpec: family})
 	}
 	return out
 }
 
-func (e *familyEchoInvoker) CheckBindingSpecs(bindingSpecs []string) []openbindings.BindingSpecVerdict {
-	return openbindings.CheckBindingSpecs(bindingSpecs, e.BindingSpecs())
+func (e *familyEchoInvoker) CheckBindingSpecs(bindingSpecs []string) []bindingsupport.BindingSpecVerdict {
+	return bindingsupport.CheckBindingSpecs(bindingSpecs, e.BindingSpecs())
 }
 
 func (e *familyEchoInvoker) InvokeBinding(ctx context.Context, args *invoke.BindingInvocationArgs) invoke.Invocation[any, any] {

@@ -11,8 +11,10 @@ import (
 	"testing"
 
 	openbindings "github.com/openbindings/openbindings-go"
+	"github.com/openbindings/openbindings-go/bindingsupport"
 	openapiformat "github.com/openbindings/openbindings-go/formats/openapi"
 	"github.com/openbindings/openbindings-go/invoke"
+	"github.com/openbindings/openbindings-go/jsonvalue"
 	"github.com/openbindings/openbindings-go/synthesize"
 )
 
@@ -22,12 +24,12 @@ type singleRetryInvoker struct {
 	details        *invoke.ContextRequiredDetails
 }
 
-func (i *singleRetryInvoker) BindingSpecs() []openbindings.BindingSpecInfo {
-	return []openbindings.BindingSpecInfo{{BindingSpec: openapiformat.BindingSpecOpenAPI31}}
+func (i *singleRetryInvoker) BindingSpecs() []bindingsupport.BindingSpecInfo {
+	return []bindingsupport.BindingSpecInfo{{BindingSpec: openapiformat.BindingSpecOpenAPI31}}
 }
 
-func (i *singleRetryInvoker) CheckBindingSpecs(bindingSpecs []string) []openbindings.BindingSpecVerdict {
-	return openbindings.CheckBindingSpecs(bindingSpecs, i.BindingSpecs())
+func (i *singleRetryInvoker) CheckBindingSpecs(bindingSpecs []string) []bindingsupport.BindingSpecVerdict {
+	return bindingsupport.CheckBindingSpecs(bindingSpecs, i.BindingSpecs())
 }
 
 func (i *singleRetryInvoker) PreflightBinding(_ context.Context, args *invoke.BindingInvocationArgs) (*invoke.ContextRequiredDetails, error) {
@@ -78,7 +80,7 @@ func TestOpenAPIOperationHasOneContextRetryOwner(t *testing.T) {
 			"read": {},
 		},
 		Sources: map[string]openbindings.Source{
-			"api": {BindingSpec: openapiformat.BindingSpecOpenAPI31, Content: openbindings.TextContent("{}")},
+			"api": {BindingSpec: openapiformat.BindingSpecOpenAPI31, Content: jsonvalue.TextContent("{}")},
 		},
 		Bindings: map[string]openbindings.BindingEntry{
 			"read.api": {Operation: "read", Source: "api", Selector: "read"},

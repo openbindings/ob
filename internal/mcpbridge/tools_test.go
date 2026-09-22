@@ -9,6 +9,7 @@ import (
 
 	gomcp "github.com/modelcontextprotocol/go-sdk/mcp"
 	openbindings "github.com/openbindings/openbindings-go"
+	"github.com/openbindings/openbindings-go/bindingsupport"
 	"github.com/openbindings/openbindings-go/invoke"
 )
 
@@ -131,23 +132,23 @@ func TestRegisterInterface_MixedPrimitives(t *testing.T) {
 }
 
 type registrationTestInvoker struct {
-	specs []openbindings.BindingSpecInfo
+	specs []bindingsupport.BindingSpecInfo
 }
 
 func newRegistrationTestInvoker(specs ...string) *invoke.OperationInvoker {
-	infos := make([]openbindings.BindingSpecInfo, 0, len(specs))
+	infos := make([]bindingsupport.BindingSpecInfo, 0, len(specs))
 	for _, spec := range specs {
-		infos = append(infos, openbindings.BindingSpecInfo{BindingSpec: spec})
+		infos = append(infos, bindingsupport.BindingSpecInfo{BindingSpec: spec})
 	}
 	return invoke.NewOperationInvoker(&registrationTestInvoker{specs: infos})
 }
 
-func (i *registrationTestInvoker) BindingSpecs() []openbindings.BindingSpecInfo {
+func (i *registrationTestInvoker) BindingSpecs() []bindingsupport.BindingSpecInfo {
 	return i.specs
 }
 
-func (i *registrationTestInvoker) CheckBindingSpecs(bindingSpecs []string) []openbindings.BindingSpecVerdict {
-	return openbindings.CheckBindingSpecs(bindingSpecs, i.BindingSpecs())
+func (i *registrationTestInvoker) CheckBindingSpecs(bindingSpecs []string) []bindingsupport.BindingSpecVerdict {
+	return bindingsupport.CheckBindingSpecs(bindingSpecs, i.BindingSpecs())
 }
 
 func (i *registrationTestInvoker) InvokeBinding(ctx context.Context, _ *invoke.BindingInvocationArgs) invoke.Invocation[any, any] {
@@ -413,12 +414,12 @@ func TestSchemaRefName_DecodesJSONPointerToken(t *testing.T) {
 // binding bridged into a request-scoped MCP tool call.
 type neverEndingInvoker struct{}
 
-func (n *neverEndingInvoker) BindingSpecs() []openbindings.BindingSpecInfo {
-	return []openbindings.BindingSpecInfo{{BindingSpec: "test-stream", Description: "unbounded stream"}}
+func (n *neverEndingInvoker) BindingSpecs() []bindingsupport.BindingSpecInfo {
+	return []bindingsupport.BindingSpecInfo{{BindingSpec: "test-stream", Description: "unbounded stream"}}
 }
 
-func (n *neverEndingInvoker) CheckBindingSpecs(bindingSpecs []string) []openbindings.BindingSpecVerdict {
-	return openbindings.CheckBindingSpecs(bindingSpecs, n.BindingSpecs())
+func (n *neverEndingInvoker) CheckBindingSpecs(bindingSpecs []string) []bindingsupport.BindingSpecVerdict {
+	return bindingsupport.CheckBindingSpecs(bindingSpecs, n.BindingSpecs())
 }
 
 func (n *neverEndingInvoker) InvokeBinding(ctx context.Context, args *invoke.BindingInvocationArgs) invoke.Invocation[any, any] {

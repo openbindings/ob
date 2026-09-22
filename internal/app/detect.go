@@ -8,6 +8,7 @@ import (
 	"time"
 
 	openbindings "github.com/openbindings/openbindings-go"
+	"github.com/openbindings/openbindings-go/bindingsupport"
 	"github.com/openbindings/openbindings-go/synthesize"
 )
 
@@ -241,7 +242,7 @@ func DetectSourceCandidatesVia(ctx context.Context, registrationID, location str
 	if err != nil {
 		return nil, fmt.Errorf("registration %s listBindingSpecs: %w", registrationID, err)
 	}
-	advertised, err := decodeOutput[[]openbindings.BindingSpecInfo](listed)
+	advertised, err := decodeOutput[[]bindingsupport.BindingSpecInfo](listed)
 	if err != nil {
 		return nil, fmt.Errorf("registration %s returned an invalid binding-specification list: %w", registrationID, err)
 	}

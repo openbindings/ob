@@ -6,6 +6,7 @@ import (
 	"sort"
 
 	"github.com/openbindings/openbindings-go"
+	"github.com/openbindings/openbindings-go/jsonvalue"
 )
 
 // MergePreviewEntry describes the merge outcome for a single object.
@@ -117,7 +118,7 @@ func PreviewSourceMerge(src openbindings.Source, srcKey string, iface *openbindi
 		if rerr != nil {
 			return MergePreview{}, fmt.Errorf("source %q: read failed: %w", srcKey, rerr)
 		}
-		deriveSrc.Content = openbindings.TextContent(string(data))
+		deriveSrc.Content = jsonvalue.TextContent(string(data))
 	}
 	derived, err := DeriveFromSource(deriveSrc, srcKey, obiDir)
 	if err != nil {

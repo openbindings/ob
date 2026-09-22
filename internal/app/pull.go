@@ -10,9 +10,8 @@ import (
 	"time"
 
 	openbindings "github.com/openbindings/openbindings-go"
-
 	"github.com/openbindings/openbindings-go/invoke"
-
+	"github.com/openbindings/openbindings-go/jsonvalue"
 	"github.com/openbindings/openbindings-go/synthesize"
 )
 
@@ -608,7 +607,7 @@ func reReadAndDerive(ctx context.Context, iface *openbindings.Interface, key, ob
 	// Derive from a copy carrying fresh inline content, to bypass the invoker's
 	// in-process spec cache without persisting content into the stored source.
 	deriveSrc := src
-	deriveSrc.Content = openbindings.TextContent(string(data))
+	deriveSrc.Content = jsonvalue.TextContent(string(data))
 	derived, derr := deriveFromSourceContext(ctx, deriveSrc, key, obiDir)
 	if derr != nil {
 		return DeriveResult{}, false, fmt.Sprintf("source %q: derive failed: %v", key, derr)

@@ -16,11 +16,10 @@ import (
 	"strings"
 	"time"
 
-	openbindings "github.com/openbindings/openbindings-go"
-
-	"github.com/openbindings/openbindings-go/invoke"
-
 	"github.com/openbindings/ob/internal/execref"
+	openbindings "github.com/openbindings/openbindings-go"
+	"github.com/openbindings/openbindings-go/invoke"
+	"github.com/openbindings/openbindings-go/jsonvalue"
 )
 
 // InvokeSource represents the binding source for invocation. Content is
@@ -937,7 +936,7 @@ func PreflightInterfaceOperation(ctx context.Context, iface *openbindings.Interf
 		if data := acquireSourceDocument(ctx, es.Location); data != nil {
 			// The acquired document is artifact TEXT; text rides the content
 			// member as a JSON string (the carrier every family decodes).
-			es.Content = openbindings.TextContent(string(data))
+			es.Content = jsonvalue.TextContent(string(data))
 		}
 	}
 

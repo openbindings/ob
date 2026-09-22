@@ -11,6 +11,7 @@ import (
 	"testing"
 
 	openbindings "github.com/openbindings/openbindings-go"
+	"github.com/openbindings/openbindings-go/bindingsupport"
 	"github.com/openbindings/openbindings-go/invoke"
 	"github.com/openbindings/openbindings-go/jsonvalue"
 )
@@ -26,11 +27,11 @@ type roleTestInvoker struct {
 	result func(string, any) any
 }
 
-func (r *roleTestInvoker) BindingSpecs() []openbindings.BindingSpecInfo {
-	return []openbindings.BindingSpecInfo{{BindingSpec: roleRuntimeTestSpec}}
+func (r *roleTestInvoker) BindingSpecs() []bindingsupport.BindingSpecInfo {
+	return []bindingsupport.BindingSpecInfo{{BindingSpec: roleRuntimeTestSpec}}
 }
-func (r *roleTestInvoker) CheckBindingSpecs(tokens []string) []openbindings.BindingSpecVerdict {
-	return openbindings.CheckBindingSpecs(tokens, r.BindingSpecs())
+func (r *roleTestInvoker) CheckBindingSpecs(tokens []string) []bindingsupport.BindingSpecVerdict {
+	return bindingsupport.CheckBindingSpecs(tokens, r.BindingSpecs())
 }
 func (r *roleTestInvoker) InvokeBinding(ctx context.Context, args *invoke.BindingInvocationArgs) invoke.Invocation[any, any] {
 	call := invoke.NewInvocationImpl[any, any](ctx)
@@ -322,7 +323,7 @@ func TestRoleRuntimeSelection(t *testing.T) {
 			input, _ := decodeOutput[struct {
 				BindingSpecs []string `json:"bindingSpecs"`
 			}](value)
-			return openbindings.CheckBindingSpecs(input.BindingSpecs, []openbindings.BindingSpecInfo{{BindingSpec: token}})
+			return bindingsupport.CheckBindingSpecs(input.BindingSpecs, []bindingsupport.BindingSpecInfo{{BindingSpec: token}})
 		}}
 	}
 	factory := func(candidate roleCandidate) (invoke.ProviderRuntime, invoke.RealizationSelector) {

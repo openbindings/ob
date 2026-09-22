@@ -12,7 +12,6 @@ import (
 	"time"
 
 	"github.com/coder/websocket"
-	openbindings "github.com/openbindings/openbindings-go"
 	"github.com/openbindings/openbindings-go/formats/asyncapi"
 	"github.com/openbindings/openbindings-go/invoke"
 	"github.com/openbindings/openbindings-go/jsonvalue"
@@ -74,7 +73,7 @@ operations:
 			}
 			ctx, cancel := context.WithTimeout(t.Context(), 10*time.Second)
 			defer cancel()
-			call := engine.InvokeBinding(ctx, &invoke.BindingInvocationArgs{Source: invoke.InvocationSource{BindingSpec: asyncapi.BindingSpec, Content: openbindings.TextContent(doc)}, Selector: "#/operations/exchange", Context: map[string]any{"configuration": map[string]any{"websocketMessageType": "text"}}})
+			call := engine.InvokeBinding(ctx, &invoke.BindingInvocationArgs{Source: invoke.InvocationSource{BindingSpec: asyncapi.BindingSpec, Content: jsonvalue.TextContent(doc)}, Selector: "#/operations/exchange", Context: map[string]any{"configuration": map[string]any{"websocketMessageType": "text"}}})
 			defer call.Cancel()
 			if err := call.Write(ctx, map[string]any{"request": true}); err != nil {
 				t.Fatal(err)

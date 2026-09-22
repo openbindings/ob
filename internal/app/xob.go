@@ -6,7 +6,6 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
-	"github.com/openbindings/openbindings-go/jsonvalue"
 	"io"
 	"net/http"
 	"os"
@@ -21,6 +20,7 @@ import (
 	"github.com/openbindings/ob/internal/execref"
 	"github.com/openbindings/openbindings-go"
 	"github.com/openbindings/openbindings-go/formats/openapi"
+	"github.com/openbindings/openbindings-go/jsonvalue"
 	"gopkg.in/yaml.v3"
 )
 
@@ -543,7 +543,7 @@ func ParseContentForEmbed(data []byte, format string) (json.RawMessage, error) {
 	}
 
 	// Default: embed as a JSON string (works for KDL, protobuf, and other text formats).
-	return openbindings.TextContent(string(data)), nil
+	return jsonvalue.TextContent(string(data)), nil
 }
 
 // protoImportRe matches a protobuf import statement (incl. public/weak forms).
