@@ -15,8 +15,8 @@ import (
 	"time"
 
 	openbindings "github.com/openbindings/openbindings-go"
+	"github.com/openbindings/openbindings-go/acquire"
 	"github.com/openbindings/openbindings-go/jsonvalue"
-
 	"github.com/openbindings/openbindings-go/synthesize"
 
 	"github.com/openbindings/ob/internal/delegates"
@@ -199,13 +199,13 @@ func ProbeOBI(rawURL string, timeout time.Duration) ProbeResult {
 	return probeHTTP(u, timeout)
 }
 
-// probeHTTP uses FetchInterface to resolve an HTTP URL, then maps the
+// probeHTTP uses acquisition to resolve an HTTP URL, then maps the
 // result into a ProbeResult.
 func probeHTTP(u string, timeout time.Duration) ProbeResult {
 	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
 
-	fetched, err := synthesize.FetchInterface(ctx, u, synthesize.WithSynthesizers(DefaultSynthesizer()))
+	fetched, err := acquire.Resolve(ctx, u, acquire.WithSynthesizers(DefaultSynthesizer()))
 	if err != nil {
 		return ProbeResult{Status: ProbeStatusBad, Detail: err.Error()}
 	}
@@ -268,12 +268,12 @@ func ResolveOBI(urlOrHost string) (doc []byte, synthesizedFrom string, err error
 	ctx, cancel := context.WithTimeout(context.Background(), delegates.DefaultProbeTimeout)
 	defer cancel()
 
-	fetched, err := synthesize.FetchInterface(ctx, u, synthesize.WithSynthesizers(DefaultSynthesizer()))
+	fetched, err := acquire.Resolve(ctx, u, acquire.WithSynthesizers(DefaultSynthesizer()))
 	if err != nil {
 		return nil, "", err
 	}
 	if fetched == nil || fetched.Interface == nil {
-		return nil, "", fmt.Errorf("no OpenBindings interface at %s (try %s%s)", u, strings.TrimSuffix(u, "/"), openbindings.WellKnownPath)
+		return nil, "", fmt.Errorf("no OpenBindings interface at %s", u)
 	}
 	if fetched.Synthesized {
 		synthesizedFrom = firstSourceFormat(fetched.Interface)

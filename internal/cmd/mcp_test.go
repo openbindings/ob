@@ -13,6 +13,7 @@ import (
 
 	gomcp "github.com/modelcontextprotocol/go-sdk/mcp"
 	openbindings "github.com/openbindings/openbindings-go"
+	"github.com/openbindings/openbindings-go/acquire"
 	mcpbinding "github.com/openbindings/openbindings-go/formats/mcp"
 	openapibinding "github.com/openbindings/openbindings-go/formats/openapi"
 	"github.com/openbindings/openbindings-go/invoke"
@@ -803,7 +804,7 @@ func TestObStartServedInterfaceBridgesToMCP(t *testing.T) {
 	ts := testEnv(t)
 	defer ts.Close()
 
-	fetched, err := synthesize.FetchInterface(context.Background(), ts.URL+"/.well-known/openbindings")
+	fetched, err := acquire.Resolve(context.Background(), ts.URL+"/.well-known/openbindings")
 	if err != nil {
 		t.Fatalf("fetch ob's served OBI: %v", err)
 	}
