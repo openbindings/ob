@@ -188,7 +188,7 @@ func TestCrossSurfaceConformance(t *testing.T) {
 				"bindingSpec": "openbindings.openapi-3.1@1", "name": "api", "content": openAPISource,
 			},
 		}},
-		{name: "validate", short: "validateInterface", input: map[string]any{"interface": docA, "strict": true}},
+		{name: "validate", short: "validateInterface", input: map[string]any{"interface": docA}},
 		{name: "list sources", short: "listSources", input: map[string]any{"interface": docA}},
 		{name: "list bindings", short: "listBindings", input: map[string]any{"interface": docA}},
 		{name: "list operations", short: "listOperations", input: map[string]any{"interface": docA}},

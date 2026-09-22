@@ -327,12 +327,12 @@ You can also point `codegen` at a URL. If it's not an OBI, `ob` tries to synthes
 ob codegen https://api.example.com/openapi.json --lang typescript
 ```
 
-## Interface Conformance
+## Interface Correspondence
 
-`ob conform` scaffolds operations in your OBI so it corresponds to another interface (such as one of the project's published interfaces). Correspondence is expressed through the operation key+alias namespace — an operation corresponds to a contract operation by carrying its name as the key or an alias (spec OBI-T-12).
+`ob correspond` scaffolds operations in your OBI so it corresponds to another interface (such as one of the project's published interfaces). Correspondence is expressed through the operation key+alias namespace — an operation corresponds to a contract operation by carrying its name as the key or an alias (spec OBI-T-12).
 
 ```bash
-ob conform document-store.json my-service.obi.json
+ob correspond document-store.json my-service.obi.json
 ```
 
 For each operation in the contract interface:
@@ -343,8 +343,8 @@ For each operation in the contract interface:
 Use `--yes` for CI, `--dry-run` to preview:
 
 ```bash
-ob conform host.json my-service.obi.json --yes
-ob conform host.json my-service.obi.json --dry-run
+ob correspond host.json my-service.obi.json --yes
+ob correspond host.json my-service.obi.json --dry-run
 ```
 
 ## Delegates
@@ -521,7 +521,7 @@ ob source pull interface.json -o dist/interface.json --pure # publish clean
 | `ob meta ...` | Manage interface-level metadata (name, version, description, …) |
 | `ob diff <obi> [comparison]` | Structural comparison of two OBIs (or `--from-sources`) |
 | `ob merge <target> [source]` | Selectively apply changes from one OBI into another |
-| `ob conform <contract> <target-obi>` | Scaffold or update operations so the target corresponds to a contract interface |
+| `ob correspond <contract> <target-obi>` | Scaffold or update operations so the target corresponds to a contract interface |
 | `ob codegen <source> --lang <lang>` | Generate a typed invoker (typescript, go) |
 | `ob purify <obi>` | Strip `x-ob` vendor metadata, yielding a spec-only interface |
 
@@ -566,7 +566,7 @@ ob source pull interface.json -o dist/interface.json --pure # publish clean
 |---------|-------------|
 | `ob describe` | Show `ob`'s identity, version, and the OpenBindings spec version it supports |
 | `ob --version` | Print the CLI version and its supported spec range (e.g. `ob version 0.2.0 (OpenBindings spec 0.2.0)`) |
-| `ob validate <locator>` | Validate an OBI document |
+| `ob validate <locator>` | Validate an OBI document and report its conformance conclusion |
 | `ob compat <target> <candidate>` | Check interface conformance between two interfaces |
 
 ## Serve and integrate
@@ -661,8 +661,8 @@ The complete API is described by [`internal/server/openapi.yaml`](https://github
 | `/sources/inspect` | POST | Enumerate bindable targets in a source |
 | `/interfaces/resolve` | POST | Fetch an OBI from a URL (synthesizes if served raw) |
 | `/interfaces/codegen` | POST | Generate typed client code from an OBI |
-| `/interfaces/conform` | POST | Scaffold operations to correspond to a contract interface |
-| `/interfaces/validate` | POST | Validate an OBI |
+| `/interfaces/correspond` | POST | Scaffold operations to correspond to a contract interface |
+| `/interfaces/validate` | POST | Validate an OBI and report its conformance conclusion |
 | `/interfaces/compare` | POST | Structural diff between two OBIs |
 | `/interfaces/merge` | POST | Merge one OBI into another |
 | `/interfaces/compatibility` | POST | Compatibility check |

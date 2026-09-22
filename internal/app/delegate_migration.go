@@ -310,7 +310,7 @@ func (r *roleRegistry) prepareMigration(plan *DelegateMigrationPlan, source []by
 		if jsonvalue.Unmarshal(entry.Original, &legacy) != nil || legacy.Location == "" {
 			return nil, nil, errors.New("invalid old registration identity")
 		}
-		provider, err := openbindings.ValidateDocument(entry.Interface)
+		provider, _, err := openbindings.ValidateDocument(entry.Interface)
 		if err != nil {
 			return nil, nil, errors.New("invalid recovered interface")
 		}

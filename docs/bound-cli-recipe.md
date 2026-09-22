@@ -27,7 +27,7 @@ remain unbound in the CLI OBI; use their served streaming bindings instead.
 | `openbindings.ob.checkBindingSpecs` | `ob binding-specs check` | json | 0 (assumption) | — |
 | `openbindings.ob.codegen` | `ob codegen` | json | 0 (assumption) | source=stdin-dash |
 | `openbindings.ob.compareInterfaces` | `ob diff` | json | 0, 1 | baseline=stdin-dash, comparison=file |
-| `openbindings.ob.conform` | `ob conform` | json | 0 (assumption) | interface=file, target-obi=file |
+| `openbindings.ob.correspond` | `ob correspond` | json | 0 (assumption) | interface=file, target-obi=file |
 | `openbindings.ob.demo` | `ob demo` | json | 0 (assumption) | — |
 | `openbindings.ob.describe` | `ob describe` | json | 0 (assumption) | — |
 | `openbindings.ob.detachOperation` | `ob operation detach` | json | 0 (assumption) | obi-path=stdin-dash |

@@ -10,14 +10,14 @@ import (
 	"github.com/spf13/cobra"
 )
 
-func newConformCmd() *cobra.Command {
+func newCorrespondCmd() *cobra.Command {
 	var (
 		yes    bool
 		dryRun bool
 	)
 
 	cmd := &cobra.Command{
-		Use:   "conform <interface> <target-obi>",
+		Use:   "correspond <interface> <target-obi>",
 		Short: "Scaffold or update operations so the target corresponds to another interface",
 		Long: `Scaffold or update operations in a target OBI so it corresponds to another interface.
 
@@ -36,9 +36,9 @@ Use --yes to auto-accept all changes (for CI/scripting).
 Use --dry-run to preview changes without modifying the file.
 
 Examples:
-  ob conform document-store.json my-service.obi.json
-  ob conform https://openbindings.org/interfaces/host.json ./interface.json --yes
-  ob conform document-store.json my-service.obi.json --dry-run`,
+  ob correspond document-store.json my-service.obi.json
+  ob correspond https://openbindings.org/interfaces/host.json ./interface.json --yes
+  ob correspond document-store.json my-service.obi.json --dry-run`,
 		Args: cobra.ExactArgs(2),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			confirm := func(op string, action string) bool {
@@ -52,7 +52,7 @@ Examples:
 				return line == "" || line == "y" || line == "yes"
 			}
 
-			output := app.Conform(app.ConformInput{
+			output := app.Correspond(app.CorrespondInput{
 				InterfaceLocator: args[0],
 				TargetPath:       args[1],
 				Yes:              yes,

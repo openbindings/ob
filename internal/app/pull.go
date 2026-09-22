@@ -154,7 +154,7 @@ type SourcePullInput struct {
 
 // SourcePullOutput reports what a pull changed. Each field is the set of keys
 // affected (count = len); no redundant counts. Interface carries the resulting
-// document itself — contract-required, like ConformResult/MergeResult: a wire
+// document itself — contract-required, like CorrespondResult/MergeResult: a wire
 // consumer pulling an inline interface has no file to read the result back
 // from, so the report is the only channel that can return it.
 type SourcePullOutput struct {
