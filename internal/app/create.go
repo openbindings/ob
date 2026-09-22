@@ -463,7 +463,7 @@ func mergeGeneratedSource(iface *openbindings.Interface, generated *openbindings
 		var data []byte
 		var err error
 		if bsrc.Content != nil {
-			data, err = openbindings.ContentToBytes(bsrc.Content)
+			data, err = generatedSourceArtifactBytes(bsrc.Content)
 		} else {
 			data, err = ReadSourceContent(src.Location, "")
 		}
@@ -533,4 +533,18 @@ func mergeGeneratedSource(iface *openbindings.Interface, generated *openbindings
 	}
 
 	return nil
+}
+
+// generatedSourceArtifactBytes recovers the artifact image emitted by a
+// synthesizer for ob's authoring metadata and embed step. This is an ob
+// convention for its configured synthesizers, not a Core content rule.
+func generatedSourceArtifactBytes(content json.RawMessage) ([]byte, error) {
+	if content == nil {
+		return nil, fmt.Errorf("generated source content is absent")
+	}
+	var text string
+	if err := json.Unmarshal(content, &text); err == nil {
+		return []byte(text), nil
+	}
+	return content, nil
 }

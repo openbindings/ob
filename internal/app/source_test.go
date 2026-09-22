@@ -389,7 +389,8 @@ func TestSourceAdd_LocalFileEmbedsByDefault(t *testing.T) {
 	if src.Location != "" {
 		t.Errorf("embedded source must carry no spec location, got %q", src.Location)
 	}
-	if s, err := openbindings.ContentToBytes(src.Content); err != nil || string(s) != "name \"tool\"" {
+	var s string
+	if err := json.Unmarshal(src.Content, &s); err != nil || s != "name \"tool\"" {
 		t.Errorf("artifact text must be embedded, got %s", src.Content)
 	}
 	meta, err := GetSourceMeta(src)
@@ -551,7 +552,8 @@ func TestSourceAdd_ContentWithURIPairsBoth(t *testing.T) {
 		t.Fatal(err)
 	}
 	src := iface.Sources["svc"]
-	if s, err := openbindings.ContentToBytes(src.Content); err != nil || string(s) != proto {
+	var s string
+	if err := json.Unmarshal(src.Content, &s); err != nil || s != proto {
 		t.Errorf("content must pin the artifact text, got %s", src.Content)
 	}
 	if src.Location != "api.example.com:443" {
