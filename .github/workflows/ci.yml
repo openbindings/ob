@@ -41,7 +41,7 @@ jobs:
       - uses: actions/checkout@v7
         with:
           repository: openbindings/spec
-          ref: d7fba38d8c389b165fdeb980ab4b28ea4a72cfde
+          ref: be855315b01a75a8b5b5cfbf04852ff7bb9aad76
           path: spec
       # The Delegate Manager admission corpus is owned by the interfaces
       # repository. Pin the exact selected commit (never a moving branch or a
