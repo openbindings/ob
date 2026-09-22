@@ -24,7 +24,7 @@ jobs:
         with:
           repository: openbindings/openbindings-go
           # Exact migration candidate; advance together with the consumer.
-          ref: 9a69a38acb5e14bf7724350ef1db6f233f13ad88
+          ref: 4968b733997bd833e769852903cc0bf4b980d8fe
           path: openbindings-go
       - uses: actions/checkout@v7
         with:
