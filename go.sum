@@ -140,6 +140,8 @@ github.com/openbindings/openapi-client/go v0.0.0-20260911032503-9f8020e2d9a7 h1:
 github.com/openbindings/openapi-client/go v0.0.0-20260911032503-9f8020e2d9a7/go.mod h1:vUnEGJvN2St09qglPck0vY9O6+bVLmqRWWoMbOmAgKQ=
 github.com/openbindings/openbindings-go v0.1.1-0.20260922012413-b93b9e644a9e h1:YaOPFKIGRIKF2Z82nibF3BCUKoWiXxeOq1B+fXkUZoE=
 github.com/openbindings/openbindings-go v0.1.1-0.20260922012413-b93b9e644a9e/go.mod h1:GEjTSXHSMzHCBxScRaXtIJSfjPsTVAirP+0JT7mUPb0=
+github.com/openbindings/openbindings-go v0.1.1-0.20260922201909-4968b733997b h1:ZzkGKn7q99fM/AguXBY4Wt5BYtDvSWcZ0j41GIfhoQM=
+github.com/openbindings/openbindings-go v0.1.1-0.20260922201909-4968b733997b/go.mod h1:L+ADdjmTbbr6zdvQsDWn5WrBb2ij/58j8VhlRUyqBvo=
 github.com/openbindings/openbindings-go/formats/asyncapi v0.1.1-0.20260922012413-b93b9e644a9e h1:Ub8cyjIN3jBJ8LvALm4rOB55hhqrKB3ol9XGEO/PLTI=
 github.com/openbindings/openbindings-go/formats/asyncapi v0.1.1-0.20260922012413-b93b9e644a9e/go.mod h1:qx3YW395C6l7TfcTL4KsoejPbu2MD5N7pz2tP3a9pec=
 github.com/openbindings/openbindings-go/formats/connect v0.1.1-0.20260922012413-b93b9e644a9e h1:SUNcQHMq96RrtqbhbVIqs3fOPOxyLODufNatT7yeocs=

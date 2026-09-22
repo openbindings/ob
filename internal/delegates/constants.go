@@ -4,7 +4,7 @@ package delegates
 import (
 	"time"
 
-	openbindings "github.com/openbindings/openbindings-go"
+	"github.com/openbindings/openbindings-go/httpdiscovery"
 )
 
 // URL schemes and prefixes.
@@ -19,8 +19,8 @@ const (
 	HTTPSScheme = "https://"
 )
 
-// WellKnownPath re-exports the SDK constant for backward compatibility.
-const WellKnownPath = openbindings.WellKnownPath
+// WellKnownPath re-exports the HTTP Discovery path for backward compatibility.
+const WellKnownPath = httpdiscovery.WellKnownPath
 
 // Standard operation names from the OpenBindings binding invoker interface.
 const (
