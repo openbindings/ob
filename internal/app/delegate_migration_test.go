@@ -32,7 +32,7 @@ func migrationTestRegistry(t *testing.T) (*roleRegistry, json.RawMessage) {
 
 func seedLegacyMigration(t *testing.T, r *roleRegistry, provider json.RawMessage) []byte {
 	t.Helper()
-	iface, err := openbindings.ValidateDocument(provider)
+	iface, _, err := openbindings.ValidateDocument(provider)
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -25,7 +25,7 @@ func TestRoleFrameEntrypointArtifactEgress(t *testing.T) {
 	for _, address := range []string{"http://169.254.169.254/asyncapi.yaml", "http://10.0.0.5/asyncapi.yaml"} {
 		t.Run(address, func(t *testing.T) {
 			r, _ := migrationTestRegistry(t)
-			provider, err := openbindings.ValidateDocument(roleFrameProvider(t))
+			provider, _, err := openbindings.ValidateDocument(roleFrameProvider(t))
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -67,7 +67,7 @@ func TestRoleFrameEntrypointArtifactEgress(t *testing.T) {
 func TestRoleFrameEntrypointRegistrationDoesNotAuthorizeExec(t *testing.T) {
 	r, _ := migrationTestRegistry(t)
 	marker := filepath.Join(t.TempDir(), "must-not-exist")
-	provider, err := openbindings.ValidateDocument(roleFrameProvider(t))
+	provider, _, err := openbindings.ValidateDocument(roleFrameProvider(t))
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -30,7 +30,7 @@ var CommandByShort = map[string]string{
 	"checkBindingSpecs":            "binding-specs check",
 	"codegen":                      "codegen",
 	"compareInterfaces":            "diff",
-	"conform":                      "conform",
+	"correspond":                   "correspond",
 	"demo":                         "demo",
 	"describe":                     "describe",
 	"detachOperation":              "operation detach",
@@ -209,7 +209,7 @@ func GenerateBoundCLI(contractPath, usagePath string) (*openbindings.Interface, 
 		// (-F json). Every field the transform emits must name a flag or arg of
 		// the command, or be routed off argv by delivery — buildCLIArgs refuses
 		// strays. See ob-pj/wire-conformance.md, batch 3.
-		"validateInterface":     `{"locator": $string($$.interface), "strict": $$.strict, "format": "json"}`,
+		"validateInterface":     `{"locator": $string($$.interface), "format": "json"}`,
 		"checkBindingSpecs":     `{"binding-spec": $$.bindingSpecs, "format": "json"}`,
 		"reportInterfaceStatus": `{"obi-path": $string($$.interface), "format": "json"}`,
 		"purifyInterface":       `{"obi-path": $string($$), "format": "json"}`,
@@ -224,12 +224,12 @@ func GenerateBoundCLI(contractPath, usagePath string) (*openbindings.Interface, 
 		// codegen: `language` → the CLI's --lang; -F json emits the CodegenOutput
 		// envelope (the CLI defaults to raw source, its natural human lane).
 		"codegen": `{"source": $string($$.interface), "lang": $$.language, "package": $$.package, "format": "json"}`,
-		// conform/merge modify their target, so BOTH documents ride file
+		// correspond/merge modify their target, so BOTH documents ride file
 		// delivery (a written-back target cannot be stdin) and the transport
 		// injects auto-accept (-y): the child's stdin never carries a document,
 		// so nothing can be misread as a prompt answer, and the modified
-		// interface returns inside the ConformResult/MergeResult report.
-		"conform":         `{"interface": $string($$.interface), "target-obi": $string($$.target), "dry-run": $$.dryRun, "yes": true, "format": "json"}`,
+		// interface returns inside the CorrespondResult/MergeResult report.
+		"correspond":      `{"interface": $string($$.interface), "target-obi": $string($$.target), "dry-run": $$.dryRun, "yes": true, "format": "json"}`,
 		"mergeInterfaces": `{"target": $string($$.target), "source": $string($$.source), "from-sources": $$.fromSources, "only": $$.only, "op": $$.operations, "exclude-op": $$.excludeOperations, "ops-only": $$.opsOnly, "no-bindings": $$.noBindings, "no-sources": $$.noSources, "yes": true, "format": "json"}`,
 		// setContext: the wire key is the CLI's <url> argument; the Context
 		// value rides stdin (delivery below) so credentials never touch argv.
@@ -581,9 +581,9 @@ var routesByShort = map[string]map[string]string{
 	"compareInterfaces":     {"baseline": usage.RouteStdinDash, "comparison": usage.RouteFile},
 	"reportCompatibility":   {"target": usage.RouteStdinDash, "candidate": usage.RouteFile},
 	"codegen":               {"source": usage.RouteStdinDash},
-	// Both documents to temp files: conform/merge write the target back
+	// Both documents to temp files: correspond/merge write the target back
 	// (impossible on stdin), and materialization keeps stdin clear.
-	"conform":         {"interface": usage.RouteFile, "target-obi": usage.RouteFile},
+	"correspond":      {"interface": usage.RouteFile, "target-obi": usage.RouteFile},
 	"mergeInterfaces": {"target": usage.RouteFile, "source": usage.RouteFile},
 	// setContext: the Context value (credentials) rides stdin, never argv.
 	"setContext": {"value": usage.RouteStdinDash},

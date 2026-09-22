@@ -126,7 +126,7 @@ func TestRoleRuntimeComposition(t *testing.T) {
 			roles, _ := catalogue.list()
 			for _, role := range roles {
 				for _, raw := range role.AcceptedInterfaces {
-					iface, _ := openbindings.ValidateDocument(raw)
+					iface, _, _ := openbindings.ValidateDocument(raw)
 					if len(iface.Dependencies) != 0 {
 						t.Fatal("consumer mutated advertised expectation")
 					}
@@ -175,7 +175,7 @@ func TestRoleRuntimeComposition(t *testing.T) {
 
 func TestRoleRuntimeLifecycle(t *testing.T) {
 	r := testRoleRegistry(t)
-	expected, _ := openbindings.ValidateDocument([]byte(registryTestInterface))
+	expected, _, _ := openbindings.ValidateDocument([]byte(registryTestInterface))
 	input := RoleRegistrationInput{Interface: roleTestProvider(t, expected), Roles: []string{"A"}}
 	a, err := r.register(input)
 	if err != nil {
@@ -243,7 +243,7 @@ func TestRoleRuntimeLifecycle(t *testing.T) {
 
 func TestRoleRuntimeOwnsCandidateSnapshot(t *testing.T) {
 	r := testRoleRegistry(t)
-	expected, _ := openbindings.ValidateDocument([]byte(registryTestInterface))
+	expected, _, _ := openbindings.ValidateDocument([]byte(registryTestInterface))
 	_, err := r.register(RoleRegistrationInput{
 		Interface: roleTestProvider(t, expected), Roles: []string{"A"},
 		RolePreferences: json.RawMessage(`{"A":7}`),

@@ -16,7 +16,7 @@ func TestDemoOBIValidatesAs020(t *testing.T) {
 	if err != nil {
 		t.Fatalf("parse: %v", err)
 	}
-	if err := iface.Validate(); err != nil {
+	if _, err := iface.Validate(); err != nil {
 		t.Fatalf("demo OBI fails 0.2.0 validation:\n%v", err)
 	}
 }

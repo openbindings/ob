@@ -89,9 +89,9 @@ func TestRoleAuthoringEntrypoints(t *testing.T) {
 func TestRoleAuthoringNoImplicitEnrollment(t *testing.T) {
 	r, _ := migrationTestRegistry(t)
 	expected, _ := RequirementInterface(CapInspect)
-	provider, _ := openbindings.ValidateDocument(roleTestProvider(t, expected))
+	provider, _, _ := openbindings.ValidateDocument(roleTestProvider(t, expected))
 	other, _ := RequirementInterface(CapSynthesize)
-	extra, _ := openbindings.ValidateDocument(roleTestProvider(t, other))
+	extra, _, _ := openbindings.ValidateDocument(roleTestProvider(t, other))
 	for key, op := range extra.Operations {
 		provider.Operations[key] = op
 	}

@@ -9,9 +9,9 @@ import (
 	"github.com/openbindings/openbindings-go/jsonvalue"
 )
 
-// ConformInput specifies the interface to satisfy and the target OBI to
+// CorrespondInput specifies the interface to satisfy and the target OBI to
 // update.
-type ConformInput struct {
+type CorrespondInput struct {
 	// InterfaceLocator is the file path or URL of the interface whose
 	// operations the target should satisfy.
 	InterfaceLocator string
@@ -19,8 +19,8 @@ type ConformInput struct {
 	TargetPath string
 	// ContractInterface/TargetInterface are inline documents (the served
 	// operation); they take precedence over the locator/path. When TargetPath is
-	// empty, no file is written and the conformed document is returned in
-	// ConformOutput.Result instead.
+	// empty, no file is written and the updated target is returned in
+	// CorrespondOutput.Result instead.
 	ContractInterface *openbindings.Interface
 	TargetInterface   *openbindings.Interface
 	// Yes auto-accepts all scaffolding and replacements.
@@ -29,33 +29,33 @@ type ConformInput struct {
 	DryRun bool
 }
 
-// ConformAction describes a single change to be made (or that was made).
-type ConformAction struct {
+// CorrespondAction describes a single change to be made (or that was made).
+type CorrespondAction struct {
 	Operation string `json:"operation"`
 	Action    string `json:"action"` // "scaffold", "replace", "skip", "compatible"
 	Details   string `json:"details,omitempty"`
 }
 
-// ConformOutput is the result of a conform operation. On the wire it realizes
-// the contract's ConformResult: the conformed document rides the `interface`
+// CorrespondOutput is the result of a correspond operation. On the wire it
+// realizes the contract's CorrespondResult: the updated target rides the `interface`
 // key (set when the target came in as an inline document); the locator/path
 // fields are CLI-lane context, omitted on the served operation.
-type ConformOutput struct {
+type CorrespondOutput struct {
 	InterfaceName    string                  `json:"interfaceName,omitempty"`
 	InterfaceLocator string                  `json:"interfaceLocator,omitempty"`
 	TargetPath       string                  `json:"targetPath,omitempty"`
-	Actions          []ConformAction         `json:"actions"`
+	Actions          []CorrespondAction      `json:"actions"`
 	Modified         bool                    `json:"modified"`
 	Result           *openbindings.Interface `json:"interface,omitempty"`
 	Error            *Error                  `json:"error,omitempty"`
 }
 
 // Render returns a human-friendly representation.
-func (o ConformOutput) Render() string {
+func (o CorrespondOutput) Render() string {
 	s := Styles
 	var sb strings.Builder
 
-	sb.WriteString(s.Header.Render("Conform Report"))
+	sb.WriteString(s.Header.Render("Correspondence Report"))
 	sb.WriteString("\n")
 	sb.WriteString(s.Dim.Render("  interface: "))
 	sb.WriteString(o.InterfaceName)
@@ -109,13 +109,13 @@ func (o ConformOutput) Render() string {
 	return sb.String()
 }
 
-// Conform loads the interface to satisfy, compares it against a target OBI,
+// Correspond loads the interface to satisfy, compares it against a target OBI,
 // scaffolds missing operations, and optionally replaces drifted ones.
-func Conform(input ConformInput, confirm func(op string, action string) bool) ConformOutput {
-	output := ConformOutput{
+func Correspond(input CorrespondInput, confirm func(op string, action string) bool) CorrespondOutput {
+	output := CorrespondOutput{
 		InterfaceLocator: input.InterfaceLocator,
 		TargetPath:       input.TargetPath,
-		Actions:          []ConformAction{},
+		Actions:          []CorrespondAction{},
 	}
 
 	// Load the interface to satisfy (inline document wins over the locator).
@@ -140,7 +140,7 @@ func Conform(input ConformInput, confirm func(op string, action string) bool) Co
 		}
 	}
 
-	// Display label for the contract being conformed to.
+	// Display label for the contract the target corresponds to.
 	if contractIface.Name != "" {
 		output.InterfaceName = contractIface.Name
 	} else {
@@ -154,7 +154,7 @@ func Conform(input ConformInput, confirm func(op string, action string) bool) Co
 
 	// Compare contract operations against the target via the v1 comparison
 	// engine — the same pairing (OBI-T-12 key+alias resolution) and schema
-	// verdicts `ob compat` reports, so conform and compat can never disagree.
+	// verdicts `ob compat` reports, so correspond and compat can never disagree.
 	// The contract rides the left side (what must be satisfied), the target
 	// OBI the right.
 	deltas := compareOperationDeltas(
@@ -186,7 +186,7 @@ func Conform(input ConformInput, confirm func(op string, action string) bool) Co
 			// Operation not found in target — scaffold it.
 			shouldScaffold := input.Yes || confirm(opName, "scaffold")
 			if !shouldScaffold {
-				output.Actions = append(output.Actions, ConformAction{
+				output.Actions = append(output.Actions, CorrespondAction{
 					Operation: opName,
 					Action:    "skip",
 					Details:   "not scaffolded",
@@ -198,7 +198,7 @@ func Conform(input ConformInput, confirm func(op string, action string) bool) Co
 				scaffoldOperation(targetIface, opName, contractOp, contractIface)
 				modified = true
 			}
-			output.Actions = append(output.Actions, ConformAction{
+			output.Actions = append(output.Actions, CorrespondAction{
 				Operation: opName,
 				Action:    "scaffold",
 			})
@@ -206,8 +206,8 @@ func Conform(input ConformInput, confirm func(op string, action string) bool) Co
 		}
 
 		if !deltaNeedsWork(delta) {
-			// Already conformant.
-			output.Actions = append(output.Actions, ConformAction{
+			// Already corresponds.
+			output.Actions = append(output.Actions, CorrespondAction{
 				Operation: opName,
 				Action:    "compatible",
 			})
@@ -218,7 +218,7 @@ func Conform(input ConformInput, confirm func(op string, action string) bool) Co
 		details := deltaDetails(delta)
 		shouldReplace := input.Yes || confirm(opName, fmt.Sprintf("replace (%s)", details))
 		if !shouldReplace {
-			output.Actions = append(output.Actions, ConformAction{
+			output.Actions = append(output.Actions, CorrespondAction{
 				Operation: opName,
 				Action:    "skip",
 				Details:   details,
@@ -232,15 +232,15 @@ func Conform(input ConformInput, confirm func(op string, action string) bool) Co
 			replaceOperationSchemas(targetIface, delta.Right.Key, opName, contractOp, contractIface)
 			modified = true
 		}
-		output.Actions = append(output.Actions, ConformAction{
+		output.Actions = append(output.Actions, CorrespondAction{
 			Operation: opName,
 			Action:    "replace",
 			Details:   details,
 		})
 	}
 
-	// Persist or return the conformed OBI. The CLI writes to TargetPath; the
-	// served operation has no path, so the conformed document is returned in
+	// Persist or return the updated OBI. The CLI writes to TargetPath; the
+	// served operation has no path, so the updated target is returned in
 	// Result for the caller (e.g. an agent) to use.
 	if modified && !input.DryRun {
 		if input.TargetPath != "" {
@@ -251,7 +251,7 @@ func Conform(input ConformInput, confirm func(op string, action string) bool) Co
 		}
 		output.Modified = true
 	}
-	// The conformed document always rides the report: ConformResult.interface
+	// The updated target always rides the report: CorrespondResult.interface
 	// is contract-required, so both lanes carry it (the served operation for
 	// its caller, the CLI's -F json machine lane for the exec binding). The
 	// CLI additionally persists it to TargetPath above.
@@ -402,11 +402,11 @@ func copyNestedRefs(schema openbindings.JSONSchema, contractIface, target *openb
 	}
 }
 
-// --- conform's compatibility gate over the v1 comparison engine ---
+// --- correspond's compatibility gate over the v1 comparison engine ---
 
 // slotNeedsWork reports whether a slot verdict fails to affirm compatibility.
 // incompatible is real drift; unverified (e.g. regex containment, external
-// $ref) and indeterminate (comparison impossible) also count — conform
+// $ref) and indeterminate (comparison impossible) also count — correspond
 // reporting "compatible" on a slot it could not verify would be a silent lie.
 func slotNeedsWork(sc *SchemaCompatibility) bool {
 	return sc != nil && verdictRank(sc.Verdict) >= verdictRank("unverified")

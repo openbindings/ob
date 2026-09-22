@@ -19,6 +19,29 @@ ship as part of 0.2.0.
 
 ### Changed
 
+- **`ob validate` reports the document's conformance conclusion.** It
+  validates the exact bytes the locator names, so OBI-D-01 is decided, and
+  reports conformant, non-conformant, or conformance undetermined with the
+  violated and inconclusive rules, a located finding for each, and OBI-T-02
+  diagnostics for unknown fields. A document with bindings is conformance
+  undetermined, because only each binding's binding specification decides
+  whether it identifies its target (OBI-D-13). The exit code is 1 for a
+  non-conformant or refused document and 0 otherwise, since an inconclusive
+  rule is not evidence of violation. `--strict` is removed: OBI-T-02 requires
+  unknown fields to be ignored, and they now appear as diagnostics instead.
+  The `openbindings.ob.validateInterface` operation carries the same report
+  (`conclusion`, `violated`, `inconclusive`, `findings`, `diagnostics`, and a
+  `refusal` for OBI-T-04) in place of `valid` and `problems`, and its
+  `strict` input is gone. `POST /interfaces/validate` validates the exact
+  bytes of the request's `interface` member.
+- **`ob conform` is `ob correspond`.** The command scaffolds a target so it
+  corresponds to a reference interface, and "corresponds" is the spec's word
+  for that relation; "conform" belongs to document conformance. The
+  operation `openbindings.ob.conform` is `openbindings.ob.correspond`, its
+  schemas are `CorrespondInput`, `CorrespondResult`, and `CorrespondAction`,
+  and the canonical route is `POST /interfaces/correspond`. The legacy
+  preview alias `POST /conform` still reaches it.
+
 - **Preflight is the one word for the advisory pre-invocation signal.** The
   published interfaces renamed `openbindings.binding-invoker.prepareBinding`
   to `preflightBinding` and `openbindings.operation-invoker.prepareOperation`

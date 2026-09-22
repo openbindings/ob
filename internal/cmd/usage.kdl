@@ -415,9 +415,8 @@ cmd "merge" help="Selectively apply changes from one OBI into another" {
   arg "[source]" help="Source OBI (omit with --from-sources)"
 }
 
-cmd "validate" help="Validate an OpenBindings interface document" {
+cmd "validate" help="Validate an OpenBindings interface document and report its conformance conclusion" {
   flag "-q --quiet" help="Exit code only, no output"
-  flag "--strict" help="Additionally reject unknown (non-x-) fields"
   flag "-o --output <path>" help="Write output to file"
   flag "-F --format <format>" help="Output format: json|yaml|text"
   arg "<locator>" help="File path, HTTP(S) URL, exec: locator, or - for stdin"
@@ -431,7 +430,7 @@ cmd "compat" help="Check interface conformance between two interfaces" {
   arg "<candidate>" help="Candidate interface (locator)"
 }
 
-cmd "conform" help="Scaffold or update operations so the target corresponds to another interface" {
+cmd "correspond" help="Scaffold or update operations so the target corresponds to another interface" {
   flag "-y --yes" help="Auto-accept all scaffolding and replacements"
   flag "--dry-run" help="Preview changes without modifying files"
   flag "-o --output <path>" help="Write output to file"

@@ -92,7 +92,7 @@ func TestRoleBindingInvokerSDKStream(t *testing.T) {
 	}
 	r, _ := migrationTestRegistry(t)
 	expected, _ := RequirementInterface(CapInvoke)
-	provider, err := openbindings.ValidateDocument(roleTestProvider(t, expected))
+	provider, _, err := openbindings.ValidateDocument(roleTestProvider(t, expected))
 	if err != nil {
 		t.Fatal(err)
 	}

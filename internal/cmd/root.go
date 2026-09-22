@@ -141,8 +141,8 @@ service's operations independent of the protocols that carry them.`,
 	codegenCmd := newCodegenCmd()
 	codegenCmd.GroupID = "authoring"
 
-	conformCmd := newConformCmd()
-	conformCmd.GroupID = "authoring"
+	correspondCmd := newCorrespondCmd()
+	correspondCmd.GroupID = "authoring"
 
 	bindingSpecsCmd := newBindingSpecsCmd()
 	bindingSpecsCmd.GroupID = "delegates"
@@ -185,7 +185,7 @@ service's operations independent of the protocols that carry them.`,
 		operationCmd,
 		bindingCmd,
 		codegenCmd,
-		conformCmd,
+		correspondCmd,
 		diffCmd,
 		mergeCmd,
 		bindingSpecsCmd,

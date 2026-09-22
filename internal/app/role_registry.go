@@ -244,7 +244,7 @@ func decodeRoleState(raw json.RawMessage) (*roleRegistryState, error) {
 				return nil, errors.New("invalid retained preference")
 			}
 		}
-		if _, err := openbindings.ValidateDocument(record.Interface); err != nil {
+		if _, _, err := openbindings.ValidateDocument(record.Interface); err != nil {
 			return nil, errors.New("invalid retained interface")
 		}
 	}

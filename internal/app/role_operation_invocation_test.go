@@ -199,9 +199,9 @@ func TestRoleOperationInvocationRefusals(t *testing.T) {
 			provider := roleFrameProvider(t)
 			roles := []string{"invoke"}
 			if mode == "wrong-role" {
-				base, _ := openbindings.ValidateDocument(provider)
+				base, _, _ := openbindings.ValidateDocument(provider)
 				expected, _ := RequirementInterface(CapInspect)
-				extra, _ := openbindings.ValidateDocument(roleTestProvider(t, expected))
+				extra, _, _ := openbindings.ValidateDocument(roleTestProvider(t, expected))
 				for key, op := range extra.Operations {
 					base.Operations[key] = op
 				}
