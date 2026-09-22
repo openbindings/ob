@@ -23,8 +23,8 @@ jobs:
       - uses: actions/checkout@v7
         with:
           repository: openbindings/openbindings-go
-          # Exact migration candidate; advance together with the consumer.
-          ref: 3928fdb7e46ecd61b42aaf6d540fee76c5807922
+          # Exact release commit containing the Core boundary migration.
+          ref: aceb788965625e7e5d7cbeec8cf436e91416b5d5
           path: openbindings-go
       - uses: actions/checkout@v7
         with:
