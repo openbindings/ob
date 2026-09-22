@@ -45,8 +45,8 @@ remain unbound in the CLI OBI; use their served streaming bindings instead.
 | `openbindings.ob.listSources` | `ob source list` | json | 0 (assumption) | obi-path=stdin-dash |
 | `openbindings.ob.mergeInterfaces` | `ob merge` | json | 0 (assumption) | source=file, target=file |
 | `openbindings.ob.newInterface` | `ob new` | json | 0 (assumption) | — |
-| `openbindings.ob.prepareBinding` | `ob binding prepare` | json | 0 (assumption) | — |
-| `openbindings.ob.prepareOperation` | `ob operation prepare` | json | 0 (assumption) | obi=stdin-dash |
+| `openbindings.ob.preflightBinding` | `ob binding preflight` | json | 0 (assumption) | — |
+| `openbindings.ob.preflightOperation` | `ob operation preflight` | json | 0 (assumption) | obi=stdin-dash |
 | `openbindings.ob.previewDelegateMigration` | `ob delegate migrate preview` | json | 0 (assumption) | — |
 | `openbindings.ob.pullSource` | `ob source pull` | json | 0 (assumption) | obi-path=file |
 | `openbindings.ob.purifyInterface` | `ob purify` | json | 0 (assumption) | obi-path=stdin-dash |

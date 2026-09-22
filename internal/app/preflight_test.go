@@ -25,11 +25,11 @@ func obiFromUsage(t *testing.T, dir, kdl string) string {
 	return obiPath
 }
 
-// TestPrepareOperation_ResolvesAndPreflights verifies that PrepareOperation
+// TestPreflightOperation_ResolvesAndPreflights verifies that PreflightOperation
 // resolves an operation to its binding and runs the binding-level preflight.
 // A usage (CLI) binding declares no context requirements, so the preflight
 // returns nil — the conformant "nothing required" answer.
-func TestPrepareOperation_ResolvesAndPreflights(t *testing.T) {
+func TestPreflightOperation_ResolvesAndPreflights(t *testing.T) {
 	t.Chdir(t.TempDir())
 	dir := t.TempDir()
 	obiPath := obiFromUsage(t, dir, `min_usage_version "2.0.0"
@@ -37,25 +37,25 @@ bin "app"
 cmd "greet" help="Say hi" {}
 `)
 
-	details, err := PrepareOperation(context.Background(), obiPath, "greet", "", nil)
+	details, err := PreflightOperation(context.Background(), obiPath, "greet", "", nil)
 	if err != nil {
-		t.Fatalf("PrepareOperation: %v", err)
+		t.Fatalf("PreflightOperation: %v", err)
 	}
 	if details != nil {
 		t.Errorf("expected nil context requirements for a usage binding, got %+v", details)
 	}
 }
 
-// TestPrepareOperation_UnknownOperation verifies a resolution error surfaces
+// TestPreflightOperation_UnknownOperation verifies a resolution error surfaces
 // rather than a nil/no-op result.
-func TestPrepareOperation_UnknownOperation(t *testing.T) {
+func TestPreflightOperation_UnknownOperation(t *testing.T) {
 	dir := t.TempDir()
 	obiPath := obiFromUsage(t, dir, `min_usage_version "2.0.0"
 bin "app"
 cmd "greet" help="Say hi" {}
 `)
 
-	if _, err := PrepareOperation(context.Background(), obiPath, "nonexistent", "", nil); err == nil {
+	if _, err := PreflightOperation(context.Background(), obiPath, "nonexistent", "", nil); err == nil {
 		t.Fatal("expected error resolving an unknown operation")
 	}
 }

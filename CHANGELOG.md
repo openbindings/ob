@@ -10,6 +10,7 @@ is tagged.
 
 ## 0.2.0 (working draft)
 
+
 **Spec:** implements OpenBindings 0.2.0 (working draft).
 
 A 0.1.1 patch release was prepared in April 2026 but never tagged or
@@ -17,6 +18,39 @@ released; its changes (TLS setup bulletproofing, the newer-version notice)
 ship as part of 0.2.0.
 
 ### Changed
+
+- **Preflight is the one word for the advisory pre-invocation signal.** The
+  published interfaces renamed `openbindings.binding-invoker.prepareBinding`
+  to `preflightBinding` and `openbindings.operation-invoker.prepareOperation`
+  to `preflightOperation`, and ob's own surface follows: the OBI operations
+  `openbindings.ob.prepareBinding` / `openbindings.ob.prepareOperation` are now
+  `openbindings.ob.preflightBinding` / `openbindings.ob.preflightOperation`
+  (aliased to the renamed interface keys), the CLI verbs `ob binding prepare`
+  and `ob operation prepare` are `ob binding preflight` and `ob operation
+  preflight`, and the `ob start` routes `POST /bindings/prepare` and
+  `POST /operations/prepare` are `POST /bindings/preflight` and
+  `POST /operations/preflight` (operationIds `preflightBinding` /
+  `preflightOperation`). The route and OBI key renames are wire-visible to
+  `ob start` clients; there is no compatibility alias. The operations now
+  document the signal contract: preflight tells a binding an invocation may
+  follow and reports the context requirements it can already identify; the
+  answer is advisory (null is always conformant, the live `CONTEXT_REQUIRED`
+  challenge is authoritative, invocation never requires a prior preflight),
+  context supplied to it is used for that call alone, and preflight never
+  dispatches the requested operation, consumes its input, emits its outputs,
+  or spends an approval for it. Behavior is unchanged; the vendored
+  binding-invoker requirement interface is refreshed to the renamed text.
+- SDK invocation values use snapshot ownership: accepted input can be reused,
+  and returned mutable results remain independent. Unsupported host values are
+  rejected at admission; a rejected input does not terminate a usable stream.
+- The SDK-backed frame carrier constructs and inspects logical frame objects
+  directly. JSON encoding remains at actual wire boundaries. The shared output
+  grammar still rejects unknown or missing properties and preserves explicit
+  null error data.
+- Requested JSON output uses the maintained codec, retaining supported exact
+  numeric and string values. Application evaluator selection is unchanged.
+- This consumer change is qualified with the SDK migration candidate; coordinated
+  dependency pins and release qualification remain prerequisites for release.
 
 - **Role-scoped, by-value delegate management.** `ob delegate` now realizes
   the shared Delegate Manager interface (`openbindings.delegate-manager` 0.1):
@@ -63,7 +97,7 @@ ship as part of 0.2.0.
   carries the member follows the core rename: OBI documents
   (`bindings[*].selector`), the binding-invoker wire contract
   (`BindingInvocationInput.selector` on the frame lane, `/bindings/invoke`
-  and `/bindings/prepare`), the `operation bind` CLI surface
+  and `/bindings/preflight`), the `operation bind` CLI surface
   (`ob op bind <obi> [operation] [source] [selector]`), the serve editing
   route (`bindOperation` input), binding listings, and source inspection
   (`BindableTarget.selector`). No compatibility alias: documents and

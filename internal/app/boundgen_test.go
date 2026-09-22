@@ -115,7 +115,7 @@ func TestGenerateBoundServe_BindsServedSurface(t *testing.T) {
 			},
 		},
 		{
-			short: "prepareOperation",
+			short: "preflightOperation",
 			input: map[string]any{
 				"interface": map[string]any{"openbindings": "0.2.0", "operations": map[string]any{}},
 				"operation": "example",
@@ -274,7 +274,7 @@ func TestGenerateBoundCLI_AttachesWireInputTransforms(t *testing.T) {
 		"source":   map[string]any{"bindingSpec": "openbindings.openapi-3.1@1", "location": "api.yaml"},
 		"selector": "#/x",
 	}
-	for _, short := range []string{"addSource", "prepareBinding", "synthesizeInterface", "inspectSource"} {
+	for _, short := range []string{"addSource", "preflightBinding", "synthesizeInterface", "inspectSource"} {
 		key := "openbindings.ob." + short + ".usage"
 		b, ok := bound.Bindings[key]
 		if !ok {

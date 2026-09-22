@@ -447,10 +447,11 @@ func readInputFrame(ctx context.Context, conn *websocket.Conn) ([]byte, error) {
 	return data, err
 }
 
-// handleBindingPrepare serves prepareBinding: the side-effect-free preflight
-// reporting the context a binding would require (ContextRequiredDetails), or
-// null when requirements cannot be determined statically.
-func handleBindingPrepare(logger *slog.Logger) http.HandlerFunc {
+// handleBindingPreflight serves preflightBinding: the advisory preflight
+// reporting the context requirements a binding can already identify
+// (ContextRequiredDetails), or null when it knows of none. It never
+// dispatches the requested operation.
+func handleBindingPreflight(logger *slog.Logger) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		if !validateJSONMediaType(w, r) {
 			return
@@ -467,9 +468,9 @@ func handleBindingPrepare(logger *slog.Logger) http.HandlerFunc {
 			return
 		}
 
-		logger.Info("bindings/prepare", "format", input.Source.BindingSpec, "selector", input.Selector)
+		logger.Info("bindings/preflight", "format", input.Source.BindingSpec, "selector", input.Selector)
 
-		details, perr := app.PrepareBinding(r.Context(), app.InvocationInput{
+		details, perr := app.PreflightBinding(r.Context(), app.InvocationInput{
 			Source: app.InvokeSource{
 				BindingSpec: input.Source.BindingSpec,
 				Location:    input.Source.Location,
@@ -486,9 +487,9 @@ func handleBindingPrepare(logger *slog.Logger) http.HandlerFunc {
 	}
 }
 
-// handleOperationPrepare is the document-valued, by-reference counterpart to
-// handleBindingPrepare.
-func handleOperationPrepare(logger *slog.Logger) http.HandlerFunc {
+// handleOperationPreflight is the document-valued, by-reference counterpart
+// to handleBindingPreflight.
+func handleOperationPreflight(logger *slog.Logger) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		// The published HTTP contract carries OperationInvocationInput as
 		// the body, including its conditional interface/reference shape.
@@ -502,8 +503,8 @@ func handleOperationPrepare(logger *slog.Logger) http.HandlerFunc {
 			return
 		}
 
-		logger.Info("operations/prepare", "operation", input.Operation, "binding", input.Binding)
-		details, perr := app.PrepareInterfaceOperation(
+		logger.Info("operations/preflight", "operation", input.Operation, "binding", input.Binding)
+		details, perr := app.PreflightInterfaceOperation(
 			r.Context(), input.Interface, input.Operation, input.Binding, input.Context,
 		)
 		if perr != nil {

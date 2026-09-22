@@ -226,7 +226,7 @@ When a binding needs context it doesn't have, invocation stops before any side e
 | `auth.apiKey` | `ob context set <target> --api-key -`; a requirement carrying a scheme `name` reads `apiKeys[<name>]` first, settable via `--value` |
 | `auth.oauth2` | a token obtained through the flow the requirement names, stored as `bearerToken`/`accessToken` (`--bearer-token`, or the full shape via `--value`) |
 
-Then retry the invocation. `--from-curl` imports credentials from a working curl command; `--header`, `--cookie`, `--env`, and `--meta` cover the non-credential fields. The same store backs the HTTP surface (`/contexts`, with `POST /bindings/prepare` reporting requirements proactively) and everything routed through delegates.
+Then retry the invocation. `--from-curl` imports credentials from a working curl command; `--header`, `--cookie`, `--env`, and `--meta` cover the non-credential fields. The same store backs the HTTP surface (`/contexts`, with `POST /bindings/preflight` reporting the requirements a binding can already identify) and everything routed through delegates.
 
 ### Self-maintained bearer context (token-provider pinning)
 
@@ -650,8 +650,8 @@ The complete API is described by [`internal/server/openapi.yaml`](https://github
 | `/contexts/{url}` | GET / PUT / DELETE | Inspect, set, or clear one host's context |
 | `/bindings/invoke` | GET (WebSocket) | Invoke a binding via the binding-invoker frame protocol |
 | `/operations/invoke` | GET (WebSocket) | Invoke an operation or selected binding via the operation-invoker frame protocol |
-| `/bindings/prepare` | POST | Preflight a binding's context requirements (`prepareBinding`) |
-| `/operations/prepare` | POST | Preflight an inline interface operation's context requirements |
+| `/bindings/preflight` | POST | Preflight a binding: the context requirements it can already identify (`preflightBinding`; advisory, never dispatches the operation) |
+| `/operations/preflight` | POST | Preflight an inline interface operation the same way (`preflightOperation`) |
 | `/interfaces` | POST | Create an empty interface document |
 | `/interfaces/synthesize` | POST | Synthesize an OBI from a binding source |
 | `/interfaces/status` | POST | Report an OBI's drift against its sources |
@@ -679,7 +679,7 @@ Example:
 
 ```bash
 TOKEN=$(cat ~/.ob/start.token)
-curl -X POST http://localhost:20290/bindings/prepare \
+curl -X POST http://localhost:20290/bindings/preflight \
   -H "Authorization: Bearer $TOKEN" \
   -H "Content-Type: application/json" \
   -d '{
@@ -705,7 +705,7 @@ curl -X POST http://localhost:20290/bindings/prepare \
 2. Client streams input frames: exactly one `{"kind": "open", "input": {source, selector, context?}}` first, then zero or more `{"kind": "input", "value": …}`, then one `{"kind": "close"}`.
 3. Server streams output frames: zero or more `{"kind": "output", "value": …}`, an `{"kind": "input_closed"}` once the binding stops accepting input (later `input` frames are ignored; the invocation continues), and exactly one terminal frame — `{"kind": "complete"}` or `{"kind": "error", "error": {code, data?}}` — after which the connection closes.
 
-Missing runtime context surfaces as a terminal `error` with code `CONTEXT_REQUIRED` whose `data` enumerates the requirements, before any output and any side effect; resolve it (typically via `/contexts`) and retry. `POST /bindings/prepare` reports the same requirements proactively when they are statically knowable.
+Missing runtime context surfaces as a terminal `error` with code `CONTEXT_REQUIRED` whose `data` enumerates the requirements, before any output and any side effect; resolve it (typically via `/contexts`) and retry. `POST /bindings/preflight` reports the requirements the binding can already identify before you invoke; its answer is advisory (null is always conformant) and the live `CONTEXT_REQUIRED` challenge remains authoritative.
 
 ### `ob mcp` — Model Context Protocol bridge
 

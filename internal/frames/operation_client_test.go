@@ -121,7 +121,7 @@ func TestOperationClientTerminals(t *testing.T) {
 }
 
 func TestOperationClientEncodingFailure(t *testing.T) {
-	for _, phase := range []string{"open", "input"} {
+	for _, phase := range []string{"open", "open-context", "input"} {
 		t.Run(phase, func(t *testing.T) {
 			ctx, cancel := context.WithTimeout(t.Context(), time.Second)
 			defer cancel()
@@ -130,15 +130,34 @@ func TestOperationClientEncodingFailure(t *testing.T) {
 			if phase == "open" {
 				input.Source.Content = json.RawMessage(`{`)
 			}
+			if phase == "open-context" {
+				input.Context = map[string]any{"unsupported": make(chan int)}
+			}
 			caller := InvokeOperation(ctx, operation, input)
 			defer caller.Cancel()
 			if phase == "input" {
 				if _, err := operation.ReadInput(ctx); err != nil {
 					t.Fatal(err)
 				}
-				if err := caller.Write(ctx, make(chan int)); err != nil {
+				var failure *invoke.InvocationError
+				if err := caller.Write(ctx, make(chan int)); !errors.As(err, &failure) || failure.Code != invoke.ErrCodeTypeMismatch {
+					t.Fatalf("unsupported input must be rejected at admission: %v", err)
+				}
+				// A rejected value does not terminate a usable stream.
+				if err := caller.Write(ctx, "valid"); err != nil {
 					t.Fatal(err)
 				}
+				value, err := operation.ReadInput(ctx)
+				if err != nil || value.(map[string]any)["value"] != "valid" {
+					t.Fatalf("valid input after rejection: %v, %v", value, err)
+				}
+				caller.Cancel()
+				select {
+				case <-operation.Done():
+				case <-ctx.Done():
+					t.Fatal("cancellation leaked operation")
+				}
+				return
 			}
 			_, err := caller.Outputs().Read(ctx)
 			var failure *invoke.InvocationError

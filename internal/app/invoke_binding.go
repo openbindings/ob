@@ -2,7 +2,6 @@ package app
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"strings"
 
@@ -104,13 +103,13 @@ func FormatOpOutput(output any) string {
 		if result.Len() > 0 {
 			return result.String()
 		}
-		b, err := json.MarshalIndent(o, "", "  ")
+		b, err := FormatOutput(o, OutputFormatJSON)
 		if err != nil {
 			return fmt.Sprintf("%v", o)
 		}
 		return string(b)
 	default:
-		b, err := json.MarshalIndent(o, "", "  ")
+		b, err := FormatOutput(o, OutputFormatJSON)
 		if err != nil {
 			return fmt.Sprintf("%v", o)
 		}

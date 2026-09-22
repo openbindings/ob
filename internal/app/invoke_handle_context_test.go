@@ -9,25 +9,25 @@ import (
 	"github.com/openbindings/openbindings-go/invoke"
 )
 
-type storedContextPreparer struct {
+type storedContextPreflighter struct {
 	details *invoke.ContextRequiredDetails
 }
 
-func (p storedContextPreparer) BindingSpecs() []openbindings.BindingSpecInfo {
+func (p storedContextPreflighter) BindingSpecs() []openbindings.BindingSpecInfo {
 	return []openbindings.BindingSpecInfo{{BindingSpec: "example.binding@1"}}
 }
 
-func (p storedContextPreparer) CheckBindingSpecs(bindingSpecs []string) []openbindings.BindingSpecVerdict {
+func (p storedContextPreflighter) CheckBindingSpecs(bindingSpecs []string) []openbindings.BindingSpecVerdict {
 	return openbindings.CheckBindingSpecs(bindingSpecs, p.BindingSpecs())
 }
 
-func (p storedContextPreparer) InvokeBinding(context.Context, *invoke.BindingInvocationArgs) invoke.Invocation[any, any] {
+func (p storedContextPreflighter) InvokeBinding(context.Context, *invoke.BindingInvocationArgs) invoke.Invocation[any, any] {
 	return invoke.NewErroredInvocation[any, any](&invoke.InvocationError{
 		Code: invoke.ErrCodeRuntime,
 	})
 }
 
-func (p storedContextPreparer) PrepareBinding(context.Context, *invoke.BindingInvocationArgs) (*invoke.ContextRequiredDetails, error) {
+func (p storedContextPreflighter) PreflightBinding(context.Context, *invoke.BindingInvocationArgs) (*invoke.ContextRequiredDetails, error) {
 	return p.details, nil
 }
 
@@ -49,7 +49,7 @@ func TestWithStoredContextScopesStoreButPreservesExplicitContext(t *testing.T) {
 			Requirements: []invoke.ContextRequirement{{Type: "auth.bearer"}},
 		}},
 	}
-	invoker := invoke.NewOperationInvoker(storedContextPreparer{details: details})
+	invoker := invoke.NewOperationInvoker(storedContextPreflighter{details: details})
 	args := &invoke.BindingInvocationArgs{
 		Source: invoke.InvocationSource{BindingSpec: "example.binding@1"},
 		Context: map[string]any{

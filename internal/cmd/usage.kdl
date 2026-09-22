@@ -335,7 +335,7 @@ cmd "operation" help="Manage and invoke operations on an OBI" subcommand_require
     arg "<obi>" help="OBI locator (file path, URL, exec: reference, or - for stdin)"
     arg "[operation]" help="Operation key to invoke"
   }
-  cmd "prepare" help="Preflight an operation's required context without invoking it" {
+  cmd "preflight" help="Preflight an operation: report the context it already knows it would require" {
     flag "--binding <key>" help="Binding key to preflight (operation is derived from the entry)"
     flag "--select-binding <key>" help="Ordered binding choice (repeatable)" var=#true
     flag "--configuration <json>" help="Binding-spec configuration object: inline JSON, @file, or - for stdin"
@@ -375,7 +375,7 @@ cmd "binding" help="Low-level binding operations" subcommand_required=#true {
     arg "[obi-path]" help="OBI document to resolve the binding from"
     arg "[binding-key]" help="Binding key to invoke (output is exactly what the source returned: decoded, not reshaped by the operation's output transform, and unvalidated)"
   }
-  cmd "prepare" help="Preflight a resolved binding (machine-to-machine)" {
+  cmd "preflight" help="Preflight a resolved binding (machine-to-machine)" {
     flag "--input <json>" help="BindingInvocationInput as a JSON string"
   }
   cmd "list" help="List the bindings an OBI declares (optionally for one operation)" {

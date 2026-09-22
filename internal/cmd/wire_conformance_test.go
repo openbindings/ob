@@ -396,7 +396,7 @@ func TestWireConformance_ExecLane(t *testing.T) {
 			}
 		}},
 		{"listOperationAliases", "openbindings.ob.listOperationAliases", map[string]any{"interface": docA}, nil},
-		{"prepareOperation", "openbindings.ob.prepareOperation", map[string]any{"interface": docA, "operation": "ping"}, nil},
+		{"preflightOperation", "openbindings.ob.preflightOperation", map[string]any{"interface": docA, "operation": "ping"}, nil},
 		{"compareInterfaces", "openbindings.ob.compareInterfaces", map[string]any{"baseline": docA, "comparison": docB}, func(t *testing.T, output any) {
 			m, _ := output.(map[string]any)
 			ops, _ := m["operations"].([]any)
@@ -442,7 +442,7 @@ func TestWireConformance_ExecLane(t *testing.T) {
 		// Cohort B (machine lane): the delegate-facing derivation and
 		// preflight surface. Their whole wire input rides one --input flag
 		// as JSON (the batch-5 audit ratified inspect/synthesize as
-		// machine-natured alongside binding invoke/prepare), and --input
+		// machine-natured alongside binding invoke/preflight), and --input
 		// implies wire-shaped JSON output. The frame ops (invokeBinding,
 		// invokeOperation) are NOT here: they have no Usage bindings.
 		// A unary command cannot carry their bidirectional frame protocol.
@@ -464,7 +464,7 @@ func TestWireConformance_ExecLane(t *testing.T) {
 				t.Errorf("expected a synthesized interface with getPing, got %#v", output)
 			}
 		}},
-		{"prepareBinding", "openbindings.ob.prepareBinding", map[string]any{
+		{"preflightBinding", "openbindings.ob.preflightBinding", map[string]any{
 			"source": map[string]any{
 				"bindingSpec": "openbindings.operation-graph@1",
 				"content":     map[string]any{"graphs": map[string]any{"echo": map[string]any{"openbindings.operation-graph": "0.2.0", "nodes": map[string]any{"in": map[string]any{"type": "input"}, "out": map[string]any{"type": "output"}}, "edges": []any{map[string]any{"from": "in", "to": "out"}}}}},
