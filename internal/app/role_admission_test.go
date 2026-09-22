@@ -85,7 +85,9 @@ func TestRoleAdmissionSchemaEvidence(t *testing.T) {
 		{`{}`, `{}`, true}, {`true`, `{}`, true}, {`false`, `false`, true},
 		{`false`, `{}`, false}, {`{}`, `false`, false}, {`{}`, `null`, false},
 		{`{"$ref":"#/schemas/missing"}`, `{}`, false},
-		{`{"pattern":"x"}`, `{"pattern":"x"}`, false},
+		// Identical schemas establish compatibility by identity, even when
+		// their constraints are outside the directional comparison profile.
+		{`{"pattern":"x"}`, `{"pattern":"x"}`, true},
 		{`{"type":"string"}`, `"malformed"`, false},
 	} {
 		t.Run(tc.required+"/"+tc.provided, func(t *testing.T) {
