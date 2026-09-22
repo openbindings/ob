@@ -69,12 +69,12 @@ gate a registry or CI pre-publish step needs (gofmt -l style).`,
 			}
 
 			// The strip is mechanical; conformance is not. Surface residual
-			// spec problems (a relative location, say) so "purify then
-			// publish" cannot silently ship an invalid document.
-			if problems := app.ValidateDocumentValue(result.Output); len(problems) > 0 {
+			// violations (a relative location, say) so "purify then
+			// publish" cannot silently ship a non-conformant document.
+			if violations := app.ValidateDocumentValue(result.Output); len(violations) > 0 {
 				fmt.Fprintf(cmd.ErrOrStderr(),
-					"warning: purified document is still not conformant (%d problem(s)); run 'ob validate' for details\n",
-					len(problems))
+					"warning: purified document is still non-conformant (%d violation(s)); run 'ob validate' for details\n",
+					len(violations))
 			}
 
 			format, outputPath := getOutputFlags(cmd)

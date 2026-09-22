@@ -9,6 +9,7 @@ import (
 	openbindings "github.com/openbindings/openbindings-go"
 	"github.com/openbindings/openbindings-go/formats/usage"
 	"github.com/openbindings/openbindings-go/invoke"
+	"github.com/openbindings/openbindings-go/jsonvalue"
 )
 
 // TestOpInvoke_ExternalDelegateDisplacesElections preserves the warning and
@@ -35,7 +36,7 @@ func TestOpInvoke_ExternalDelegateDisplacesElections(t *testing.T) {
 			"openbindings.ob.validateInterface": {Input: map[string]any{}, Output: map[string]any{}},
 		},
 		Sources: map[string]openbindings.Source{
-			"usage": {BindingSpec: usage.BindingSpec, Content: openbindings.TextContent("min_usage_version \"2.0.0\"\nbin \"must-not-execute\"\ncmd \"validate\" {}\n")},
+			"usage": {BindingSpec: usage.BindingSpec, Content: jsonvalue.TextContent("min_usage_version \"2.0.0\"\nbin \"must-not-execute\"\ncmd \"validate\" {}\n")},
 		},
 		Bindings: map[string]openbindings.BindingEntry{
 			"validate.usage": {Operation: "openbindings.ob.validateInterface", Source: "usage", Selector: "validate"},

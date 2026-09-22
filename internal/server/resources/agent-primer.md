@@ -263,8 +263,8 @@ runtime supplies them.
 
 Core document conformance is offline-decidable. If validation needs a binding
 specification the processor does not have, the binding-specific conclusion is
-unverified rather than automatically non-conformant. Do not confuse “this tool
-cannot verify or invoke this binding” with “this OBI is invalid.”
+inconclusive rather than automatically non-conformant. Do not confuse “this
+tool cannot check or invoke this binding” with “this OBI is non-conformant.”
 
 ## When OpenBindings is relevant
 
@@ -441,8 +441,8 @@ captured.
 - **“The artifact is ambiguous, so choose the most common interpretation.”**
   Preserve, configure, or refuse before defining a visible last-resort
   convention.
-- **“Synthesis returned an OBI, so coverage is complete.”** A valid projection
-  may be partial. Inspect coverage evidence and refusals.
+- **“Synthesis returned an OBI, so coverage is complete.”** A conformant
+  projection may be partial. Inspect coverage evidence and refusals.
 - **“An extension can carry whatever the core cannot express.”** Extensions do
   not override core invariants or make an unfaithful binding actionable.
 - **“Put the API key in the source.”** Credentials are runtime context, never

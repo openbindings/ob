@@ -2,14 +2,14 @@ package cmd
 
 import (
 	"fmt"
-	"github.com/openbindings/ob/internal/app"
 	"io"
 	"net/http"
 	"strings"
 	"testing"
 	"time"
 
-	openbindings "github.com/openbindings/openbindings-go"
+	"github.com/openbindings/ob/internal/app"
+	"github.com/openbindings/openbindings-go/bindingsupport"
 	"github.com/openbindings/openbindings-go/invoke"
 )
 
@@ -37,7 +37,7 @@ func TestWorkbenchDiagnosticsBoundedAndSingleRead(t *testing.T) {
 }
 
 func TestWorkbenchDiagnosticsAuthenticatedAndSeparateFromFrames(t *testing.T) {
-	mock := &mockEchoInvoker{formats: []openbindings.BindingSpecInfo{{BindingSpec: "mock-echo@1.0"}}}
+	mock := &mockEchoInvoker{formats: []bindingsupport.BindingSpecInfo{{BindingSpec: "mock-echo@1.0"}}}
 	cleanup := app.OverrideInvokerForTest(invoke.NewOperationInvoker(mock))
 	defer cleanup()
 	ts := testEnv(t)

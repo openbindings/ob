@@ -575,24 +575,26 @@ func registerLegacyAuthoringRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("POST /validate", handleValidate)
 	mux.HandleFunc("POST /diff", handleDiff)
 	mux.HandleFunc("POST /compatibility", handleCompat)
-	mux.HandleFunc("POST /conform", handleConform)
+	mux.HandleFunc("POST /conform", handleCorrespond)
 	mux.HandleFunc("POST /codegen", handleCodegen)
 	mux.HandleFunc("POST /merge", handleMerge)
 }
 
 func handleValidate(w http.ResponseWriter, r *http.Request) {
+	// The document is kept as its exact bytes so validation decides OBI-D-01
+	// on them rather than on a re-encoding.
 	var body struct {
-		Interface *openbindings.Interface `json:"interface"`
-		Strict    bool                    `json:"strict,omitempty"`
+		Interface json.RawMessage `json:"interface"`
 	}
-	if !decodeRequest(w, r, &body) || !requireInterface(w, body.Interface) {
+	if !decodeRequest(w, r, &body) {
+		return
+	}
+	if len(body.Interface) == 0 || string(body.Interface) == "null" {
+		writeErrorJSON(w, http.StatusBadRequest, "invalid_request", "interface is required")
 		return
 	}
 
-	report := app.ValidateInterface(app.ValidateInput{
-		Interface: body.Interface,
-		Strict:    body.Strict,
-	})
+	report := app.ValidateInterface(app.ValidateInput{Document: body.Interface})
 	writeJSON(w, http.StatusOK, report)
 }
 
@@ -646,7 +648,7 @@ func handleCompat(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, report)
 }
 
-func handleConform(w http.ResponseWriter, r *http.Request) {
+func handleCorrespond(w http.ResponseWriter, r *http.Request) {
 	var body struct {
 		Interface *openbindings.Interface `json:"interface"`
 		Target    *openbindings.Interface `json:"target"`
@@ -660,9 +662,9 @@ func handleConform(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	// Non-interactive on the wire: accept all scaffolding/replacements. With no
-	// target path, Conform returns the conformed document in Result rather than
+	// target path, Correspond returns the updated target in Result rather than
 	// writing a file; dryRun previews without modifying it.
-	out := app.Conform(app.ConformInput{
+	out := app.Correspond(app.CorrespondInput{
 		ContractInterface: body.Interface,
 		TargetInterface:   body.Target,
 		Yes:               true,

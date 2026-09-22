@@ -9,11 +9,9 @@ import (
 	"strings"
 	"testing"
 
-	openbindings "github.com/openbindings/openbindings-go"
-
-	"github.com/openbindings/openbindings-go/invoke"
-
 	openapibinding "github.com/openbindings/openbindings-go/formats/openapi"
+	"github.com/openbindings/openbindings-go/invoke"
+	"github.com/openbindings/openbindings-go/jsonvalue"
 	"github.com/openbindings/openbindings-go/synthesize"
 )
 
@@ -61,7 +59,7 @@ func TestOpenAPICandidateCollisionSurvivesOBTransformRuntime(t *testing.T) {
 		context.Background(),
 		&synthesize.SynthesizeInput{Sources: []synthesize.SynthesizeSource{{
 			BindingSpec: openapibinding.BindingSpecOpenAPI31,
-			Content:     openbindings.TextContent(artifact),
+			Content:     jsonvalue.TextContent(artifact),
 		}}},
 	)
 	if err != nil {

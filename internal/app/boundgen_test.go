@@ -180,20 +180,25 @@ func TestGenerateBoundServe_BindsServedSurface(t *testing.T) {
 	}
 }
 
-// TestBoundOBIsAreSpecValid guards spec validity of the committed bound OBIs.
+// TestBoundOBIsEstablishNoViolation guards the committed bound OBIs against
+// document-rule violations.
 // The conformance guards above (assessCompatibility) only check operation/schema
 // parity with the contract; they do not catch document-level rule violations such
 // as a non-absolute source location (OBI-D-05). Since `ob --openbindings` emits
 // the bound CLI OBI and the server serves the bound serve OBI as its discovery
-// document, both must validate. If this fails, run `go generate ./internal/app`.
-func TestBoundOBIsAreSpecValid(t *testing.T) {
+// document, neither may violate a document rule or carry an unknown field. If
+// this fails, run `go generate ./internal/app`.
+func TestBoundOBIsEstablishNoViolation(t *testing.T) {
 	for _, path := range []string{"ob.bound.obi.json", "../server/serve.obi.json"} {
-		report := ValidateInterface(ValidateInput{Locator: path, Strict: true})
+		report := ValidateInterface(ValidateInput{Locator: path})
 		if report.Error != nil {
 			t.Fatalf("%s: validate error: %s", path, report.Error.Message)
 		}
-		if !report.Valid {
-			t.Fatalf("%s: not spec-valid: %v", path, report.Problems)
+		if report.Failed() {
+			t.Fatalf("%s: %s: %+v", path, report.Conclusion, report.Findings)
+		}
+		if len(report.Diagnostics) > 0 {
+			t.Fatalf("%s: unknown fields: %+v", path, report.Diagnostics)
 		}
 	}
 }
@@ -413,12 +418,12 @@ func TestGenerateBoundCLI_AttachesWireInputTransforms(t *testing.T) {
 	// operation realization must remove those transport details.
 	b = bound.Bindings["openbindings.ob.validateInterface.usage"]
 	out, terr = ApplyTransform(context.Background(), bound.Transforms, b.OutputTransform, map[string]any{
-		"locator": "-", "valid": true, "version": "0.2.0",
+		"locator": "-", "conclusion": "conformant", "version": "0.2.0",
 	})
 	if terr != nil {
 		t.Fatalf("validateInterface output transform failed: %v", terr)
 	}
-	if m, ok := out.(map[string]any); !ok || m["valid"] != true || m["version"] != "0.2.0" || m["locator"] != nil {
+	if m, ok := out.(map[string]any); !ok || m["conclusion"] != "conformant" || m["version"] != "0.2.0" || m["locator"] != nil {
 		t.Errorf("validateInterface should remove the CLI locator, got %#v", out)
 	}
 

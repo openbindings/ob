@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	openbindings "github.com/openbindings/openbindings-go"
+	"github.com/openbindings/openbindings-go/bindingsupport"
 	openapibinding "github.com/openbindings/openbindings-go/formats/openapi"
 	"github.com/openbindings/openbindings-go/synthesize"
 )
@@ -18,8 +19,8 @@ type additionalDetectionClaim struct {
 	synthesize.InterfaceSynthesizer
 }
 
-func (s additionalDetectionClaim) BindingSpecs() []openbindings.BindingSpecInfo {
-	return append(s.InterfaceSynthesizer.BindingSpecs(), openbindings.BindingSpecInfo{BindingSpec: "openbindings.test@1"})
+func (s additionalDetectionClaim) BindingSpecs() []bindingsupport.BindingSpecInfo {
+	return append(s.InterfaceSynthesizer.BindingSpecs(), bindingsupport.BindingSpecInfo{BindingSpec: "openbindings.test@1"})
 }
 func (s additionalDetectionClaim) SynthesizeInterface(ctx context.Context, in *synthesize.SynthesizeInput) (*openbindings.Interface, error) {
 	if in.Sources[0].BindingSpec != "openbindings.test@1" {

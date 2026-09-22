@@ -5,9 +5,8 @@ import (
 	"sync"
 	"testing"
 
-	openbindings "github.com/openbindings/openbindings-go"
-
 	"github.com/openbindings/openbindings-go/invoke"
+	"github.com/openbindings/openbindings-go/jsonvalue"
 )
 
 // This file is the security regression for finding 4.2 (confused-deputy) and
@@ -269,7 +268,7 @@ func TestDeriveSourceTarget(t *testing.T) {
 		{"non-default port kept", InvokeSource{Location: "https://api.example.com:8443/v1"}, "api.example.com:8443"},
 		{"ws url → host", InvokeSource{Location: "wss://events.example.com/socket"}, "events.example.com"},
 		{"host:port address", InvokeSource{Location: "grpc.example.com:50051"}, "grpc.example.com:50051"},
-		{"inline content → unverifiable", InvokeSource{Content: openbindings.TextContent("...")}, ""},
+		{"inline content → unverifiable", InvokeSource{Content: jsonvalue.TextContent("...")}, ""},
 		{"empty location → unverifiable", InvokeSource{}, ""},
 		{"exec ref → unverifiable", InvokeSource{Location: "exec:some-tool binding invoke"}, ""},
 		{"relative path → unverifiable", InvokeSource{Location: "./spec.yaml"}, ""},

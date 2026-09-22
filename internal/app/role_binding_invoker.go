@@ -4,7 +4,7 @@ import (
 	"context"
 
 	"github.com/openbindings/ob/internal/frames"
-	openbindings "github.com/openbindings/openbindings-go"
+	"github.com/openbindings/openbindings-go/bindingsupport"
 	"github.com/openbindings/openbindings-go/formats/asyncapi"
 	"github.com/openbindings/openbindings-go/invoke"
 )
@@ -17,11 +17,11 @@ type roleBindingInvoker struct {
 	route *invoke.PreparedDependencyRoute[any, any]
 }
 
-func (r *roleBindingInvoker) BindingSpecs() []openbindings.BindingSpecInfo {
-	return []openbindings.BindingSpecInfo{{BindingSpec: r.spec}}
+func (r *roleBindingInvoker) BindingSpecs() []bindingsupport.BindingSpecInfo {
+	return []bindingsupport.BindingSpecInfo{{BindingSpec: r.spec}}
 }
-func (r *roleBindingInvoker) CheckBindingSpecs(tokens []string) []openbindings.BindingSpecVerdict {
-	return openbindings.CheckBindingSpecs(tokens, r.BindingSpecs())
+func (r *roleBindingInvoker) CheckBindingSpecs(tokens []string) []bindingsupport.BindingSpecVerdict {
+	return bindingsupport.CheckBindingSpecs(tokens, r.BindingSpecs())
 }
 func (r *roleBindingInvoker) InvokeBinding(ctx context.Context, args *invoke.BindingInvocationArgs) invoke.Invocation[any, any] {
 	var options []invoke.InvokeOption

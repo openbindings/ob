@@ -368,9 +368,12 @@ func TestWireConformance_ExecLane(t *testing.T) {
 		// rides stdin; the CLI reads a `-` locator. Output is judged against
 		// each operation's contract output schema above.
 		{"validateInterface", "openbindings.ob.validateInterface", map[string]any{"interface": docA}, func(t *testing.T, output any) {
+			// The fixture has bindings, whose identifiability only their
+			// binding specification decides (OBI-D-13), so no violation is
+			// the most the core can establish.
 			m, _ := output.(map[string]any)
-			if m["valid"] != true {
-				t.Errorf("expected valid=true for the fixture, got %#v", output)
+			if m["conclusion"] != "conformance-undetermined" {
+				t.Errorf("expected conformance-undetermined for the fixture, got %#v", output)
 			}
 		}},
 		{"reportInterfaceStatus", "openbindings.ob.reportInterfaceStatus", map[string]any{"interface": docA}, func(t *testing.T, output any) {
@@ -416,7 +419,7 @@ func TestWireConformance_ExecLane(t *testing.T) {
 				t.Errorf("expected a go CodegenOutput envelope, got %#v", output)
 			}
 		}},
-		{"conform", "openbindings.ob.conform", map[string]any{"interface": docRef, "target": map[string]any{
+		{"correspond", "openbindings.ob.correspond", map[string]any{"interface": docRef, "target": map[string]any{
 			"openbindings": "0.2.0", "name": "wire-tgt", "operations": map[string]any{},
 		}}, func(t *testing.T, output any) {
 			m, _ := output.(map[string]any)
@@ -424,7 +427,7 @@ func TestWireConformance_ExecLane(t *testing.T) {
 				t.Errorf("expected the target to be modified (createUser scaffolded), got %#v", output)
 			}
 			if _, ok := m["interface"].(map[string]any); !ok {
-				t.Errorf("expected the conformed interface in the report, got %#v", output)
+				t.Errorf("expected the updated target in the report, got %#v", output)
 			}
 		}},
 		{"mergeInterfaces", "openbindings.ob.mergeInterfaces", map[string]any{"target": map[string]any{

@@ -51,7 +51,7 @@ func registerCanonicalOperationRoutes(srv *server.Server, logger *slog.Logger) {
 		"reportEnvironmentStatus":      handleEnvironment,
 		"reportInterfaceStatus":        handleInterfaceStatus,
 		"codegen":                      handleCodegen,
-		"conform":                      handleConform,
+		"correspond":                   handleCorrespond,
 		"addOperationAlias":            handleAddOperationAlias,
 		"removeOperationAlias":         handleRemoveOperationAlias,
 		"listOperationAliases":         handleListOperationAliases,

@@ -9,6 +9,7 @@ import (
 
 	"github.com/openbindings/ob/internal/app"
 	openbindings "github.com/openbindings/openbindings-go"
+	"github.com/openbindings/openbindings-go/bindingsupport"
 	openapiformat "github.com/openbindings/openbindings-go/formats/openapi"
 	"github.com/openbindings/openbindings-go/invoke"
 )
@@ -23,7 +24,7 @@ func (preflightHTTPTransforms) Evaluate(ctx context.Context, expression string, 
 // a request that merely agrees with the handler's private implementation.
 func TestServeOperationPreflight_PublishedHTTPBinding(t *testing.T) {
 	t.Chdir(t.TempDir())
-	mock := &mockEchoInvoker{formats: []openbindings.BindingSpecInfo{{BindingSpec: "mock-echo@1.0"}}}
+	mock := &mockEchoInvoker{formats: []bindingsupport.BindingSpecInfo{{BindingSpec: "mock-echo@1.0"}}}
 	cleanup := app.OverrideInvokerForTest(invoke.NewOperationInvoker(mock))
 	defer cleanup()
 	ts := testEnv(t)

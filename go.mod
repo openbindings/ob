@@ -9,14 +9,14 @@ require (
 	github.com/charmbracelet/bubbletea v1.3.10 // indirect
 	github.com/charmbracelet/lipgloss v1.1.0
 	github.com/openbindings/openbindings-go v0.2.0
-	github.com/openbindings/openbindings-go/formats/asyncapi v0.1.1-0.20260922210936-d76792a0d115
-	github.com/openbindings/openbindings-go/formats/connect v0.1.1-0.20260922210936-d76792a0d115
-	github.com/openbindings/openbindings-go/formats/graphql v0.1.1-0.20260922210936-d76792a0d115
-	github.com/openbindings/openbindings-go/formats/grpc v0.1.1-0.20260922210936-d76792a0d115
-	github.com/openbindings/openbindings-go/formats/mcp v0.1.1-0.20260922210936-d76792a0d115
-	github.com/openbindings/openbindings-go/formats/openapi v0.1.1-0.20260922210936-d76792a0d115
-	github.com/openbindings/openbindings-go/formats/operationgraph v0.1.1-0.20260922210936-d76792a0d115
-	github.com/openbindings/openbindings-go/formats/usage v0.1.1-0.20260922210936-d76792a0d115
+	github.com/openbindings/openbindings-go/formats/asyncapi v0.1.1-0.20260922233810-aceb78896562
+	github.com/openbindings/openbindings-go/formats/connect v0.1.1-0.20260922233810-aceb78896562
+	github.com/openbindings/openbindings-go/formats/graphql v0.1.1-0.20260922233810-aceb78896562
+	github.com/openbindings/openbindings-go/formats/grpc v0.1.1-0.20260922233810-aceb78896562
+	github.com/openbindings/openbindings-go/formats/mcp v0.1.1-0.20260922233810-aceb78896562
+	github.com/openbindings/openbindings-go/formats/openapi v0.1.1-0.20260922233810-aceb78896562
+	github.com/openbindings/openbindings-go/formats/operationgraph v0.1.1-0.20260922233810-aceb78896562
+	github.com/openbindings/openbindings-go/formats/usage v0.1.1-0.20260922233810-aceb78896562
 	github.com/spf13/cobra v1.10.2
 	gopkg.in/yaml.v3 v3.0.1
 )
@@ -97,5 +97,5 @@ require (
 replace (
 	github.com/openbindings/asyncapi-client/go v0.1.0 => github.com/openbindings/asyncapi-client/go v0.0.0-20260917182212-7326ce4e18c1
 	github.com/openbindings/openapi-client/go v0.1.0 => github.com/openbindings/openapi-client/go v0.0.0-20260911032503-9f8020e2d9a7
-	github.com/openbindings/openbindings-go v0.2.0 => github.com/openbindings/openbindings-go v0.1.1-0.20260922210936-d76792a0d115
+	github.com/openbindings/openbindings-go v0.2.0 => github.com/openbindings/openbindings-go v0.1.1-0.20260922233810-aceb78896562
 )

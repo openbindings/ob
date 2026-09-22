@@ -18,6 +18,7 @@ import (
 	"github.com/coder/websocket"
 	"github.com/openbindings/ob/internal/frames"
 	openbindings "github.com/openbindings/openbindings-go"
+	"github.com/openbindings/openbindings-go/bindingsupport"
 	"github.com/openbindings/openbindings-go/formats/asyncapi"
 	"github.com/openbindings/openbindings-go/formats/openapi"
 	"github.com/openbindings/openbindings-go/invoke"
@@ -37,11 +38,11 @@ type roleFrameTestInvoker struct {
 	stopped       chan struct{}
 }
 
-func (h *roleFrameTestInvoker) BindingSpecs() []openbindings.BindingSpecInfo {
-	return []openbindings.BindingSpecInfo{{BindingSpec: roleFrameTestSpec}}
+func (h *roleFrameTestInvoker) BindingSpecs() []bindingsupport.BindingSpecInfo {
+	return []bindingsupport.BindingSpecInfo{{BindingSpec: roleFrameTestSpec}}
 }
-func (h *roleFrameTestInvoker) CheckBindingSpecs(tokens []string) []openbindings.BindingSpecVerdict {
-	return openbindings.CheckBindingSpecs(tokens, h.BindingSpecs())
+func (h *roleFrameTestInvoker) CheckBindingSpecs(tokens []string) []bindingsupport.BindingSpecVerdict {
+	return bindingsupport.CheckBindingSpecs(tokens, h.BindingSpecs())
 }
 func (h *roleFrameTestInvoker) InvokeBinding(ctx context.Context, args *invoke.BindingInvocationArgs) invoke.Invocation[any, any] {
 	call := invoke.NewInvocationImpl[any, any](ctx)
@@ -117,7 +118,7 @@ func roleFrameProviderWithSelector(t *testing.T, workSelector string) json.RawMe
 	if err != nil {
 		t.Fatal(err)
 	}
-	provider, err := openbindings.ValidateDocument(roleTestProvider(t, expected))
+	provider, _, err := openbindings.ValidateDocument(roleTestProvider(t, expected))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -296,9 +297,9 @@ func TestRoleFrameEntrypointRetainsSelectedProvider(t *testing.T) {
 
 func TestRoleFrameEntrypointNoImplicitEnrollment(t *testing.T) {
 	r, _ := migrationTestRegistry(t)
-	provider, _ := openbindings.ValidateDocument(roleFrameProvider(t))
+	provider, _, _ := openbindings.ValidateDocument(roleFrameProvider(t))
 	expected, _ := RequirementInterface(CapInspect)
-	extra, _ := openbindings.ValidateDocument(roleTestProvider(t, expected))
+	extra, _, _ := openbindings.ValidateDocument(roleTestProvider(t, expected))
 	for key, op := range extra.Operations {
 		provider.Operations[key] = op
 	}
@@ -528,7 +529,7 @@ func TestRoleFrameEntrypointRealSDKStream(t *testing.T) {
 		t.Fatal(err)
 	}
 	r, _ := migrationTestRegistry(t)
-	provider, err := openbindings.ValidateDocument(roleFrameProvider(t))
+	provider, _, err := openbindings.ValidateDocument(roleFrameProvider(t))
 	if err != nil {
 		t.Fatal(err)
 	}

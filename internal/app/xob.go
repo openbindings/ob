@@ -5,8 +5,8 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
-	"github.com/openbindings/openbindings-go/jsonvalue"
 	"io"
 	"net/http"
 	"os"
@@ -21,6 +21,7 @@ import (
 	"github.com/openbindings/ob/internal/execref"
 	"github.com/openbindings/openbindings-go"
 	"github.com/openbindings/openbindings-go/formats/openapi"
+	"github.com/openbindings/openbindings-go/jsonvalue"
 	"gopkg.in/yaml.v3"
 )
 
@@ -543,7 +544,7 @@ func ParseContentForEmbed(data []byte, format string) (json.RawMessage, error) {
 	}
 
 	// Default: embed as a JSON string (works for KDL, protobuf, and other text formats).
-	return openbindings.TextContent(string(data)), nil
+	return jsonvalue.TextContent(string(data)), nil
 }
 
 // protoImportRe matches a protobuf import statement (incl. public/weak forms).
@@ -642,23 +643,18 @@ func FindXOBPaths(doc any) []string {
 	return paths
 }
 
-// ValidateDocumentValue runs the SDK's document validation over an untyped
-// JSON value (a purified graph output, say) and returns the problems, or nil
-// when the document is conformant. Unparseable input reports as one problem.
+// ValidateDocumentValue validates an untyped JSON value (a purified graph
+// output, say) as a document and returns the violations it establishes, or
+// nil when it establishes none. A nil result is not a conformance claim.
+// Unparseable input reports as one problem.
 func ValidateDocumentValue(doc any) []string {
 	data, err := json.Marshal(doc)
 	if err != nil {
 		return []string{fmt.Sprintf("marshal document: %v", err)}
 	}
-	iface, err := openbindings.ParseDocument(data)
-	if err != nil {
-		if ve, ok := err.(*openbindings.ValidationError); ok {
-			return ve.Problems
-		}
-		return []string{err.Error()}
-	}
-	if err := iface.Validate(); err != nil {
-		if ve, ok := err.(*openbindings.ValidationError); ok {
+	if _, _, err := openbindings.ValidateDocument(data); err != nil {
+		var ve *openbindings.ValidationError
+		if errors.As(err, &ve) {
 			return ve.Problems
 		}
 		return []string{err.Error()}

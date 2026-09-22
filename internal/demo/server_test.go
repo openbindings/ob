@@ -31,7 +31,7 @@ func TestServedDemoOBIRewritesPortAndValidates(t *testing.T) {
 	if err != nil {
 		t.Fatalf("parse served OBI: %v", err)
 	}
-	if err := iface.Validate(); err != nil {
+	if _, err := iface.Validate(); err != nil {
 		t.Fatalf("served OBI fails 0.2.0 validation: %v", err)
 	}
 

@@ -29,8 +29,8 @@ func TestPullSourceInto_DependenciesCreateOverwritePruneLeaveAuthored(t *testing
 			"mine": sourceOwnedOp(openbindings.Operation{Description: "authored consumption point"}),
 		},
 		Dependencies: map[string]openbindings.DependencyEntry{
-			"a":     sourceOwnedDependency(openbindings.DependencyEntry{Operation: "onA"}),
-			"b":     sourceOwnedDependency(openbindings.DependencyEntry{Operation: "onB"}),
+			"a":      sourceOwnedDependency(openbindings.DependencyEntry{Operation: "onA"}),
+			"b":      sourceOwnedDependency(openbindings.DependencyEntry{Operation: "onB"}),
 			"byHand": {Operation: "mine"}, // hand-authored: must survive
 		},
 	}

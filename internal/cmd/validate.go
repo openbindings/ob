@@ -6,44 +6,43 @@ import (
 )
 
 func newValidateCmd() *cobra.Command {
-	var (
-		strict bool
-		quiet  bool
-	)
+	var quiet bool
 
 	cmd := &cobra.Command{
 		Use:   "validate <locator>",
-		Short: "Validate an OpenBindings interface document",
-		Long: `Validate an OpenBindings interface document against the spec.
+		Short: "Validate an OpenBindings interface document and report its conformance conclusion",
+		Long: `Validate an OpenBindings interface document against the core
+specification's document rules and report its conformance conclusion.
 
 The locator may be a local file path, HTTP(S) URL, or exec: reference.
 
-Checks structural correctness: required fields, operation kinds, alias
-uniqueness, binding source references, transform validity, and more.
+The conclusion is one of:
+  conformant                every rule was checked and none is violated
+  non-conformant            at least one violation was established
+  conformance undetermined  no violation, but some rules are inconclusive
 
-A document declaring a too-new OpenBindings version (a higher major, or
-while pre-1.0 a higher minor, than this build supports) is refused in every
-mode, per OBI-T-04.
+A rule is inconclusive when deciding it needs knowledge the core does not
+carry, such as whether each binding identifies its target, which only its
+binding specification decides. Unknown fields are ignored and reported as
+diagnostics (OBI-T-02).
 
-With --strict, additionally rejects unknown (non-x-) fields.
+A document declaring a version this build does not support is refused
+rather than validated (OBI-T-04).
 
-Exit code 0 if valid, 1 if invalid or an error occurred.
+Exit code 1 if the document is non-conformant, refused, or cannot be
+resolved; 0 otherwise.
 
 Examples:
   ob validate interface.json
   ob validate https://api.example.com
   ob validate exec:my-server
-  ob validate interface.json --strict
   ob validate interface.json -F json`,
 		Args: cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			report := app.ValidateInterface(app.ValidateInput{
-				Locator: args[0],
-				Strict:  strict,
-			})
+			report := app.ValidateInterface(app.ValidateInput{Locator: args[0]})
 
 			exitCode := 0
-			if report.Error != nil || !report.Valid {
+			if report.Failed() {
 				exitCode = 1
 			}
 
@@ -56,7 +55,6 @@ Examples:
 	}
 
 	cmd.Flags().BoolVarP(&quiet, "quiet", "q", false, "exit code only, no output")
-	cmd.Flags().BoolVar(&strict, "strict", false, "reject unknown (non-x-) fields")
 
 	return cmd
 }

@@ -10,9 +10,8 @@ import (
 	"time"
 
 	openbindings "github.com/openbindings/openbindings-go"
-
 	"github.com/openbindings/openbindings-go/invoke"
-
+	"github.com/openbindings/openbindings-go/jsonvalue"
 	"github.com/openbindings/openbindings-go/synthesize"
 )
 
@@ -154,7 +153,7 @@ type SourcePullInput struct {
 
 // SourcePullOutput reports what a pull changed. Each field is the set of keys
 // affected (count = len); no redundant counts. Interface carries the resulting
-// document itself — contract-required, like ConformResult/MergeResult: a wire
+// document itself — contract-required, like CorrespondResult/MergeResult: a wire
 // consumer pulling an inline interface has no file to read the result back
 // from, so the report is the only channel that can return it.
 type SourcePullOutput struct {
@@ -608,7 +607,7 @@ func reReadAndDerive(ctx context.Context, iface *openbindings.Interface, key, ob
 	// Derive from a copy carrying fresh inline content, to bypass the invoker's
 	// in-process spec cache without persisting content into the stored source.
 	deriveSrc := src
-	deriveSrc.Content = openbindings.TextContent(string(data))
+	deriveSrc.Content = jsonvalue.TextContent(string(data))
 	derived, derr := deriveFromSourceContext(ctx, deriveSrc, key, obiDir)
 	if derr != nil {
 		return DeriveResult{}, false, fmt.Sprintf("source %q: derive failed: %v", key, derr)

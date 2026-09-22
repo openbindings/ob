@@ -7,6 +7,7 @@ import (
 	"sync"
 
 	openbindings "github.com/openbindings/openbindings-go"
+	"github.com/openbindings/openbindings-go/bindingsupport"
 )
 
 // BindingSpecInfo describes a supported binding specification for display and
@@ -50,7 +51,7 @@ func RenderBindingSpecList(formats []BindingSpecInfo) string {
 }
 
 // RenderBindingSpecVerdicts returns a human-friendly exact support report.
-func RenderBindingSpecVerdicts(verdicts []openbindings.BindingSpecVerdict) string {
+func RenderBindingSpecVerdicts(verdicts []bindingsupport.BindingSpecVerdict) string {
 	if len(verdicts) == 0 {
 		return "No binding specifications requested."
 	}
@@ -101,12 +102,12 @@ func ListBindingSpecs() []BindingSpecInfo {
 // CheckBindingSpecs authoritatively checks ob's native support for exact,
 // opaque identifiers. The SDK helper provides de-duplication and preserves
 // first-occurrence order.
-func CheckBindingSpecs(bindingSpecs []string) []openbindings.BindingSpecVerdict {
-	supported := make([]openbindings.BindingSpecInfo, 0, len(getNativeTokens()))
+func CheckBindingSpecs(bindingSpecs []string) []bindingsupport.BindingSpecVerdict {
+	supported := make([]bindingsupport.BindingSpecInfo, 0, len(getNativeTokens()))
 	for _, bindingSpec := range getNativeTokens() {
-		supported = append(supported, openbindings.BindingSpecInfo{BindingSpec: bindingSpec})
+		supported = append(supported, bindingsupport.BindingSpecInfo{BindingSpec: bindingSpec})
 	}
-	return openbindings.CheckBindingSpecs(bindingSpecs, supported)
+	return bindingsupport.CheckBindingSpecs(bindingSpecs, supported)
 }
 
 func getNativeTokens() []string {

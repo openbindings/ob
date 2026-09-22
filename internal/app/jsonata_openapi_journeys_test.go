@@ -54,7 +54,7 @@ func TestJSONataGeneratedOpenAPIFamilyLocalPeer(t *testing.T) {
 			}
 			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 			defer cancel()
-			result, err := DefaultRuntime().SynthesizeInterfaceWithCoverage(ctx, &synthesize.SynthesizeInput{Sources: []synthesize.SynthesizeSource{{BindingSpec: spec, Content: openbindings.TextContent(artifact)}}})
+			result, err := DefaultRuntime().SynthesizeInterfaceWithCoverage(ctx, &synthesize.SynthesizeInput{Sources: []synthesize.SynthesizeSource{{BindingSpec: spec, Content: jsonvalue.TextContent(artifact)}}})
 			if err != nil {
 				t.Fatal(err)
 			}

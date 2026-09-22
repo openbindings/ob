@@ -7,10 +7,10 @@ import (
 // alwaysYes is a confirm callback that accepts every prompted change.
 func alwaysYes(string, string) bool { return true }
 
-// TestConform_ScaffoldsMissingOperation verifies that an operation present in
+// TestCorrespond_ScaffoldsMissingOperation verifies that an operation present in
 // the reference interface but absent from the target is scaffolded into the
 // target keyed by the contract operation name, with its schemas copied.
-func TestConform_ScaffoldsMissingOperation(t *testing.T) {
+func TestCorrespond_ScaffoldsMissingOperation(t *testing.T) {
 	dir := t.TempDir()
 
 	contract := minimalInterface(map[string]any{
@@ -29,7 +29,7 @@ func TestConform_ScaffoldsMissingOperation(t *testing.T) {
 	contractPath := writeInterface(t, dir, "contract.json", contract)
 	targetPath := writeInterface(t, dir, "target.json", minimalInterface(map[string]any{}))
 
-	out := Conform(ConformInput{
+	out := Correspond(CorrespondInput{
 		InterfaceLocator: contractPath,
 		TargetPath:       targetPath,
 		Yes:              true,
@@ -65,12 +65,12 @@ func TestConform_ScaffoldsMissingOperation(t *testing.T) {
 	}
 }
 
-// TestConform_ReplaceAddsAliasWhenKeysDiffer verifies that when the target
+// TestCorrespond_ReplaceAddsAliasWhenKeysDiffer verifies that when the target
 // satisfies a contract operation under a different key (matched via the
-// contract operation's alias) but with a drifted schema, conform replaces the
+// contract operation's alias) but with a drifted schema, correspond replaces the
 // schema AND declares the correspondence by appending the contract operation
 // name as an alias (OBI-T-12).
-func TestConform_ReplaceAddsAliasWhenKeysDiffer(t *testing.T) {
+func TestCorrespond_ReplaceAddsAliasWhenKeysDiffer(t *testing.T) {
 	dir := t.TempDir()
 
 	// Contract op "set" aliases "store" so it resolves to the target's "store".
@@ -102,7 +102,7 @@ func TestConform_ReplaceAddsAliasWhenKeysDiffer(t *testing.T) {
 	contractPath := writeInterface(t, dir, "contract.json", contract)
 	targetPath := writeInterface(t, dir, "target.json", target)
 
-	out := Conform(ConformInput{
+	out := Correspond(CorrespondInput{
 		InterfaceLocator: contractPath,
 		TargetPath:       targetPath,
 		Yes:              true,
@@ -125,7 +125,7 @@ func TestConform_ReplaceAddsAliasWhenKeysDiffer(t *testing.T) {
 
 	// Replacement happens in place under the original key, not a new "set" key.
 	if _, ok := loaded.Operations["set"]; ok {
-		t.Error("conform should not create a new 'set' key; it replaces under 'store'")
+		t.Error("correspond should not create a new 'set' key; it replaces under 'store'")
 	}
 	op, ok := loaded.Operations["store"]
 	if !ok {
@@ -144,9 +144,9 @@ func TestConform_ReplaceAddsAliasWhenKeysDiffer(t *testing.T) {
 	}
 }
 
-// TestConform_CompatibleReportsNoChange verifies that an operation already
+// TestCorrespond_CompatibleReportsNoChange verifies that an operation already
 // present and compatible is reported as "compatible" with no modification.
-func TestConform_CompatibleReportsNoChange(t *testing.T) {
+func TestCorrespond_CompatibleReportsNoChange(t *testing.T) {
 	dir := t.TempDir()
 
 	op := map[string]any{
@@ -163,7 +163,7 @@ func TestConform_CompatibleReportsNoChange(t *testing.T) {
 	contractPath := writeInterface(t, dir, "contract.json", minimalInterface(op))
 	targetPath := writeInterface(t, dir, "target.json", minimalInterface(op))
 
-	out := Conform(ConformInput{
+	out := Correspond(CorrespondInput{
 		InterfaceLocator: contractPath,
 		TargetPath:       targetPath,
 		Yes:              true,
@@ -190,10 +190,10 @@ func containsString(xs []string, s string) bool {
 	return false
 }
 
-// TestConform_CompatibleViaAlias verifies pairing through the target's alias:
+// TestCorrespond_CompatibleViaAlias verifies pairing through the target's alias:
 // an operation under a different key that carries the contract name as an
 // alias, with a matching schema, reports "compatible" — no scaffold.
-func TestConform_CompatibleViaAlias(t *testing.T) {
+func TestCorrespond_CompatibleViaAlias(t *testing.T) {
 	schema := map[string]any{
 		"type": "object",
 		"properties": map[string]any{
@@ -211,7 +211,7 @@ func TestConform_CompatibleViaAlias(t *testing.T) {
 		},
 	}))
 
-	out := Conform(ConformInput{
+	out := Correspond(CorrespondInput{
 		ContractInterface: contract,
 		TargetInterface:   target,
 		Yes:               true,
@@ -228,9 +228,9 @@ func TestConform_CompatibleViaAlias(t *testing.T) {
 	}
 }
 
-// TestConform_ReplaceDetailsIncompatible verifies that a paired-but-drifted
+// TestCorrespond_ReplaceDetailsIncompatible verifies that a paired-but-drifted
 // operation is offered for replace, with details naming the failing slot.
-func TestConform_ReplaceDetailsIncompatible(t *testing.T) {
+func TestCorrespond_ReplaceDetailsIncompatible(t *testing.T) {
 	contract := ifaceFromMap(t, minimalInterface(map[string]any{
 		"greet": map[string]any{
 			"input": map[string]any{
@@ -256,7 +256,7 @@ func TestConform_ReplaceDetailsIncompatible(t *testing.T) {
 		},
 	}))
 
-	out := Conform(ConformInput{
+	out := Correspond(CorrespondInput{
 		ContractInterface: contract,
 		TargetInterface:   target,
 		Yes:               true,
@@ -271,9 +271,9 @@ func TestConform_ReplaceDetailsIncompatible(t *testing.T) {
 	if !contains(out.Actions[0].Details, "input") || !contains(out.Actions[0].Details, "incompatible") {
 		t.Errorf("expected details naming the incompatible input slot, got %q", out.Actions[0].Details)
 	}
-	// Doc-in lane: the conformed document rides Result, with the schema replaced.
+	// Doc-in lane: the updated target rides Result, with the schema replaced.
 	if out.Result == nil {
-		t.Fatal("expected conformed document in Result for doc-in conform")
+		t.Fatal("expected the updated target in Result for doc-in correspond")
 	}
 	props, _ := out.Result.Operations["greet"].Input.(map[string]any)["properties"].(map[string]any)
 	if _, ok := props["tone"]; ok {
@@ -281,12 +281,12 @@ func TestConform_ReplaceDetailsIncompatible(t *testing.T) {
 	}
 }
 
-// TestConform_NoSchemasCompatible verifies that operations with no input or
+// TestCorrespond_NoSchemasCompatible verifies that operations with no input or
 // output schemas on either side count as conformant (unspecified slots).
-func TestConform_NoSchemasCompatible(t *testing.T) {
+func TestCorrespond_NoSchemasCompatible(t *testing.T) {
 	m := minimalInterface(map[string]any{"ping": map[string]any{}})
 
-	out := Conform(ConformInput{
+	out := Correspond(CorrespondInput{
 		ContractInterface: ifaceFromMap(t, m),
 		TargetInterface:   ifaceFromMap(t, m),
 		Yes:               true,
@@ -300,10 +300,10 @@ func TestConform_NoSchemasCompatible(t *testing.T) {
 	}
 }
 
-// TestConform_UnverifiedTreatedAsDrift verifies that a slot the engine cannot
+// TestCorrespond_UnverifiedTreatedAsDrift verifies that a slot the engine cannot
 // verify (differing regex patterns → unverified.regex_containment) is treated
 // as drift, not silently reported compatible.
-func TestConform_UnverifiedTreatedAsDrift(t *testing.T) {
+func TestCorrespond_UnverifiedTreatedAsDrift(t *testing.T) {
 	contract := ifaceFromMap(t, minimalInterface(map[string]any{
 		"greet": map[string]any{
 			"input": map[string]any{
@@ -321,7 +321,7 @@ func TestConform_UnverifiedTreatedAsDrift(t *testing.T) {
 		},
 	}))
 
-	out := Conform(ConformInput{
+	out := Correspond(CorrespondInput{
 		ContractInterface: contract,
 		TargetInterface:   target,
 		Yes:               true,

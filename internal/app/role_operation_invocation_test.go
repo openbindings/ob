@@ -14,6 +14,7 @@ import (
 	"time"
 
 	openbindings "github.com/openbindings/openbindings-go"
+	"github.com/openbindings/openbindings-go/bindingsupport"
 	"github.com/openbindings/openbindings-go/formats/openapi"
 	"github.com/openbindings/openbindings-go/invoke"
 	"github.com/openbindings/openbindings-go/jsonvalue"
@@ -199,9 +200,9 @@ func TestRoleOperationInvocationRefusals(t *testing.T) {
 			provider := roleFrameProvider(t)
 			roles := []string{"invoke"}
 			if mode == "wrong-role" {
-				base, _ := openbindings.ValidateDocument(provider)
+				base, _, _ := openbindings.ValidateDocument(provider)
 				expected, _ := RequirementInterface(CapInspect)
-				extra, _ := openbindings.ValidateDocument(roleTestProvider(t, expected))
+				extra, _, _ := openbindings.ValidateDocument(roleTestProvider(t, expected))
 				for key, op := range extra.Operations {
 					base.Operations[key] = op
 				}
@@ -346,7 +347,7 @@ func TestRoleOperationInvocationBatchRanksEachToken(t *testing.T) {
 					if err != nil {
 						t.Error(err)
 					}
-					return openbindings.CheckBindingSpecs(input.BindingSpecs, []openbindings.BindingSpecInfo{{BindingSpec: "example.one@1"}, {BindingSpec: "example.two@1"}, {BindingSpec: "example.native@1"}})
+					return bindingsupport.CheckBindingSpecs(input.BindingSpecs, []bindingsupport.BindingSpecInfo{{BindingSpec: "example.one@1"}, {BindingSpec: "example.two@1"}, {BindingSpec: "example.native@1"}})
 				}}
 				handlers[candidate.Record.ID] = h
 				return invoke.NewOperationInvoker(h, &roleFrameTestInvoker{}), nil

@@ -7,6 +7,7 @@ import (
 	"fmt"
 
 	openbindings "github.com/openbindings/openbindings-go"
+	"github.com/openbindings/openbindings-go/bindingsupport"
 	"github.com/openbindings/openbindings-go/invoke"
 	"github.com/openbindings/openbindings-go/jsonvalue"
 )
@@ -29,7 +30,7 @@ func roleConsumerInterface(catalogue *roleCatalogue, candidate roleCandidate) (*
 		if alternative.identity != candidate.Admission.Alternative {
 			continue
 		}
-		consumer, err := openbindings.ValidateDocument(alternative.value)
+		consumer, _, err := openbindings.ValidateDocument(alternative.value)
 		if err != nil {
 			return nil, errors.New("invalid retained role expectation")
 		}
@@ -66,7 +67,7 @@ func newRoleRuntime(catalogue *roleCatalogue, candidate roleCandidate, runtime i
 	if err != nil {
 		return nil, err
 	}
-	providerValue, err := openbindings.ValidateDocument(candidate.Record.Interface)
+	providerValue, _, err := openbindings.ValidateDocument(candidate.Record.Interface)
 	if err != nil {
 		return nil, errors.New("invalid retained provider interface")
 	}
@@ -189,7 +190,7 @@ func explicitRoleRuntime(ctx context.Context, role DelegateCapability, registrat
 
 // decodeRoleSupport requires actual boolean verdicts; decoding straight into a
 // Go bool would mistake a missing field for an authoritative supported:false.
-func decodeRoleSupport(value any, tokens []string) ([]openbindings.BindingSpecVerdict, error) {
+func decodeRoleSupport(value any, tokens []string) ([]bindingsupport.BindingSpecVerdict, error) {
 	raw, err := jsonvalue.Marshal(value)
 	if err != nil {
 		return nil, errors.New("support query returned an invalid value")
@@ -198,14 +199,14 @@ func decodeRoleSupport(value any, tokens []string) ([]openbindings.BindingSpecVe
 	if err := jsonvalue.Unmarshal(raw, &rows); err != nil || rows == nil {
 		return nil, errors.New("support query must return an array of verdicts")
 	}
-	verdicts := make([]openbindings.BindingSpecVerdict, len(rows))
+	verdicts := make([]bindingsupport.BindingSpecVerdict, len(rows))
 	for i, row := range rows {
 		token, tokenOK := row["bindingSpec"].(string)
 		supported, supportedOK := row["supported"].(bool)
 		if !tokenOK || !supportedOK {
 			return nil, errors.New("support verdict requires bindingSpec and boolean supported")
 		}
-		verdicts[i] = openbindings.BindingSpecVerdict{BindingSpec: token, Supported: supported}
+		verdicts[i] = bindingsupport.BindingSpecVerdict{BindingSpec: token, Supported: supported}
 	}
 	if err := validateBindingSpecVerdicts(tokens, verdicts); err != nil {
 		return nil, err
@@ -226,8 +227,8 @@ func checkBindingSpecOperationNames(cap DelegateCapability) []string {
 
 // validateBindingSpecVerdicts requires one verdict per requested exact token in
 // request order; a provider answering for other tokens is malformed.
-func validateBindingSpecVerdicts(bindingSpecs []string, verdicts []openbindings.BindingSpecVerdict) error {
-	expected := openbindings.CheckBindingSpecs(bindingSpecs, nil)
+func validateBindingSpecVerdicts(bindingSpecs []string, verdicts []bindingsupport.BindingSpecVerdict) error {
+	expected := bindingsupport.CheckBindingSpecs(bindingSpecs, nil)
 	if len(verdicts) != len(expected) {
 		return fmt.Errorf("got %d verdicts, want %d", len(verdicts), len(expected))
 	}
@@ -368,7 +369,7 @@ func selectRoleRuntimesFrom(ctx context.Context, registry *roleRegistry, role De
 	selected := make(map[string]*roleSelection, len(tokens))
 	preferences := make(map[string]json.Number, len(tokens))
 	requested := make([]string, 0, len(tokens))
-	for _, verdict := range openbindings.CheckBindingSpecs(tokens, nil) {
+	for _, verdict := range bindingsupport.CheckBindingSpecs(tokens, nil) {
 		token := verdict.BindingSpec
 		if registrationID == "" && nativeSupports(token) {
 			selected[token] = &roleSelection{Builtin: true}

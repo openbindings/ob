@@ -11,6 +11,7 @@ import (
 	"testing"
 
 	openbindings "github.com/openbindings/openbindings-go"
+	"github.com/openbindings/openbindings-go/bindingsupport"
 	"github.com/openbindings/openbindings-go/invoke"
 	"github.com/openbindings/openbindings-go/jsonvalue"
 )
@@ -26,11 +27,11 @@ type roleTestInvoker struct {
 	result func(string, any) any
 }
 
-func (r *roleTestInvoker) BindingSpecs() []openbindings.BindingSpecInfo {
-	return []openbindings.BindingSpecInfo{{BindingSpec: roleRuntimeTestSpec}}
+func (r *roleTestInvoker) BindingSpecs() []bindingsupport.BindingSpecInfo {
+	return []bindingsupport.BindingSpecInfo{{BindingSpec: roleRuntimeTestSpec}}
 }
-func (r *roleTestInvoker) CheckBindingSpecs(tokens []string) []openbindings.BindingSpecVerdict {
-	return openbindings.CheckBindingSpecs(tokens, r.BindingSpecs())
+func (r *roleTestInvoker) CheckBindingSpecs(tokens []string) []bindingsupport.BindingSpecVerdict {
+	return bindingsupport.CheckBindingSpecs(tokens, r.BindingSpecs())
 }
 func (r *roleTestInvoker) InvokeBinding(ctx context.Context, args *invoke.BindingInvocationArgs) invoke.Invocation[any, any] {
 	call := invoke.NewInvocationImpl[any, any](ctx)
@@ -126,7 +127,7 @@ func TestRoleRuntimeComposition(t *testing.T) {
 			roles, _ := catalogue.list()
 			for _, role := range roles {
 				for _, raw := range role.AcceptedInterfaces {
-					iface, _ := openbindings.ValidateDocument(raw)
+					iface, _, _ := openbindings.ValidateDocument(raw)
 					if len(iface.Dependencies) != 0 {
 						t.Fatal("consumer mutated advertised expectation")
 					}
@@ -175,7 +176,7 @@ func TestRoleRuntimeComposition(t *testing.T) {
 
 func TestRoleRuntimeLifecycle(t *testing.T) {
 	r := testRoleRegistry(t)
-	expected, _ := openbindings.ValidateDocument([]byte(registryTestInterface))
+	expected, _, _ := openbindings.ValidateDocument([]byte(registryTestInterface))
 	input := RoleRegistrationInput{Interface: roleTestProvider(t, expected), Roles: []string{"A"}}
 	a, err := r.register(input)
 	if err != nil {
@@ -243,7 +244,7 @@ func TestRoleRuntimeLifecycle(t *testing.T) {
 
 func TestRoleRuntimeOwnsCandidateSnapshot(t *testing.T) {
 	r := testRoleRegistry(t)
-	expected, _ := openbindings.ValidateDocument([]byte(registryTestInterface))
+	expected, _, _ := openbindings.ValidateDocument([]byte(registryTestInterface))
 	_, err := r.register(RoleRegistrationInput{
 		Interface: roleTestProvider(t, expected), Roles: []string{"A"},
 		RolePreferences: json.RawMessage(`{"A":7}`),
@@ -322,7 +323,7 @@ func TestRoleRuntimeSelection(t *testing.T) {
 			input, _ := decodeOutput[struct {
 				BindingSpecs []string `json:"bindingSpecs"`
 			}](value)
-			return openbindings.CheckBindingSpecs(input.BindingSpecs, []openbindings.BindingSpecInfo{{BindingSpec: token}})
+			return bindingsupport.CheckBindingSpecs(input.BindingSpecs, []bindingsupport.BindingSpecInfo{{BindingSpec: token}})
 		}}
 	}
 	factory := func(candidate roleCandidate) (invoke.ProviderRuntime, invoke.RealizationSelector) {
