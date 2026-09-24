@@ -4,38 +4,16 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/openbindings/ob/internal/app"
 	"github.com/openbindings/ob/internal/cmd"
 )
 
 func main() {
-	// Fires an async GitHub releases probe. The returned function blocks
-	// briefly on exit to print the notification if a newer ob is available.
-	// No-op on CI, when OB_NO_UPDATE_CHECK=1 is set, or for dev builds.
-	notifyUpdate := app.StartUpdateCheck(app.OBVersion)
-	defer notifyUpdate()
-
-	root := cmd.NewRoot()
+	// This branch is a command-surface lab. The production command tree and
+	// handlers remain in internal/cmd, but this executable exposes only a
+	// non-operational preview so its names and shapes can be explored safely.
+	root := cmd.NewSurfaceRoot()
 	if err := root.Execute(); err != nil {
-		if ee, ok := err.(interface {
-			error
-			ExitCode() int
-			UseStderr() bool
-		}); ok {
-			msg := ee.Error()
-			if msg != "" {
-				if ee.UseStderr() {
-					fmt.Fprintln(os.Stderr, msg)
-				} else {
-					fmt.Fprintln(os.Stdout, msg)
-				}
-			}
-			notifyUpdate()
-			os.Exit(ee.ExitCode())
-		}
-
 		fmt.Fprintln(os.Stderr, err.Error())
-		notifyUpdate()
-		os.Exit(1)
+		os.Exit(2)
 	}
 }
