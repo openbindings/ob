@@ -33,9 +33,17 @@ func NewNextSurfaceRoot(variant string) *cobra.Command {
 them, check them, compare them with shared contracts, and use them to call
 the services they describe.
 
+Exit status, for every command:
+  0    done, or yes
+  1    failed, or no
+  2    usage error
+  3    refused; nothing was done
+  4    no verdict (a check could not decide)
+  130  cancelled
+
 PREVIEW: this build shows the proposed command surface. Commands answer from
 a built-in sample document (a Task Manager API); nothing is read, written,
-or called.`,
+or called. ob invoke reads the input values you give it.`,
 		SilenceUsage:  true,
 		SilenceErrors: true,
 		Annotations:   map[string]string{"variant": variant},
@@ -49,8 +57,12 @@ or called.`,
 		RunE: nxRootRun,
 	}
 	root.SetVersionTemplate("ob {{.Version}}\n")
-	root.CompletionOptions.DisableDefaultCmd = true
-	root.SetFlagErrorFunc(func(cmd *cobra.Command, err error) error { return err })
+	root.SetFlagErrorFunc(func(cmd *cobra.Command, err error) error {
+		if strings.Contains(err.Error(), "unknown flag: --json") {
+			return fmt.Errorf("%v; did you mean -F json?", err)
+		}
+		return err
+	})
 	root.Flags().Bool("openbindings", false, "print ob's own OBI and exit")
 	root.Flags().Bool("usage-spec", false, "print ob's usage spec (usage.kdl) and exit")
 	root.Flags().Bool("agent-primer", false, "print the OpenBindings primer for AI agents and exit")
@@ -65,7 +77,7 @@ or called.`,
 	} {
 		root.AddGroup(g)
 	}
-	nxAdd(root, "docs", nxInitCmd(), nxShowCmd(), nxValidateCmd(), nxDiffCmd(), nxCompatCmd(), nxFmtCmd(), nxPatchCmd(), nxMergeCmd())
+	nxAdd(root, "docs", nxInitCmd(), nxShowCmd(), nxSetCmd(), nxValidateCmd(), nxDiffCmd(), nxCompatCmd(), nxFmtCmd(), nxPatchCmd(), nxMergeCmd())
 	if variant == "adopt" {
 		nxAdd(root, "docs", nxAdoptCmd())
 	}
@@ -80,9 +92,9 @@ or called.`,
   ob source add tasks.obi.json httpApi --kind example.openapi@1 --content '{"location":"https://api.example.com/openapi.json"}'
   ob binding add tasks.obi.json createTask.http --operation createTask --source httpApi --content '{"target":"#/paths/~1tasks/post"}'
   ob validate tasks.obi.json
-  ob invoke tasks.obi.json createTask --input '{"title":"Write the docs"}'`
+  ob invoke tasks.obi.json completeTask --input '{"id":"t_1"}'`
 	if variant == "binding-invoke" {
-		root.Example = strings.Replace(root.Example, "invoke tasks.obi.json createTask ", "invoke tasks.obi.json createTask.http ", 1)
+		root.Example = strings.Replace(root.Example, "invoke tasks.obi.json completeTask ", "invoke tasks.obi.json completeTask.http ", 1)
 	}
 	return root
 }
@@ -132,16 +144,55 @@ cmd "show" help="Show a document" { … }
 // nxCtx collects a preview's output. Every command prints the preview banner
 // on stderr, then any notes, then its stdout.
 type nxCtx struct {
-	cmd   *cobra.Command
-	args  []string
-	out   strings.Builder
-	notes []string
+	cmd    *cobra.Command
+	args   []string
+	out    strings.Builder
+	notes  []string
+	banner string
+	isLive bool
 }
 
-func (c *nxCtx) variant() string           { return c.cmd.Root().Annotations["variant"] }
-func (c *nxCtx) println(s string)          { c.out.WriteString(s + "\n") }
+const nxBanner = "ob preview: sample output; nothing was read, written, or called"
+
+// live switches to printing as output happens, for commands that stream.
+func (c *nxCtx) live() {
+	if c.isLive {
+		return
+	}
+	c.isLive = true
+	stderr := c.cmd.ErrOrStderr()
+	fmt.Fprintln(stderr, c.bannerText())
+	for _, n := range c.notes {
+		fmt.Fprintln(stderr, n)
+	}
+	c.notes = nil
+	fmt.Fprint(c.cmd.OutOrStdout(), c.out.String())
+	c.out.Reset()
+}
+
+func (c *nxCtx) bannerText() string {
+	if c.banner != "" {
+		return c.banner
+	}
+	return nxBanner
+}
+
+func (c *nxCtx) variant() string { return c.cmd.Root().Annotations["variant"] }
+func (c *nxCtx) println(s string) {
+	if c.isLive {
+		fmt.Fprintln(c.cmd.OutOrStdout(), s)
+		return
+	}
+	c.out.WriteString(s + "\n")
+}
 func (c *nxCtx) printf(f string, a ...any) { fmt.Fprintf(&c.out, f, a...) }
-func (c *nxCtx) note(s string)             { c.notes = append(c.notes, s) }
+func (c *nxCtx) note(s string) {
+	if c.isLive {
+		fmt.Fprintln(c.cmd.ErrOrStderr(), s)
+		return
+	}
+	c.notes = append(c.notes, s)
+}
 func (c *nxCtx) str(flag string) string {
 	v, _ := c.cmd.Flags().GetString(flag)
 	return v
@@ -214,7 +265,9 @@ func nxRun(cmd *cobra.Command, args []string, run func(*nxCtx) error) error {
 		return usage.err
 	}
 	stderr := cmd.ErrOrStderr()
-	fmt.Fprintln(stderr, "ob preview: sample output; nothing was read, written, or called")
+	if !c.isLive {
+		fmt.Fprintln(stderr, c.bannerText())
+	}
 	for _, n := range c.notes {
 		fmt.Fprintln(stderr, n)
 	}
@@ -279,12 +332,8 @@ func nxApplyEditMode(root *cobra.Command, variant string) {
 		if cmd.Annotations["edits"] == "true" {
 			if variant == "filter-edits" {
 				_ = cmd.Flags().MarkHidden("dry-run")
-				if cmd.Flags().Lookup("output") == nil {
-					cmd.Flags().StringP("output", "o", "", "write the resulting document to a file instead of stdout")
-					cmd.Long += "\n\nPrints the resulting document to stdout; <obi> is not changed. Use -o to\nsave the result to a file."
-				} else {
-					cmd.Long += "\n\nPrints the resulting document to stdout; <obi> is not changed. Redirect\nstdout to save it (--output is taken by the example's output value)."
-				}
+				cmd.Flags().StringP("out", "o", "", "write the resulting document to a file instead of stdout")
+				cmd.Long += "\n\nPrints the resulting document to stdout; <obi> is not changed. Use -o to\nsave the result to a file."
 			} else {
 				cmd.Long += "\n\nChanges <obi> in place. Give - as <obi> to read a document from stdin and\nprint the result instead, or use --dry-run to see the change without\nwriting it."
 			}
@@ -306,8 +355,18 @@ func (c *nxCtx) doc(arg string) *nxObj {
 
 // wrote reports an edit the way ob would, and shows the change.
 func (c *nxCtx) wrote(path string, before, after *nxObj, summary string) error {
+	if nxIsURL(path) {
+		return nxUsageErr("ob edits a document on this machine; save it first with ob fetch %s -o <file>", path)
+	}
+	if nxCompact(before) == nxCompact(after) {
+		c.note(path + ": no change")
+		return nil
+	}
+	if added := nxNewViolations(before, after); len(added) > 0 {
+		return nxFail(1, "refused: this change would make %s non-conformant, so nothing was written:\n  %s", path, strings.Join(added, "\n  "))
+	}
 	if c.variant() == "filter-edits" {
-		if dest := c.str("output"); dest != "" {
+		if dest := c.str("out"); dest != "" {
 			c.note("Wrote " + dest)
 			c.note("(preview) the document that would be written:")
 		}

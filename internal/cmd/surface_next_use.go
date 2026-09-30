@@ -31,294 +31,20 @@ URL directly.`,
 				c.note("(looked up " + trimmed + "/.well-known/openbindings)")
 			}
 			c.note("(preview: nothing was fetched; showing the sample document)")
-			if out := c.str("output"); out != "" {
+			if out := c.str("out"); out != "" {
 				c.note("Saved " + out)
 				c.note("(preview) the document that would be saved:")
 			}
 			c.println(nxPretty(nxFixture()))
 			return nil
 		})
-	cmd.Flags().StringP("output", "o", "", "save the document to a file")
+	cmd.Flags().StringP("out", "o", "", "save the document to a file")
 	return cmd
 }
 
 // ------------------------------------------------------------------- invoke
 
-func nxInvokeCmd(variant string) *cobra.Command {
-	if variant == "binding-invoke" {
-		return nxBindingInvokeCmd()
-	}
-	cmd := nxLeaf("invoke", "invoke <obi> <operation>", "Call an operation", `Call an operation, by name or alias, and print each output value as one
-line of JSON.
-
-ob chooses a binding: of the operation's bindings whose kind it can invoke,
-it passes over deprecated ones unless nothing else is left, then takes the
-highest --preference. If that still leaves a tie, it stops and lists them.
---binding chooses one yourself.
-
---input is the input value (JSON, @file, or - for stdin); ob checks it
-against the operation's input schema before sending anything (--no-check
-skips that). Credentials and settings come from --context, or the context
-named "default". If the service asks for something the context lacks, ob
-asks you when attached to a terminal, and stops otherwise.
-
---events prints one event per line instead (each output, input closing,
-completion, or error), for programs that need the whole exchange.
-
-Exit status: 0 completed; 1 the operation reported failure; 2 usage error;
-3 refused before anything was sent.`,
-		`  ob invoke tasks.obi.json createTask --input '{"title":"Write the docs"}'
-  ob invoke tasks.obi.json listTasks --input '{}' | jq -r '.[].title'
-  ob invoke https://api.example.com acme.tasks.createTask --input @task.json --context staging`,
-		nxArgs(2, 2), nxInvoke)
-	cmd.Flags().String("binding", "", "use this binding instead of letting ob choose")
-	cmd.Flags().String("input", "", "the input value: JSON, @file, or -")
-	cmd.Flags().String("context", "", "the stored context to use (default \"default\")")
-	cmd.Flags().Bool("events", false, "print every event, not just output values")
-	cmd.Flags().Bool("no-check", false, "send the input without checking it against the schema")
-	return cmd
-}
-
-func nxInvoke(c *nxCtx) error {
-	doc := c.doc(c.args[0])
-	key, ok := nxResolveOperation(doc, c.args[1])
-	if !ok {
-		return nxFail(2, "no operation named %q in %s; ob operation list shows them", c.args[1], c.args[0])
-	}
-	if err := nxCheckContext(c); err != nil {
-		return err
-	}
-	bindings := nxReferrers(doc, "bindings", "operation", key)
-	if len(bindings) == 0 {
-		msg := fmt.Sprintf("operation %s has no bindings in %s, so there is no way to call it", key, c.args[0])
-		if deps := nxReferrers(doc, "dependencies", "operation", key); len(deps) > 0 {
-			msg += fmt.Sprintf(" (the document only calls it, at %s)", strings.Join(deps, ", "))
-		}
-		return nxFail(3, "%s", msg)
-	}
-	chosen := c.str("binding")
-	kindOf := func(b string) string {
-		src := fmt.Sprint(doc.Obj("bindings").Obj(b).Get("source"))
-		return fmt.Sprint(doc.Obj("sources").Obj(src).Get("kind"))
-	}
-	if chosen != "" {
-		if !nxContains(bindings, chosen) {
-			return nxFail(2, "binding %q does not carry out %s; its bindings are %s", chosen, key, strings.Join(bindings, ", "))
-		}
-		if _, ok := nxSupports(kindOf(chosen), "invoke"); !ok {
-			return nxFail(3, "this ob cannot invoke %s bindings; ob kind list shows what it can handle", kindOf(chosen))
-		}
-	} else {
-		var usable, current []string
-		for _, b := range bindings {
-			if _, ok := nxSupports(kindOf(b), "invoke"); ok {
-				usable = append(usable, b)
-				if d, _ := doc.Obj("bindings").Obj(b).Get("deprecated").(bool); !d {
-					current = append(current, b)
-				}
-			}
-		}
-		if len(usable) == 0 {
-			return nxFail(3, "this ob cannot invoke any of %s's bindings (%s)", key, strings.Join(bindings, ", "))
-		}
-		if len(current) > 0 {
-			usable = current
-		}
-		best, tied := "", []string{}
-		bestPref := int64(-1 << 62)
-		for _, b := range usable {
-			p := int64(-1 << 61)
-			if v := doc.Obj("bindings").Obj(b).Get("preference"); v != nil {
-				fmt.Sscan(fmt.Sprint(v), &p)
-			}
-			switch {
-			case p > bestPref:
-				best, bestPref, tied = b, p, []string{b}
-			case p == bestPref:
-				tied = append(tied, b)
-			}
-		}
-		if len(tied) > 1 {
-			return nxFail(3, "%s has %d equally preferred bindings (%s); choose one with --binding", key, len(tied), strings.Join(tied, ", "))
-		}
-		chosen = best
-		why := kindOf(chosen)
-		if bestPref > -1<<61 {
-			why += fmt.Sprintf(", preference %d", bestPref)
-		}
-		c.note(fmt.Sprintf("using binding %s (%s)", chosen, why))
-	}
-	input, hasInput, err := c.value("input")
-	if err != nil {
-		return err
-	}
-	if hasInput && !c.on("no-check") {
-		problems, checked, err := nxCheck(doc, key, "input", input)
-		if err != nil {
-			return err
-		}
-		if checked && len(problems) > 0 {
-			return nxFail(3, "the input does not fit %s's input schema, so nothing was sent:\n  %s", key, strings.Join(problems, "\n  "))
-		}
-	}
-	c.note("(preview: nothing was called; showing an illustrative result)")
-	var result any
-	switch key {
-	case "createTask":
-		title := "Write the docs"
-		if obj, ok := input.(*nxObj); ok {
-			if t, ok := obj.Get("title").(string); ok {
-				title = t
-			}
-		}
-		result = nxNewObj().Set("id", "t_2").Set("title", title).Set("done", false)
-	case "listTasks":
-		result = nxMustParse(`[{"id":"t_1","title":"Write the docs","done":false},{"id":"t_2","title":"Review the spec","done":true}]`)
-	case "completeTask":
-		id := "t_1"
-		if obj, ok := input.(*nxObj); ok {
-			if s, ok := obj.Get("id").(string); ok {
-				id = s
-			}
-		}
-		result = nxNewObj().Set("id", id).Set("title", "Write the docs").Set("done", true)
-	default:
-		result = nxNewObj()
-	}
-	if c.on("events") {
-		c.println(nxCompact(nxNewObj().Set("event", "output").Set("value", result)))
-		c.println(`{"event":"complete"}`)
-		return nil
-	}
-	c.println(nxCompact(result))
-	return nil
-}
-
-func nxCheckContext(c *nxCtx) error {
-	if !c.set("context") {
-		return nil
-	}
-	for _, ctx := range nxContexts {
-		if ctx.name == c.str("context") {
-			return nil
-		}
-	}
-	return nxFail(2, "no context named %q; ob context list shows them", c.str("context"))
-}
-
-func nxBindingInvokeCmd() *cobra.Command {
-	cmd := nxLeaf("invoke", "invoke <obi> <binding>", "Call one exact binding", `Call one binding exactly; ob does not choose among bindings. --input is the
-input value (JSON, @file, or - for stdin). Output is one JSON event per line:
-each output value, then completion or an error.`,
-		`  ob invoke tasks.obi.json createTask.http --input '{"title":"Write the docs"}'`,
-		nxArgs(2, 2), func(c *nxCtx) error {
-			doc := c.doc(c.args[0])
-			b, err := c.entry(doc, "bindings", "binding", c.args[1])
-			if err != nil {
-				return err
-			}
-			if err := nxCheckContext(c); err != nil {
-				return err
-			}
-			if _, _, err := c.value("input"); err != nil {
-				return err
-			}
-			c.note("(preview: nothing was called; showing an illustrative result)")
-			c.println(nxCompact(nxNewObj().Set("event", "output").Set("binding", c.args[1]).Set("value", nxNewObj().Set("id", "t_2").Set("operation", b.Get("operation")))))
-			c.println(nxCompact(nxNewObj().Set("event", "complete").Set("binding", c.args[1])))
-			return nil
-		})
-	cmd.Flags().String("input", "", "the input value: JSON, @file, or -")
-	cmd.Flags().String("context", "", "the stored context to use (default \"default\")")
-	return cmd
-}
-
 // ------------------------------------------------------------------ context
-
-func nxContextCmd() *cobra.Command {
-	set := nxLeaf("context.set", "set <name>", "Create or change a context", `Create or change a named context: the credentials and settings ob uses
-when it calls services. Give a secret as - to read it from stdin and keep it
-out of your shell history. --config sets a value a binding needs that its
-artifact does not say, such as which server to use.`,
-		`  ob context set default --bearer-token -
-  ob context set staging --config server=https://staging.example.com --header X-Client=ob`,
-		nxArgs(1, 1), func(c *nxCtx) error {
-			if err := nxName("context name", c.args[0]); err != nil {
-				return err
-			}
-			if err := nxNeedsChange(c); err != nil {
-				return err
-			}
-			var changes []string
-			for _, f := range []string{"bearer-token", "api-key", "basic-user", "basic-password"} {
-				if c.set(f) {
-					changes = append(changes, strings.ReplaceAll(f, "-", " ")+" set")
-				}
-			}
-			for _, h := range c.strs("header") {
-				if !strings.Contains(h, "=") {
-					return nxUsageErr("--header takes NAME=VALUE")
-				}
-				changes = append(changes, "header "+strings.SplitN(h, "=", 2)[0]+" set")
-			}
-			for _, cfg := range c.strs("config") {
-				if !strings.Contains(cfg, "=") {
-					return nxUsageErr("--config takes POINT=VALUE")
-				}
-				changes = append(changes, "config "+strings.SplitN(cfg, "=", 2)[0]+" set")
-			}
-			changes = append(changes, nxPrefix("removed ", c.strs("unset"))...)
-			c.println(fmt.Sprintf("Context %s: %s", c.args[0], strings.Join(changes, ", ")))
-			return nil
-		})
-	set.Flags().String("bearer-token", "", "a bearer token (or - to read it from stdin)")
-	set.Flags().String("api-key", "", "an API key (or - to read it from stdin)")
-	set.Flags().String("basic-user", "", "a user name for HTTP Basic")
-	set.Flags().String("basic-password", "", "a password for HTTP Basic (or - to read it from stdin)")
-	set.Flags().StringArray("header", nil, "a header to send, NAME=VALUE (repeatable)")
-	set.Flags().StringArray("config", nil, "a configuration value, POINT=VALUE (repeatable)")
-	set.Flags().StringArray("unset", nil, "remove something from the context (repeatable)")
-
-	list := nxListFormats(nxLeaf("context.list", "list", "List contexts", "List stored contexts and what each holds. Secrets are masked.",
-		`  ob context list`, nxArgs(0, 0), func(c *nxCtx) error {
-			var rows [][]string
-			var out []any
-			for _, ctx := range nxContexts {
-				rows = append(rows, []string{ctx.name, strings.Join(ctx.holds, "; ")})
-				out = append(out, nxNewObj().Set("name", ctx.name).Set("holds", nxToAny(ctx.holds)))
-			}
-			c.render(out, func() { c.table("NAME\tHOLDS", rows) })
-			return nil
-		}))
-	show := nxListFormats(nxLeaf("context.show", "show <name>", "Show a context", "Show what a context holds. Secrets are masked.",
-		`  ob context show staging`, nxArgs(1, 1), func(c *nxCtx) error {
-			for _, ctx := range nxContexts {
-				if ctx.name == c.args[0] {
-					c.render(nxNewObj().Set("name", ctx.name).Set("holds", nxToAny(ctx.holds)), func() {
-						c.println(ctx.name)
-						for _, h := range ctx.holds {
-							c.println("  " + h)
-						}
-					})
-					return nil
-				}
-			}
-			return nxFail(1, "no context named %q; ob context list shows them", c.args[0])
-		}))
-	remove := nxLeaf("context.remove", "remove <name>", "Remove a context", "Remove a stored context and everything in it.",
-		`  ob context remove staging`, nxArgs(1, 1), func(c *nxCtx) error {
-			for _, ctx := range nxContexts {
-				if ctx.name == c.args[0] {
-					c.println("Removed context " + ctx.name)
-					return nil
-				}
-			}
-			return nxFail(1, "no context named %q", c.args[0])
-		})
-	return nxGroupCmd("context", "Store credentials and settings for calls", `A context holds the credentials and settings ob uses when it calls a
-service: tokens, keys, headers, and configuration values. ob invoke and
-ob mcp take --context; the context named "default" is used otherwise.`, set, list, show, remove)
-}
 
 func nxPrefix(p string, list []string) []string {
 	var out []string
@@ -326,6 +52,158 @@ func nxPrefix(p string, list []string) []string {
 		out = append(out, p+s)
 	}
 	return out
+}
+
+func nxContextCmd() *cobra.Command {
+	scopeHelp := `A scope is the exact string a binding names when it asks for context,
+usually a service's origin such as https://api.example.com. ob prints it,
+ready to copy, whenever a binding asks for something that is not stored.`
+	set := nxLeaf("context.set", "set <scope>", "Store context for a scope", `Store what bindings need beyond their input, for one scope: credentials,
+headers, and configuration values. ob uses a stored context only for that
+exact scope, and only when the binding says the value may be reused.
+
+Give a secret as - to read it from stdin and keep it out of your shell
+history. --config answers a configuration point a binding asks for, such as
+which server to use. --value replaces the whole context with one JSON value.
+
+--token-provider pins a token service: when a binding asks this scope for a
+bearer token, ob mints one from that provider (and only that provider) with
+the credential given by --token-credential, and renews it before it expires.
+
+`+scopeHelp,
+		`  ob context set https://api.example.com --bearer-token -
+  ob context set https://api.example.com/openapi.json --config server='{"url":"https://eu.example.com"}'
+  ob context set https://api.example.com --token-provider https://auth.example.com --token-credential -`,
+		nxArgs(1, 1), func(c *nxCtx) error {
+			if c.args[0] == "" {
+				return nxUsageErr("a scope must not be empty")
+			}
+			if err := nxNeedsChange(c); err != nil {
+				return err
+			}
+			if c.set("value") {
+				for _, f := range []string{"bearer-token", "access-token", "api-key", "basic", "header", "config", "unset", "token-provider"} {
+					if c.set(f) {
+						return nxUsageErr("--value replaces the whole context, so it does not combine with --%s", f)
+					}
+				}
+				if _, _, err := c.value("value"); err != nil {
+					return err
+				}
+				c.println("Replaced the context for " + c.args[0])
+				return nil
+			}
+			if c.set("token-provider") != c.set("token-credential") {
+				return nxUsageErr("--token-provider and --token-credential go together")
+			}
+			var changes []string
+			for _, f := range []struct{ flag, field string }{{"bearer-token", "bearerToken"}, {"access-token", "accessToken"}, {"api-key", "apiKey"}} {
+				if c.set(f.flag) {
+					changes = append(changes, f.field)
+				}
+			}
+			if c.on("basic") {
+				c.note("(preview: ob would ask for a user name and password here)")
+				changes = append(changes, "basic")
+			}
+			for _, h := range c.strs("header") {
+				if !strings.Contains(h, "=") {
+					return nxUsageErr("--header takes NAME=VALUE")
+				}
+				changes = append(changes, "headers."+strings.SplitN(h, "=", 2)[0])
+			}
+			for _, cfg := range c.strs("config") {
+				if !strings.Contains(cfg, "=") {
+					return nxUsageErr("--config takes POINT=VALUE")
+				}
+				changes = append(changes, "configuration."+strings.SplitN(cfg, "=", 2)[0])
+			}
+			if c.set("token-provider") {
+				changes = append(changes, "tokenProvider")
+			}
+			for _, u := range c.strs("unset") {
+				for _, ch := range changes {
+					if ch == u {
+						return nxUsageErr("%s is both set and unset; choose one", u)
+					}
+				}
+			}
+			line := "Context for " + c.args[0] + ":"
+			if len(changes) > 0 {
+				line += " set " + strings.Join(changes, ", ")
+			}
+			if u := c.strs("unset"); len(u) > 0 {
+				line += "; removed " + strings.Join(u, ", ")
+			}
+			c.println(line)
+			return nil
+		})
+	set.Flags().String("bearer-token", "", "a bearer token (- reads it from stdin)")
+	set.Flags().String("access-token", "", "an OAuth 2.0 access token (- reads it from stdin)")
+	set.Flags().String("api-key", "", "an API key (- reads it from stdin)")
+	set.Flags().Bool("basic", false, "ask for an HTTP Basic user name and password")
+	set.Flags().StringArray("header", nil, "a header to send, NAME=VALUE (repeatable)")
+	set.Flags().StringArray("config", nil, "a configuration value, POINT=VALUE; VALUE is JSON or a bare string (repeatable)")
+	set.Flags().String("value", "", "replace the whole context: JSON, @file, or -")
+	set.Flags().String("token-provider", "", "mint bearer tokens from this provider (a document path or URL)")
+	set.Flags().String("token-credential", "", "the credential to mint with (- reads it from stdin)")
+	set.Flags().StringArray("unset", nil, "remove a field, as ob context show names it (e.g. bearerToken, headers.X-Client)")
+
+	list := nxListFormats(nxLeaf("context.list", "list", "List stored contexts", "List the scopes that have stored context, and what each holds. Secrets are masked.",
+		`  ob context list`, nxArgs(0, 0), func(c *nxCtx) error {
+			var rows [][]string
+			var out []any
+			for _, ctx := range nxContexts {
+				var fields []string
+				for _, h := range ctx.holds {
+					fields = append(fields, h[0])
+				}
+				rows = append(rows, []string{ctx.scope, strings.Join(fields, ", ")})
+				out = append(out, nxNewObj().Set("scope", ctx.scope).Set("fields", nxToAny(fields)))
+			}
+			c.render(out, func() { c.table("SCOPE\tFIELDS", rows) })
+			return nil
+		}))
+	show := nxListFormats(nxLeaf("context.show", "show <scope>", "Show a stored context", `Show what is stored for one scope. Secrets are masked; --reveal prints
+them.`,
+		`  ob context show https://api.example.com`, nxArgs(1, 1), func(c *nxCtx) error {
+			ctx, ok := nxStoredContext(c.args[0])
+			if !ok {
+				return nxFail(1, "nothing is stored for %q; ob context list shows the scopes that have context", c.args[0])
+			}
+			fields := nxNewObj()
+			var rows [][]string
+			for _, h := range ctx.holds {
+				value := h[1]
+				if c.on("reveal") && strings.HasPrefix(value, "••••") {
+					value = "preview-secret-" + strings.TrimPrefix(value, "••••")
+				}
+				fields.Set(h[0], value)
+				rows = append(rows, []string{"  " + h[0], value})
+			}
+			c.render(nxNewObj().Set("scope", ctx.scope).Set("fields", fields), func() {
+				c.println(ctx.scope)
+				c.table("", rows)
+			})
+			return nil
+		}))
+	show.Flags().Bool("reveal", false, "print secrets instead of masking them")
+	remove := nxLeaf("context.remove", "remove <scope>", "Remove a stored context", "Remove everything stored for one scope.",
+		`  ob context remove https://api.example.com/openapi.json`, nxArgs(1, 1), func(c *nxCtx) error {
+			if _, ok := nxStoredContext(c.args[0]); !ok {
+				return nxFail(1, "nothing is stored for %q", c.args[0])
+			}
+			c.println("Removed the context for " + c.args[0])
+			return nil
+		})
+	return nxGroupCmd("context", "Store credentials and settings for calls", `A context holds what a binding needs beyond its input to call a service:
+credentials, headers, and configuration values. ob stores it by scope and
+uses it for its own invocations: only for the exact scope a binding asks
+for, only when the binding says the value may be reused, and only the fields
+that one request needs. Delegates resolve their own context; ob never sends
+them stored context.
+
+`+scopeHelp, set, list, show, remove)
 }
 
 // ------------------------------------------------------------------ codegen
@@ -338,10 +216,13 @@ the way ob invoke does. -o names the output directory.`,
   ob codegen https://api.example.com --lang typescript --package @acme/tasks`,
 		nxArgs(1, 1), func(c *nxCtx) error {
 			lang := c.str("lang")
-			if lang != "go" && lang != "typescript" {
+			if lang == "" {
 				return nxUsageErr("--lang is required: go or typescript")
 			}
-			dir := c.str("output")
+			if lang != "go" && lang != "typescript" {
+				return nxUsageErr("--lang must be go or typescript; ob cannot generate %s yet", lang)
+			}
+			dir := c.str("out")
 			if dir == "" {
 				dir = "."
 			}
@@ -349,13 +230,13 @@ the way ob invoke does. -o names the output directory.`,
 			c.println(fmt.Sprintf("Would write %s:", dir))
 			c.println("  client" + ext + "       the client and its options")
 			c.println("  types" + ext + "        Task, Problem, CreateTaskInput, CompleteTaskInput")
-			c.println("  operations" + ext + "   CreateTask, ListTasks, CompleteTask")
+			c.println("  operations" + ext + "   CreateTask, ListTasks, CompleteTask, ImportTasks, WatchTasks")
 			c.note("skipped events.deliver: it has no bindings")
 			return nil
 		})
 	cmd.Flags().String("lang", "", "go or typescript (required)")
 	cmd.Flags().String("package", "", "the package or module name")
-	cmd.Flags().StringP("output", "o", "", "the directory to write")
+	cmd.Flags().StringP("out", "o", "", "the directory to write")
 	return cmd
 }
 
@@ -440,7 +321,8 @@ For each contract operation that nothing answers to, it prints the two ways
 to meet it: give one of your operations the contract's name with ob
 operation set --add-alias, or add the contract's operation with ob merge.
 
-Exit status: 0 compatible; 1 not compatible.`,
+Exit status: 0 compatible; 1 not compatible; 4 no verdict (some comparison
+could not be decided, and nothing is known to be incompatible).`,
 		`  ob compat tasks.obi.json acme-tasks.obi.json
   ob compat https://api.example.com https://contracts.example.com/acme-tasks.json -q`,
 		nxArgs(2, 2), func(c *nxCtx) error {
@@ -462,8 +344,12 @@ Exit status: 0 compatible; 1 not compatible.`,
 					out = append(out, nxNewObj().Set("operation", cname).Set("satisfied", false).Set("remedies", nxToAny(nxRemedies(c, cname))))
 				}
 			}
+			conclusion := "compatible"
+			if !ok {
+				conclusion = "not compatible"
+			}
 			if !c.on("quiet") {
-				c.render(out, func() {
+				c.render(nxNewObj().Set("conclusion", conclusion).Set("operations", out), func() {
 					verdict := "satisfies"
 					if !ok {
 						verdict = "does not satisfy"
@@ -505,37 +391,28 @@ editors, browsers, and other tools. ob describes itself with an OBI at
 installs the first time; --no-tls serves HTTP only.`,
 		`  ob start
   ob start --port 8080 --no-tls`, nxArgs(0, 0), func(c *nxCtx) error {
-			port := c.str("port")
-			c.println("ob is serving on http://127.0.0.1:" + port)
+			port, _ := c.cmd.Flags().GetInt("port")
+			c.println(fmt.Sprintf("ob is serving on http://127.0.0.1:%d", port))
 			if !c.on("no-tls") {
-				c.println("              and https://127.0.0.1:" + nxNextPort(port))
+				c.println(fmt.Sprintf("              and https://127.0.0.1:%d", port+1))
 			}
-			c.println("Its OBI: http://127.0.0.1:" + port + "/.well-known/openbindings")
+			c.println(fmt.Sprintf("Its OBI: http://127.0.0.1:%d/.well-known/openbindings", port))
 			c.println("Press Ctrl-C to stop.")
 			return nil
 		})
-	cmd.Flags().String("port", "20290", "the HTTP port; HTTPS uses the next one")
+	cmd.Flags().Int("port", 20290, "the HTTP port; HTTPS uses the next one")
 	cmd.Flags().Bool("no-tls", false, "serve HTTP only")
 	return cmd
 }
 
-func nxNextPort(p string) string {
-	var n int
-	fmt.Sscan(p, &n)
-	return fmt.Sprint(n + 1)
-}
-
 func nxMCPCmd() *cobra.Command {
 	cmd := nxLeaf("mcp", "mcp <obi>", "Serve a document's operations as MCP tools", `Run a Model Context Protocol server on stdin and stdout that offers each
-operation with bindings as a tool, and calls it the way ob invoke does.
-<obi> may be a URL, including a running ob start.`,
+operation with bindings as a tool, and calls it the way ob invoke does,
+with the same context rules. <obi> may be a URL, including a running ob start.`,
 		`  ob mcp tasks.obi.json
-  ob mcp https://api.example.com --context staging --operation createTask --operation listTasks`,
+  ob mcp https://api.example.com --operation createTask --operation listTasks`,
 		nxArgs(1, 1), func(c *nxCtx) error {
 			doc := c.doc(c.args[0])
-			if err := nxCheckContext(c); err != nil {
-				return err
-			}
 			var tools, skipped []string
 			for _, key := range nxPartKeys(doc, "operations") {
 				if len(c.strs("operation")) > 0 && !nxContains(c.strs("operation"), key) {
@@ -554,7 +431,6 @@ operation with bindings as a tool, and calls it the way ob invoke does.
 			c.note("Waiting for an MCP client on stdin.")
 			return nil
 		})
-	cmd.Flags().String("context", "", "the stored context to use (default \"default\")")
 	cmd.Flags().StringArray("operation", nil, "offer only this operation (repeatable)")
 	return cmd
 }
@@ -593,7 +469,8 @@ says what this installation can do with one.`,
 or for each. Kinds are compared exactly: example.openapi@1 and
 example.openapi@2 are unrelated kinds.
 
-Exit status with --role: 0 yes; 1 no.`,
+Exit status: 0 this ob can handle it (for --role, or for at least one kind of
+work); 1 it cannot.`,
 		`  ob kind check example.openapi@1
   ob kind check acme.billing-rpc@1 --role invoke`, nxArgs(1, 1), func(c *nxCtx) error {
 			kind := c.args[0]
@@ -613,7 +490,11 @@ Exit status with --role: 0 yes; 1 no.`,
 			for _, r := range roles {
 				handler, ok := nxSupports(kind, r)
 				any = any || ok
-				out.Set(r, ok)
+				entry := nxNewObj().Set("supported", ok)
+				if ok {
+					entry.Set("handler", handler)
+				}
+				out.Set(r, entry)
 				if ok {
 					lines = append(lines, fmt.Sprintf("  %-11s yes (%s)", r, handler))
 				} else {
@@ -634,7 +515,7 @@ Exit status with --role: 0 yes; 1 no.`,
 					}
 				}
 			})
-			if c.set("role") && !any {
+			if !any {
 				return nxFail(1, "")
 			}
 			return nil
@@ -741,6 +622,9 @@ wins. --clear removes the preference instead.`,
 			if !nxContains(d.roles, role) {
 				return nxFail(1, "%s is not registered for %s", d.id, role)
 			}
+			if c.on("clear") && len(c.args) == 2 {
+				return nxUsageErr("--clear removes the preference, so it does not take a number; choose one")
+			}
 			if c.on("clear") {
 				c.println(fmt.Sprintf("%s has no preference for %s now.", d.id, role))
 				return nil
@@ -773,18 +657,30 @@ built-in handler or a delegate, and why.`,
 				return nxUsageErr("--kind is required")
 			}
 			handler, ok := nxSupports(kind, role)
-			if !ok {
-				c.println(fmt.Sprintf("Nothing in this ob can %s %s: no built-in handler, and no delegate registered for %s supports it.", role, kind, role))
-				return nxFail(1, "")
-			}
-			c.println(fmt.Sprintf("To %s %s, ob would use %s.", role, kind, handler))
-			if strings.HasPrefix(handler, "delegate") {
-				c.println("No built-in handler supports this kind; it is the only delegate for " + role + " that does.")
+			report := nxNewObj().Set("role", role).Set("kind", kind)
+			if ok {
+				report.Set("handler", handler)
 			} else {
-				c.println("Built-in handlers come before delegates for this kind.")
+				report.Set("handler", nil)
+			}
+			c.render(report, func() {
+				switch {
+				case !ok:
+					c.println(fmt.Sprintf("Nothing in this ob can %s %s: no built-in handler, and no delegate registered for %s supports it.", role, kind, role))
+				case strings.HasPrefix(handler, "delegate"):
+					c.println(fmt.Sprintf("To %s %s, ob would use %s.", role, kind, handler))
+					c.println("No built-in handler supports this kind; it is the only delegate for " + role + " that does.")
+				default:
+					c.println(fmt.Sprintf("To %s %s, ob would use its %s handler.", role, kind, handler))
+					c.println("Built-in handlers come before delegates for this kind.")
+				}
+			})
+			if !ok {
+				return nxFail(1, "")
 			}
 			return nil
 		})
+	nxFormat(resolve, "text", "json")
 	resolve.Flags().String("role", "", "the kind of work: invoke, inspect, or synthesize (required)")
 	resolve.Flags().String("kind", "", "the exact kind (required)")
 	return nxGroupCmd("delegate", "Let other tools handle work for ob", `A delegate is another tool, described by its own OBI, that ob hands work

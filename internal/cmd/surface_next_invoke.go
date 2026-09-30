@@ -1,0 +1,425 @@
+package cmd
+
+import (
+	"encoding/json"
+	"fmt"
+	"io"
+	"os"
+	"os/signal"
+	"strings"
+	"time"
+
+	"github.com/spf13/cobra"
+	"golang.org/x/term"
+)
+
+// ob invoke is the command-line face of the operation-invoker contract. One
+// run is one invocation handle: stdin carries input values, end of stdin
+// closes the input, outputs print as they arrive, Ctrl-C cancels, and the
+// exit status is the terminal state.
+
+func nxInvokeCmd(variant string) *cobra.Command {
+	if variant == "binding-invoke" {
+		return nxBindingInvokeCmd()
+	}
+	cmd := nxLeaf("invoke", "invoke <obi> <operation>", "Call an operation", `Call an operation, by name or alias, through one of its bindings.
+
+An invocation is an exchange, whatever the operation's shape: ob opens it,
+writes your input values to it, prints each output value as it arrives, and
+finishes when the binding does. One value in and one out, a stream in, a
+stream out, or both at once all work the same way.
+
+Input:
+  --input VALUE   write one value (JSON), then close the input
+  --input @FILE   write each JSON value in the file, then close the input
+  --input -       write each JSON value read from stdin, and close the input
+                  when stdin ends (Ctrl-D at a terminal)
+  no --input      write nothing, and close the input
+
+Output: each output value, as one line of JSON, as it arrives. --frames
+prints the whole exchange instead, one frame per line, exactly as the
+operation-invoker interface defines them: each output, the binding closing
+its input early, and the final complete or error frame.
+
+Choosing a binding: --binding names one; repeat it to give an ordered list,
+and ob uses the first one it can invoke. Otherwise, if the operation has
+exactly one binding ob can invoke, ob uses it; if it has several, ob stops
+and lists them. Preference and deprecation are shown, never used to choose.
+
+Checks: ob checks each input value against the operation's input schema
+before sending it, and each output value against its output schema.
+--no-check skips both.
+
+Context: what a binding needs beyond the input, such as a credential, comes
+from ob's context store, looked up by the exact scope the binding asks for.
+At a terminal ob asks for anything missing; otherwise it stops before
+sending anything and prints the ob context set command that supplies it.
+--context gives context for this call only. A delegate that invokes for ob
+resolves its own context: ob never sends it stored context, and if it asks
+for something, ob asks you or stops. --preflight prints what the binding
+already knows it will ask for, and sends nothing.
+
+Exit status: 0 completed; 1 the operation failed or an output did not fit
+(either may have taken effect); 3 refused before anything was sent;
+130 cancelled.`,
+		`  ob invoke tasks.obi.json completeTask --input '{"id":"t_1"}'
+  ob invoke tasks.obi.json createTask --binding createTask.http --input '{"title":"Ship it"}'
+  printf '{"title":"a"}\n{"title":"b"}\n' | ob invoke tasks.obi.json importTasks --input -
+  ob invoke tasks.obi.json watchTasks --frames
+  ob invoke tasks.obi.json createTask --binding createTask.mcp --preflight`,
+		nxArgs(2, 2), nxInvoke)
+	cmd.Flags().String("input", "", "the input: one JSON value, @file, or - to stream values from stdin")
+	cmd.Flags().StringArray("binding", nil, "use this binding; repeat for an ordered list")
+	cmd.Flags().Bool("frames", false, "print the whole exchange as frames, not just output values")
+	cmd.Flags().String("context", "", "context for this call only: JSON, @file, or -")
+	cmd.Flags().Bool("no-check", false, "skip checking values against the operation's schemas")
+	cmd.Flags().Bool("preflight", false, "print what the binding knows it will ask for; send nothing")
+	return cmd
+}
+
+func nxBindingInvokeCmd() *cobra.Command {
+	cmd := nxLeaf("invoke", "invoke <obi> <binding>", "Call one exact binding", `Call one binding exactly; ob does not choose among bindings. --input is
+the input (one JSON value, @file, or - to stream from stdin). Output is the
+whole exchange, one frame per line.`,
+		`  ob invoke tasks.obi.json completeTask.http --input '{"id":"t_1"}'`,
+		nxArgs(2, 2), func(c *nxCtx) error {
+			doc := c.doc(c.args[0])
+			b, err := c.entry(doc, "bindings", "binding", c.args[1])
+			if err != nil {
+				return nxFail(3, "%s", strings.TrimPrefix(err.Error(), ""))
+			}
+			return nxInvokeThrough(c, doc, fmt.Sprint(b.Get("operation")), c.args[1], true)
+		})
+	cmd.Flags().String("input", "", "the input: one JSON value, @file, or - to stream values from stdin")
+	cmd.Flags().String("context", "", "context for this call only: JSON, @file, or -")
+	cmd.Flags().Bool("no-check", false, "skip checking values against the operation's schemas")
+	cmd.Flags().Bool("preflight", false, "print what the binding knows it will ask for; send nothing")
+	return cmd
+}
+
+func nxKindOf(doc *nxObj, binding string) string {
+	src := fmt.Sprint(doc.Obj("bindings").Obj(binding).Get("source"))
+	return fmt.Sprint(doc.Obj("sources").Obj(src).Get("kind"))
+}
+
+func nxSignals(doc *nxObj, binding string) string {
+	var s []string
+	b := doc.Obj("bindings").Obj(binding)
+	if p := b.Get("preference"); p != nil {
+		s = append(s, fmt.Sprintf("preference %v", p))
+	}
+	if d, _ := b.Get("deprecated").(bool); d {
+		s = append(s, "deprecated")
+	}
+	return strings.Join(s, ", ")
+}
+
+func nxInvoke(c *nxCtx) error {
+	c.banner = "ob preview: sample results; nothing was called"
+	doc := c.doc(c.args[0])
+	key, ok := nxResolveOperation(doc, c.args[1])
+	if !ok {
+		return nxFail(3, "no operation named %q in %s; ob operation list shows them", c.args[1], c.args[0])
+	}
+	bindings := nxReferrers(doc, "bindings", "operation", key)
+	if len(bindings) == 0 {
+		msg := fmt.Sprintf("operation %s has no bindings in %s, so there is no way to call it", key, c.args[0])
+		if deps := nxReferrers(doc, "dependencies", "operation", key); len(deps) > 0 {
+			msg += fmt.Sprintf("; the document only calls it, at %s", strings.Join(deps, ", "))
+		}
+		return nxFail(3, "%s", msg)
+	}
+	listing := func(names []string) string {
+		var rows [][]string
+		for _, b := range names {
+			rows = append(rows, []string{"  " + b, nxKindOf(doc, b), nxSignals(doc, b)})
+		}
+		t := &nxCtx{}
+		t.table("", rows)
+		var lines []string
+		for _, l := range strings.Split(strings.TrimRight(strings.SplitN(t.out.String(), "\n", 2)[1], "\n"), "\n") {
+			lines = append(lines, strings.TrimRight(l, " "))
+		}
+		return strings.Join(lines, "\n")
+	}
+	var chosen string
+	if named := c.strs("binding"); len(named) > 0 {
+		for _, b := range named {
+			if doc.Obj("bindings") == nil || !doc.Obj("bindings").Has(b) {
+				return nxFail(3, "no binding named %q in %s", b, c.args[0])
+			}
+			if !nxContains(bindings, b) {
+				return nxFail(3, "binding %s carries out %v, not %s", b, doc.Obj("bindings").Obj(b).Get("operation"), key)
+			}
+		}
+		for _, b := range named {
+			if _, ok := nxSupports(nxKindOf(doc, b), "invoke"); ok {
+				chosen = b
+				break
+			}
+		}
+		if chosen == "" {
+			return nxFail(3, "this ob cannot invoke any binding you named:\n%s", listing(named))
+		}
+	} else {
+		var usable []string
+		for _, b := range bindings {
+			if _, ok := nxSupports(nxKindOf(doc, b), "invoke"); ok {
+				usable = append(usable, b)
+			}
+		}
+		switch len(usable) {
+		case 0:
+			return nxFail(3, "this ob cannot invoke any of %s's bindings:\n%s", key, listing(bindings))
+		case 1:
+			chosen = usable[0]
+		default:
+			return nxFail(3, "%s has %d bindings ob can invoke; choose with --binding:\n%s", key, len(usable), listing(usable))
+		}
+	}
+	return nxInvokeThrough(c, doc, key, chosen, c.on("frames"))
+}
+
+// nxInvokeThrough runs the exchange through one chosen binding.
+func nxInvokeThrough(c *nxCtx, doc *nxObj, key, binding string, frames bool) error {
+	c.banner = "ob preview: sample results; nothing was called"
+	c.note(fmt.Sprintf("using %s (%s)", binding, nxKindOf(doc, binding)))
+	need, needs := nxBindingNeeds[binding]
+	var callContext bool
+	if c.set("context") {
+		if _, _, err := c.value("context"); err != nil {
+			return err
+		}
+		callContext = true
+	}
+	if c.on("preflight") {
+		if !needs {
+			c.note(binding + " knows of nothing it will ask for.")
+			c.println("null")
+			return nil
+		}
+		details := nxNewObj().Set("target", need.scope).Set("alternatives", []any{
+			nxNewObj().Set("requirements", []any{nxNewObj().Set("type", need.requirement).Set("durable", need.durable)}),
+		})
+		if _, ok := nxStoredContext(need.scope); ok && need.durable {
+			c.note(fmt.Sprintf("%s will ask for %s for %s; ob has one stored for that scope.", binding, need.describe, need.scope))
+		} else {
+			c.note(fmt.Sprintf("%s will ask for %s for %s; nothing is stored for that scope. Supply it with:\n  %s", binding, need.describe, need.scope, nxRemedy(need)))
+		}
+		c.println(nxCompact(details))
+		return nil
+	}
+	if needs {
+		_, stored := nxStoredContext(need.scope)
+		switch {
+		case callContext:
+			c.note("using the context given with --context for this call")
+		case stored && need.durable:
+			c.note("using stored context for " + need.scope)
+		case nxInteractive(c):
+			c.note(fmt.Sprintf("(preview: ob would ask you here for %s for %s, and offer to store it)", need.describe, need.scope))
+		default:
+			if frames {
+				data := nxNewObj().Set("target", need.scope).Set("alternatives", []any{
+					nxNewObj().Set("requirements", []any{nxNewObj().Set("type", need.requirement).Set("durable", need.durable)}),
+				})
+				c.println(nxCompact(nxNewObj().Set("kind", "error").Set("error", nxNewObj().Set("code", "CONTEXT_REQUIRED").Set("data", data))))
+			}
+			return nxFail(3, "%s needs %s for %s, and nothing is stored for that scope, so nothing was sent.\n  store it:           %s\n  or for this call:   --context @context.json", binding, need.describe, need.scope, nxRemedy(need))
+		}
+	}
+	c.live()
+	inputs, closeInputs, err := nxInputs(c)
+	if err != nil {
+		return err
+	}
+	defer closeInputs()
+	emit := func(v any) error {
+		if !c.on("no-check") {
+			if problems, checked, err := nxCheck(doc, key, "output", v); err == nil && checked && len(problems) > 0 {
+				if frames {
+					c.println(nxCompact(nxNewObj().Set("kind", "error").Set("error", nxNewObj().Set("code", "ERR_OPERATION_VALIDATION_FAILED"))))
+				}
+				return nxFail(1, "an output value does not fit %s's output schema (%s); it was not printed, and the operation may have taken effect", key, strings.Join(problems, "; "))
+			}
+		}
+		if frames {
+			c.println(nxCompact(nxNewObj().Set("kind", "output").Set("value", v)))
+		} else {
+			c.println(nxCompact(v))
+		}
+		return nil
+	}
+	sent := 0
+	checkInput := func(v any) error {
+		if c.on("no-check") {
+			return nil
+		}
+		problems, checked, err := nxCheck(doc, key, "input", v)
+		if err != nil || !checked || len(problems) == 0 {
+			return err
+		}
+		if sent == 0 {
+			return nxFail(3, "an input value does not fit %s's input schema, so nothing was sent:\n  %s", key, strings.Join(problems, "\n  "))
+		}
+		if frames {
+			c.println(nxCompact(nxNewObj().Set("kind", "error").Set("error", nxNewObj().Set("code", "ERR_OPERATION_VALIDATION_FAILED"))))
+		}
+		return nxFail(1, "input value %d does not fit %s's input schema (%s); ob stopped, and the %d value(s) already sent may have taken effect", sent+1, key, strings.Join(problems, "; "), sent)
+	}
+	switch nxBindingShape[binding] {
+	case "client-stream":
+		for {
+			v, ok, err := inputs()
+			if err != nil {
+				return err
+			}
+			if !ok {
+				break
+			}
+			if err := checkInput(v); err != nil {
+				return err
+			}
+			sent++
+		}
+		if err := emit(nxNewObj().Set("imported", sent)); err != nil {
+			return err
+		}
+	case "server-stream":
+		if frames {
+			c.println(`{"kind":"input_closed"}`)
+		}
+		interrupt := make(chan os.Signal, 1)
+		signal.Notify(interrupt, os.Interrupt)
+		defer signal.Stop(interrupt)
+		for i, title := range []string{"Write the docs", "Review the spec", "Ship it"} {
+			if i > 0 && nxTerminalOut(c) {
+				select {
+				case <-interrupt:
+					if frames {
+						c.println(`{"kind":"error","error":{"code":"ERR_CANCELLED"}}`)
+					}
+					return nxFail(130, "cancelled")
+				case <-time.After(700 * time.Millisecond):
+				}
+			}
+			if err := emit(nxNewObj().Set("id", fmt.Sprintf("t_%d", i+1)).Set("title", title).Set("done", i == 1)); err != nil {
+				return err
+			}
+		}
+	default:
+		v, ok, err := inputs()
+		if err != nil {
+			return err
+		}
+		if ok {
+			if err := checkInput(v); err != nil {
+				return err
+			}
+			sent++
+		} else {
+			c.note("(no input value was sent)")
+		}
+		if frames {
+			c.println(`{"kind":"input_closed"}`)
+		}
+		if _, more, _ := inputs(); more {
+			c.note(binding + " takes one input value; ob stopped reading after the first")
+		}
+		if err := emit(nxUnaryResult(key, v)); err != nil {
+			return err
+		}
+	}
+	if frames {
+		c.println(`{"kind":"complete"}`)
+	}
+	return nil
+}
+
+func nxUnaryResult(key string, input any) any {
+	field := func(name, fallback string) string {
+		if obj, ok := input.(*nxObj); ok {
+			if s, ok := obj.Get(name).(string); ok {
+				return s
+			}
+		}
+		return fallback
+	}
+	switch key {
+	case "createTask":
+		return nxNewObj().Set("id", "t_4").Set("title", field("title", "Write the docs")).Set("done", false)
+	case "listTasks":
+		return nxMustParse(`[{"id":"t_1","title":"Write the docs","done":false},{"id":"t_2","title":"Review the spec","done":true}]`)
+	case "completeTask":
+		return nxNewObj().Set("id", field("id", "t_1")).Set("title", "Write the docs").Set("done", true)
+	}
+	return nxNewObj()
+}
+
+// nxInputs returns a reader of input values: one inline value, every value
+// in a file, or every value on stdin as it arrives.
+func nxInputs(c *nxCtx) (func() (any, bool, error), func(), error) {
+	none := func() (any, bool, error) { return nil, false, nil }
+	if !c.set("input") {
+		return none, func() {}, nil
+	}
+	raw := c.str("input")
+	var r io.Reader
+	closer := func() {}
+	switch {
+	case raw == "-":
+		r = c.cmd.InOrStdin()
+	case strings.HasPrefix(raw, "@"):
+		if raw == "@" {
+			return nil, nil, nxUsageErr("--input: @ must be followed by a file path")
+		}
+		f, err := os.Open(raw[1:])
+		if err != nil {
+			return nil, nil, nxFail(3, "cannot read input file %s: %v; nothing was sent", raw[1:], err)
+		}
+		r, closer = f, func() { f.Close() }
+	default:
+		v, err := nxParse(raw)
+		if err != nil {
+			return nil, nil, nxUsageErr("--input: expected one JSON value, @file, or - for stdin")
+		}
+		done := false
+		return func() (any, bool, error) {
+			if done {
+				return nil, false, nil
+			}
+			done = true
+			return v, true, nil
+		}, func() {}, nil
+	}
+	dec := json.NewDecoder(r)
+	dec.UseNumber()
+	return func() (any, bool, error) {
+		v, err := nxDecode(dec)
+		if err == io.EOF {
+			return nil, false, nil
+		}
+		if err != nil {
+			return nil, false, nxFail(3, "the input is not a stream of JSON values: %v", err)
+		}
+		return v, true, nil
+	}, closer, nil
+}
+
+func nxInteractive(c *nxCtx) bool {
+	if c.str("input") == "-" {
+		return false
+	}
+	f, ok := c.cmd.InOrStdin().(*os.File)
+	return ok && term.IsTerminal(int(f.Fd()))
+}
+
+func nxTerminalOut(c *nxCtx) bool {
+	f, ok := c.cmd.OutOrStdout().(*os.File)
+	return ok && term.IsTerminal(int(f.Fd()))
+}
+
+func nxRemedy(need nxNeed) string {
+	flag := map[string]string{"auth.bearer": "--bearer-token -", "auth.oauth2": "--access-token -", "auth.apiKey": "--api-key -", "auth.basic": "--basic"}[need.requirement]
+	return fmt.Sprintf("ob context set '%s' %s", need.scope, flag)
+}

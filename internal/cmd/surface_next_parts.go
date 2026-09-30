@@ -2,7 +2,6 @@ package cmd
 
 import (
 	"fmt"
-	"strconv"
 	"strings"
 
 	"github.com/spf13/cobra"
@@ -42,10 +41,28 @@ func (c *nxCtx) unset(obj *nxObj, allowed ...string) error {
 	return nil
 }
 
+// nxContradictions refuses flags that ask for opposite changes to the same
+// thing: setting a member and unsetting it, or adding and removing one item.
+func nxContradictions(c *nxCtx, setFlags map[string]string, pairs ...[2]string) error {
+	for flag, member := range setFlags {
+		if c.set(flag) && nxContains(c.strs("unset"), member) {
+			return nxUsageErr("--%s and --unset %s ask for opposite changes; choose one", flag, member)
+		}
+	}
+	for _, p := range pairs {
+		for _, v := range c.strs(p[0]) {
+			if nxContains(c.strs(p[1]), v) {
+				return nxUsageErr("--%s and --%s both name %q; choose one", p[0], p[1], v)
+			}
+		}
+	}
+	return nil
+}
+
 func nxNeedsChange(c *nxCtx) error {
 	changed := false
 	c.cmd.Flags().Visit(func(f *pflagFlag) {
-		if f.Name != "dry-run" && f.Name != "output" {
+		if f.Name != "dry-run" && f.Name != "out" {
 			changed = true
 		}
 	})
@@ -75,13 +92,18 @@ func nxPartGroup(noun, short, long string, children ...*cobra.Command) *cobra.Co
 	return nxGroupCmd(noun, short, long, children...)
 }
 
-func nxRenameCmd(noun, part, id, long, example string, apply func(doc *nxObj, from, to string) string) *cobra.Command {
-	return nxEditable(nxLeaf(id, "rename <obi> <name> <new-name>", "Rename a "+noun+long, "", example, nxArgs(3, 3), func(c *nxCtx) error {
+func nxRenameCmd(id, short, long, noun, part, example string, apply func(doc *nxObj, from, to string) string) *cobra.Command {
+	return nxEditable(nxLeaf(id, "rename <obi> <name> <new-name>", short, long, example, nxArgs(3, 3), func(c *nxCtx) error {
 		before := c.doc(c.args[0])
 		after := nxClone(before).(*nxObj)
 		from, to := c.args[1], c.args[2]
 		if err := nxName(noun+" name", to); err != nil {
 			return err
+		}
+		if part == "operations" && (after.Obj("operations") == nil || !after.Obj("operations").Has(from)) {
+			if key, ok := nxResolveOperation(after, from); ok {
+				return nxFail(1, "%s is an alias of operation %s; rename changes an operation's key (ob operation rename %s %s <new-name>), and aliases change with ob operation set --add-alias and --remove-alias", from, key, c.args[0], key)
+			}
 		}
 		if _, err := c.entry(after, part, noun, from); err != nil {
 			return err
@@ -91,6 +113,9 @@ func nxRenameCmd(noun, part, id, long, example string, apply func(doc *nxObj, fr
 		}
 		if part == "operations" {
 			if other, taken := nxResolveOperation(after, to); taken {
+				if other == from {
+					return nxFail(1, "%q is already an alias of %s; remove that alias first (ob operation set %s %s --remove-alias %s), then rename", to, from, c.args[0], from, to)
+				}
 				return nxFail(1, "%q is already an alias of operation %s", to, other)
 			}
 		}
@@ -147,6 +172,13 @@ for a schema leaves that side unspecified.`,
 			if err := nxNeedsChange(c); err != nil {
 				return err
 			}
+			if err := nxContradictions(c, map[string]string{"description": "description", "deprecated": "deprecated", "input-schema": "input", "output-schema": "output"},
+				[2]string{"add-alias", "remove-alias"}, [2]string{"add-tag", "remove-tag"}); err != nil {
+				return err
+			}
+			if (c.set("add-alias") || c.set("remove-alias")) && nxContains(c.strs("unset"), "aliases") || (c.set("add-tag") || c.set("remove-tag")) && nxContains(c.strs("unset"), "tags") {
+				return nxUsageErr("--unset removes the whole list, so it does not combine with adding or removing items")
+			}
 			before := c.doc(c.args[0])
 			after := nxClone(before).(*nxObj)
 			key, err := c.opKey(after, c.args[1])
@@ -172,9 +204,11 @@ for a schema leaves that side unspecified.`,
 	set.Flags().Bool("deprecated", false, "mark deprecated; --deprecated=false marks it current")
 	set.Flags().StringArray("unset", nil, "remove a member: description, deprecated, tags, aliases, input, output, examples")
 
-	rename := nxRenameCmd("operation", "operations", "operation.rename", ` and update its bindings and dependencies`,
-		`  ob operation rename tasks.obi.json createTask addTask
-  ob operation rename tasks.obi.json createTask addTask --keep-alias`,
+	rename := nxRenameCmd("operation.rename", "Rename an operation", `Rename an operation's key, and update every binding and dependency that
+uses it. Nothing else changes: its aliases stay as they are, and the old
+name is gone. To keep answering to the old name, add it as an alias
+afterwards with ob operation set --add-alias.`, "operation", "operations",
+		`  ob operation rename tasks.obi.json createTask addTask`,
 		func(doc *nxObj, from, to string) string {
 			n := 0
 			for _, part := range []string{"bindings", "dependencies"} {
@@ -185,43 +219,6 @@ for a schema leaves that side unspecified.`,
 			}
 			return fmt.Sprintf(" (%s updated)", nxCount(n, "reference"))
 		})
-	rename.Long = `Rename an operation and update every binding and dependency that uses it.
---keep-alias keeps the old name as an alias, so anything that looks the
-operation up by its old name still finds it.`
-	rename.Flags().Bool("keep-alias", false, "keep the old name as an alias")
-	baseRun := rename.RunE
-	rename.RunE = func(cmd *cobra.Command, args []string) error {
-		keep, _ := cmd.Flags().GetBool("keep-alias")
-		if !keep {
-			return baseRun(cmd, args)
-		}
-		return nxRun(cmd, args, func(c *nxCtx) error {
-			before := c.doc(c.args[0])
-			after := nxClone(before).(*nxObj)
-			from, to := c.args[1], c.args[2]
-			if err := nxName("operation name", to); err != nil {
-				return err
-			}
-			if _, err := c.entry(after, "operations", "operation", from); err != nil {
-				return err
-			}
-			if _, taken := nxResolveOperation(after, to); taken {
-				return nxFail(1, "%q is already an operation name or alias in %s", to, c.args[0])
-			}
-			ops := after.Obj("operations")
-			ops.Rename(from, to)
-			op := ops.Obj(to)
-			op.SetCanon("aliases", append(nxToAny(nxStrings(op.Get("aliases"))), from), nxOperationOrder)
-			n := 0
-			for _, part := range []string{"bindings", "dependencies"} {
-				for _, k := range nxReferrers(after, part, "operation", from) {
-					after.Obj(part).Obj(k).Set("operation", to)
-					n++
-				}
-			}
-			return c.wrote(c.args[0], before, after, fmt.Sprintf("Renamed operation %s to %s, keeping %s as an alias (%s updated)", from, to, from, nxCount(n, "reference")))
-		})
-	}
 
 	remove := nxEditable(nxLeaf("operation.remove", "remove <obi> <name>", "Remove an operation", `Remove an operation. It refuses while bindings or dependencies use the
 operation; --cascade removes those too.`,
@@ -387,7 +384,117 @@ the schema always wins.`,
 			}
 			return c.wrote(c.args[0], before, after, fmt.Sprintf("Removed example %s from operation %s", c.args[2], key))
 		}))
-	example := nxGroupCmd("example", "Add and remove operation examples", "", exampleAdd, exampleRemove)
+	exampleOf := func(c *nxCtx, doc *nxObj) (string, *nxObj, error) {
+		key, err := c.opKey(doc, c.args[1])
+		if err != nil {
+			return "", nil, err
+		}
+		examples := doc.Obj("operations").Obj(key).Obj("examples")
+		if examples == nil || !examples.Has(c.args[2]) {
+			return "", nil, nxFail(1, "operation %s has no example named %q", key, c.args[2])
+		}
+		return key, examples.Obj(c.args[2]), nil
+	}
+	exampleSet := nxEditable(nxLeaf("operation.example.set", "set <obi> <operation> <name>", "Change an example", `Change an example's input value, output value, or description. Only the
+flags you give change anything; --unset removes one. ob warns when a value
+does not fit the operation's schema; the schema always wins.`,
+		`  ob operation example set tasks.obi.json createTask basic --input '{"title":"Plan the release"}'`,
+		nxArgs(3, 3), func(c *nxCtx) error {
+			if err := nxNeedsChange(c); err != nil {
+				return err
+			}
+			if err := nxContradictions(c, map[string]string{"input": "input", "output": "output", "description": "description"}); err != nil {
+				return err
+			}
+			before := c.doc(c.args[0])
+			after := nxClone(before).(*nxObj)
+			key, ex, err := exampleOf(c, after)
+			if err != nil {
+				return err
+			}
+			for _, side := range []string{"input", "output"} {
+				v, ok, err := c.value(side)
+				if err != nil {
+					return err
+				}
+				if ok {
+					ex.SetCanon(side, v, nxExampleOrder)
+					if problems, checked, err := nxCheck(after, key, side, v); err == nil && checked && len(problems) > 0 {
+						c.note(fmt.Sprintf("warning: the example's %s does not fit %s's %s schema: %s", side, key, side, strings.Join(problems, "; ")))
+					}
+				}
+			}
+			if c.set("description") {
+				ex.SetCanon("description", c.str("description"), nxExampleOrder)
+			}
+			if err := c.unset(ex, "input", "output", "description"); err != nil {
+				return err
+			}
+			return c.wrote(c.args[0], before, after, fmt.Sprintf("Changed example %s of operation %s", c.args[2], key))
+		}))
+	exampleSet.Flags().String("input", "", "the example's input value: JSON, @file, or -")
+	exampleSet.Flags().String("output", "", "the example's output value: JSON, @file, or -")
+	exampleSet.Flags().String("description", "", "what the example shows")
+	exampleSet.Flags().StringArray("unset", nil, "remove a member: input, output, description")
+	exampleRename := nxEditable(nxLeaf("operation.example.rename", "rename <obi> <operation> <name> <new-name>", "Rename an example", "Rename an example of an operation. Nothing else changes.",
+		`  ob operation example rename tasks.obi.json createTask basic minimal`, nxArgs(4, 4), func(c *nxCtx) error {
+			before := c.doc(c.args[0])
+			after := nxClone(before).(*nxObj)
+			key, _, err := exampleOf(c, after)
+			if err != nil {
+				return err
+			}
+			if err := nxName("example name", c.args[3]); err != nil {
+				return err
+			}
+			examples := after.Obj("operations").Obj(key).Obj("examples")
+			if examples.Has(c.args[3]) {
+				return nxFail(1, "operation %s already has an example named %q", key, c.args[3])
+			}
+			examples.Rename(c.args[2], c.args[3])
+			return c.wrote(c.args[0], before, after, fmt.Sprintf("Renamed example %s of operation %s to %s", c.args[2], key, c.args[3]))
+		}))
+	exampleList := nxListFormats(nxLeaf("operation.example.list", "list <obi> <operation>", "List an operation's examples", "List an operation's examples and what each includes.",
+		`  ob operation example list tasks.obi.json createTask`, nxArgs(2, 2), func(c *nxCtx) error {
+			doc := c.doc(c.args[0])
+			key, err := c.opKey(doc, c.args[1])
+			if err != nil {
+				return err
+			}
+			var rows [][]string
+			var out []any
+			if examples := doc.Obj("operations").Obj(key).Obj("examples"); examples != nil {
+				for _, name := range examples.Keys() {
+					ex := examples.Obj(name)
+					cell := func(m string) string {
+						if !ex.Has(m) {
+							return "-"
+						}
+						v := nxCompact(ex.Get(m))
+						if len(v) > 40 {
+							v = v[:37] + "..."
+						}
+						return v
+					}
+					rows = append(rows, []string{name, cell("input"), cell("output")})
+					out = append(out, nxNewObj().Set("name", name).Set("example", ex))
+				}
+			}
+			c.render(out, func() { c.table("NAME\tINPUT\tOUTPUT", rows) })
+			return nil
+		}))
+	exampleShow := nxListFormats(nxLeaf("operation.example.show", "show <obi> <operation> <name>", "Show an example", "Show an example. -F json prints the exact stored example.",
+		`  ob operation example show tasks.obi.json createTask basic`, nxArgs(3, 3), func(c *nxCtx) error {
+			doc := c.doc(c.args[0])
+			_, ex, err := exampleOf(c, doc)
+			if err != nil {
+				return err
+			}
+			c.render(ex, func() { c.println(nxPretty(ex)) })
+			return nil
+		}))
+	example := nxGroupCmd("example", "Add, change, and remove operation examples", `An example is a named input value, output value, or both, that the
+author claims fit the operation's schemas.`, exampleAdd, exampleSet, exampleRename, exampleRemove, exampleList, exampleShow)
 
 	return nxPartGroup("operation", "Add, change, and remove operations", `An operation is a protocol-independent contract: a name, and optional
 schemas for each input and output value. Bindings say how to carry it out;
@@ -520,6 +627,9 @@ kind changes how the source's bindings are read.`,
 			if err := nxNeedsChange(c); err != nil {
 				return err
 			}
+			if err := nxContradictions(c, map[string]string{"content": "content", "description": "description"}); err != nil {
+				return err
+			}
 			before := c.doc(c.args[0])
 			after := nxClone(before).(*nxObj)
 			src, err := c.entry(after, "sources", "source", c.args[1])
@@ -546,7 +656,7 @@ kind changes how the source's bindings are read.`,
 	set.Flags().String("description", "", "a human-readable description")
 	set.Flags().StringArray("unset", nil, "remove a member: content, description")
 
-	rename := nxRenameCmd("source", "sources", "source.rename", " and update its bindings",
+	rename := nxRenameCmd("source.rename", "Rename a source", `Rename a source, and update every binding that goes through it.`, "source", "sources",
 		`  ob source rename tasks.obi.json httpApi restApi`,
 		func(doc *nxObj, from, to string) string {
 			refs := nxReferrers(doc, "bindings", "source", from)
@@ -659,19 +769,29 @@ handler suggests and any binding that already uses it.`,
 			if _, ok := nxSupports(kind, "inspect"); !ok {
 				return nxFail(1, "this ob cannot inspect %s sources; ob kind list shows what it can handle", kind)
 			}
-			targets := [][]string{
-				{"POST /tasks", "createTask", "createTask.http"},
-				{"GET /tasks", "listTasks", "listTasks.http"},
-				{"POST /tasks/{id}/complete", "completeTask", "completeTask.http"},
-				{"POST /tasks/{id}/archive", "archiveTask", "-"},
-				{"GET /health", "getHealth", "-"},
-			}
-			if c.args[1] == "mcpServer" {
-				targets = [][]string{{"tools/create_task", "createTask", "createTask.mcp"}, {"tools/list_tasks", "listTasks", "-"}}
+			var targets [][]string
+			for _, t := range nxTargets {
+				if t.source != c.args[1] {
+					continue
+				}
+				bound := "-"
+				if doc.Obj("bindings").Has(t.binding) {
+					bound = t.binding
+				}
+				targets = append(targets, []string{t.target, t.operation, bound})
 			}
 			var out []any
 			for _, t := range targets {
-				out = append(out, nxNewObj().Set("sourceRef", t[0]).Set("operationKey", t[1]))
+				entry := nxNewObj().Set("target", t[0]).Set("suggestedOperation", t[1])
+				if t[2] != "-" {
+					entry.Set("boundBy", t[2])
+				}
+				for _, nt := range nxTargets {
+					if nt.source == c.args[1] && nt.target == t[0] {
+						entry.Set("binding", nxNewObj().Set("content", nxMustParse(nt.content)))
+					}
+				}
+				out = append(out, entry)
 			}
 			c.render(nxNewObj().Set("targets", out).Set("exhaustive", true), func() {
 				c.println(fmt.Sprintf("%s (%s): %s, complete", c.args[1], kind, nxCount(len(targets), "target")))
@@ -680,12 +800,17 @@ handler suggests and any binding that already uses it.`,
 			return nil
 		}))
 
-	pull := nxEditable(nxLeaf("source.pull", "pull <obi> [<name>...]", "Update a document from its sources", `Update the document from its sources: add operations and bindings for new
+	pull := nxEditable(nxLeaf("source.pull", "pull <obi> [<source>...]", "Update a document from its sources", `Update the document from its sources: add operations and bindings for new
 targets, update changed ones, and report bindings whose target is gone. With
-no names, pull every source. Uses a handler for each source's kind. ob status
-shows the same changes without making them.`,
+no sources named, pull every source. Uses a handler for each source's kind.
+ob status shows the same changes without making them.
+
+--target binds one target of one source, as ob source inspect lists it:
+ob adds a binding for it, and the suggested operation if the document does
+not have it yet. Nothing else changes.`,
 		`  ob source pull tasks.obi.json
-  ob source pull tasks.obi.json httpApi --dry-run`,
+  ob source pull tasks.obi.json httpApi --dry-run
+  ob source pull tasks.obi.json httpApi --target "POST /tasks/{id}/archive"`,
 		nxArgs(1, -1), func(c *nxCtx) error {
 			before := c.doc(c.args[0])
 			after := nxClone(before).(*nxObj)
@@ -694,6 +819,12 @@ shows the same changes without making them.`,
 					return err
 				}
 			}
+			if c.set("target") {
+				if len(c.args) != 2 {
+					return nxUsageErr("--target binds a target of one source; name that source: ob source pull %s <source> --target ...", c.args[0])
+				}
+				return nxPullTarget(c, before, after, c.args[1], c.str("target"))
+			}
 			_, next := nxDiffSample()
 			if len(c.args) == 1 || nxContains(c.args[1:], "httpApi") {
 				after.Obj("operations").Set("archiveTask", nxClone(next.Obj("operations").Get("archiveTask")))
@@ -701,14 +832,55 @@ shows the same changes without making them.`,
 				after.Obj("bindings").Set("archiveTask.http", nxClone(next.Obj("bindings").Get("archiveTask.http")))
 				return c.wrote(c.args[0], before, after, "Pulled httpApi: 1 operation added, 1 updated")
 			}
-			c.note("mcpServer is up to date")
+			c.note("up to date")
 			return nil
 		}))
+	pull.Flags().String("target", "", "bind this one target of the source, as ob source inspect lists it")
 
 	return nxPartGroup("source", "Add, change, and remove sources, and read their artifacts", `A source is a kind plus optional content the kind reads, such as an
 artifact's address. Bindings realize operations through sources. import,
 inspect, and pull use a handler for the source's kind.`,
 		add, set, rename, remove, list, show, importCmd, inspect, pull)
+}
+
+// The sample sources' targets, as ob source inspect lists them, with what a
+// binding for each would carry and the operation the handler suggests.
+type nxTarget struct {
+	source, target, operation, binding string
+	content                            string
+	newOperation                       string
+}
+
+var nxTargets = []nxTarget{
+	{"httpApi", "POST /tasks", "createTask", "createTask.http", `{"target":"#/paths/~1tasks/post"}`, ""},
+	{"httpApi", "GET /tasks", "listTasks", "listTasks.http", `{"target":"#/paths/~1tasks/get"}`, ""},
+	{"httpApi", "POST /tasks/{id}/complete", "completeTask", "completeTask.http", `{"target":"#/paths/~1tasks~1{id}~1complete/post"}`, ""},
+	{"httpApi", "POST /tasks/{id}/archive", "archiveTask", "archiveTask.http", `{"target":"#/paths/~1tasks~1{id}~1archive/post"}`,
+		`{"description":"Archive a task.","input":{"type":"object","properties":{"id":{"type":"string"}},"required":["id"]},"output":{"$ref":"#/schemas/Task"}}`},
+	{"httpApi", "GET /health", "getHealth", "getHealth.http", `{"target":"#/paths/~1health/get"}`,
+		`{"description":"Report whether the service is up.","input":{"type":"object","maxProperties":0},"output":{"type":"object"}}`},
+	{"mcpServer", "tools/create_task", "createTask", "createTask.mcp", `{"target":"tools/create_task"}`, ""},
+	{"mcpServer", "tools/list_tasks", "listTasks", "listTasks.mcp", `{"target":"tools/list_tasks"}`, ""},
+}
+
+func nxPullTarget(c *nxCtx, before, after *nxObj, source, target string) error {
+	for _, t := range nxTargets {
+		if t.source != source || t.target != target {
+			continue
+		}
+		if after.Obj("bindings").Has(t.binding) {
+			c.note(fmt.Sprintf("%s is already bound, by %s", target, t.binding))
+			return c.wrote(c.args[0], before, after, "")
+		}
+		summary := "Bound " + target + " as " + t.binding
+		if !after.Obj("operations").Has(t.operation) {
+			after.Obj("operations").Set(t.operation, nxMustParse(t.newOperation))
+			summary += ", with a new operation " + t.operation
+		}
+		after.Obj("bindings").Set(t.binding, nxNewObj().Set("operation", t.operation).Set("source", source).Set("content", nxMustParse(t.content)))
+		return c.wrote(c.args[0], before, after, summary)
+	}
+	return nxFail(1, "%s offers no target %q; ob source inspect %s %s lists them", source, target, c.args[0], source)
 }
 
 func nxSourceFields(c *nxCtx, src *nxObj) error {
@@ -758,9 +930,10 @@ is whatever the source's kind needs, such as which endpoint or tool to call.
 An operation can have several bindings, even through the same source.
 
 --idempotent claims that repeating a call through this binding adds no
-further effects; --idempotent=false claims it can; leaving it out claims
-nothing. --preference ranks bindings of the same operation: ob invoke prefers
-the highest.`,
+further intended effects (it says nothing about retry safety on its own);
+--idempotent=false claims it can; leaving it out claims nothing.
+--preference records the author's preference among the operation's
+bindings; ob invoke shows it but does not choose by it.`,
 		`  ob binding add tasks.obi.json completeTask.mcp --operation completeTask --source mcpServer \
       --content '{"target":"tools/complete_task"}' --idempotent`,
 		nxArgs(2, 2), func(c *nxCtx) error {
@@ -793,6 +966,9 @@ content, idempotent, preference, description, or deprecated.`,
 			if err := nxNeedsChange(c); err != nil {
 				return err
 			}
+			if err := nxContradictions(c, map[string]string{"content": "content", "idempotent": "idempotent", "preference": "preference", "description": "description", "deprecated": "deprecated"}); err != nil {
+				return err
+			}
 			before := c.doc(c.args[0])
 			after := nxClone(before).(*nxObj)
 			b, err := c.entry(after, "bindings", "binding", c.args[1])
@@ -810,7 +986,8 @@ content, idempotent, preference, description, or deprecated.`,
 	nxBindingFlags(set)
 	set.Flags().StringArray("unset", nil, "remove a member: content, idempotent, preference, description, deprecated")
 
-	rename := nxRenameCmd("binding", "bindings", "binding.rename", "", `  ob binding rename tasks.obi.json createTask.http createTask.rest`,
+	rename := nxRenameCmd("binding.rename", "Rename a binding", `Rename a binding. Nothing else in a document refers to a binding by name,
+so nothing else changes.`, "binding", "bindings", `  ob binding rename tasks.obi.json createTask.http createTask.rest`,
 		func(*nxObj, string, string) string { return "" })
 
 	remove := nxEditable(nxLeaf("binding.remove", "remove <obi> <name>", "Remove a binding", "Remove a binding. The operation and source stay.",
@@ -887,9 +1064,9 @@ is read under the source's kind.`, add, set, rename, remove, list, show)
 func nxBindingFlags(cmd *cobra.Command) {
 	cmd.Flags().String("operation", "", "the operation it carries out (name or alias)")
 	cmd.Flags().String("source", "", "the source it goes through")
-	cmd.Flags().String("content", "", "what the source's kind needs to find the target: JSON, @file, or -")
-	cmd.Flags().Bool("idempotent", false, "claim repeats add no further effects; --idempotent=false claims they can")
-	cmd.Flags().String("preference", "", "an integer; ob invoke prefers the highest")
+	cmd.Flags().String("content", "", "whatever the source's kind reads, such as which target to call: JSON, @file, or -")
+	cmd.Flags().Bool("idempotent", false, "claim that repeating a call adds no further intended effects; --idempotent=false claims it can")
+	cmd.Flags().Int64("preference", 0, "the author's preference among this operation's bindings (an integer; higher is stronger)")
 	cmd.Flags().String("description", "", "a human-readable description")
 	cmd.Flags().Bool("deprecated", false, "mark deprecated; --deprecated=false marks it current")
 }
@@ -919,8 +1096,8 @@ func nxBindingFields(c *nxCtx, doc, b *nxObj) error {
 		b.SetCanon("idempotent", c.on("idempotent"), nxBindingOrder)
 	}
 	if c.set("preference") {
-		n, err := strconv.ParseInt(c.str("preference"), 10, 64)
-		if err != nil || n < -9007199254740991 || n > 9007199254740991 {
+		n, _ := c.cmd.Flags().GetInt64("preference")
+		if n < -9007199254740991 || n > 9007199254740991 {
 			return nxUsageErr("--preference must be a whole number from -9007199254740991 to 9007199254740991")
 		}
 		b.SetCanon("preference", int(n), nxBindingOrder)
@@ -972,6 +1149,12 @@ removes kinds (accept any kind) or the description.`,
 			if err := nxNeedsChange(c); err != nil {
 				return err
 			}
+			if err := nxContradictions(c, map[string]string{"description": "description"}, [2]string{"add-kind", "remove-kind"}); err != nil {
+				return err
+			}
+			if (c.set("add-kind") || c.set("remove-kind")) && nxContains(c.strs("unset"), "kinds") {
+				return nxUsageErr("--unset kinds removes the whole list, so it does not combine with adding or removing kinds")
+			}
 			before := c.doc(c.args[0])
 			after := nxClone(before).(*nxObj)
 			d, err := c.entry(after, "dependencies", "dependency", c.args[1])
@@ -992,7 +1175,8 @@ removes kinds (accept any kind) or the description.`,
 	set.Flags().String("description", "", "a human-readable description")
 	set.Flags().StringArray("unset", nil, "remove a member: kinds, description")
 
-	rename := nxRenameCmd("dependency", "dependencies", "dependency.rename", "", `  ob dependency rename tasks.obi.json notifier eventSink`,
+	rename := nxRenameCmd("dependency.rename", "Rename a dependency", `Rename a dependency. Nothing else in a document refers to a dependency by
+name, so nothing else changes.`, "dependency", "dependencies", `  ob dependency rename tasks.obi.json notifier eventSink`,
 		func(*nxObj, string, string) string { return "" })
 	remove := nxEditable(nxLeaf("dependency.remove", "remove <obi> <name>", "Remove a dependency", "Remove a dependency. The operation stays.",
 		`  ob dependency remove tasks.obi.json notifier`, nxArgs(2, 2), func(c *nxCtx) error {
@@ -1070,7 +1254,7 @@ func nxDependencyFields(c *nxCtx, doc, d *nxObj) error {
 	}
 	if c.set("kind") || c.set("add-kind") || c.set("remove-kind") {
 		if len(kinds) == 0 {
-			d.Delete("kinds")
+			return nxFail(1, "that would remove the last kind, and a dependency without kinds declares no kind constraint (spec §5.5); to mean that, use --unset kinds")
 		} else {
 			d.SetCanon("kinds", nxToAny(kinds), nxDependOrder)
 		}
@@ -1125,7 +1309,8 @@ func nxSchemaCmd() *cobra.Command {
 			return c.wrote(c.args[0], before, after, "Replaced schema "+c.args[1])
 		}))
 	set.Flags().String("value", "", "the new schema: JSON, @file, or - (required)")
-	rename := nxRenameCmd("schema", "schemas", "schema.rename", " and update references to it", `  ob schema rename tasks.obi.json Problem Error`,
+	rename := nxRenameCmd("schema.rename", "Rename a reusable schema", `Rename a reusable schema, and update every reference to it, such as
+{"$ref": "#/schemas/<name>"}.`, "schema", "schemas", `  ob schema rename tasks.obi.json Problem Error`,
 		func(doc *nxObj, from, to string) string {
 			n := strings.Count(nxCompact(doc), `"#/schemas/`+from+`"`)
 			nxRewriteRefs(doc, "#/schemas/"+from, "#/schemas/"+to)

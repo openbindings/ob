@@ -17,8 +17,14 @@ import (
 var nxVariants = []string{"", "filter-edits", "binding-invoke", "adopt"}
 
 func nxExec(variant string, args ...string) (string, string, error) {
+	return nxExecIn(variant, "", args...)
+}
+
+// nxExecIn runs a command with stdin holding the given text.
+func nxExecIn(variant, stdin string, args ...string) (string, string, error) {
 	root := NewNextSurfaceRoot(variant)
 	var out, errb bytes.Buffer
+	root.SetIn(strings.NewReader(stdin))
 	root.SetOut(&out)
 	root.SetErr(&errb)
 	if err := NextPreflightArgs(root, args); err != nil {
@@ -86,7 +92,7 @@ func TestNextEveryExampleRuns(t *testing.T) {
 
 func TestNextEveryCommandIsDocumented(t *testing.T) {
 	nxWalk(NewNextSurfaceRoot(""), func(cmd *cobra.Command) {
-		if cmd.Name() == "help" {
+		if cmd.Name() == "help" || strings.HasPrefix(cmd.CommandPath(), "ob completion") {
 			return
 		}
 		if cmd.Short == "" {
@@ -164,7 +170,12 @@ func TestNextEditsKeepDocumentsConformant(t *testing.T) {
 	cases := [][]string{
 		{"operation", "add", "-", "archiveTask", "--description", "Archive a task.", "--input-schema", `{"type":"object"}`, "--output-schema", `{"$ref":"#/schemas/Task"}`, "--alias", "acme.tasks.archiveTask", "--tag", "admin", "--deprecated"},
 		{"operation", "set", "-", "createTask", "--add-alias", "x.createTask", "--remove-alias", "acme.tasks.createTask", "--add-tag", "core", "--deprecated=false", "--unset", "examples"},
-		{"operation", "rename", "-", "createTask", "addTask", "--keep-alias"},
+		{"operation", "rename", "-", "createTask", "addTask"},
+		{"set", "-", "--interface-version", "2.0.0", "--unset", "description"},
+		{"operation", "example", "set", "-", "createTask", "basic", "--input", `{"title":"Plan"}`, "--unset", "output"},
+		{"operation", "example", "rename", "-", "createTask", "basic", "minimal"},
+		{"source", "pull", "-", "httpApi", "--target", "GET /health"},
+		{"source", "pull", "-", "mcpServer", "--target", "tools/list_tasks"},
 		{"operation", "rename", "-", "listTasks", "allTasks"},
 		{"operation", "remove", "-", "createTask", "--cascade"},
 		{"operation", "example", "add", "-", "listTasks", "empty", "--input", "{}", "--output", "[]"},
@@ -187,8 +198,8 @@ func TestNextEditsKeepDocumentsConformant(t *testing.T) {
 		{"schema", "set", "-", "Problem", "--value", "true"},
 		{"schema", "rename", "-", "Task", "Todo"},
 		{"patch", "-", "changes.json"},
-		{"merge", "-", "other.obi.json"},
-		{"merge", "-", "acme-tasks.obi.json"},
+		{"merge", "-", "other.obi.json", "--theirs"},
+		{"merge", "-", "acme-tasks.obi.json", "--ours"},
 		{"merge", "-", "acme-tasks.obi.json", "--operation", "acme.tasks.deleteTask", "--no-bindings"},
 	}
 	covered := map[string]bool{}
@@ -300,7 +311,7 @@ func TestNextNearMissesPointToTheCommand(t *testing.T) {
 // Merging from a contract never adds a name one of your operations already
 // answers to, and compat names both remedies for what is missing.
 func TestNextContractsAreMetWithAliasesAndMerge(t *testing.T) {
-	out, _, err := nxExec("", "merge", "-", "acme-tasks.obi.json")
+	out, _, err := nxExec("", "merge", "-", "acme-tasks.obi.json", "--ours")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -342,6 +353,17 @@ func TestNextRefusalsExitWithTheirOwnStatus(t *testing.T) {
 		{[]string{"validate", "tasks.obi.json", "--operation", "createTask", "--input", `{"title":5}`}, 1},
 		{[]string{"kind", "check", "example.openapi@2", "--role", "invoke"}, 1},
 		{[]string{"schema", "remove", "tasks.obi.json", "Task"}, 1},
+		{[]string{"kind", "check", "nope@1"}, 1},
+		{[]string{"dependency", "set", "tasks.obi.json", "notifier", "--remove-kind", "example.openapi@1", "--remove-kind", "example.grpc@1"}, 1},
+		{[]string{"operation", "rename", "tasks.obi.json", "acme.tasks.createTask", "addTask"}, 1},
+		{[]string{"operation", "rename", "tasks.obi.json", "createTask", "acme.tasks.createTask"}, 1},
+		{[]string{"operation", "add", "tasks.obi.json", "x", "--output-schema", `{"$ref":"#/schemas/Missing"}`}, 1},
+		{[]string{"operation", "add", "tasks.obi.json", "x", "--input-schema", `{"type":42}`}, 1},
+		{[]string{"merge", "tasks.obi.json", "tasks-next.obi.json"}, 1},
+		{[]string{"merge", "tasks.obi.json", "tasks-next.obi.json", "--ours", "--theirs"}, 2},
+		{[]string{"operation", "set", "tasks.obi.json", "createTask", "--input-schema", "false", "--unset", "input"}, 2},
+		{[]string{"operation", "set", "tasks.obi.json", "createTask", "--add-alias", "x", "--remove-alias", "x"}, 2},
+		{[]string{"operation", "add", "https://api.example.com", "x"}, 2},
 		{[]string{"validate"}, 2},
 		{[]string{"validate", "tasks.obi.json", "--input", "{}"}, 2},
 	} {
@@ -349,5 +371,52 @@ func TestNextRefusalsExitWithTheirOwnStatus(t *testing.T) {
 		if got := nxExitCode(err); got != tc.code {
 			t.Errorf("ob %s: exit %d, want %d (%v)", strings.Join(tc.args, " "), got, tc.code, err)
 		}
+	}
+}
+
+// The invocation pattern: one run is one handle. stdin carries input values,
+// end of stdin closes the input, and the exit status is the terminal state.
+func TestNextInvokeFollowsTheInvocationPattern(t *testing.T) {
+	for _, tc := range []struct {
+		name, stdin string
+		args        []string
+		code        int
+		out         []string
+	}{
+		{"unary, one value", "", []string{"invoke", "t.obi.json", "completeTask", "--input", `{"id":"t_7"}`}, 0,
+			[]string{`{"id":"t_7","title":"Write the docs","done":true}`}},
+		{"a stream in, one value out", "{\"title\":\"a\"}\n{\"title\":\"b\"}\n{\"title\":\"c\"}\n", []string{"invoke", "t.obi.json", "importTasks", "--input", "-"}, 0,
+			[]string{`{"imported":3}`}},
+		{"one value in, a stream out, as frames", "", []string{"invoke", "t.obi.json", "watchTasks", "--frames"}, 0,
+			[]string{`{"kind":"input_closed"}`, `{"kind":"output","value":{"id":"t_1","title":"Write the docs","done":false}}`, `{"kind":"output","value":{"id":"t_2","title":"Review the spec","done":true}}`, `{"kind":"output","value":{"id":"t_3","title":"Ship it","done":false}}`, `{"kind":"complete"}`}},
+		{"a unary binding closes its input after one value", "{\"title\":\"a\"}\n{\"title\":\"b\"}\n", []string{"invoke", "t.obi.json", "createTask", "--binding", "createTask.http", "--input", "-", "--frames"}, 0,
+			[]string{`{"kind":"input_closed"}`, `{"kind":"output","value":{"id":"t_4","title":"a","done":false}}`, `{"kind":"complete"}`}},
+		{"a bad first value is refused before anything is sent", "{\"title\":5}\n", []string{"invoke", "t.obi.json", "importTasks", "--input", "-"}, 3, nil},
+		{"a bad later value stops after some were sent", "{\"title\":\"a\"}\n{\"title\":5}\n", []string{"invoke", "t.obi.json", "importTasks", "--input", "-", "--frames"}, 1,
+			[]string{`{"kind":"error","error":{"code":"ERR_OPERATION_VALIDATION_FAILED"}}`}},
+		{"several usable bindings: ob asks you to choose", "", []string{"invoke", "t.obi.json", "createTask", "--input", `{"title":"x"}`}, 3, nil},
+		{"missing context: refused before anything is sent", "", []string{"invoke", "t.obi.json", "createTask", "--binding", "createTask.mcp", "--input", `{"title":"x"}`, "--frames"}, 3,
+			[]string{`{"kind":"error","error":{"code":"CONTEXT_REQUIRED","data":{"target":"https://api.example.com/mcp","alternatives":[{"requirements":[{"type":"auth.oauth2","durable":true}]}]}}}`}},
+		{"context for this call satisfies the binding", "", []string{"invoke", "t.obi.json", "createTask", "--binding", "createTask.mcp", "--input", `{"title":"x"}`, "--context", `{"accessToken":"t"}`}, 0,
+			[]string{`{"id":"t_4","title":"x","done":false}`}},
+		{"preflight sends nothing and prints what it knows", "", []string{"invoke", "t.obi.json", "createTask", "--binding", "createTask.mcp", "--preflight"}, 0,
+			[]string{`{"target":"https://api.example.com/mcp","alternatives":[{"requirements":[{"type":"auth.oauth2","durable":true}]}]}`}},
+		{"an operation with no bindings cannot be called", "", []string{"invoke", "t.obi.json", "events.deliver"}, 3, nil},
+	} {
+		out, errOut, err := nxExecIn("", tc.stdin, tc.args...)
+		if got := nxExitCode(err); got != tc.code {
+			t.Errorf("%s: exit %d, want %d (%v)\n%s", tc.name, got, tc.code, err, errOut)
+			continue
+		}
+		if tc.out != nil {
+			got := strings.Split(strings.TrimRight(out, "\n"), "\n")
+			if strings.Join(got, "\n") != strings.Join(tc.out, "\n") {
+				t.Errorf("%s: stdout\n%s\nwant\n%s", tc.name, out, strings.Join(tc.out, "\n"))
+			}
+		}
+	}
+	_, _, err := nxExecIn("", "", "invoke", "t.obi.json", "createTask", "--input", `{"title":"x"}`)
+	if err == nil || !strings.Contains(err.Error(), "createTask.http") || !strings.Contains(err.Error(), "createTask.mcp") || !strings.Contains(err.Error(), "preference 10") {
+		t.Errorf("the choice refusal should list both bindings with their signals: %v", err)
 	}
 }

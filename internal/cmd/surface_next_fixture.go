@@ -65,6 +65,24 @@ const nxFixtureJSON = `{
       },
       "output": { "$ref": "#/schemas/Task" }
     },
+    "importTasks": {
+      "description": "Import tasks, one per input value, and report how many arrived.",
+      "input": {
+        "type": "object",
+        "properties": { "title": { "type": "string" } },
+        "required": ["title"]
+      },
+      "output": {
+        "type": "object",
+        "properties": { "imported": { "type": "integer" } },
+        "required": ["imported"]
+      }
+    },
+    "watchTasks": {
+      "description": "Report each task change as it happens.",
+      "input": { "type": "object", "maxProperties": 0 },
+      "output": { "$ref": "#/schemas/Task" }
+    },
     "events.deliver": {
       "description": "Deliver a task event to a subscriber.",
       "aliases": ["acme.events.deliver"],
@@ -87,6 +105,10 @@ const nxFixtureJSON = `{
     "mcpServer": {
       "kind": "example.mcp@1",
       "content": { "location": "https://api.example.com/mcp" }
+    },
+    "grpcApi": {
+      "kind": "example.grpc@1",
+      "content": { "location": "grpc://tasks.example.com:443" }
     }
   },
   "bindings": {
@@ -112,6 +134,16 @@ const nxFixtureJSON = `{
       "source": "httpApi",
       "content": { "target": "#/paths/~1tasks~1{id}~1complete/post" },
       "idempotent": true
+    },
+    "importTasks.grpc": {
+      "operation": "importTasks",
+      "source": "grpcApi",
+      "content": { "target": "tasks.TaskService/ImportTasks" }
+    },
+    "watchTasks.grpc": {
+      "operation": "watchTasks",
+      "source": "grpcApi",
+      "content": { "target": "tasks.TaskService/WatchTasks" }
     }
   }
 }`
@@ -313,14 +345,43 @@ var nxRoleInterfaces = map[string][]string{
 	"synthesize": {"openbindings.interface-synthesizer.synthesizeInterface", "openbindings.interface-synthesizer.listSupportedKinds", "openbindings.interface-synthesizer.checkKindSupport"},
 }
 
+// The pretend context store, keyed by the exact scope an engine asserts in
+// its challenge.
 type nxContext struct {
-	name  string
-	holds []string
+	scope string
+	holds [][2]string // field, masked value
 }
 
 var nxContexts = []nxContext{
-	{"default", []string{"bearer token ••••3f9a", "header X-Client: ob"}},
-	{"staging", []string{"bearer token ••••c071", "config server = https://staging.example.com"}},
+	{"https://api.example.com", [][2]string{{"bearerToken", "••••3f9a"}, {"headers.X-Client", "ob"}}},
+	{"https://api.example.com/openapi.json", [][2]string{{"configuration.server", `{"url":"https://api.example.com"}`}}},
+}
+
+func nxStoredContext(scope string) (nxContext, bool) {
+	for _, c := range nxContexts {
+		if c.scope == scope {
+			return c, true
+		}
+	}
+	return nxContext{}, false
+}
+
+// What each sample binding's engine asks for, and how its interaction runs.
+type nxNeed struct {
+	scope, requirement, describe string
+	durable                      bool
+}
+
+var nxBindingNeeds = map[string]nxNeed{
+	"createTask.http":   {"https://api.example.com", "auth.bearer", "a bearer token", true},
+	"listTasks.http":    {"https://api.example.com", "auth.bearer", "a bearer token", true},
+	"completeTask.http": {"https://api.example.com", "auth.bearer", "a bearer token", true},
+	"createTask.mcp":    {"https://api.example.com/mcp", "auth.oauth2", "an OAuth 2.0 access token", true},
+}
+
+var nxBindingShape = map[string]string{
+	"importTasks.grpc": "client-stream",
+	"watchTasks.grpc":  "server-stream",
 }
 
 func nxValidRole(role string) error {

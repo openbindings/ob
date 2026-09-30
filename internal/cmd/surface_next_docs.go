@@ -66,6 +66,54 @@ member). The OpenBindings version is always 0.2.0.`,
 	return cmd
 }
 
+func nxSetCmd() *cobra.Command {
+	cmd := nxEditable(nxLeaf("set", "set <obi>", "Change a document's name, version label, or description", `Change the document's own fields: its name, its version label (the
+document's "version" member, the interface's own label, not the
+OpenBindings version), and its description. Only the flags you give change
+anything; --unset removes one.`,
+		`  ob set tasks.obi.json --interface-version 1.5.0
+  ob set tasks.obi.json --unset description`,
+		nxArgs(1, 1), func(c *nxCtx) error {
+			if c.set("version") {
+				return nxUsageErr("--version is ambiguous here: use --interface-version for the document's version label")
+			}
+			if err := nxNeedsChange(c); err != nil {
+				return err
+			}
+			before := c.doc(c.args[0])
+			after := nxClone(before).(*nxObj)
+			var changed []string
+			for _, f := range []struct{ flag, member string }{{"name", "name"}, {"interface-version", "version"}, {"description", "description"}} {
+				if !c.set(f.flag) {
+					continue
+				}
+				if nxContains(c.strs("unset"), f.member) {
+					return nxUsageErr("%s is both set and unset; choose one", f.member)
+				}
+				if f.member == "version" && c.str(f.flag) == "" {
+					return nxUsageErr("--interface-version must not be empty")
+				}
+				after.SetCanon(f.member, c.str(f.flag), nxDocOrder)
+				changed = append(changed, f.member)
+			}
+			for _, u := range c.strs("unset") {
+				if u != "name" && u != "version" && u != "description" {
+					return nxUsageErr("--unset takes one of: name, version, description")
+				}
+				after.Delete(u)
+				changed = append(changed, u)
+			}
+			return c.wrote(c.args[0], before, after, "Changed the document's "+strings.Join(changed, ", "))
+		}))
+	cmd.Flags().String("name", "", "a human-readable name")
+	cmd.Flags().String("interface-version", "", "the document's own version label")
+	cmd.Flags().String("description", "", "a human-readable description")
+	cmd.Flags().StringArray("unset", nil, "remove a field: name, version, description")
+	cmd.Flags().String("version", "", "")
+	_ = cmd.Flags().MarkHidden("version")
+	return cmd
+}
+
 func nxShowCmd() *cobra.Command {
 	cmd := nxLeaf("show", "show <obi>", "Show a document", `Show an overview of a document: its operations, sources, bindings,
 dependencies, and schemas. -F json prints the exact stored document.
@@ -199,8 +247,9 @@ refused rather than judged. The report names the spec text it applied.
 the value with --input or --output (JSON, @file, or - for stdin).
 --examples checks every operation example against its schemas.
 
-Exit status: 0 conformant, undetermined, or the value fits; 1 non-conformant
-or it does not fit; 3 refused.`,
+Exit status: 0 conformant, or the value fits; 1 non-conformant, or it does
+not fit; 3 refused (an OpenBindings version ob does not support); 4 no
+verdict (conformance undetermined, or no schema to check the value against).`,
 		`  ob validate tasks.obi.json
   ob validate tasks.obi.json --operation createTask --input '{"title":"Write the docs"}'
   ob validate tasks.obi.json --examples`,
@@ -280,7 +329,7 @@ func nxValidateValue(c *nxCtx, doc *nxObj) error {
 		if !c.on("quiet") && c.format() != "json" {
 			c.println(fmt.Sprintf("%s specifies no %s contract, so there is nothing to check this value against.", key, side))
 		}
-		return nil
+		return nxFail(4, "")
 	}
 	if len(problems) == 0 {
 		if !c.on("quiet") && c.format() != "json" {
@@ -298,7 +347,7 @@ func nxValidateValue(c *nxCtx, doc *nxObj) error {
 }
 
 func nxValidateExamples(c *nxCtx, doc *nxObj) error {
-	count, bad := 0, 0
+	count, bad, unchecked := 0, 0, 0
 	var report []any
 	text := c.format() != "json" && !c.on("quiet")
 	for _, key := range nxPartKeys(doc, "operations") {
@@ -322,6 +371,7 @@ func nxValidateExamples(c *nxCtx, doc *nxObj) error {
 				case !checked:
 					parts = append(parts, side+" not checked (no "+side+" schema)")
 					entry.Set(side, "not checked")
+					unchecked++
 				case len(problems) == 0:
 					parts = append(parts, side+" fits")
 					entry.Set(side, "fits")
@@ -346,6 +396,12 @@ func nxValidateExamples(c *nxCtx, doc *nxObj) error {
 			c.println(fmt.Sprintf("%s checked; %d value(s) do not fit.", nxCount(count, "example"), bad))
 		}
 		return nxFail(1, "")
+	}
+	if unchecked > 0 {
+		if text {
+			c.println(fmt.Sprintf("%s checked; %d value(s) have no schema to check against.", nxCount(count, "example"), unchecked))
+		}
+		return nxFail(4, "")
 	}
 	if text {
 		c.println(fmt.Sprintf("%s checked; all values fit.", nxCount(count, "example")))
@@ -393,7 +449,10 @@ func nxCheck(doc *nxObj, opKey, side string, value any) ([]string, bool, error) 
 		for _, line := range strings.Split(err.Error(), "\n") {
 			line = strings.TrimSpace(line)
 			if strings.HasPrefix(line, "- ") {
-				problems = append(problems, strings.TrimPrefix(line, "- "))
+				problem := strings.TrimPrefix(line, "- ")
+				problem = strings.Replace(problem, "at '':", "at the top level:", 1)
+				problem = nxQuotedAt.ReplaceAllString(problem, "at $1")
+				problems = append(problems, problem)
 			}
 		}
 		if len(problems) == 0 {
@@ -502,6 +561,9 @@ ob patch can apply.`,
 				var out []any
 				for _, ch := range changes {
 					o := nxNewObj().Set("part", ch.part).Set("name", ch.name).Set("change", ch.change)
+					if ch.detail != "" {
+						o.Set("detail", ch.detail)
+					}
 					out = append(out, o)
 				}
 				c.println(nxPretty(out))
@@ -554,7 +616,9 @@ dependencies, sources, bindings, and the same within each part). Entries
 keep the order you gave them.
 
 --check changes nothing; it lists files that would change and exits 1 if
-any would. --canonical prints the JSON Canonicalization Scheme form
+any would. --dry-run shows the change without writing it. Give - to format
+a document from stdin to stdout. Values, including numbers, are kept exactly
+as written. --canonical prints the JSON Canonicalization Scheme form
 (RFC 8785), for hashing and signing, instead of rewriting.`,
 		`  ob fmt tasks.obi.json
   ob fmt --check *.obi.json
@@ -570,16 +634,25 @@ any would. --canonical prints the JSON Canonicalization Scheme form
 				c.println(nxCompact(nxCanonical(c.doc(c.args[0]))))
 				return nil
 			}
+			if c.on("check") && c.on("dry-run") {
+				return nxUsageErr("--check and --dry-run do not combine")
+			}
 			for _, path := range c.args {
-				if c.on("check") {
+				switch {
+				case path == "-":
+					c.println(nxPretty(c.doc(path)))
+				case c.on("check"):
 					c.println(path + ": formatted")
-				} else {
-					c.note(path + " is already formatted")
+				case c.on("dry-run"):
+					c.println(path + " (dry run, nothing written): already formatted, no change")
+				default:
+					c.note(path + ": already formatted, no change")
 				}
 			}
 			return nil
 		})
 	cmd.Flags().Bool("check", false, "report files that would change and exit 1 if any would")
+	cmd.Flags().Bool("dry-run", false, "show the formatting change without writing it")
 	cmd.Flags().Bool("canonical", false, "print the RFC 8785 canonical form instead")
 	return cmd
 }
@@ -604,18 +677,22 @@ func nxMergeCmd() *cobra.Command {
 bindings, and sources they need. --operation limits the merge to the named
 operations of <from>.
 
-An operation whose name <obi> already uses as a key has its input and output
-schemas updated; fields you wrote by hand are kept. An operation whose name
-is already an alias of one of yours is left alone.
+An entry both documents have, by the same name (for an operation, its key or
+an alias), is left alone when the two are identical. When they differ, ob
+lists every difference and writes nothing, unless you say which side wins:
+--ours keeps what <obi> has, --theirs takes what <from> has.
 
 A shared contract is just another OBI, so merging from one adds the contract
 operations you don't have yet, under the contract's names and with its
 schemas. To give an operation you already have a contract's name instead,
 use ob operation set --add-alias. ob compat shows which are missing.`,
-		`  ob merge tasks.obi.json tasks-next.obi.json
-  ob merge tasks.obi.json tasks-next.obi.json --operation archiveTask
+		`  ob merge tasks.obi.json tasks-next.obi.json --operation archiveTask
+  ob merge tasks.obi.json tasks-next.obi.json --theirs
   ob merge tasks.obi.json acme-tasks.obi.json --operation acme.tasks.deleteTask`,
 		nxArgs(2, 2), func(c *nxCtx) error {
+			if c.on("ours") && c.on("theirs") {
+				return nxUsageErr("--ours and --theirs do not combine; choose which side wins")
+			}
 			from := nxMergeSource(c)
 			fromOps := from.Obj("operations")
 			names := c.strs("operation")
@@ -629,45 +706,46 @@ use ob operation set --add-alias. ob compat shows which are missing.`,
 			}
 			before := c.doc(c.args[0])
 			after := nxClone(before).(*nxObj)
+			m := &nxMerge{from: from, to: after, ours: c.on("ours"), theirs: c.on("theirs")}
 			var added, updated []string
 			for _, name := range names {
 				fop := fromOps.Obj(name)
-				if after.Obj("operations").Has(name) {
-					op := after.Obj("operations").Obj(name)
-					changed := false
+				if key, ok := nxResolveOperation(after, name); ok {
+					op := after.Obj("operations").Obj(key)
+					var differs []string
 					for _, side := range []string{"input", "output"} {
 						if fop.Has(side) && nxCompact(fop.Get(side)) != nxCompact(op.Get(side)) {
-							op.SetCanon(side, nxClone(fop.Get(side)), nxOperationOrder)
-							nxMergeSchemas(from, after, fop.Get(side))
-							changed = true
+							differs = append(differs, side)
 						}
 					}
-					if changed {
-						updated = append(updated, name)
+					label := "operation " + key
+					if key != name {
+						label += " (answering to " + name + ")"
 					}
-					continue
-				}
-				if key, ok := nxResolveOperation(after, name); ok {
-					c.note(fmt.Sprintf("left alone: %s (already answered by %s)", name, key))
+					if m.conflict(label, strings.Join(differs, " and ")+" schema differs", len(differs) > 0) {
+						for _, side := range differs {
+							op.SetCanon(side, nxClone(fop.Get(side)), nxOperationOrder)
+							m.schemas(fop.Get(side))
+						}
+						updated = append(updated, key)
+					}
 					continue
 				}
 				nxPart(after, "operations").Set(name, nxClone(fop))
-				nxMergeSchemas(from, after, fop)
+				m.schemas(fop)
 				added = append(added, name)
 				if c.on("no-bindings") {
 					continue
 				}
 				for _, b := range nxReferrers(from, "bindings", "operation", name) {
-					if after.Obj("bindings") != nil && after.Obj("bindings").Has(b) {
-						continue
-					}
 					binding := from.Obj("bindings").Obj(b)
 					src := fmt.Sprint(binding.Get("source"))
-					if after.Obj("sources") == nil || !after.Obj("sources").Has(src) {
-						nxPart(after, "sources").Set(src, nxClone(from.Obj("sources").Get(src)))
-					}
-					nxPart(after, "bindings").Set(b, nxClone(binding))
+					m.entry("sources", "source", src, from.Obj("sources").Get(src))
+					m.entry("bindings", "binding", b, binding)
 				}
+			}
+			if len(m.conflicts) > 0 {
+				return nxFail(1, "refused: %s and %s differ, so nothing was written:\n  %s\n--ours keeps what %s has; --theirs takes what %s has.", c.args[0], c.args[1], strings.Join(m.conflicts, "\n  "), c.args[0], c.args[1])
 			}
 			if len(added)+len(updated) == 0 {
 				c.println("Nothing to merge from " + c.args[1] + ".")
@@ -678,13 +756,64 @@ use ob operation set --add-alias. ob compat shows which are missing.`,
 				parts = append(parts, "added "+strings.Join(added, ", "))
 			}
 			if len(updated) > 0 {
-				parts = append(parts, "updated "+strings.Join(updated, ", "))
+				parts = append(parts, "took theirs for "+strings.Join(updated, ", "))
 			}
 			return c.wrote(c.args[0], before, after, fmt.Sprintf("Merged from %s: %s", c.args[1], strings.Join(parts, "; ")))
 		}))
 	cmd.Flags().StringArray("operation", nil, "merge only this operation of <from> (repeatable)")
 	cmd.Flags().Bool("no-bindings", false, "bring operations without their bindings")
+	cmd.Flags().Bool("ours", false, "where the documents differ, keep what <obi> has")
+	cmd.Flags().Bool("theirs", false, "where the documents differ, take what <from> has")
 	return cmd
+}
+
+// nxMerge applies one merge, collecting conflicts instead of overwriting.
+type nxMerge struct {
+	from, to     *nxObj
+	ours, theirs bool
+	conflicts    []string
+}
+
+// conflict reports whether a differing entry should take theirs, recording
+// the conflict when neither side was chosen.
+func (m *nxMerge) conflict(label, what string, differs bool) bool {
+	if !differs || m.ours {
+		return false
+	}
+	if m.theirs {
+		return true
+	}
+	m.conflicts = append(m.conflicts, label+": "+what)
+	return false
+}
+
+// entry brings one named source, binding, or schema, respecting collisions.
+func (m *nxMerge) entry(part, noun, name string, value any) {
+	existing := m.to.Obj(part)
+	if existing != nil && existing.Has(name) {
+		if m.conflict(noun+" "+name, "differs", nxCompact(existing.Get(name)) != nxCompact(value)) {
+			existing.Set(name, nxClone(value))
+		}
+		return
+	}
+	nxPart(m.to, part).Set(name, nxClone(value))
+	if part == "schemas" {
+		m.schemas(value)
+	}
+}
+
+// schemas brings the named schemas a merged value references.
+func (m *nxMerge) schemas(v any) {
+	for _, match := range nxSchemaRef.FindAllStringSubmatch(nxCompact(v), -1) {
+		name := match[1]
+		if m.from.Obj("schemas") == nil || !m.from.Obj("schemas").Has(name) {
+			continue
+		}
+		if m.to.Obj("schemas") != nil && m.to.Obj("schemas").Has(name) && nxCompact(m.to.Obj("schemas").Get(name)) == nxCompact(m.from.Obj("schemas").Get(name)) {
+			continue
+		}
+		m.entry("schemas", "schema", name, m.from.Obj("schemas").Get(name))
+	}
 }
 
 // nxMergeSource picks the sample standing in for <from>: the Acme Tasks
@@ -709,21 +838,9 @@ func nxMergeSource(c *nxCtx) *nxObj {
 	return from
 }
 
-var nxSchemaRef = regexp.MustCompile(`"#/schemas/([^"]+)"`)
+var nxQuotedAt = regexp.MustCompile(`at '(/[^']*)'`)
 
-// nxMergeSchemas copies the named schemas a merged value references, and the
-// schemas those reference, when the target document lacks them.
-func nxMergeSchemas(from, to *nxObj, v any) {
-	for _, m := range nxSchemaRef.FindAllStringSubmatch(nxCompact(v), -1) {
-		name := m[1]
-		if (to.Obj("schemas") != nil && to.Obj("schemas").Has(name)) || from.Obj("schemas") == nil || !from.Obj("schemas").Has(name) {
-			continue
-		}
-		schema := nxClone(from.Obj("schemas").Get(name))
-		nxPart(to, "schemas").Set(name, schema)
-		nxMergeSchemas(from, to, schema)
-	}
-}
+var nxSchemaRef = regexp.MustCompile(`"#/schemas/([^"]+)"`)
 
 func nxSynthesizeCmd() *cobra.Command {
 	cmd := nxLeaf("synthesize", "synthesize <artifact> --kind <kind>", "Create a document from an artifact", `Create a new document from an artifact, such as an OpenAPI document, using
@@ -774,7 +891,7 @@ then ob source pull.`,
 			doc.Set("sources", nxNewObj().Set(name, src))
 			doc.Set("bindings", binds)
 			c.note(fmt.Sprintf("(preview: %s was not read; showing what the sample artifact would produce)", c.args[0]))
-			if out := c.str("output"); out != "" {
+			if out := c.str("out"); out != "" {
 				c.note("Created " + out + " with 3 operations from " + c.args[0])
 				c.note("(preview) the document that would be written:")
 			}
@@ -784,7 +901,7 @@ then ob source pull.`,
 	cmd.Flags().String("kind", "", "the artifact's exact kind (required)")
 	cmd.Flags().String("source", "", "name for the source in the new document (default \"api\")")
 	cmd.Flags().String("name", "", "a human-readable name for the document")
-	cmd.Flags().StringP("output", "o", "", "write the document to a file")
+	cmd.Flags().StringP("out", "o", "", "write the document to a file")
 	return cmd
 }
 
