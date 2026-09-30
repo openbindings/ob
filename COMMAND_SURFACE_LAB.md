@@ -82,7 +82,14 @@ The binding is chosen the way the operation-invoker contract says: the
 first invocable binding in an explicit list (`--binding`, repeatable), or
 the sole invocable binding, and otherwise a refusal that lists the
 candidates with their kind, preference, and deprecation. Preference and
-deprecation are shown but never used to choose.
+deprecation are shown but never used to choose. `--binding` is stricter
+than the interface's selection list: a name that is not one of the
+operation's bindings is refused, and so is a list with none ob can invoke,
+where the interface would skip them and fall back to the sole-binding rule.
+
+With `--frames`, every run that reaches the invoker ends with exactly one
+terminal frame, a refusal included. The interface's own error codes carry
+no `data`; the reason is on stderr.
 
 Checks follow the same boundary as the interface. A first input value that
 does not fit is refused before anything is sent (exit 3); a later one ends
@@ -150,6 +157,8 @@ Also decided on 2026-09-30:
   definitions, and lists every conflict; `--ours` keeps this document's side
   and `--theirs` takes the other's. Identical entries are skipped, and names
   match by key or alias.
+- `invoke --binding` is strict: a named binding that does not exist fails,
+  and ob never falls back to a binding you did not name.
 - `source pull --target` binds one target of a source.
 - Commands that create a new file take `-o, --out`.
 - Contradictory flags on one edit (for example `--input-schema false` with

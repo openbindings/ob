@@ -43,9 +43,12 @@ its input early, and the final complete or error frame. A refusal ends with
 its error frame too.
 
 Choosing a binding: --binding names one; repeat it to give an ordered list,
-and ob uses the first one it can invoke. Otherwise, if the operation has
-exactly one binding ob can invoke, ob uses it; if it has several, ob stops
-and lists them. Preference and deprecation are shown, never used to choose.
+and ob uses the first one it can invoke. A name that is not one of the
+operation's bindings is refused, and so is a list with none ob can invoke;
+ob never falls back to a binding you did not name. Without --binding, if
+the operation has exactly one binding ob can invoke, ob uses it; if it has
+several, ob stops and lists them. Preference and deprecation are shown,
+never used to choose.
 
 Checks: ob checks each input value against the operation's input schema
 before sending it, and each output value against its output schema. A
