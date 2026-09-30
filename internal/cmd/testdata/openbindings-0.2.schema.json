@@ -1,0 +1,255 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://openbindings.com/schema/openbindings-0.2.json",
+  "title": "OpenBindings Interface Document (v0.2.0)",
+  "description": "Derived JSON Schema for the OpenBindings interface document. It expresses the structural portion of the specification, and OBI-D-02 applies it as published. A conflict with the prose is an erratum; this schema decides OBI-D-02 until a patch release corrects it (see openbindings.md OBI-D-02).",
+  "type": "object",
+  "required": ["openbindings", "operations"],
+  "properties": {
+    "openbindings": {
+      "type": "string",
+      "pattern": "^(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)(?:-((?:0|[1-9][0-9]*|[0-9]*[a-zA-Z-][0-9a-zA-Z-]*)(?:\\.(?:0|[1-9][0-9]*|[0-9]*[a-zA-Z-][0-9a-zA-Z-]*))*))?(?:\\+([0-9a-zA-Z-]+(?:\\.[0-9a-zA-Z-]+)*))?$",
+      "description": "OpenBindings specification version the document declares. Semantic Versioning 2.0.0 syntax (e.g., 0.2.0). Pattern validates syntax only: whether a processor supports the declared version is explicit implementation support per OBI-T-04 and §8.1, and is not expressible in this schema."
+    },
+    "name": {
+      "type": "string",
+      "description": "Human-friendly interface name. Not an identifier."
+    },
+    "version": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Interface-version label: non-empty, author-controlled, opaque to the specification. No ordering, compatibility, or identity semantics."
+    },
+    "description": {
+      "type": "string",
+      "description": "Human-readable description of the interface."
+    },
+    "schemas": {
+      "type": "object",
+      "description": "Named JSON Schemas, reusable through same-document references.",
+      "propertyNames": {
+        "pattern": "^[A-Za-z0-9_][A-Za-z0-9_.-]*$"
+      },
+      "additionalProperties": {
+        "$ref": "#/$defs/JSONSchema"
+      }
+    },
+    "operations": {
+      "type": "object",
+      "description": "Protocol-independent operation contracts, keyed by operation name. Presence alone does not assert that a realization is available.",
+      "propertyNames": {
+        "pattern": "^[A-Za-z0-9_][A-Za-z0-9_.-]*$"
+      },
+      "additionalProperties": {
+        "$ref": "#/$defs/Operation"
+      }
+    },
+    "dependencies": {
+      "type": "object",
+      "description": "Named consumption points, each referencing an operation contract and optionally constraining acceptable kinds.",
+      "propertyNames": {
+        "pattern": "^[A-Za-z0-9_][A-Za-z0-9_.-]*$"
+      },
+      "additionalProperties": {
+        "$ref": "#/$defs/DependencyEntry"
+      }
+    },
+    "sources": {
+      "type": "object",
+      "description": "Map of sources: each carries a kind and may carry content read under that kind. The core assigns no meaning to the content.",
+      "propertyNames": {
+        "pattern": "^[A-Za-z0-9_][A-Za-z0-9_.-]*$"
+      },
+      "additionalProperties": {
+        "$ref": "#/$defs/Source"
+      }
+    },
+    "bindings": {
+      "type": "object",
+      "description": "Binding entries keyed by binding name, each an author-declared realization connecting an operation to a source.",
+      "propertyNames": {
+        "pattern": "^[A-Za-z0-9_][A-Za-z0-9_.-]*$"
+      },
+      "additionalProperties": {
+        "$ref": "#/$defs/BindingEntry"
+      }
+    }
+  },
+  "patternProperties": { "^x-": true },
+  "additionalProperties": false,
+  "$defs": {
+    "JSONSchema": {
+      "description": "JSON Schema 2020-12 schema: object or boolean form. Where $schema appears on the object form, its value is checked here (OBI-D-06), not its placement: in an OBI, JSON Schema permits $schema only at a resource root, a schema that declares $id (openbindings.md §5.2). OBI-D-06 at nested positions and meta-schema validity (OBI-D-10) are prose rules beyond this schema.",
+      "anyOf": [
+        {
+          "type": "object",
+          "properties": {
+            "$schema": {
+              "enum": [
+                "https://json-schema.org/draft/2020-12/schema",
+                "https://json-schema.org/draft/2020-12/schema#"
+              ]
+            }
+          },
+          "additionalProperties": true
+        },
+        {
+          "type": "boolean"
+        }
+      ]
+    },
+    "Operation": {
+      "type": "object",
+      "properties": {
+        "description": {
+          "type": "string",
+          "description": "Human-readable description of the operation's capability, which its bindings claim to carry out (§5.3)."
+        },
+        "deprecated": {
+          "type": "boolean",
+          "description": "Whether the operation is deprecated (migration hint)."
+        },
+        "tags": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Organizational labels for grouping and filtering."
+        },
+        "aliases": {
+          "type": "array",
+          "description": "Additional names for this operation, equal in standing to its key. The key plus aliases form one flat, document-unique namespace; every name resolves to this operation. Carrying a shared contract's operation name here claims correspondence with that operation.",
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9_][A-Za-z0-9_.-]*$"
+          }
+        },
+        "input": {
+          "$ref": "#/$defs/JSONSchema",
+          "description": "Contract on each caller-facing input value. Omit to leave unspecified; literal null is not valid at this position."
+        },
+        "output": {
+          "$ref": "#/$defs/JSONSchema",
+          "description": "Contract on each caller-facing output value. Omit to leave unspecified; literal null is not valid at this position."
+        },
+        "examples": {
+          "type": "object",
+          "description": "Named examples for this operation.",
+          "propertyNames": {
+            "pattern": "^[A-Za-z0-9_][A-Za-z0-9_.-]*$"
+          },
+          "additionalProperties": {
+            "$ref": "#/$defs/OperationExample"
+          }
+        }
+      },
+      "patternProperties": { "^x-": true },
+      "additionalProperties": false
+    },
+    "OperationExample": {
+      "type": "object",
+      "description": "An operation example: each of its input and output members is one caller-facing value. Positive contract claims: the author asserts that provided values validate against the corresponding specified schemas (§5.1); the claim's truth is not a document rule. Member presence is distinct from value: an explicitly null member is a provided JSON null value.",
+      "properties": {
+        "description": {
+          "type": "string",
+          "description": "Human-readable description of this example."
+        },
+        "input": {
+          "description": "Example input value."
+        },
+        "output": {
+          "description": "Example output value."
+        }
+      },
+      "patternProperties": { "^x-": true },
+      "additionalProperties": false
+    },
+    "DependencyEntry": {
+      "type": "object",
+      "required": ["operation"],
+      "properties": {
+        "operation": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9_][A-Za-z0-9_.-]*$",
+          "description": "Operation key referenced by this named consumption point. Aliases are not valid here."
+        },
+        "kinds": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
+          "description": "Optional unordered any-of constraint over exact, opaque kinds acceptable at this consumption point. Omission declares no kind constraint."
+        },
+        "description": {
+          "type": "string",
+          "description": "Human-readable description of this dependency."
+        }
+      },
+      "patternProperties": { "^x-": true },
+      "additionalProperties": false
+    },
+    "Source": {
+      "type": "object",
+      "required": ["kind"],
+      "properties": {
+        "kind": {
+          "type": "string",
+          "minLength": 1,
+          "description": "The source's kind: exact, opaque, non-empty string used to select an interpretation of the source and its bindings (e.g., example.openapi@1). Never implicitly dereferenced; no version algebra."
+        },
+        "content": {
+          "description": "Optional source content, as any JSON value, read under the source's kind. The core assigns no meaning to its presence, absence, type, or members. Member presence is distinct from value: content carrying JSON null is a present member."
+        },
+        "description": {
+          "type": "string",
+          "description": "Human-readable description of this source."
+        }
+      },
+      "patternProperties": { "^x-": true },
+      "additionalProperties": false
+    },
+    "BindingEntry": {
+      "type": "object",
+      "required": ["operation", "source"],
+      "properties": {
+        "operation": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9_][A-Za-z0-9_.-]*$",
+          "description": "Operation key referenced by this binding. Aliases are not valid here."
+        },
+        "source": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9_][A-Za-z0-9_.-]*$",
+          "description": "Source key from sources."
+        },
+        "content": {
+          "description": "Optional binding content, as any JSON value, read under its source's kind. It might identify a target or describe value adaptation; the core assigns no meaning to its presence, absence, type, or members. Member presence is distinct from value: content carrying JSON null is a present member."
+        },
+        "idempotent": {
+          "type": "boolean",
+          "description": "Author claim about repeating the operation through this binding: true asserts repetition with the same input, in context differing at most in ways the effects do not depend on, adds no intended operation-level effects after the first; false asserts some valid repetition through it can; absent claims nothing. Not a retry-safety or cacheability authorization (§5.3)."
+        },
+        "preference": {
+          "type": "integer",
+          "minimum": -9007199254740991,
+          "maximum": 9007199254740991,
+          "description": "Author preference signal among bindings of the same operation: higher is more preferred; equal values express no ordering; omission states no preference and is not equivalent to any numeric value. The specification defines no selection algorithm."
+        },
+        "description": {
+          "type": "string",
+          "description": "Human-readable description of this binding."
+        },
+        "deprecated": {
+          "type": "boolean",
+          "description": "Author recommends migration away from this binding. Deprecation does not remove the binding or change what it declares; no ordering relationship with preference is mandated."
+        }
+      },
+      "patternProperties": { "^x-": true },
+      "additionalProperties": false
+    }
+  }
+}
