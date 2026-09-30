@@ -19,10 +19,10 @@ type pflagFlag = pflag.Flag
 //
 //	filter-edits    edits print the resulting document instead of editing in place
 //	binding-invoke  invoke takes an exact binding key and prints event envelopes
-//	correspond      adopt is named correspond
+//	adopt           adds the dropped adopt command, for comparison
 func NewNextSurfaceRoot(variant string) *cobra.Command {
 	switch variant {
-	case "filter-edits", "binding-invoke", "correspond":
+	case "filter-edits", "binding-invoke", "adopt":
 	default:
 		variant = ""
 	}
@@ -60,17 +60,18 @@ or called.`,
 		{ID: "parts", Title: "Parts of a document"},
 		{ID: "sources", Title: "Sources"},
 		{ID: "use", Title: "Using a service"},
-		{ID: "contracts", Title: "Shared contracts"},
 		{ID: "serve", Title: "Serving"},
 		{ID: "extend", Title: "Kinds and delegates"},
 	} {
 		root.AddGroup(g)
 	}
-	nxAdd(root, "docs", nxInitCmd(), nxShowCmd(), nxValidateCmd(), nxDiffCmd(), nxFmtCmd(), nxPatchCmd(), nxMergeCmd())
+	nxAdd(root, "docs", nxInitCmd(), nxShowCmd(), nxValidateCmd(), nxDiffCmd(), nxCompatCmd(), nxFmtCmd(), nxPatchCmd(), nxMergeCmd())
+	if variant == "adopt" {
+		nxAdd(root, "docs", nxAdoptCmd())
+	}
 	nxAdd(root, "parts", nxOperationCmd(), nxSourceCmd(), nxBindingCmd(), nxDependencyCmd(), nxSchemaCmd())
 	nxAdd(root, "sources", nxSynthesizeCmd(), nxStatusCmd())
 	nxAdd(root, "use", nxFetchCmd(), nxInvokeCmd(variant), nxContextCmd(), nxCodegenCmd())
-	nxAdd(root, "contracts", nxAdoptCmd(variant), nxCompatCmd())
 	nxAdd(root, "serve", nxStartCmd(), nxMCPCmd())
 	nxAdd(root, "extend", nxKindCmd(), nxDelegateCmd())
 	nxApplyEditMode(root, variant)
@@ -412,7 +413,10 @@ var nxRootHints = map[string]string{
 	"pull": "source pull", "sync": "source pull", "import": "source import",
 	"inspect": "source inspect", "drift": "status",
 	"serve": "start (ob's own service) or ob mcp (a document as MCP tools)", "server": "start",
-	"conform": "adopt", "correspond": "adopt", "implement": "adopt",
+	"conform":       "compat, which shows what a contract needs and the commands that add it",
+	"correspond":    "compat, which shows what a contract needs and the commands that add it",
+	"adopt":         "compat, which shows what a contract needs and the commands that add it",
+	"implement":     "compat, which shows what a contract needs and the commands that add it",
 	"compatibility": "compat", "compatible": "compat",
 	"kinds": "kind", "capabilities": "kind", "handlers": "kind", "binding-specs": "kind",
 	"delegates": "delegate", "plugin": "delegate", "plugins": "delegate",
@@ -432,8 +436,8 @@ func nxUnknown(cmd *cobra.Command, word string) error {
 	root := cmd.Root()
 	if cmd == root {
 		if hint, ok := nxRootHints[word]; ok {
-			if root.Annotations["variant"] == "correspond" && hint == "adopt" {
-				hint = "correspond"
+			if root.Annotations["variant"] == "adopt" && strings.HasPrefix(hint, "compat, which") {
+				hint = "adopt"
 			}
 			return fmt.Errorf("unknown command %q; did you mean: ob %s", word, hint)
 		}

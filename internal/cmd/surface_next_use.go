@@ -361,11 +361,10 @@ the way ob invoke does. -o names the output directory.`,
 
 // -------------------------------------------------------- shared contracts
 
-func nxAdoptCmd(variant string) *cobra.Command {
+// nxAdoptCmd exists only in the adopt variant; the default tree meets a
+// contract with ob compat, ob operation set --add-alias, and ob merge.
+func nxAdoptCmd() *cobra.Command {
 	name := "adopt"
-	if variant == "correspond" {
-		name = "correspond"
-	}
 	cmd := nxEditable(nxLeaf("adopt", name+" <obi> <contract>", "Adopt a shared contract's operations", `Make <obi> offer the operations of a shared contract (another OBI, a path
 or URL), so its operations answer to the contract's names:
 
@@ -424,9 +423,6 @@ changes nothing unless --replace-schemas is given.`,
 			}
 			return c.wrote(c.args[0], before, after, "Adopted Acme Tasks")
 		}))
-	if variant == "correspond" {
-		cmd.Short = "Make operations correspond to a shared contract's"
-	}
 	cmd.Flags().StringArray("as", nil, "CONTRACT_NAME=OPERATION: give your operation the contract's name (repeatable)")
 	cmd.Flags().Bool("replace-schemas", false, "replace your schemas where they do not fit the contract's")
 	return cmd
@@ -440,6 +436,10 @@ compared with ob's comparison rules (profile OB-2020-12); a comparison ob
 cannot decide is reported as undecided, not as a failure. Both arguments
 may be paths or URLs.
 
+For each contract operation that nothing answers to, it prints the two ways
+to meet it: give one of your operations the contract's name with ob
+operation set --add-alias, or add the contract's operation with ob merge.
+
 Exit status: 0 compatible; 1 not compatible.`,
 		`  ob compat tasks.obi.json acme-tasks.obi.json
   ob compat https://api.example.com https://contracts.example.com/acme-tasks.json -q`,
@@ -449,6 +449,7 @@ Exit status: 0 compatible; 1 not compatible.`,
 			c.note(fmt.Sprintf("(preview: a sample contract, Acme Tasks, stands in for %s)", c.args[1]))
 			var rows [][]string
 			var out []any
+			var missing []string
 			ok := true
 			for _, cname := range contract.Obj("operations").Keys() {
 				if key, found := nxResolveOperation(doc, cname); found {
@@ -456,8 +457,9 @@ Exit status: 0 compatible; 1 not compatible.`,
 					out = append(out, nxNewObj().Set("operation", cname).Set("satisfied", true).Set("by", key))
 				} else {
 					ok = false
+					missing = append(missing, cname)
 					rows = append(rows, []string{cname, "no", "no operation answers to this name"})
-					out = append(out, nxNewObj().Set("operation", cname).Set("satisfied", false))
+					out = append(out, nxNewObj().Set("operation", cname).Set("satisfied", false).Set("remedies", nxToAny(nxRemedies(c, cname))))
 				}
 			}
 			if !c.on("quiet") {
@@ -468,6 +470,13 @@ Exit status: 0 compatible; 1 not compatible.`,
 					}
 					c.println(fmt.Sprintf("%s %s Acme Tasks (%s)", c.args[0], verdict, c.args[1]))
 					c.table("CONTRACT OPERATION\tMET\tBY", rows)
+					for _, cname := range missing {
+						r := nxRemedies(c, cname)
+						c.println("")
+						c.println("To meet " + cname + ":")
+						c.println("  if one of your operations already does it:  " + r[0])
+						c.println("  otherwise, add it from the contract:        " + r[1])
+					}
 				})
 			}
 			if !ok {
@@ -478,6 +487,13 @@ Exit status: 0 compatible; 1 not compatible.`,
 	cmd.Flags().BoolP("quiet", "q", false, "print nothing; report through the exit status only")
 	nxFormat(cmd, "text", "json")
 	return cmd
+}
+
+func nxRemedies(c *nxCtx, contractOp string) []string {
+	return []string{
+		fmt.Sprintf("ob operation set %s <operation> --add-alias %s", c.args[0], contractOp),
+		fmt.Sprintf("ob merge %s %s --operation %s", c.args[0], c.args[1], contractOp),
+	}
 }
 
 // ------------------------------------------------------------------ serving

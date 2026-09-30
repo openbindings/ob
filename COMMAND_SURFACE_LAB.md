@@ -33,8 +33,9 @@ Things to try:
 ./bin/ob invoke tasks.obi.json events.deliver                  # refused: no bindings
 ./bin/ob source inspect tasks.obi.json httpApi
 ./bin/ob status tasks.obi.json
-./bin/ob adopt tasks.obi.json acme-tasks.obi.json --as acme.tasks.listTasks=listTasks --dry-run
-./bin/ob compat tasks.obi.json acme-tasks.obi.json
+./bin/ob compat tasks.obi.json acme-tasks.obi.json             # what a contract needs, and the commands that add it
+./bin/ob operation set tasks.obi.json listTasks --add-alias acme.tasks.listTasks
+./bin/ob merge tasks.obi.json acme-tasks.obi.json --operation acme.tasks.deleteTask
 ./bin/ob kind check example.openapi@2 --role invoke
 ./bin/ob delegate resolve --role invoke --kind acme.billing-rpc@1
 ./bin/ob operations list tasks.obi.json                        # near miss: suggests ob operation
@@ -53,8 +54,15 @@ The default tree takes the proposed side of each open decision. Set
 | How edits write | Edit `<obi>` in place; `--dry-run` shows the diff; `-` as `<obi>` reads stdin and prints the result | `filter-edits`: every edit prints the whole resulting document and leaves the file alone (`-o` to save) |
 | Changing and renaming | `set` and `rename` for every part; `rename` updates references; `operation rename --keep-alias` | none in this tree; `v02-lab` has only add, list, show, remove |
 | What `invoke` takes | An operation name or alias; ob picks a binding (supported kind, not deprecated, highest preference, refuses on a tie); `--binding` overrides; prints output values one per line; `--events` for the whole exchange | `binding-invoke`: an exact binding key, always event envelopes |
-| Name for adopting a contract | `adopt` | `correspond` |
-| Which other areas return | All of them: serving (`start`, `mcp`), `codegen`, `context`, `fetch`, `delegate`, `adopt`, `compat`, `status`, `merge`, `fmt` | remove what should not be here |
+| Which other areas return | All of them: serving (`start`, `mcp`), `codegen`, `context`, `fetch`, `delegate`, `compat`, `status`, `merge`, `fmt` | remove what should not be here |
+
+Decided on 2026-09-30: there is no `adopt` (formerly `conform`, then
+`correspond`). A document meets a shared contract when its operations carry
+the contract's names, so the plain commands do it: `compat` shows what is
+missing and prints both remedies, `operation set --add-alias` gives an
+operation you already have the contract's name, and `merge` adds a contract
+operation you lack. `OB_SURFACE_VARIANT=adopt` restores the old command for
+comparison.
 
 Other proposals in this tree worth a look:
 

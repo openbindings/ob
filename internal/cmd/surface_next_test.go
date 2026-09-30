@@ -14,7 +14,7 @@ import (
 	"github.com/spf13/cobra"
 )
 
-var nxVariants = []string{"", "filter-edits", "binding-invoke", "correspond"}
+var nxVariants = []string{"", "filter-edits", "binding-invoke", "adopt"}
 
 func nxExec(variant string, args ...string) (string, string, error) {
 	root := NewNextSurfaceRoot(variant)
@@ -135,6 +135,24 @@ func nxConforms(t *testing.T, schema *jsonschema.Schema, label, text string) {
 	if err := schema.Validate(doc); err != nil {
 		t.Errorf("%s: result fails the 0.2 schema: %v", label, err)
 	}
+	// OBI-D-04: operation keys and aliases form one namespace.
+	parsed, err := nxParse(text)
+	if err != nil {
+		return
+	}
+	seen := map[string]bool{}
+	ops, _ := parsed.(*nxObj)
+	if ops = ops.Obj("operations"); ops == nil {
+		return
+	}
+	for _, key := range ops.Keys() {
+		for _, name := range append([]string{key}, nxStrings(ops.Obj(key).Get("aliases"))...) {
+			if seen[name] {
+				t.Errorf("%s: two operations answer to %q (OBI-D-04)", label, name)
+			}
+			seen[name] = true
+		}
+	}
 }
 
 // Every edit, run with - as the document, prints its result; each result
@@ -170,7 +188,8 @@ func TestNextEditsKeepDocumentsConformant(t *testing.T) {
 		{"schema", "rename", "-", "Task", "Todo"},
 		{"patch", "-", "changes.json"},
 		{"merge", "-", "other.obi.json"},
-		{"adopt", "-", "contract.obi.json", "--as", "acme.tasks.listTasks=listTasks"},
+		{"merge", "-", "acme-tasks.obi.json"},
+		{"merge", "-", "acme-tasks.obi.json", "--operation", "acme.tasks.deleteTask", "--no-bindings"},
 	}
 	covered := map[string]bool{}
 	for _, args := range cases {
@@ -192,6 +211,12 @@ func TestNextEditsKeepDocumentsConformant(t *testing.T) {
 			t.Errorf("no conformance case exercises %s", cmd.CommandPath())
 		}
 	})
+	adopt := []string{"adopt", "-", "contract.obi.json", "--as", "acme.tasks.listTasks=listTasks"}
+	if out, _, err := nxExec("adopt", adopt...); err != nil {
+		t.Errorf("ob %s: %v", strings.Join(adopt, " "), err)
+	} else {
+		nxConforms(t, schema, "ob "+strings.Join(adopt, " "), out)
+	}
 	for _, args := range [][]string{
 		{"init", "--name", "Task Manager", "--interface-version", "1.0.0"},
 		{"synthesize", "./openapi.json", "--kind", "example.openapi@1"},
@@ -254,8 +279,9 @@ func TestNextNearMissesPointToTheCommand(t *testing.T) {
 		{[]string{"get", "x"}, "ob show"},
 		{[]string{"call", "x", "y"}, "ob invoke"},
 		{[]string{"operations", "list"}, "ob operation"},
-		{[]string{"conform"}, "ob adopt"},
-		{[]string{"correspond"}, "ob adopt"},
+		{[]string{"conform"}, "ob compat"},
+		{[]string{"correspond"}, "ob compat"},
+		{[]string{"adopt"}, "ob compat"},
 		{[]string{"resolve", "https://x"}, "ob fetch"},
 		{[]string{"serve"}, "ob start"},
 		{[]string{"binding-specs"}, "ob kind"},
@@ -268,6 +294,39 @@ func TestNextNearMissesPointToTheCommand(t *testing.T) {
 		if err == nil || !strings.Contains(err.Error(), tc.want) {
 			t.Errorf("ob %s: got %v, want a hint naming %q", strings.Join(tc.args, " "), err, tc.want)
 		}
+	}
+}
+
+// Merging from a contract never adds a name one of your operations already
+// answers to, and compat names both remedies for what is missing.
+func TestNextContractsAreMetWithAliasesAndMerge(t *testing.T) {
+	out, _, err := nxExec("", "merge", "-", "acme-tasks.obi.json")
+	if err != nil {
+		t.Fatal(err)
+	}
+	doc := nxMustParse(out).(*nxObj)
+	if doc.Obj("operations").Has("acme.tasks.createTask") {
+		t.Error("merge added acme.tasks.createTask, which createTask already answers to")
+	}
+	for _, name := range []string{"acme.tasks.listTasks", "acme.tasks.deleteTask"} {
+		if !doc.Obj("operations").Has(name) {
+			t.Errorf("merge did not add %s", name)
+		}
+	}
+	report, _, err := nxExec("", "compat", "tasks.obi.json", "acme-tasks.obi.json")
+	if nxExitCode(err) != 1 {
+		t.Fatalf("compat exit %d, want 1", nxExitCode(err))
+	}
+	for _, want := range []string{
+		"ob operation set tasks.obi.json <operation> --add-alias acme.tasks.listTasks",
+		"ob merge tasks.obi.json acme-tasks.obi.json --operation acme.tasks.deleteTask",
+	} {
+		if !strings.Contains(report, want) {
+			t.Errorf("compat does not suggest %q:\n%s", want, report)
+		}
+	}
+	if _, _, err := nxExec("", "adopt", "a", "b"); err == nil {
+		t.Error("adopt is still in the default tree")
 	}
 }
 

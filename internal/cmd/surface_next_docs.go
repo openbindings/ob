@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"fmt"
+	"regexp"
 	"sort"
 	"strings"
 
@@ -599,43 +600,129 @@ conformant document, or nothing is written.`,
 }
 
 func nxMergeCmd() *cobra.Command {
-	cmd := nxEditable(nxLeaf("merge", "merge <obi> <from>", "Bring operations in from another document", `Copy operations from <from> into <obi>, with the bindings, sources, and
-schemas they need. An operation that already exists has its schemas
-updated; fields you wrote by hand are kept. --operation limits the merge to
-the named operations.`,
+	cmd := nxEditable(nxLeaf("merge", "merge <obi> <from>", "Bring operations in from another document", `Copy operations from <from> (a path or URL) into <obi>, with the schemas,
+bindings, and sources they need. --operation limits the merge to the named
+operations of <from>.
+
+An operation whose name <obi> already uses as a key has its input and output
+schemas updated; fields you wrote by hand are kept. An operation whose name
+is already an alias of one of yours is left alone.
+
+A shared contract is just another OBI, so merging from one adds the contract
+operations you don't have yet, under the contract's names and with its
+schemas. To give an operation you already have a contract's name instead,
+use ob operation set --add-alias. ob compat shows which are missing.`,
 		`  ob merge tasks.obi.json tasks-next.obi.json
-  ob merge tasks.obi.json tasks-next.obi.json --operation archiveTask`,
+  ob merge tasks.obi.json tasks-next.obi.json --operation archiveTask
+  ob merge tasks.obi.json acme-tasks.obi.json --operation acme.tasks.deleteTask`,
 		nxArgs(2, 2), func(c *nxCtx) error {
-			c.note(fmt.Sprintf("(preview: an edited copy of the sample stands in for %s)", c.args[1]))
-			for _, name := range c.strs("operation") {
-				if name != "archiveTask" && name != "listTasks" {
-					return nxFail(1, "%s has no operation named %q", c.args[1], name)
+			from := nxMergeSource(c)
+			fromOps := from.Obj("operations")
+			names := c.strs("operation")
+			for _, n := range names {
+				if !fromOps.Has(n) {
+					return nxFail(1, "%s has no operation named %q", c.args[1], n)
 				}
+			}
+			if len(names) == 0 {
+				names = fromOps.Keys()
 			}
 			before := c.doc(c.args[0])
-			_, from := nxDiffSample()
 			after := nxClone(before).(*nxObj)
-			only := map[string]bool{}
-			for _, n := range c.strs("operation") {
-				only[n] = true
-			}
-			took := 0
-			if len(only) == 0 || only["archiveTask"] {
-				after.Obj("operations").Set("archiveTask", nxClone(from.Obj("operations").Get("archiveTask")))
-				if !c.on("no-bindings") {
-					after.Obj("bindings").Set("archiveTask.http", nxClone(from.Obj("bindings").Get("archiveTask.http")))
+			var added, updated []string
+			for _, name := range names {
+				fop := fromOps.Obj(name)
+				if after.Obj("operations").Has(name) {
+					op := after.Obj("operations").Obj(name)
+					changed := false
+					for _, side := range []string{"input", "output"} {
+						if fop.Has(side) && nxCompact(fop.Get(side)) != nxCompact(op.Get(side)) {
+							op.SetCanon(side, nxClone(fop.Get(side)), nxOperationOrder)
+							nxMergeSchemas(from, after, fop.Get(side))
+							changed = true
+						}
+					}
+					if changed {
+						updated = append(updated, name)
+					}
+					continue
 				}
-				took++
+				if key, ok := nxResolveOperation(after, name); ok {
+					c.note(fmt.Sprintf("left alone: %s (already answered by %s)", name, key))
+					continue
+				}
+				nxPart(after, "operations").Set(name, nxClone(fop))
+				nxMergeSchemas(from, after, fop)
+				added = append(added, name)
+				if c.on("no-bindings") {
+					continue
+				}
+				for _, b := range nxReferrers(from, "bindings", "operation", name) {
+					if after.Obj("bindings") != nil && after.Obj("bindings").Has(b) {
+						continue
+					}
+					binding := from.Obj("bindings").Obj(b)
+					src := fmt.Sprint(binding.Get("source"))
+					if after.Obj("sources") == nil || !after.Obj("sources").Has(src) {
+						nxPart(after, "sources").Set(src, nxClone(from.Obj("sources").Get(src)))
+					}
+					nxPart(after, "bindings").Set(b, nxClone(binding))
+				}
 			}
-			if len(only) == 0 || only["listTasks"] {
-				after.Obj("operations").Obj("listTasks").Set("output", nxClone(from.Obj("operations").Obj("listTasks").Get("output")))
-				took++
+			if len(added)+len(updated) == 0 {
+				c.println("Nothing to merge from " + c.args[1] + ".")
+				return nil
 			}
-			return c.wrote(c.args[0], before, after, fmt.Sprintf("Merged %s from %s", nxCount(took, "operation"), c.args[1]))
+			var parts []string
+			if len(added) > 0 {
+				parts = append(parts, "added "+strings.Join(added, ", "))
+			}
+			if len(updated) > 0 {
+				parts = append(parts, "updated "+strings.Join(updated, ", "))
+			}
+			return c.wrote(c.args[0], before, after, fmt.Sprintf("Merged from %s: %s", c.args[1], strings.Join(parts, "; ")))
 		}))
-	cmd.Flags().StringArray("operation", nil, "merge only this operation (repeatable)")
+	cmd.Flags().StringArray("operation", nil, "merge only this operation of <from> (repeatable)")
 	cmd.Flags().Bool("no-bindings", false, "bring operations without their bindings")
 	return cmd
+}
+
+// nxMergeSource picks the sample standing in for <from>: the Acme Tasks
+// contract when the name or the requested operations point at it, otherwise
+// an edited copy of the sample document.
+func nxMergeSource(c *nxCtx) *nxObj {
+	name := strings.ToLower(c.args[1])
+	contract := strings.Contains(name, "acme") || strings.Contains(name, "contract")
+	if ops := c.strs("operation"); len(ops) > 0 {
+		all := true
+		for _, op := range ops {
+			all = all && strings.HasPrefix(op, "acme.tasks.")
+		}
+		contract = contract || all
+	}
+	if contract {
+		c.note(fmt.Sprintf("(preview: a sample contract, Acme Tasks, stands in for %s)", c.args[1]))
+		return nxContract()
+	}
+	c.note(fmt.Sprintf("(preview: an edited copy of the sample stands in for %s)", c.args[1]))
+	_, from := nxDiffSample()
+	return from
+}
+
+var nxSchemaRef = regexp.MustCompile(`"#/schemas/([^"]+)"`)
+
+// nxMergeSchemas copies the named schemas a merged value references, and the
+// schemas those reference, when the target document lacks them.
+func nxMergeSchemas(from, to *nxObj, v any) {
+	for _, m := range nxSchemaRef.FindAllStringSubmatch(nxCompact(v), -1) {
+		name := m[1]
+		if (to.Obj("schemas") != nil && to.Obj("schemas").Has(name)) || from.Obj("schemas") == nil || !from.Obj("schemas").Has(name) {
+			continue
+		}
+		schema := nxClone(from.Obj("schemas").Get(name))
+		nxPart(to, "schemas").Set(name, schema)
+		nxMergeSchemas(from, to, schema)
+	}
 }
 
 func nxSynthesizeCmd() *cobra.Command {
