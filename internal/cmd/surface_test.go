@@ -41,7 +41,7 @@ func TestSurfaceRootIsAnInertCommandShell(t *testing.T) {
 	}
 
 	path := filepath.Join(t.TempDir(), "would-create.obi.json")
-	root.SetArgs([]string{"new", path})
+	root.SetArgs([]string{"new", "-o", path})
 	err := root.Execute()
 	if err == nil || !strings.Contains(err.Error(), "command-surface placeholder") {
 		t.Fatalf("new must return a placeholder error, got %v", err)
