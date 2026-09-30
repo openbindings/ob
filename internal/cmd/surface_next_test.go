@@ -402,6 +402,18 @@ func TestNextInvokeFollowsTheInvocationPattern(t *testing.T) {
 		{"preflight sends nothing and prints what it knows", "", []string{"invoke", "t.obi.json", "createTask", "--binding", "createTask.mcp", "--preflight"}, 0,
 			[]string{`{"target":"https://api.example.com/mcp","alternatives":[{"requirements":[{"type":"auth.oauth2","durable":true}]}]}`}},
 		{"an operation with no bindings cannot be called", "", []string{"invoke", "t.obi.json", "events.deliver"}, 3, nil},
+		{"refusals end with the interface's error frame", "", []string{"invoke", "t.obi.json", "events.deliver", "--frames"}, 3,
+			[]string{`{"kind":"error","error":{"code":"ERR_BINDING_NOT_FOUND"}}`}},
+		{"an unknown operation, as a frame", "", []string{"invoke", "t.obi.json", "deleteTask", "--frames"}, 3,
+			[]string{`{"kind":"error","error":{"code":"ERR_OPERATION_NOT_FOUND"}}`}},
+		{"a choice to make, as a frame", "", []string{"invoke", "t.obi.json", "createTask", "--input", `{"title":"x"}`, "--frames"}, 3,
+			[]string{`{"kind":"error","error":{"code":"ERR_BINDING_SELECTION_REQUIRED"}}`}},
+		{"a value in hand is checked before context is sought", "", []string{"invoke", "t.obi.json", "createTask", "--binding", "createTask.mcp", "--input", `{"title":5}`, "--frames"}, 3,
+			[]string{`{"kind":"error","error":{"code":"ERR_OPERATION_VALIDATION_FAILED"}}`}},
+		{"a stream that is not JSON from the start: ob cancels before sending", "nope\n", []string{"invoke", "t.obi.json", "importTasks", "--input", "-", "--frames"}, 3,
+			[]string{`{"kind":"error","error":{"code":"ERR_CANCELLED"}}`}},
+		{"a stream that stops being JSON: ob cancels after sending some", "{\"title\":\"a\"}\nnope\n", []string{"invoke", "t.obi.json", "importTasks", "--input", "-", "--frames"}, 1,
+			[]string{`{"kind":"error","error":{"code":"ERR_CANCELLED"}}`}},
 	} {
 		out, errOut, err := nxExecIn("", tc.stdin, tc.args...)
 		if got := nxExitCode(err); got != tc.code {
@@ -415,7 +427,11 @@ func TestNextInvokeFollowsTheInvocationPattern(t *testing.T) {
 			}
 		}
 	}
-	_, _, err := nxExecIn("", "", "invoke", "t.obi.json", "createTask", "--input", `{"title":"x"}`)
+	_, _, err := nxExecIn("", "{\"title\":\"a\"}\n{\"title\":5}\n", "invoke", "t.obi.json", "importTasks", "--input", "-")
+	if err == nil || !strings.Contains(err.Error(), "after sending 1 value,") {
+		t.Errorf("a mid-stream failure should count what was sent in words: %v", err)
+	}
+	_, _, err = nxExecIn("", "", "invoke", "t.obi.json", "createTask", "--input", `{"title":"x"}`)
 	if err == nil || !strings.Contains(err.Error(), "createTask.http") || !strings.Contains(err.Error(), "createTask.mcp") || !strings.Contains(err.Error(), "preference 10") {
 		t.Errorf("the choice refusal should list both bindings with their signals: %v", err)
 	}

@@ -39,7 +39,8 @@ Input:
 Output: each output value, as one line of JSON, as it arrives. --frames
 prints the whole exchange instead, one frame per line, exactly as the
 operation-invoker interface defines them: each output, the binding closing
-its input early, and the final complete or error frame.
+its input early, and the final complete or error frame. A refusal ends with
+its error frame too.
 
 Choosing a binding: --binding names one; repeat it to give an ordered list,
 and ob uses the first one it can invoke. Otherwise, if the operation has
@@ -47,7 +48,8 @@ exactly one binding ob can invoke, ob uses it; if it has several, ob stops
 and lists them. Preference and deprecation are shown, never used to choose.
 
 Checks: ob checks each input value against the operation's input schema
-before sending it, and each output value against its output schema.
+before sending it, and each output value against its output schema. A
+value given with --input VALUE is checked before ob asks for any context.
 --no-check skips both.
 
 Context: what a binding needs beyond the input, such as a credential, comes
@@ -86,7 +88,8 @@ whole exchange, one frame per line.`,
 			doc := c.doc(c.args[0])
 			b, err := c.entry(doc, "bindings", "binding", c.args[1])
 			if err != nil {
-				return nxFail(3, "%s", strings.TrimPrefix(err.Error(), ""))
+				c.println(nxErrorFrame("ERR_BINDING_NOT_FOUND", nil))
+				return nxFail(3, "%s", err.Error())
 			}
 			return nxInvokeThrough(c, doc, fmt.Sprint(b.Get("operation")), c.args[1], true)
 		})
@@ -117,9 +120,17 @@ func nxSignals(doc *nxObj, binding string) string {
 func nxInvoke(c *nxCtx) error {
 	c.banner = "ob preview: sample results; nothing was called"
 	doc := c.doc(c.args[0])
+	// A refusal is the invocation's terminal state, so --frames prints the
+	// interface's error frame for it.
+	refuse := func(code, format string, a ...any) error {
+		if c.on("frames") {
+			c.println(nxErrorFrame(code, nil))
+		}
+		return nxFail(3, format, a...)
+	}
 	key, ok := nxResolveOperation(doc, c.args[1])
 	if !ok {
-		return nxFail(3, "no operation named %q in %s; ob operation list shows them", c.args[1], c.args[0])
+		return refuse("ERR_OPERATION_NOT_FOUND", "no operation named %q in %s; ob operation list shows them", c.args[1], c.args[0])
 	}
 	bindings := nxReferrers(doc, "bindings", "operation", key)
 	if len(bindings) == 0 {
@@ -127,7 +138,7 @@ func nxInvoke(c *nxCtx) error {
 		if deps := nxReferrers(doc, "dependencies", "operation", key); len(deps) > 0 {
 			msg += fmt.Sprintf("; the document only calls it, at %s", strings.Join(deps, ", "))
 		}
-		return nxFail(3, "%s", msg)
+		return refuse("ERR_BINDING_NOT_FOUND", "%s", msg)
 	}
 	listing := func(names []string) string {
 		var rows [][]string
@@ -146,10 +157,10 @@ func nxInvoke(c *nxCtx) error {
 	if named := c.strs("binding"); len(named) > 0 {
 		for _, b := range named {
 			if doc.Obj("bindings") == nil || !doc.Obj("bindings").Has(b) {
-				return nxFail(3, "no binding named %q in %s", b, c.args[0])
+				return refuse("ERR_BINDING_NOT_FOUND", "no binding named %q in %s", b, c.args[0])
 			}
 			if !nxContains(bindings, b) {
-				return nxFail(3, "binding %s carries out %v, not %s", b, doc.Obj("bindings").Obj(b).Get("operation"), key)
+				return refuse("ERR_BINDING_NOT_FOUND", "binding %s carries out %v, not %s", b, doc.Obj("bindings").Obj(b).Get("operation"), key)
 			}
 		}
 		for _, b := range named {
@@ -159,7 +170,7 @@ func nxInvoke(c *nxCtx) error {
 			}
 		}
 		if chosen == "" {
-			return nxFail(3, "this ob cannot invoke any binding you named:\n%s", listing(named))
+			return refuse("ERR_BINDING_NOT_FOUND", "this ob cannot invoke any binding you named:\n%s", listing(named))
 		}
 	} else {
 		var usable []string
@@ -170,11 +181,11 @@ func nxInvoke(c *nxCtx) error {
 		}
 		switch len(usable) {
 		case 0:
-			return nxFail(3, "this ob cannot invoke any of %s's bindings:\n%s", key, listing(bindings))
+			return refuse("ERR_BINDING_NOT_FOUND", "this ob cannot invoke any of %s's bindings:\n%s", key, listing(bindings))
 		case 1:
 			chosen = usable[0]
 		default:
-			return nxFail(3, "%s has %d bindings ob can invoke; choose with --binding:\n%s", key, len(usable), listing(usable))
+			return refuse("ERR_BINDING_SELECTION_REQUIRED", "%s has %d bindings ob can invoke; choose with --binding:\n%s", key, len(usable), listing(usable))
 		}
 	}
 	return nxInvokeThrough(c, doc, key, chosen, c.on("frames"))
@@ -209,6 +220,51 @@ func nxInvokeThrough(c *nxCtx, doc *nxObj, key, binding string, frames bool) err
 		c.println(nxCompact(details))
 		return nil
 	}
+	inputs, closeInputs, err := nxInputs(c)
+	if err != nil {
+		return err
+	}
+	defer closeInputs()
+	sent := 0
+	checkInput := func(v any) error {
+		if c.on("no-check") {
+			return nil
+		}
+		problems, checked, err := nxCheck(doc, key, "input", v)
+		if err != nil || !checked || len(problems) == 0 {
+			return err
+		}
+		if frames {
+			c.println(nxErrorFrame("ERR_OPERATION_VALIDATION_FAILED", nil))
+		}
+		if sent == 0 {
+			return nxFail(3, "an input value does not fit %s's input schema, so nothing was sent:\n  %s", key, strings.Join(problems, "\n  "))
+		}
+		return nxFail(1, "input value %d does not fit %s's input schema (%s); ob stopped after sending %s, which may have taken effect", sent+1, key, strings.Join(problems, "; "), nxCount(sent, "value"))
+	}
+	// ob checks a value it already holds before asking for anything.
+	prechecked := false
+	if raw := c.str("input"); c.set("input") && raw != "-" && !strings.HasPrefix(raw, "@") {
+		v, _ := nxParse(raw)
+		if err := checkInput(v); err != nil {
+			return err
+		}
+		prechecked = true
+	}
+	// A stream that stops being JSON ends the call: ob, as the caller, cancels.
+	next := func() (any, bool, error) {
+		v, ok, err := inputs()
+		if err == nil {
+			return v, ok, nil
+		}
+		if frames {
+			c.println(nxErrorFrame("ERR_CANCELLED", nil))
+		}
+		if sent == 0 {
+			return nil, false, nxFail(3, "input value 1 is not JSON (%v), so ob cancelled the call before sending anything", err)
+		}
+		return nil, false, nxFail(1, "input value %d is not JSON (%v), so ob cancelled the call after sending %s, which may have taken effect", sent+1, err, nxCount(sent, "value"))
+	}
 	if needs {
 		_, stored := nxStoredContext(need.scope)
 		switch {
@@ -223,22 +279,17 @@ func nxInvokeThrough(c *nxCtx, doc *nxObj, key, binding string, frames bool) err
 				data := nxNewObj().Set("target", need.scope).Set("alternatives", []any{
 					nxNewObj().Set("requirements", []any{nxNewObj().Set("type", need.requirement).Set("durable", need.durable)}),
 				})
-				c.println(nxCompact(nxNewObj().Set("kind", "error").Set("error", nxNewObj().Set("code", "CONTEXT_REQUIRED").Set("data", data))))
+				c.println(nxErrorFrame("CONTEXT_REQUIRED", data))
 			}
 			return nxFail(3, "%s needs %s for %s, and nothing is stored for that scope, so nothing was sent.\n  store it:           %s\n  or for this call:   --context @context.json", binding, need.describe, need.scope, nxRemedy(need))
 		}
 	}
 	c.live()
-	inputs, closeInputs, err := nxInputs(c)
-	if err != nil {
-		return err
-	}
-	defer closeInputs()
 	emit := func(v any) error {
 		if !c.on("no-check") {
 			if problems, checked, err := nxCheck(doc, key, "output", v); err == nil && checked && len(problems) > 0 {
 				if frames {
-					c.println(nxCompact(nxNewObj().Set("kind", "error").Set("error", nxNewObj().Set("code", "ERR_OPERATION_VALIDATION_FAILED"))))
+					c.println(nxErrorFrame("ERR_OPERATION_VALIDATION_FAILED", nil))
 				}
 				return nxFail(1, "an output value does not fit %s's output schema (%s); it was not printed, and the operation may have taken effect", key, strings.Join(problems, "; "))
 			}
@@ -250,27 +301,10 @@ func nxInvokeThrough(c *nxCtx, doc *nxObj, key, binding string, frames bool) err
 		}
 		return nil
 	}
-	sent := 0
-	checkInput := func(v any) error {
-		if c.on("no-check") {
-			return nil
-		}
-		problems, checked, err := nxCheck(doc, key, "input", v)
-		if err != nil || !checked || len(problems) == 0 {
-			return err
-		}
-		if sent == 0 {
-			return nxFail(3, "an input value does not fit %s's input schema, so nothing was sent:\n  %s", key, strings.Join(problems, "\n  "))
-		}
-		if frames {
-			c.println(nxCompact(nxNewObj().Set("kind", "error").Set("error", nxNewObj().Set("code", "ERR_OPERATION_VALIDATION_FAILED"))))
-		}
-		return nxFail(1, "input value %d does not fit %s's input schema (%s); ob stopped, and the %d value(s) already sent may have taken effect", sent+1, key, strings.Join(problems, "; "), sent)
-	}
 	switch nxBindingShape[binding] {
 	case "client-stream":
 		for {
-			v, ok, err := inputs()
+			v, ok, err := next()
 			if err != nil {
 				return err
 			}
@@ -297,7 +331,7 @@ func nxInvokeThrough(c *nxCtx, doc *nxObj, key, binding string, frames bool) err
 				select {
 				case <-interrupt:
 					if frames {
-						c.println(`{"kind":"error","error":{"code":"ERR_CANCELLED"}}`)
+						c.println(nxErrorFrame("ERR_CANCELLED", nil))
 					}
 					return nxFail(130, "cancelled")
 				case <-time.After(700 * time.Millisecond):
@@ -308,13 +342,15 @@ func nxInvokeThrough(c *nxCtx, doc *nxObj, key, binding string, frames bool) err
 			}
 		}
 	default:
-		v, ok, err := inputs()
+		v, ok, err := next()
 		if err != nil {
 			return err
 		}
 		if ok {
-			if err := checkInput(v); err != nil {
-				return err
+			if !prechecked {
+				if err := checkInput(v); err != nil {
+					return err
+				}
 			}
 			sent++
 		} else {
@@ -400,10 +436,20 @@ func nxInputs(c *nxCtx) (func() (any, bool, error), func(), error) {
 			return nil, false, nil
 		}
 		if err != nil {
-			return nil, false, nxFail(3, "the input is not a stream of JSON values: %v", err)
+			return nil, false, err
 		}
 		return v, true, nil
 	}, closer, nil
+}
+
+// nxErrorFrame is an operation-invoker error frame. The codes the interface
+// owns carry no data; CONTEXT_REQUIRED carries its challenge.
+func nxErrorFrame(code string, data any) string {
+	e := nxNewObj().Set("code", code)
+	if data != nil {
+		e.Set("data", data)
+	}
+	return nxCompact(nxNewObj().Set("kind", "error").Set("error", e))
 }
 
 func nxInteractive(c *nxCtx) bool {
