@@ -82,10 +82,12 @@ The binding is chosen the way the operation-invoker contract says: the
 first invocable binding in an explicit list (`--binding`, repeatable), or
 the sole invocable binding, and otherwise a refusal that lists the
 candidates with their kind, preference, and deprecation. Preference and
-deprecation are shown but never used to choose. `--binding` is stricter
-than the interface's selection list: a name that is not one of the
-operation's bindings is refused, and so is a list with none ob can invoke,
-where the interface would skip them and fall back to the sole-binding rule.
+deprecation are shown but never used to choose. `--binding` is the
+interface's ordered `selection` (one name is a list of one): a name that is
+not one of the operation's bindings is refused, and so is a list with none
+ob can invoke, never a fallback to a binding you did not name. The
+`binding-invoke` variant's exact binding key is the interface's `binding`.
+(The strict selection rule is openbindings/interfaces#36.)
 
 With `--frames`, every run that reaches the invoker ends with exactly one
 terminal frame, a refusal included. The interface's own error codes carry
