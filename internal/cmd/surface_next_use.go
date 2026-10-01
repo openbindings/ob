@@ -51,6 +51,37 @@ URL directly; fetch is for keeping a copy.`,
 
 // ------------------------------------------------------------------ context
 
+// nxSecretFlag accepts a secret only from stdin (-, which asks at a
+// terminal) or a file (@FILE), never from the command line itself.
+func nxSecretFlag(c *nxCtx, flag string) error {
+	v := c.str(flag)
+	if v == "-" || (strings.HasPrefix(v, "@") && len(v) > 1) {
+		return nil
+	}
+	return nxUsageErr("--%s takes - (stdin, or asked for at a terminal) or @FILE; a secret on the command line stays in your shell history", flag)
+}
+
+// nxContextField maps an --unset name to the stored field it removes.
+func nxContextField(name string) (string, bool) {
+	switch name {
+	case "bearer-token":
+		return "bearerToken", true
+	case "access-token":
+		return "accessToken", true
+	case "api-key":
+		return "apiKey", true
+	case "basic", "token-provider":
+		return map[string]string{"basic": "basic", "token-provider": "tokenProvider"}[name], true
+	}
+	if rest, ok := strings.CutPrefix(name, "header."); ok && rest != "" {
+		return "headers." + rest, true
+	}
+	if rest, ok := strings.CutPrefix(name, "config."); ok && rest != "" {
+		return "configuration." + rest, true
+	}
+	return "", false
+}
+
 func nxPrefix(p string, list []string) []string {
 	var out []string
 	for _, s := range list {
@@ -67,98 +98,142 @@ ready to copy, whenever a binding asks for something that is not stored.`
 headers, and configuration values. ob uses a stored context only for that
 exact scope, and only when the binding says the value may be reused.
 
-Give a secret as - to read it from stdin and keep it out of your shell
-history. --basic - reads USER:PASSWORD from stdin; --basic alone asks for
-them. --config answers a configuration point a binding asks for, such as
-which server to use. --value replaces the whole context with one JSON
-object.
+A secret never goes on the command line, where it would stay in your shell
+history: --bearer-token, --access-token, --api-key, --basic, and
+--token-credential take - (read from stdin, or asked for at a terminal
+without echo) or @FILE. --basic reads USER:PASSWORD. --header NAME=VALUE
+takes a literal value, or NAME=- or NAME=@FILE for a secret one. --config
+answers a configuration point a binding asks for, such as which server to
+use. --value replaces the whole context with a JSON object, from @FILE or -.
 
---token-provider pins a token service: when a binding asks this scope for a
-bearer token, ob mints one from that provider (and only that provider) with
-the credential given by --token-credential, and renews it before it expires.
+--token-provider pins a token service: the OBI of a service that implements
+the token-provider interface. ob keeps a copy of it, and when a binding asks
+this scope for a bearer token, ob mints one from that provider (and only that
+provider) and renews it before it expires. --token-credential is the
+credential to mint with; leave it out for a provider that uses an identity
+you are already signed in with. --token-binding chooses among the provider's
+bindings, as ob invoke --binding does.
+
+--unset removes a field, named as its flag is: bearer-token, access-token,
+api-key, basic, token-provider, header.NAME, or config.POINT.
 
 `+scopeHelp,
 		`  ob context set https://api.example.com --bearer-token -
   printf 'ada:s3cret' | ob context set https://legacy.example.com --basic -
   ob context set https://api.example.com/openapi.json --config server='{"url":"https://eu.example.com"}'
-  ob context set https://api.example.com --token-provider https://auth.example.com --token-credential -`,
+  ob context set https://api.example.com --token-provider https://auth.example.com --token-credential @creds.txt
+  ob context set https://api.example.com --unset header.X-Client`,
 		nxArgs(1, 1), func(c *nxCtx) error {
-			if c.args[0] == "" {
+			scope := c.args[0]
+			if scope == "" {
 				return nxUsageErr("a scope must not be empty")
 			}
 			if err := nxNeedsChange(c); err != nil {
 				return err
 			}
+			for _, f := range []string{"bearer-token", "access-token", "api-key", "basic", "token-credential"} {
+				if c.set(f) {
+					if err := nxSecretFlag(c, f); err != nil {
+						return err
+					}
+				}
+			}
 			if c.set("value") {
-				for _, f := range []string{"bearer-token", "access-token", "api-key", "basic", "header", "config", "unset", "token-provider"} {
+				for _, f := range []string{"bearer-token", "access-token", "api-key", "basic", "header", "config", "unset", "token-provider", "token-credential", "token-binding"} {
 					if c.set(f) {
 						return nxUsageErr("--value replaces the whole context, so it does not combine with --%s", f)
 					}
 				}
+				if raw := c.str("value"); raw != "-" && !strings.HasPrefix(raw, "@") {
+					return nxUsageErr("--value takes @FILE or - (stdin): a context can hold secrets, and a value on the command line stays in your shell history")
+				}
 				if _, _, err := c.object("value"); err != nil {
 					return err
 				}
-				c.println("Replaced the context for " + c.args[0])
+				c.println("Replaced the context for " + scope)
 				return nil
 			}
-			if c.set("token-provider") != c.set("token-credential") {
-				return nxUsageErr("--token-provider and --token-credential go together")
+			if (c.set("token-credential") || c.set("token-binding")) && !c.set("token-provider") {
+				return nxUsageErr("--token-credential and --token-binding go with --token-provider")
 			}
-			var changes []string
-			for _, f := range []struct{ flag, field string }{{"bearer-token", "bearerToken"}, {"access-token", "accessToken"}, {"api-key", "apiKey"}} {
+			// Each change, by the name --unset would use and the stored field.
+			type change struct{ name, field string }
+			var changes []change
+			for _, f := range []struct{ flag, field string }{{"bearer-token", "bearerToken"}, {"access-token", "accessToken"}, {"api-key", "apiKey"}, {"basic", "basic"}} {
 				if c.set(f.flag) {
-					changes = append(changes, f.field)
+					changes = append(changes, change{f.flag, f.field})
 				}
-			}
-			if c.set("basic") {
-				if c.str("basic") == "ask" {
-					c.note("(preview: ob would ask for a user name and password here)")
-				}
-				changes = append(changes, "basic")
 			}
 			for _, h := range c.strs("header") {
-				if !strings.Contains(h, "=") {
-					return nxUsageErr("--header takes NAME=VALUE")
+				name, value, ok := strings.Cut(h, "=")
+				if !ok || name == "" {
+					return nxUsageErr("--header takes NAME=VALUE, NAME=-, or NAME=@FILE")
 				}
-				changes = append(changes, "headers."+strings.SplitN(h, "=", 2)[0])
+				if value == "@" {
+					return nxUsageErr("--header %s=@ must be followed by a file path", name)
+				}
+				changes = append(changes, change{"header." + name, "headers." + name})
 			}
 			for _, cfg := range c.strs("config") {
-				if !strings.Contains(cfg, "=") {
+				point, _, ok := strings.Cut(cfg, "=")
+				if !ok || point == "" {
 					return nxUsageErr("--config takes POINT=VALUE")
 				}
-				changes = append(changes, "configuration."+strings.SplitN(cfg, "=", 2)[0])
+				changes = append(changes, change{"config." + point, "configuration." + point})
 			}
 			if c.set("token-provider") {
-				changes = append(changes, "tokenProvider")
+				changes = append(changes, change{"token-provider", "tokenProvider"})
+				c.note(fmt.Sprintf("(preview: ob would keep a copy of %s's OBI and check that it offers the token-provider operations)", c.str("token-provider")))
 			}
+			stored, _ := nxStoredContext(scope)
+			var removed []string
 			for _, u := range c.strs("unset") {
+				field, ok := nxContextField(u)
+				if !ok {
+					return nxUsageErr("--unset takes bearer-token, access-token, api-key, basic, token-provider, header.NAME, or config.POINT")
+				}
 				for _, ch := range changes {
-					if ch == u {
-						return nxUsageErr("%s is both set and unset; choose one", u)
+					if ch.name == u {
+						return nxUsageErr("--%s and --unset %s ask for opposite changes; choose one", strings.SplitN(u, ".", 2)[0], u)
 					}
 				}
+				held := false
+				for _, h := range stored.holds {
+					held = held || h[0] == field
+				}
+				if !held {
+					return nxNotFound("nothing is stored as %s for %q; ob context show %s lists what is", u, scope, scope)
+				}
+				removed = append(removed, field)
 			}
-			line := "Context for " + c.args[0] + ":"
+			line := "Context for " + scope + ":"
 			if len(changes) > 0 {
-				line += " set " + strings.Join(changes, ", ")
+				var fields []string
+				for _, ch := range changes {
+					fields = append(fields, ch.field)
+				}
+				line += " set " + strings.Join(fields, ", ")
+				if len(removed) > 0 {
+					line += ";"
+				}
 			}
-			if u := c.strs("unset"); len(u) > 0 {
-				line += "; removed " + strings.Join(u, ", ")
+			if len(removed) > 0 {
+				line += " removed " + strings.Join(removed, ", ")
 			}
 			c.println(line)
 			return nil
 		})
-	set.Flags().String("bearer-token", "", "a bearer token (- reads it from stdin)")
-	set.Flags().String("access-token", "", "an OAuth 2.0 access token (- reads it from stdin)")
-	set.Flags().String("api-key", "", "an API key (- reads it from stdin)")
-	set.Flags().String("basic", "", "HTTP Basic credentials: - reads USER:PASSWORD from stdin; alone, ob asks")
-	set.Flags().Lookup("basic").NoOptDefVal = "ask"
-	set.Flags().StringArray("header", nil, "a header to send, NAME=VALUE (repeatable)")
+	set.Flags().String("bearer-token", "", "a bearer token: - (stdin, or asked for) or @FILE")
+	set.Flags().String("access-token", "", "an OAuth 2.0 access token: - (stdin, or asked for) or @FILE")
+	set.Flags().String("api-key", "", "an API key: - (stdin, or asked for) or @FILE")
+	set.Flags().String("basic", "", "HTTP Basic credentials as USER:PASSWORD: - (stdin, or asked for) or @FILE")
+	set.Flags().StringArray("header", nil, "a header to send: NAME=VALUE, or NAME=- or NAME=@FILE for a secret (repeatable)")
 	set.Flags().StringArray("config", nil, "a configuration value, POINT=VALUE; VALUE is JSON or a bare string (repeatable)")
-	set.Flags().String("value", "", "replace the whole context: JSON, @file, or -")
-	set.Flags().String("token-provider", "", "mint bearer tokens from this provider (a document path or URL)")
-	set.Flags().String("token-credential", "", "the credential to mint with (- reads it from stdin)")
-	set.Flags().StringArray("unset", nil, "remove a field, as ob context show names it (e.g. bearerToken, headers.X-Client)")
+	set.Flags().String("value", "", "replace the whole context with a JSON object: @FILE or -")
+	set.Flags().String("token-provider", "", "mint bearer tokens from this token service (its OBI: a path or URL)")
+	set.Flags().String("token-credential", "", "the credential to mint with: - (stdin, or asked for) or @FILE")
+	set.Flags().StringArray("token-binding", nil, "use this binding of the token service; repeat for an ordered list")
+	set.Flags().StringArray("unset", nil, "remove a field: bearer-token, access-token, api-key, basic, token-provider, header.NAME, config.POINT")
 
 	list := nxListFormats(nxLeaf("context.list", "list", "List stored contexts", "List the scopes that have stored context, and what each holds. Secrets are masked.",
 		`  ob context list`, nxArgs(0, 0), func(c *nxCtx) error {

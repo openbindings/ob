@@ -69,7 +69,7 @@ Stored tokens are renewed as they expire.
 Otherwise ob stops before sending anything and prints what supplies it: an
 ob context set command, or, for a sign-in, this same invoke with
 --preflight to run once at a terminal. --context gives context for this call
-only, as a JSON object. A delegate that invokes for ob resolves its own
+only, as a JSON object from @FILE or stdin. A delegate that invokes for ob resolves its own
 context: ob never sends it stored context, and if it asks for something, ob
 asks you or stops.
 
@@ -94,7 +94,7 @@ unresolvable schema, or a binding's ERR_REFUSED); 130 cancelled.`,
 	cmd.Flags().StringArray("binding", nil, "use this binding; repeat for an ordered list")
 	cmd.Flags().Duration("timeout", 0, "a deadline for the call, such as 30s; ob cancels the exchange when it passes")
 	cmd.Flags().Bool("frames", false, "print the whole exchange as frames, not just output values")
-	cmd.Flags().String("context", "", "context for this call only: a JSON object, @file, or -")
+	cmd.Flags().String("context", "", "context for this call only: a JSON object from @FILE or - (stdin)")
 	cmd.Flags().Bool("preflight", false, "print what the binding will ask for, and at a terminal get what is missing; call nothing")
 	return cmd
 }
@@ -114,7 +114,7 @@ whole exchange, one frame per line.`,
 			return nxInvokeThrough(c, doc, fmt.Sprint(b.Get("operation")), c.args[1], true)
 		})
 	cmd.Flags().StringArray("input", nil, "a value to write: JSON, @file, or - to stream from stdin (repeatable, in order)")
-	cmd.Flags().String("context", "", "context for this call only: a JSON object, @file, or -")
+	cmd.Flags().String("context", "", "context for this call only: a JSON object from @FILE or - (stdin)")
 	cmd.Flags().Bool("preflight", false, "print what the binding will ask for, and at a terminal get what is missing; call nothing")
 	return cmd
 }
@@ -228,6 +228,9 @@ func nxInvokeThrough(c *nxCtx, doc *nxObj, key, binding string, frames bool) err
 	need, needs := nxBindingNeeds[binding]
 	var callContext bool
 	if c.set("context") {
+		if raw := c.str("context"); raw != "-" && !strings.HasPrefix(raw, "@") {
+			return nxUsageErr("--context takes @FILE or - (stdin): context can hold secrets, and a value on the command line stays in your shell history")
+		}
 		if _, _, err := c.object("context"); err != nil {
 			return err
 		}

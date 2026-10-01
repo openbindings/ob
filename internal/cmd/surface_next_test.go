@@ -55,24 +55,47 @@ func nxWalk(root *cobra.Command, visit func(*cobra.Command)) {
 
 // nxExampleCommands turns a help Example into argument lists: continuation
 // lines are joined, and only the ob command before a pipe or redirect runs.
-func nxExampleCommands(t *testing.T, example string) [][]string {
-	var out [][]string
+// nxExample is one ob command from a help example, with the stdin a printf
+// before it in the pipeline would give it.
+type nxExample struct {
+	args  []string
+	stdin string
+}
+
+func nxExamples(t *testing.T, example string) []nxExample {
+	var out []nxExample
 	joined := strings.ReplaceAll(example, "\\\n", " ")
 	for _, line := range strings.Split(joined, "\n") {
 		line = strings.TrimSpace(line)
-		if !strings.HasPrefix(line, "ob ") {
-			continue
-		}
-		for _, cut := range []string{" | ", " > "} {
-			if i := strings.Index(line, cut); i >= 0 {
-				line = line[:i]
+		stdin := ""
+		for _, segment := range strings.Split(line, " | ") {
+			segment = strings.TrimSpace(segment)
+			if strings.HasPrefix(segment, "printf '") && strings.HasSuffix(segment, "'") {
+				stdin = strings.ReplaceAll(strings.TrimSuffix(strings.TrimPrefix(segment, "printf '"), "'"), `\n`, "\n")
+				continue
 			}
+			if !strings.HasPrefix(segment, "ob ") {
+				stdin = ""
+				continue
+			}
+			if i := strings.Index(segment, " > "); i >= 0 {
+				segment = segment[:i]
+			}
+			words, err := shlex.Split(segment)
+			if err != nil {
+				t.Fatalf("split %q: %v", segment, err)
+			}
+			out = append(out, nxExample{words[1:], stdin})
+			stdin = ""
 		}
-		words, err := shlex.Split(line)
-		if err != nil {
-			t.Fatalf("split %q: %v", line, err)
-		}
-		out = append(out, words[1:])
+	}
+	return out
+}
+
+func nxExampleCommands(t *testing.T, example string) [][]string {
+	var out [][]string
+	for _, ex := range nxExamples(t, example) {
+		out = append(out, ex.args)
 	}
 	return out
 }
@@ -80,10 +103,10 @@ func nxExampleCommands(t *testing.T, example string) [][]string {
 func TestNextEveryExampleRuns(t *testing.T) {
 	for _, variant := range nxVariants {
 		nxWalk(NewNextSurfaceRoot(variant), func(cmd *cobra.Command) {
-			for _, args := range nxExampleCommands(t, cmd.Example) {
-				_, _, err := nxExec(variant, args...)
+			for _, ex := range nxExamples(t, cmd.Example) {
+				_, _, err := nxExecIn(variant, ex.stdin, ex.args...)
 				if code := nxExitCode(err); code == 2 {
-					t.Errorf("variant %q: example `ob %s` failed as a usage error: %v", variant, strings.Join(args, " "), err)
+					t.Errorf("variant %q: example `ob %s` failed as a usage error: %v", variant, strings.Join(ex.args, " "), err)
 				}
 			}
 		})
@@ -396,8 +419,13 @@ func TestNextRefusalsExitWithTheirOwnStatus(t *testing.T) {
 		{[]string{"mcp", "tasks.obi.json", "--operation", "nope"}, 2},
 		{[]string{"mcp", "tasks.obi.json", "--binding", "nope"}, 2},
 		{[]string{"invoke", "tasks.obi.json", "createTask", "--binding", "createTask.mcp", "--preflight", "--input", "{}"}, 2},
-		{[]string{"invoke", "tasks.obi.json", "completeTask", "--input", `{"id":"x"}`, "--context", "[]"}, 2},
-		{[]string{"context", "set", "https://api.example.com", "--value", "[]"}, 2},
+		{[]string{"invoke", "tasks.obi.json", "completeTask", "--input", `{"id":"x"}`, "--context", `{"accessToken":"t"}`}, 2},
+		{[]string{"context", "set", "https://api.example.com", "--value", "{}"}, 2},
+		{[]string{"context", "set", "https://api.example.com", "--bearer-token", "abc"}, 2},
+		{[]string{"context", "set", "https://api.example.com", "--bearer-token", "-", "--unset", "bearer-token"}, 2},
+		{[]string{"context", "set", "https://api.example.com", "--unset", "header.X-Client"}, 0},
+		{[]string{"context", "set", "https://api.example.com", "--unset", "header.Nope"}, 2},
+		{[]string{"context", "set", "https://api.example.com", "--token-provider", "https://auth.example.com"}, 0},
 		{[]string{"validate", "tasks.obi.json", "--operation", "nope", "--input", "{}"}, 2},
 		{[]string{"init", "surface_next.go"}, 3},
 		{[]string{"fetch", "https://api.example.com", "-o", "surface_next.go"}, 3},
@@ -434,7 +462,7 @@ func TestNextInvokeFollowsTheInvocationPattern(t *testing.T) {
 		{"several usable bindings: ob asks you to choose", "", []string{"invoke", "t.obi.json", "createTask", "--input", `{"title":"x"}`}, 3, nil},
 		{"missing context: refused before anything is sent", "", []string{"invoke", "t.obi.json", "createTask", "--binding", "createTask.mcp", "--input", `{"title":"x"}`, "--frames"}, 3,
 			[]string{`{"kind":"error","error":{"code":"CONTEXT_REQUIRED","data":{"target":"https://api.example.com/mcp","alternatives":[{"requirements":[{"type":"auth.oauth2","durable":true}]}]}}}`}},
-		{"context for this call satisfies the binding", "", []string{"invoke", "t.obi.json", "createTask", "--binding", "createTask.mcp", "--input", `{"title":"x"}`, "--context", `{"accessToken":"t"}`}, 0,
+		{"context for this call satisfies the binding", `{"accessToken":"t"}`, []string{"invoke", "t.obi.json", "createTask", "--binding", "createTask.mcp", "--input", `{"title":"x"}`, "--context", "-"}, 0,
 			[]string{`{"id":"t_4","title":"x","done":false}`}},
 		{"preflight sends nothing and prints what it knows", "", []string{"invoke", "t.obi.json", "createTask", "--binding", "createTask.mcp", "--preflight"}, 0,
 			[]string{`{"target":"https://api.example.com/mcp","alternatives":[{"requirements":[{"type":"auth.oauth2","durable":true}]}]}`}},
