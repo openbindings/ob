@@ -61,12 +61,16 @@ from ob's context store, looked up by the exact scope the binding asks for.
 At a terminal ob gets anything missing: it asks for a value, or runs the
 sign-in the binding names (such as an OAuth 2.0 flow in your browser), and
 offers to store the result. Stored tokens are renewed as they expire.
-Otherwise ob stops before sending anything and prints the ob context set
-command that supplies it. --context gives context for this call only, as a
-JSON object. A delegate that invokes for ob resolves its own context: ob
-never sends it stored context, and if it asks for something, ob asks you or
-stops. --preflight prints what the binding already knows it will ask for,
-and sends nothing.
+Otherwise ob stops before sending anything and prints what supplies it: an
+ob context set command, or, for a sign-in, this same invoke with
+--preflight to run once at a terminal. --context gives context for this call
+only, as a JSON object. A delegate that invokes for ob resolves its own
+context: ob never sends it stored context, and if it asks for something, ob
+asks you or stops.
+
+--preflight calls nothing. It prints what the binding already knows it will
+ask for, and at a terminal it also gets what is missing, asking you or
+running the sign-in, and stores it for later calls.
 
 Without --frames, an error's code, and any data it carries, go to stderr.
 
@@ -83,7 +87,7 @@ Exit status: 0 completed; 1 the operation failed or an output did not fit
 	cmd.Flags().StringArray("binding", nil, "use this binding; repeat for an ordered list")
 	cmd.Flags().Bool("frames", false, "print the whole exchange as frames, not just output values")
 	cmd.Flags().String("context", "", "context for this call only: a JSON object, @file, or -")
-	cmd.Flags().Bool("preflight", false, "print what the binding knows it will ask for; send nothing")
+	cmd.Flags().Bool("preflight", false, "print what the binding will ask for, and at a terminal get what is missing; call nothing")
 	return cmd
 }
 
@@ -103,7 +107,7 @@ whole exchange, one frame per line.`,
 		})
 	cmd.Flags().String("input", "", "the input: one JSON value, @file, or - to stream values from stdin")
 	cmd.Flags().String("context", "", "context for this call only: a JSON object, @file, or -")
-	cmd.Flags().Bool("preflight", false, "print what the binding knows it will ask for; send nothing")
+	cmd.Flags().Bool("preflight", false, "print what the binding will ask for, and at a terminal get what is missing; call nothing")
 	return cmd
 }
 
@@ -228,10 +232,21 @@ func nxInvokeThrough(c *nxCtx, doc *nxObj, key, binding string, frames bool) err
 		details := nxNewObj().Set("target", need.scope).Set("alternatives", []any{
 			nxNewObj().Set("requirements", []any{nxNewObj().Set("type", need.requirement).Set("durable", need.durable)}),
 		})
-		if _, ok := nxStoredContext(need.scope); ok && need.durable {
-			c.note(fmt.Sprintf("%s will ask for %s for %s; ob has one stored for that scope.", binding, need.describe, need.scope))
-		} else {
-			c.note(fmt.Sprintf("%s will ask for %s for %s; nothing is stored for that scope. Supply it with:\n  %s", binding, need.describe, need.scope, nxRemedy(need)))
+		_, stored := nxStoredContext(need.scope)
+		asks := fmt.Sprintf("%s will ask for %s for %s", binding, need.describe, need.scope)
+		switch {
+		case stored && need.durable:
+			c.note(asks + "; ob has one stored for that scope.")
+		case nxInteractive(c) && nxSignIn(need):
+			c.note(asks + ".")
+			c.note(fmt.Sprintf("(preview: ob would run the OAuth 2.0 sign-in %s names now, in your browser, and store the tokens for %s; nothing is called)", binding, need.scope))
+		case nxInteractive(c):
+			c.note(asks + ".")
+			c.note(fmt.Sprintf("(preview: ob would ask you for it now and store it for %s; nothing is called)", need.scope))
+		case nxSignIn(need):
+			c.note(fmt.Sprintf("%s; nothing is stored for that scope. Run this command at a terminal to sign in, or store a token you have:\n  %s", asks, nxRemedy(need)))
+		default:
+			c.note(fmt.Sprintf("%s; nothing is stored for that scope. Supply it with:\n  %s", asks, nxRemedy(need)))
 		}
 		c.println(nxCompact(details))
 		return nil
@@ -296,7 +311,11 @@ func nxInvokeThrough(c *nxCtx, doc *nxObj, key, binding string, frames bool) err
 				})
 				c.println(nxErrorFrame("CONTEXT_REQUIRED", data))
 			}
-			return nxFail(3, "%s needs %s for %s, and nothing is stored for that scope, so nothing was sent.\n  store it:           %s\n  or for this call:   --context @context.json", binding, need.describe, need.scope, nxRemedy(need))
+			why := fmt.Sprintf("%s needs %s for %s, and nothing is stored for that scope, so nothing was sent.", binding, need.describe, need.scope)
+			if nxSignIn(need) {
+				return nxFail(3, "%s\n  sign in once at a terminal:  %s\n  or store a token you have:   %s\n  or for this call:            --context @context.json", why, nxSignInRemedy(c, key, binding), nxRemedy(need))
+			}
+			return nxFail(3, "%s\n  store it:           %s\n  or for this call:   --context @context.json", why, nxRemedy(need))
 		}
 	}
 	c.live()
@@ -476,6 +495,19 @@ func nxInteractive(c *nxCtx) bool {
 func nxTerminalOut(c *nxCtx) bool {
 	f, ok := c.cmd.OutOrStdout().(*os.File)
 	return ok && term.IsTerminal(int(f.Fd()))
+}
+
+// nxSignIn says whether meeting a requirement means running a sign-in flow,
+// which only a command that knows the binding can start.
+func nxSignIn(need nxNeed) bool { return need.requirement == "auth.oauth2" }
+
+// nxSignInRemedy is the command that does a sign-in ahead of time: the same
+// invocation with --preflight, run once at a terminal. It calls nothing.
+func nxSignInRemedy(c *nxCtx, key, binding string) string {
+	if c.variant() == "binding-invoke" {
+		return fmt.Sprintf("ob invoke %s %s --preflight", c.args[0], binding)
+	}
+	return fmt.Sprintf("ob invoke %s %s --binding %s --preflight", c.args[0], key, binding)
 }
 
 func nxRemedy(need nxNeed) string {

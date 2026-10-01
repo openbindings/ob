@@ -460,7 +460,11 @@ func TestNextInvokeFollowsTheInvocationPattern(t *testing.T) {
 			}
 		}
 	}
-	_, _, err := nxExecIn("", "{\"title\":\"a\"}\n{\"title\":5}\n", "invoke", "t.obi.json", "importTasks", "--input", "-")
+	_, _, err := nxExecIn("", "", "invoke", "t.obi.json", "createTask", "--binding", "createTask.mcp", "--input", `{"title":"x"}`)
+	if err == nil || !strings.Contains(err.Error(), "ob invoke t.obi.json createTask --binding createTask.mcp --preflight") {
+		t.Errorf("a sign-in refusal away from a terminal should print the same invoke with --preflight: %v", err)
+	}
+	_, _, err = nxExecIn("", "{\"title\":\"a\"}\n{\"title\":5}\n", "invoke", "t.obi.json", "importTasks", "--input", "-")
 	if err == nil || !strings.Contains(err.Error(), "after sending 1 value,") {
 		t.Errorf("a mid-stream failure should count what was sent in words: %v", err)
 	}

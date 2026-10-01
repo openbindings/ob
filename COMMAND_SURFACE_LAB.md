@@ -115,8 +115,9 @@ the requirement says they may be reused (durable), and sends only the fields
 that one request needs. With nothing stored, ob gets it at a terminal: it
 asks for a value, or runs the sign-in the binding names (an OAuth 2.0 flow
 for the MCP binding), stores the tokens, and renews them as they expire.
-Otherwise it stops before sending anything and prints the `ob context set`
-command that supplies it. `--context` supplies context for one call, as a
+Otherwise it stops before sending anything and prints what supplies it:
+an `ob context set` command, or for a sign-in, the same invoke with
+`--preflight`, to run once at a terminal. `--context` supplies context for one call, as a
 JSON object.
 Registering a delegate as an invoker does not give it the context store: a
 delegate resolves its own context, and a challenge from one is shown to you
@@ -216,7 +217,10 @@ Decided on 2026-10-01, after review round 2:
   `show -F json`. The three exit-status flags stay, each matching its peers:
   `-q` (validate, compat), `--exit-code` (diff, status), `--check` (fmt).
 
-Still open: the command a non-terminal OAuth refusal should print.
+- When a binding needs a sign-in (OAuth 2.0) and ob is not at a terminal,
+  the refusal prints the same invoke with `--preflight`, to run once at a
+  terminal. `--preflight` calls nothing; at a terminal it gets what is
+  missing, asking or running the sign-in, and stores it.
 
 Other proposals in this tree worth a look:
 
