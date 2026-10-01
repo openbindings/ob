@@ -199,8 +199,14 @@ func (c *nxCtx) str(flag string) string {
 	return v
 }
 func (c *nxCtx) strs(flag string) []string {
-	v, _ := c.cmd.Flags().GetStringArray(flag)
-	return v
+	// The flag's own slice keeps empty values, which reading it back as a
+	// string array would drop.
+	if f := c.cmd.Flags().Lookup(flag); f != nil {
+		if sv, ok := f.Value.(pflag.SliceValue); ok {
+			return sv.GetSlice()
+		}
+	}
+	return nil
 }
 func (c *nxCtx) on(flag string) bool {
 	v, _ := c.cmd.Flags().GetBool(flag)

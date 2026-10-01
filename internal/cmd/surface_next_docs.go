@@ -1,7 +1,10 @@
 package cmd
 
 import (
+	"encoding/json"
 	"fmt"
+	"io"
+	"os"
 	"regexp"
 	"sort"
 	"strings"
@@ -50,6 +53,9 @@ member). The OpenBindings version is always 0.2.0.`,
 			if len(c.args) == 1 {
 				path = c.args[0]
 			}
+			if err := c.creating(path); err != nil {
+				return err
+			}
 			if path != "-" {
 				c.note("Created " + path)
 				c.note("(preview) the document that would be written:")
@@ -70,7 +76,8 @@ func nxSetCmd() *cobra.Command {
 	cmd := nxEditable(nxLeaf("set", "set <obi>", "Change a document's name, version label, or description", `Change the document's own fields: its name, its version label (the
 document's "version" member, the interface's own label, not the
 OpenBindings version), and its description. Only the flags you give change
-anything; --unset removes one.`,
+anything. --unset removes a field, named as its flag is: description or
+interface-version.`,
 		`  ob set tasks.obi.json --interface-version 1.5.0
   ob set tasks.obi.json --unset description`,
 		nxArgs(1, 1), func(c *nxCtx) error {
@@ -87,8 +94,8 @@ anything; --unset removes one.`,
 				if !c.set(f.flag) {
 					continue
 				}
-				if nxContains(c.strs("unset"), f.member) {
-					return nxUsageErr("%s is both set and unset; choose one", f.member)
+				if nxContains(c.strs("unset"), f.flag) {
+					return nxUsageErr("--%s and --unset %s ask for opposite changes; choose one", f.flag, f.flag)
 				}
 				if f.member == "version" && c.str(f.flag) == "" {
 					return nxUsageErr("--interface-version must not be empty")
@@ -97,18 +104,19 @@ anything; --unset removes one.`,
 				changed = append(changed, f.member)
 			}
 			for _, u := range c.strs("unset") {
-				if u != "name" && u != "version" && u != "description" {
-					return nxUsageErr("--unset takes one of: name, version, description")
+				member := map[string]string{"interface-version": "version", "description": "description"}[u]
+				if member == "" {
+					return nxUsageErr("--unset takes one of: description, interface-version")
 				}
-				after.Delete(u)
-				changed = append(changed, u)
+				after.Delete(member)
+				changed = append(changed, member)
 			}
 			return c.wrote(c.args[0], before, after, "Changed the document's "+strings.Join(changed, ", "))
 		}))
 	cmd.Flags().String("name", "", "a human-readable name")
 	cmd.Flags().String("interface-version", "", "the document's own version label")
 	cmd.Flags().String("description", "", "a human-readable description")
-	cmd.Flags().StringArray("unset", nil, "remove a field: name, version, description")
+	cmd.Flags().StringArray("unset", nil, "remove a field: description, interface-version")
 	cmd.Flags().String("version", "", "")
 	_ = cmd.Flags().MarkHidden("version")
 	return cmd
@@ -116,7 +124,8 @@ anything; --unset removes one.`,
 
 func nxShowCmd() *cobra.Command {
 	cmd := nxLeaf("show", "show <obi>", "Show a document", `Show an overview of a document: its operations, sources, bindings,
-dependencies, and schemas. -F json prints the exact stored document.
+dependencies, and schemas. -F json prints the exact stored document; an OBI
+is JSON, so there is no other document format.
 
 <obi> is a path, - for stdin, or a URL. A bare origin such as
 https://api.example.com is looked up at /.well-known/openbindings.`,
@@ -124,17 +133,14 @@ https://api.example.com is looked up at /.well-known/openbindings.`,
   ob show https://api.example.com -F json`,
 		nxArgs(1, 1), func(c *nxCtx) error {
 			doc := c.doc(c.args[0])
-			switch c.format() {
-			case "json":
+			if c.format() == "json" {
 				c.println(nxPretty(doc))
-			case "yaml":
-				c.println(nxYAML(doc))
-			default:
+			} else {
 				c.out.WriteString(nxOverview(doc))
 			}
 			return nil
 		})
-	nxFormat(cmd, "text", "json", "yaml")
+	nxFormat(cmd, "text", "json")
 	return cmd
 }
 
@@ -195,7 +201,7 @@ func nxOverview(doc *nxObj) string {
 	rows = nil
 	for _, key := range nxPartKeys(doc, "dependencies") {
 		d := doc.Obj("dependencies").Obj(key)
-		kinds := "any kind"
+		kinds := "no kind constraint"
 		if ks := nxStrings(d.Get("kinds")); len(ks) > 0 {
 			kinds = "kinds: " + strings.Join(ks, ", ")
 		}
@@ -243,8 +249,9 @@ func nxValidateCmd() *cobra.Command {
 A document written for an OpenBindings version ob does not support is
 refused rather than judged. The report names the spec text it applied.
 
---operation checks one value against that operation's schemas instead: give
-the value with --input or --output (JSON, @file, or - for stdin).
+--operation checks values against that operation's schemas instead: give
+one value with --input or --output, or a stream of JSON values with @file or
+- for stdin, each checked and reported in turn.
 --examples checks every operation example against its schemas.
 
 Exit status: 0 conformant, or the value fits; 1 non-conformant, or it does
@@ -302,11 +309,14 @@ func nxValidateValue(c *nxCtx, doc *nxObj) error {
 	name := c.str("operation")
 	key, ok := nxResolveOperation(doc, name)
 	if !ok {
-		return nxFail(2, "no operation named %q in %s", name, c.args[0])
+		return nxFail(1, "no operation named %q in %s%s", name, c.args[0], nxDidYouMean(doc, name))
 	}
 	side := "input"
 	if c.set("output") {
 		side = "output"
+	}
+	if raw := c.str(side); raw == "-" || strings.HasPrefix(raw, "@") {
+		return nxValidateStream(c, doc, key, side, raw)
 	}
 	value, _, err := c.value(side)
 	if err != nil {
@@ -321,7 +331,7 @@ func nxValidateValue(c *nxCtx, doc *nxObj) error {
 		if !checked {
 			report.Set("fits", nil).Set("reason", "no "+side+" contract is specified")
 		} else {
-			report.Set("fits", len(problems) == 0).Set("problems", nxToAny(problems))
+			report.Set("fits", len(problems) == 0).Set("problems", nxProblemObjs(problems))
 		}
 		c.println(nxPretty(report))
 	}
@@ -344,6 +354,103 @@ func nxValidateValue(c *nxCtx, doc *nxObj) error {
 		}
 	}
 	return nxFail(1, "")
+}
+
+// nxValidateStream checks each JSON value of a stream against one side of an
+// operation, reporting each by its position.
+func nxValidateStream(c *nxCtx, doc *nxObj, key, side, raw string) error {
+	var r io.Reader = c.cmd.InOrStdin()
+	if raw != "-" {
+		if raw == "@" {
+			return nxUsageErr("--%s: @ must be followed by a file path", side)
+		}
+		f, err := os.Open(raw[1:])
+		if err != nil {
+			return nxFail(1, "cannot read %s: %v", raw[1:], err)
+		}
+		defer f.Close()
+		r = f
+	}
+	dec := json.NewDecoder(r)
+	dec.UseNumber()
+	text := c.format() != "json" && !c.on("quiet")
+	var results []any
+	count, bad, unchecked := 0, 0, 0
+	for {
+		v, err := nxDecode(dec)
+		if err == io.EOF {
+			break
+		}
+		if err != nil {
+			return nxFail(1, "value %d is not JSON: %v", count+1, err)
+		}
+		count++
+		problems, checked, err := nxCheck(doc, key, side, v)
+		if err != nil {
+			return err
+		}
+		entry := nxNewObj().Set("index", count)
+		switch {
+		case !checked:
+			unchecked++
+			entry.Set("fits", nil)
+			if text {
+				c.println(fmt.Sprintf("value %d: no %s schema to check against", count, side))
+			}
+		case len(problems) == 0:
+			entry.Set("fits", true)
+			if text {
+				c.println(fmt.Sprintf("value %d: fits", count))
+			}
+		default:
+			bad++
+			entry.Set("fits", false).Set("problems", nxProblemObjs(problems))
+			if text {
+				c.println(fmt.Sprintf("value %d: does not fit: %s", count, strings.Join(problems, "; ")))
+			}
+		}
+		results = append(results, entry)
+	}
+	if c.format() == "json" && !c.on("quiet") {
+		c.println(nxPretty(nxNewObj().Set("operation", key).Set("value", side).Set("results", results)))
+	}
+	if text {
+		summary := fmt.Sprintf("%s checked against %s's %s schema", nxCount(count, "value"), key, side)
+		switch {
+		case bad > 0:
+			summary += fmt.Sprintf("; %d do not fit.", bad)
+		case unchecked > 0:
+			summary += "; there is no schema to check against."
+		default:
+			summary += "; all fit."
+		}
+		c.println(summary)
+	}
+	switch {
+	case bad > 0:
+		return nxFail(1, "")
+	case unchecked > 0:
+		return nxFail(4, "")
+	}
+	return nil
+}
+
+// nxProblemObjs gives each problem its location, for JSON reports.
+func nxProblemObjs(problems []string) []any {
+	var out []any
+	for _, p := range problems {
+		at, msg := "", p
+		switch {
+		case strings.HasPrefix(p, "at the top level: "):
+			msg = strings.TrimPrefix(p, "at the top level: ")
+		case strings.HasPrefix(p, "at /"):
+			if i := strings.Index(p, ": "); i > 0 {
+				at, msg = p[3:i], p[i+2:]
+			}
+		}
+		out = append(out, nxNewObj().Set("at", at).Set("message", msg))
+	}
+	return out
 }
 
 func nxValidateExamples(c *nxCtx, doc *nxObj) error {
@@ -377,7 +484,7 @@ func nxValidateExamples(c *nxCtx, doc *nxObj) error {
 					entry.Set(side, "fits")
 				default:
 					parts = append(parts, side+" does not fit: "+strings.Join(problems, "; "))
-					entry.Set(side, "does not fit").Set(side+"Problems", nxToAny(problems))
+					entry.Set(side, "does not fit").Set(side+"Problems", nxProblemObjs(problems))
 					bad++
 				}
 			}
@@ -531,9 +638,11 @@ func nxPointerToken(s string) string {
 
 func nxDiffCmd() *cobra.Command {
 	cmd := nxLeaf("diff", "diff <before> <after>", "Compare two documents", `List what changed between two documents, part by part. It reports
-differences only; to check whether a document satisfies a shared contract,
-use ob compat. --patch prints the changes as an RFC 6902 JSON Patch, which
-ob patch can apply.`,
+differences only. To check whether <after> still serves the callers of
+<before>, use ob compat <after> <before>, which treats <before> as the
+contract; ob compat also checks a document against a shared contract.
+--patch prints the changes as an RFC 6902 JSON Patch, which ob patch can
+apply.`,
 		`  ob diff tasks.obi.json tasks-next.obi.json
   ob diff tasks.obi.json tasks-next.obi.json --patch > changes.json`,
 		nxArgs(2, 2), func(c *nxCtx) error {
@@ -659,8 +768,9 @@ as written. --canonical prints the JSON Canonicalization Scheme form
 
 func nxPatchCmd() *cobra.Command {
 	return nxEditable(nxLeaf("patch", "patch <obi> <patch>", "Apply a JSON Patch", `Apply an RFC 6902 JSON Patch (a file, or - for stdin) for edits no other
-command covers, such as extension fields. The result must still be a
-conformant document, or nothing is written.`,
+command covers, such as extension fields. Like every edit, it refuses a
+patch that would break a document rule the document did not already break,
+so you can repair a document one problem at a time.`,
 		`  ob patch tasks.obi.json changes.json
   ob diff old.obi.json new.obi.json --patch | ob patch tasks.obi.json -`,
 		nxArgs(2, 2), func(c *nxCtx) error {
@@ -678,9 +788,11 @@ bindings, and sources they need. --operation limits the merge to the named
 operations of <from>.
 
 An entry both documents have, by the same name (for an operation, its key or
-an alias), is left alone when the two are identical. When they differ, ob
-lists every difference and writes nothing, unless you say which side wins:
---ours keeps what <obi> has, --theirs takes what <from> has.
+an alias), is left alone when the two are identical, and an operation of
+<obi> that already meets <from>'s operation, as ob compat checks it, is left
+alone and listed as met. Otherwise, when they differ, ob lists every
+difference and writes nothing, unless you say which side wins: --ours keeps
+what <obi> has, --theirs takes what <from> has.
 
 A shared contract is just another OBI, so merging from one adds the contract
 operations you don't have yet, under the contract's names and with its
@@ -693,7 +805,7 @@ use ob operation set --add-alias. ob compat shows which are missing.`,
 			if c.on("ours") && c.on("theirs") {
 				return nxUsageErr("--ours and --theirs do not combine; choose which side wins")
 			}
-			from := nxMergeSource(c)
+			from, contract := nxMergeSource(c)
 			fromOps := from.Obj("operations")
 			names := c.strs("operation")
 			for _, n := range names {
@@ -707,10 +819,16 @@ use ob operation set --add-alias. ob compat shows which are missing.`,
 			before := c.doc(c.args[0])
 			after := nxClone(before).(*nxObj)
 			m := &nxMerge{from: from, to: after, ours: c.on("ours"), theirs: c.on("theirs")}
-			var added, updated []string
+			var added, updated, met []string
 			for _, name := range names {
 				fop := fromOps.Obj(name)
 				if key, ok := nxResolveOperation(after, name); ok {
+					if contract {
+						// The preview's contract is met by every operation
+						// that answers to its names, as ob compat reports.
+						met = append(met, fmt.Sprintf("%s (by %s)", name, key))
+						continue
+					}
 					op := after.Obj("operations").Obj(key)
 					var differs []string
 					for _, side := range []string{"input", "output"} {
@@ -746,6 +864,9 @@ use ob operation set --add-alias. ob compat shows which are missing.`,
 			}
 			if len(m.conflicts) > 0 {
 				return nxRefuse("refused: %s and %s differ, so nothing was written:\n  %s\n--ours keeps what %s has; --theirs takes what %s has.", c.args[0], c.args[1], strings.Join(m.conflicts, "\n  "), c.args[0], c.args[1])
+			}
+			if len(met) > 0 {
+				c.note("Already met: " + strings.Join(met, ", "))
 			}
 			if len(added)+len(updated) == 0 {
 				c.println("Nothing to merge from " + c.args[1] + ".")
@@ -819,7 +940,7 @@ func (m *nxMerge) schemas(v any) {
 // nxMergeSource picks the sample standing in for <from>: the Acme Tasks
 // contract when the name or the requested operations point at it, otherwise
 // an edited copy of the sample document.
-func nxMergeSource(c *nxCtx) *nxObj {
+func nxMergeSource(c *nxCtx) (*nxObj, bool) {
 	name := strings.ToLower(c.args[1])
 	contract := strings.Contains(name, "acme") || strings.Contains(name, "contract")
 	if ops := c.strs("operation"); len(ops) > 0 {
@@ -831,11 +952,11 @@ func nxMergeSource(c *nxCtx) *nxObj {
 	}
 	if contract {
 		c.note(fmt.Sprintf("(preview: a sample contract, Acme Tasks, stands in for %s)", c.args[1]))
-		return nxContract()
+		return nxContract(), true
 	}
 	c.note(fmt.Sprintf("(preview: an edited copy of the sample stands in for %s)", c.args[1]))
 	_, from := nxDiffSample()
-	return from
+	return from, false
 }
 
 var nxQuotedAt = regexp.MustCompile(`at '(/[^']*)'`)
@@ -846,7 +967,8 @@ func nxSynthesizeCmd() *cobra.Command {
 	cmd := nxLeaf("synthesize", "synthesize <artifact> --kind <kind>", "Create a document from an artifact", `Create a new document from an artifact, such as an OpenAPI document, using
 a handler for its kind: a source for the artifact, and one operation and
 binding for each target it offers. <artifact> is a path or URL. Prints the
-document unless -o is given.
+document unless -o is given; -o refuses to replace an existing file unless
+--force is given.
 
 To add another artifact to an existing document, use ob source import and
 then ob source pull.`,
@@ -859,6 +981,9 @@ then ob source pull.`,
 			}
 			if _, ok := nxSupports(kind, "synthesize"); !ok {
 				return nxRefuse("this ob cannot synthesize from %s artifacts; ob kind list shows what it can handle", kind)
+			}
+			if err := c.creating(c.str("out")); err != nil {
+				return err
 			}
 			name := c.str("source")
 			if name == "" {
@@ -902,38 +1027,80 @@ then ob source pull.`,
 	cmd.Flags().String("source", "", "name for the source in the new document (default \"api\")")
 	cmd.Flags().String("name", "", "a human-readable name for the document")
 	cmd.Flags().StringP("out", "o", "", "write the document to a file")
+	cmd.Flags().Bool("force", false, "replace an existing file")
 	return cmd
 }
 
 func nxStatusCmd() *cobra.Command {
-	cmd := nxLeaf("status", "status <obi>", "Show how a document has drifted from its sources", `For each source, show what ob source pull would change: operations and
-bindings to add, update, or remove, and bindings whose target is gone.
-Changes nothing. Uses a handler for each source's kind.`,
+	cmd := nxLeaf("status", "status <obi>", "Show how a document has drifted from its sources", `For every source, show how the document differs from it: targets no
+binding covers yet, which ob source pull would add, and operations whose
+schemas the source describes differently, which pull applies only with
+--update-operation. Changes nothing; it is ob source pull --dry-run for all
+sources, as a report.
+
+A source whose kind this ob cannot read is listed as not checked, and
+status exits 4: it cannot say whether that source has drifted.
+
+Exit status: 0 checked every source; 4 some source could not be checked.
+With --exit-code: 1 when anything has drifted.`,
 		`  ob status tasks.obi.json
   ob status tasks.obi.json --exit-code`,
 		nxArgs(1, 1), func(c *nxCtx) error {
-			if c.format() == "json" {
-				c.println(`[
-  { "source": "httpApi", "kind": "example.openapi@1", "changes": [
-    { "change": "add", "operation": "archiveTask", "binding": "archiveTask.http", "target": "POST /tasks/{id}/archive" },
-    { "change": "update", "operation": "listTasks", "detail": "output schema changed upstream" }
-  ] },
-  { "source": "mcpServer", "kind": "example.mcp@1", "changes": [] }
-]`)
-			} else {
-				c.println("httpApi (example.openapi@1): 2 changes")
-				c.println("  + archiveTask        new target POST /tasks/{id}/archive")
-				c.println("  ~ listTasks          output schema changed upstream")
-				c.println("mcpServer (example.mcp@1): up to date")
-				c.println("")
-				c.println("Run \"ob source pull " + c.args[0] + "\" to apply.")
+			doc := c.doc(c.args[0])
+			drifted, unchecked := false, false
+			var report []any
+			for _, d := range nxDrift(doc, nil) {
+				entry := nxNewObj().Set("source", d.source).Set("kind", d.kind).Set("checked", d.readable)
+				if !d.readable {
+					unchecked = true
+					entry.Set("reason", "this ob cannot read "+d.kind+" sources")
+					report = append(report, entry)
+					continue
+				}
+				var changes []any
+				for _, t := range d.unbound {
+					ch := nxNewObj().Set("change", "added").Set("binding", t.binding).Set("target", t.target).Set("operation", t.operation)
+					ch.Set("newOperation", !doc.Obj("operations").Has(t.operation))
+					changes = append(changes, ch)
+				}
+				for _, s := range d.differs {
+					changes = append(changes, nxNewObj().Set("change", "changed").Set("operation", s.operation).Set("detail", s.side+" schema differs"))
+				}
+				drifted = drifted || len(changes) > 0
+				report = append(report, entry.Set("changes", changes))
 			}
-			if c.on("exit-code") {
+			c.render(report, func() {
+				for _, d := range nxDrift(doc, nil) {
+					c.println(fmt.Sprintf("%s (%s)", d.source, d.kind))
+					switch {
+					case !d.readable:
+						c.println("  not checked: this ob cannot read " + d.kind + " sources")
+					case len(d.unbound)+len(d.differs) == 0:
+						c.println("  up to date")
+					}
+					for _, t := range d.unbound {
+						what := "for operation " + t.operation
+						if !doc.Obj("operations").Has(t.operation) {
+							what = "with a new operation " + t.operation
+						}
+						c.println(fmt.Sprintf("  + %-18s new target %s, %s", t.binding, t.target, what))
+					}
+					for _, s := range d.differs {
+						c.println(fmt.Sprintf("  ~ %-18s %s schema differs (--update-operation %s takes it)", s.operation, s.side, s.operation))
+					}
+				}
+				c.println("")
+				c.println("ob source pull " + c.args[0] + " adds the new targets; schema changes apply only with --update-operation.")
+			})
+			switch {
+			case c.on("exit-code") && drifted:
 				return nxFail(1, "")
+			case unchecked:
+				return nxFail(4, "")
 			}
 			return nil
 		})
-	cmd.Flags().Bool("exit-code", false, "exit 1 when there is drift, for CI")
+	cmd.Flags().Bool("exit-code", false, "exit 1 when anything has drifted, for CI")
 	nxFormat(cmd, "text", "json")
 	return cmd
 }
