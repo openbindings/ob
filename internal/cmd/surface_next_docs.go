@@ -541,8 +541,10 @@ func nxCheck(doc *nxObj, opKey, side string, value any) ([]string, bool, error) 
 	if obj, ok := schema.(*nxObj); ok && doc.Obj("schemas") != nil {
 		defs := nxClone(doc.Obj("schemas")).(*nxObj)
 		for _, k := range defs.Keys() {
-			nxRewriteRefs(defs, "#/schemas/"+k, "#/$defs/"+k)
-			nxRewriteRefs(obj, "#/schemas/"+k, "#/$defs/"+k)
+			for _, d := range defs.Keys() {
+				nxRewriteRefs(defs.Get(d), k, "#/$defs/"+k)
+			}
+			nxRewriteRefs(obj, k, "#/$defs/"+k)
 		}
 		obj.Set("$defs", defs)
 	}
@@ -937,8 +939,13 @@ func (m *nxMerge) entry(part, noun, name string, value any) {
 
 // schemas brings the named schemas a merged value references.
 func (m *nxMerge) schemas(v any) {
-	for _, match := range nxSchemaRef.FindAllStringSubmatch(nxCompact(v), -1) {
-		name := match[1]
+	var names []string
+	nxWalkRefs(v, func(ref string) {
+		if n, ok := nxSchemaRefName(ref); ok && !nxContains(names, n) {
+			names = append(names, n)
+		}
+	})
+	for _, name := range names {
 		if m.from.Obj("schemas") == nil || !m.from.Obj("schemas").Has(name) {
 			continue
 		}
@@ -972,8 +979,6 @@ func nxMergeSource(c *nxCtx) (*nxObj, bool) {
 }
 
 var nxQuotedAt = regexp.MustCompile(`at '(/[^']*)'`)
-
-var nxSchemaRef = regexp.MustCompile(`"#/schemas/([^"]+)"`)
 
 func nxSynthesizeCmd() *cobra.Command {
 	cmd := nxLeaf("synthesize", "synthesize <artifact> --kind <kind>", "Create a document from an artifact", `Create a new document from an artifact, such as an OpenAPI document, using

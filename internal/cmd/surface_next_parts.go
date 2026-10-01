@@ -1527,8 +1527,10 @@ func nxSchemaCmd() *cobra.Command {
 	rename := nxRenameCmd("schema.rename", "Rename a reusable schema", `Rename a reusable schema, and update every reference to it, such as
 {"$ref": "#/schemas/<name>"}.`, "schema", "schemas", `  ob schema rename tasks.obi.json Problem Error`,
 		func(doc *nxObj, from, to string) string {
-			n := strings.Count(nxCompact(doc), `"#/schemas/`+from+`"`)
-			nxRewriteRefs(doc, "#/schemas/"+from, "#/schemas/"+to)
+			n := 0
+			for _, p := range nxPositions(doc) {
+				n += nxRewriteRefs(p.value, from, "#/schemas/"+to)
+			}
 			return fmt.Sprintf(" (%s updated)", nxCount(n, "reference"))
 		})
 	remove := nxEditable(nxLeaf("schema.remove", "remove <obi> <name>", "Remove a reusable schema", "Remove a named schema. It refuses while anything references it.",

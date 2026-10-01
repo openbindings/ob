@@ -123,37 +123,12 @@ func nxViolations(doc *nxObj) []string {
 		if broken {
 			continue
 		}
-		if err := nxMetaValid(doc, p.value); err != "" {
+		if err := nxMetaValid(p.value); err != "" {
 			add("OBI-D-10", "%s is not a valid JSON Schema: %s", p.label, err)
 		}
 	}
 	sort.Strings(out)
 	return out
-}
-
-// nxWalkRefs visits the references in the document resource. A schema that
-// declares $id is a resource of its own: its references resolve against its
-// base (spec §7.2), so the walk does not enter it.
-func nxWalkRefs(v any, visit func(string)) {
-	switch t := v.(type) {
-	case *nxObj:
-		if t.Has("$id") {
-			return
-		}
-		for _, k := range t.Keys() {
-			if k == "$ref" || k == "$dynamicRef" {
-				if s, ok := t.Get(k).(string); ok {
-					visit(s)
-				}
-				continue
-			}
-			nxWalkRefs(t.Get(k), visit)
-		}
-	case []any:
-		for _, item := range t {
-			nxWalkRefs(item, visit)
-		}
-	}
 }
 
 // An external schema the document references, and where.
@@ -200,40 +175,6 @@ func nxExternalRefs(doc *nxObj) []nxExternal {
 	return out
 }
 
-// nxRefsIn lists the absolute URIs (without fragments) a schema references,
-// resolving each reference against the nearest enclosing $id.
-func nxRefsIn(v any, base string) []string {
-	var out []string
-	var walk func(v any, base string)
-	walk = func(v any, base string) {
-		switch t := v.(type) {
-		case *nxObj:
-			if id, ok := t.Get("$id").(string); ok {
-				base = nxResolveURI(base, id)
-			}
-			for _, k := range t.Keys() {
-				if k == "$ref" || k == "$dynamicRef" {
-					ref, _ := t.Get(k).(string)
-					if strings.HasPrefix(ref, "#") && base == "" {
-						continue
-					}
-					if u := strings.SplitN(nxResolveURI(base, ref), "#", 2)[0]; nxURIScheme.MatchString(u) && !nxContains(out, u) && u != strings.SplitN(base, "#", 2)[0] {
-						out = append(out, u)
-					}
-					continue
-				}
-				walk(t.Get(k), base)
-			}
-		case []any:
-			for _, item := range t {
-				walk(item, base)
-			}
-		}
-	}
-	walk(v, base)
-	return out
-}
-
 func nxResolveURI(base, ref string) string {
 	r, err := url.Parse(ref)
 	if err != nil {
@@ -247,30 +188,6 @@ func nxResolveURI(base, ref string) string {
 		return ref
 	}
 	return b.ResolveReference(r).String()
-}
-
-// nxDeclaresID says whether a schema in the document declares this $id.
-func nxDeclaresID(doc *nxObj, uri string) bool {
-	found := false
-	var walk func(v any)
-	walk = func(v any) {
-		switch t := v.(type) {
-		case *nxObj:
-			if id, ok := t.Get("$id").(string); ok && strings.TrimSuffix(id, "#") == uri {
-				found = true
-			}
-			for _, k := range t.Keys() {
-				walk(t.Get(k))
-			}
-		case []any:
-			for _, item := range t {
-				walk(item)
-			}
-		}
-	}
-	walk(doc.Get("schemas"))
-	walk(doc.Get("operations"))
-	return found
 }
 
 // nxSchemaNameFor names an embedded schema from its URI: the last path
@@ -291,67 +208,258 @@ func nxSchemaNameFor(doc *nxObj, uri string) string {
 	return candidate
 }
 
-// nxResolvesToSchema looks a same-document reference up in the document, as
-// OBI-D-12 does: a JSON Pointer must land on a schema position.
-func nxResolvesToSchema(doc *nxObj, ref string) bool {
-	frag := strings.TrimPrefix(ref, "#")
-	if !strings.HasPrefix(frag, "/") {
-		return false
-	}
-	parts := strings.Split(frag[1:], "/")
-	if len(parts) < 2 {
-		return false
-	}
-	var cur any = doc
-	for i, p := range parts {
-		p = strings.ReplaceAll(strings.ReplaceAll(p, "~1", "/"), "~0", "~")
-		obj, ok := cur.(*nxObj)
-		if !ok || !obj.Has(p) {
-			return false
-		}
-		cur = obj.Get(p)
-		if i == 0 && p != "schemas" && p != "operations" {
-			return false
-		}
-	}
-	switch cur.(type) {
+// The keywords whose values are schemas, as OBI positions follow them
+// (spec §7): maps of schemas, arrays of schemas, and single schemas. Values
+// under any other keyword, such as const, enum, and examples, are data.
+var (
+	nxSchemaMapKeywords    = map[string]bool{"$defs": true, "definitions": true, "properties": true, "patternProperties": true, "dependentSchemas": true, "dependencies": true}
+	nxSchemaArrayKeywords  = map[string]bool{"allOf": true, "anyOf": true, "oneOf": true, "prefixItems": true}
+	nxSchemaSingleKeywords = map[string]bool{"additionalProperties": true, "propertyNames": true, "items": true, "contains": true, "not": true, "if": true, "then": true, "else": true, "unevaluatedItems": true, "unevaluatedProperties": true, "contentSchema": true}
+)
+
+func nxIsSchema(v any) bool {
+	switch v.(type) {
 	case *nxObj, bool:
-		return parts[0] == "schemas" || len(parts) >= 3 && (parts[2] == "input" || parts[2] == "output")
+		return true
 	}
 	return false
 }
 
-// nxMetaValid compiles a schema against the 2020-12 meta-schema, with the
-// document's named schemas bundled so its references resolve.
-func nxMetaValid(doc *nxObj, value any) string {
-	schema := nxClone(value)
-	if obj, ok := schema.(*nxObj); ok && doc.Obj("schemas") != nil {
-		defs := nxClone(doc.Obj("schemas")).(*nxObj)
-		// A schema with its own $id is checked as itself, not also as a
-		// definition beside itself.
-		if id, ok := obj.Get("$id").(string); ok {
-			for _, k := range defs.Keys() {
-				if d, isObj := defs.Get(k).(*nxObj); isObj && d.Get("$id") == id {
-					defs.Delete(k)
+// nxSubschemas lists the schemas directly inside a schema, each with the
+// pointer tokens that reach it.
+func nxSubschemas(s *nxObj) []struct {
+	tokens []string
+	schema any
+} {
+	var out []struct {
+		tokens []string
+		schema any
+	}
+	add := func(v any, tokens ...string) {
+		if nxIsSchema(v) {
+			out = append(out, struct {
+				tokens []string
+				schema any
+			}{tokens, v})
+		}
+	}
+	for _, k := range s.Keys() {
+		v := s.Get(k)
+		switch {
+		case nxSchemaMapKeywords[k]:
+			if m, ok := v.(*nxObj); ok {
+				for _, name := range m.Keys() {
+					add(m.Get(name), k, name)
 				}
 			}
+		case nxSchemaArrayKeywords[k] || k == "items":
+			if arr, ok := v.([]any); ok {
+				for i, item := range arr {
+					add(item, k, fmt.Sprint(i))
+				}
+			} else if nxSchemaSingleKeywords[k] {
+				add(v, k)
+			}
+		case nxSchemaSingleKeywords[k]:
+			add(v, k)
 		}
-		for _, k := range defs.Keys() {
-			nxRewriteRefs(defs, "#/schemas/"+k, "#/$defs/"+k)
-			nxRewriteRefs(obj, "#/schemas/"+k, "#/$defs/"+k)
-		}
-		obj.Set("$defs", defs)
 	}
-	parsed, err := jsonschema.UnmarshalJSON(strings.NewReader(nxCompact(schema)))
+	return out
+}
+
+// nxWalkSchema visits a schema and every schema inside it. visit returns
+// false to stop the walk from entering a schema's subschemas.
+func nxWalkSchema(v any, visit func(obj *nxObj) bool) {
+	obj, ok := v.(*nxObj)
+	if !ok || !visit(obj) {
+		return
+	}
+	for _, sub := range nxSubschemas(obj) {
+		nxWalkSchema(sub.schema, visit)
+	}
+}
+
+// An OBI position: where the document model puts a schema.
+type nxPosition struct {
+	label string
+	value any
+}
+
+func nxPositions(doc *nxObj) []nxPosition {
+	var out []nxPosition
+	for _, key := range nxPartKeys(doc, "schemas") {
+		out = append(out, nxPosition{"schema " + key, doc.Obj("schemas").Get(key)})
+	}
+	for _, key := range nxPartKeys(doc, "operations") {
+		op := doc.Obj("operations").Obj(key)
+		for _, side := range []string{"input", "output"} {
+			if op != nil && op.Has(side) {
+				out = append(out, nxPosition{key + " " + side, op.Get(side)})
+			}
+		}
+	}
+	return out
+}
+
+// nxWalkRefs visits the references in the document resource. A schema that
+// declares $id is a resource of its own: its references resolve against its
+// base (spec §7.2), so the walk does not enter it.
+func nxWalkRefs(v any, visit func(string)) {
+	nxWalkSchema(v, func(obj *nxObj) bool {
+		if obj.Has("$id") {
+			return false
+		}
+		for _, k := range []string{"$ref", "$dynamicRef"} {
+			if ref, ok := obj.Get(k).(string); ok {
+				visit(ref)
+			}
+		}
+		return true
+	})
+}
+
+// nxRefsIn lists the absolute URIs (without fragments) a schema references,
+// resolving each reference against the nearest enclosing $id.
+func nxRefsIn(v any, base string) []string {
+	var out []string
+	var walk func(v any, base string)
+	walk = func(v any, base string) {
+		obj, ok := v.(*nxObj)
+		if !ok {
+			return
+		}
+		if id, ok := obj.Get("$id").(string); ok {
+			base = nxResolveURI(base, id)
+		}
+		for _, k := range []string{"$ref", "$dynamicRef"} {
+			ref, ok := obj.Get(k).(string)
+			if !ok || strings.HasPrefix(ref, "#") && base == "" {
+				continue
+			}
+			u := strings.SplitN(nxResolveURI(base, ref), "#", 2)[0]
+			if nxURIScheme.MatchString(u) && !nxContains(out, u) && u != strings.SplitN(base, "#", 2)[0] {
+				out = append(out, u)
+			}
+		}
+		for _, sub := range nxSubschemas(obj) {
+			walk(sub.schema, base)
+		}
+	}
+	walk(v, base)
+	return out
+}
+
+// nxDeclaresID says whether a schema in the document declares this $id.
+func nxDeclaresID(doc *nxObj, uri string) bool {
+	found := false
+	for _, p := range nxPositions(doc) {
+		nxWalkSchema(p.value, func(obj *nxObj) bool {
+			if id, ok := obj.Get("$id").(string); ok && strings.TrimSuffix(id, "#") == uri {
+				found = true
+			}
+			return true
+		})
+	}
+	return found
+}
+
+// nxFragment decodes a same-document reference's fragment (spec §7.2).
+func nxFragment(ref string) (string, bool) {
+	frag, err := url.PathUnescape(strings.TrimPrefix(ref, "#"))
+	return frag, err == nil
+}
+
+// nxSchemaRefName says which named schema a same-document reference names,
+// if it names one directly ("#/schemas/<name>", however it is encoded).
+func nxSchemaRefName(ref string) (string, bool) {
+	if !strings.HasPrefix(ref, "#") {
+		return "", false
+	}
+	frag, ok := nxFragment(ref)
+	if !ok || !strings.HasPrefix(frag, "/schemas/") {
+		return "", false
+	}
+	rest := strings.TrimPrefix(frag, "/schemas/")
+	if rest == "" || strings.Contains(rest, "/") {
+		return "", false
+	}
+	return strings.ReplaceAll(strings.ReplaceAll(rest, "~1", "/"), "~0", "~"), true
+}
+
+// nxResolvesToSchema looks a same-document reference up in the document, as
+// OBI-D-12 does: a JSON Pointer must land on a schema position, and not
+// inside a schema that declares $id; a plain name must be declared by a
+// schema in the document resource.
+func nxResolvesToSchema(doc *nxObj, ref string) bool {
+	frag, ok := nxFragment(ref)
+	if !ok || frag == "" {
+		return false
+	}
+	if !strings.HasPrefix(frag, "/") {
+		found := false
+		for _, p := range nxPositions(doc) {
+			nxWalkSchema(p.value, func(obj *nxObj) bool {
+				if obj.Has("$id") {
+					return false
+				}
+				found = found || obj.Get("$anchor") == frag || obj.Get("$dynamicAnchor") == frag
+				return true
+			})
+		}
+		return found
+	}
+	tokens := strings.Split(frag[1:], "/")
+	for i := range tokens {
+		tokens[i] = strings.ReplaceAll(strings.ReplaceAll(tokens[i], "~1", "/"), "~0", "~")
+	}
+	var cur any
+	switch {
+	case len(tokens) >= 2 && tokens[0] == "schemas" && doc.Obj("schemas") != nil && doc.Obj("schemas").Has(tokens[1]):
+		cur, tokens = doc.Obj("schemas").Get(tokens[1]), tokens[2:]
+	case len(tokens) >= 3 && tokens[0] == "operations" && (tokens[2] == "input" || tokens[2] == "output") &&
+		doc.Obj("operations") != nil && doc.Obj("operations").Has(tokens[1]) && doc.Obj("operations").Obj(tokens[1]).Has(tokens[2]):
+		cur, tokens = doc.Obj("operations").Obj(tokens[1]).Get(tokens[2]), tokens[3:]
+	default:
+		return false
+	}
+	for len(tokens) > 0 {
+		obj, ok := cur.(*nxObj)
+		if !ok || obj.Has("$id") {
+			return false
+		}
+		next := false
+		for _, sub := range nxSubschemas(obj) {
+			if len(sub.tokens) <= len(tokens) && strings.Join(sub.tokens, "/") == strings.Join(tokens[:len(sub.tokens)], "/") {
+				cur, tokens, next = sub.schema, tokens[len(sub.tokens):], true
+				break
+			}
+		}
+		if !next {
+			return false
+		}
+	}
+	return nxIsSchema(cur)
+}
+
+// The JSON Schema 2020-12 meta-schema, which the schema library carries, so
+// the check runs offline.
+var nxMetaSchema = func() *jsonschema.Schema {
+	s, err := jsonschema.NewCompiler().Compile("https://json-schema.org/draft/2020-12/schema")
+	if err != nil {
+		panic(err)
+	}
+	return s
+}()
+
+// nxMetaValid checks a schema against the 2020-12 meta-schemas, as OBI-D-10
+// does: with format as an annotation, and resolving none of the document's
+// references.
+func nxMetaValid(value any) string {
+	inst, err := jsonschema.UnmarshalJSON(strings.NewReader(nxCompact(value)))
 	if err != nil {
 		return err.Error()
 	}
-	c := jsonschema.NewCompiler()
-	c.UseLoader(nxPublishedLoader{})
-	if err := c.AddResource("urn:ob-preview:meta", parsed); err != nil {
-		return err.Error()
-	}
-	if _, err := c.Compile("urn:ob-preview:meta"); err != nil {
+	if err := nxMetaSchema.Validate(inst); err != nil {
 		// The most specific problem is the first one at the deepest level.
 		lines := strings.Split(err.Error(), "\n")
 		best, depth := lines[0], -1

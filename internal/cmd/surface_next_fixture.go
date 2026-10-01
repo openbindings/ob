@@ -325,40 +325,50 @@ func nxReferrers(doc *nxObj, part, field, value string) []string {
 	return out
 }
 
+// nxSchemaReferrers lists the schema positions whose references name a
+// schema directly ("#/schemas/<name>").
 func nxSchemaReferrers(doc *nxObj, name string) []string {
-	ref := "#/schemas/" + name
 	var out []string
-	for _, key := range nxPartKeys(doc, "operations") {
-		if strings.Contains(nxCompact(doc.Obj("operations").Obj(key)), `"`+ref+`"`) {
-			out = append(out, "operation "+key)
+	for _, p := range nxPositions(doc) {
+		if p.label == "schema "+name {
+			continue
 		}
-	}
-	for _, key := range nxPartKeys(doc, "schemas") {
-		if key != name && strings.Contains(nxCompact(doc.Obj("schemas").Get(key)), `"`+ref+`"`) {
-			out = append(out, "schema "+key)
+		uses := false
+		nxWalkRefs(p.value, func(ref string) {
+			if n, ok := nxSchemaRefName(ref); ok && n == name {
+				uses = true
+			}
+		})
+		if uses {
+			label := p.label
+			if !strings.HasPrefix(label, "schema ") {
+				label = "operation " + strings.SplitN(label, " ", 2)[0]
+			}
+			if !nxContains(out, label) {
+				out = append(out, label)
+			}
 		}
 	}
 	return out
 }
 
-// nxRewriteRefs rewrites every "$ref" equal to from, anywhere in v.
-func nxRewriteRefs(v any, from, to string) {
-	switch t := v.(type) {
-	case *nxObj:
-		for _, k := range t.Keys() {
-			if k == "$ref" {
-				if s, _ := t.Get(k).(string); s == from {
-					t.Set(k, to)
-				}
-				continue
+// nxRewriteRefs points the document-resource references to one named
+// schema at another, following schemas only, and counts them.
+func nxRewriteRefs(v any, from, to string) int {
+	n := 0
+	nxWalkSchema(v, func(obj *nxObj) bool {
+		if obj.Has("$id") {
+			return false
+		}
+		if ref, ok := obj.Get("$ref").(string); ok {
+			if name, ok := nxSchemaRefName(ref); ok && name == from {
+				obj.Set("$ref", to)
+				n++
 			}
-			nxRewriteRefs(t.Get(k), from, to)
 		}
-	case []any:
-		for _, item := range t {
-			nxRewriteRefs(item, from, to)
-		}
-	}
+		return true
+	})
+	return n
 }
 
 // The pretend installation: which kinds ob can handle, for which roles, and
