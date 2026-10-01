@@ -21,9 +21,10 @@ called. Matt plays with it to make decisions, and two AI reviewers rank it
 against peer CLIs.
 
 **The bar** Matt set: a top-three overall ranking from every reviewer, with
-no blocking findings. Current state: Opus meets it (3rd, no blocking);
-Astra does not yet (5th, two blocking), but both of Astra's blocking
-findings are already fixed in the lab and await re-review. See section 5.
+no blocking findings. Current state: round 5 is frozen and reviewed by three
+fresh independent Codex reviewers, without Claude. All rank ob 4th overall,
+with zero blockers. The bar is unmet. See section 5 and the round-5
+adjudication for the verified repair queue and updated recommendations.
 
 ## 2. Where everything lives
 
@@ -34,7 +35,9 @@ All paths are on Matt's machine.
 - Worktree: `/Users/matt/Code/ob-pj/openbindings/ob-cli-surface-lab`
 - Branch: `codex/cli-surface-lab` in the `openbindings/ob` repository.
   **Local only, never pushed.** Do not push without Matt's explicit approval.
-- Head at handoff: `b62c182`. The working tree is clean.
+- Original head at handoff: `b62c182`. Round 5 froze lab `4984a63` after
+  source-pull naming (`d1bef9f`), agreed repairs (`7b3d3b0`), and playable
+  proposals (`4984a63`). See git history for post-freeze corrections.
 - Code: `internal/cmd/surface_next*.go` (the tree is `NewNextSurfaceRoot`).
   `cmd/ob/main.go` builds it by default.
   - `surface_next.go`: root, plumbing (`nxCtx`, `nxRun`, exit helpers
@@ -62,9 +65,9 @@ Build, play, test (always `GOWORK=off`):
 
 ```sh
 cd /Users/matt/Code/ob-pj/openbindings/ob-cli-surface-lab
-GOWORK=off go build -o ./bin/ob ./cmd/ob
+GOCACHE=/private/tmp/ob-cli-surface-lab-go-build GOWORK=off go build -o ./bin/ob ./cmd/ob
 ./bin/ob --help
-GOWORK=off go test ./internal/cmd -run 'TestNext|TestV02|TestSurface' -count=1
+GOCACHE=/private/tmp/ob-cli-surface-lab-go-build GOWORK=off go test ./internal/cmd -run 'TestNext|TestV02|TestSurface' -count=1
 ```
 
 The lab tests must pass before every commit. Other tests in the branch (the
@@ -80,6 +83,11 @@ Ignore them.
   `opus.md`).
 - `review-4/brief.md` is the current brief template. It points reviewers at
   the guide's "Decided" section instead of restating rulings.
+- `review-5/` is the latest frozen round. It adds source-inspector,
+  interface-synthesizer, delegate-manager, and document-store texts to the
+  prior inputs. `reviewer-a.md`, `reviewer-b.md`, and `reviewer-c.md` are the
+  fresh independent reports; `adjudication.md` verifies and consolidates
+  them. `RUNS.txt` records how each reviewer ran. Never change frozen inputs.
 
 ### The specification and interfaces the CLI serves
 
@@ -183,13 +191,14 @@ ideas:
 | 2 | 6th, 2 blocking | 4th, 2 blocking | refusal exit codes; mcp/codegen binding choice |
 | 3 | 4th, none blocking | 4th, none blocking | |
 | 4 | 5th, 2 blocking | **3rd, none blocking (meets bar)** | Astra's blockers were preview-checker bugs, fixed after the freeze |
+| 5 | Codex A: 4th, none blocking | Codex B and C: each 4th, none blocking | Three fresh independent Codex reviews; no Claude; bar unmet |
 
 Peers used every round: git, gh, kubectl, cargo, Terraform CLI, buf,
 Redocly CLI. Criteria: learnability in the first hour, consistency, coverage
 of jobs, editing ergonomics, output and scripting, errors and recovery,
 fidelity to the model, economy of surface, overall.
 
-### Fixed since the round-4 freeze (lab `29d7de2`), not yet re-reviewed
+### Fixed since the round-4 freeze (lab `29d7de2`), included in round 5
 
 - `d8d27ee`: **Astra's two blocking findings.** The preview checker now
   follows spec §7: it walks only the keywords that hold schemas (never
@@ -218,9 +227,8 @@ fidelity to the model, economy of surface, overall.
 ### A. Agreed fixes (applied in the continuation, 2026-10-01)
 
 From the round-4 reports, verified and applied in the preview. The lab suite
-includes focused regression checks; these changes await the round-5 freeze
-and fresh independent reviewers. This list records the fixes, not pending
-decisions:
+includes focused regression checks; these changes were frozen and reviewed
+in round 5. This list records the fixes, not pending decisions:
 
 1. **Name the rule in every edit refusal.** Add OBI-D-03 (names match
    `^[A-Za-z0-9_][A-Za-z0-9_.-]*$`), OBI-D-06 (`$schema` must be the 2020-12
@@ -275,15 +283,23 @@ round-5 reviewers to challenge. Their implementation is not approval.
    hold.
 2. **`--config` typing.** Recommendation: `POINT=VALUE` is always a string;
    `POINT:=JSON` gives a typed value (httpie's convention).
-3. **`kind check` without `--role`.** Recommendation: without `--role` it is
-   a report (exit 0); with `--role` it is a yes/no check. Changes a round-2
-   fix.
+3. **`kind check` without `--role`.** Updated recommendation after round 5:
+   require `--role` for a predicate; add explicit `--report` for all-role
+   inspection. Two reviewers objected that the frozen no-role report's
+   exit 0 makes a shell support check succeed for a wholly unsupported kind.
+   The frozen report default remains playable, pending Matt's ruling.
 4. **`compat` for an operation with neither bindings nor dependencies** (every
-   operation of a pure contract). Recommendation: check it both ways. Changes
-   the round-3 "as a provider".
+   operation of a pure contract). Updated recommendation after round 5:
+   keep both directions as the conservative default, with an explicit
+   `--direction provider|consumer|both` affecting only these operations.
+   Old-caller migration checks select provider. Existing bound/dependency
+   inference remains unchanged. The proposed flag is not implemented yet.
 5. **How local tools get `ob start`'s access token.** Recommendation: `ob
    start` writes its address and token to a file only the user can read; ob's
    own commands read it; `ob start -F json` prints the same as one line.
+
+All three round-5 reviewers supported decisions 1, 2, and 5. None of these
+five proposals is a ruling until Matt answers.
 
 ### C. Findings rejected, with reasons (do not redo)
 
@@ -309,30 +325,51 @@ round-5 reviewers to challenge. Their implementation is not approval.
 - **`fmt --check` should fail on the sample**: a preview artifact; the
   sample is formatted.
 
+### D. Round-5 findings and post-freeze corrections
+
+The full adjudication lives at
+`/Users/matt/Code/ob-pj/design/ob-cli-surface/review-5/adjudication.md`.
+Verified repairs, not new design decisions:
+
+- Accept fractional and negative delegate preferences faithfully; reject
+  duplicate requested roles.
+- Expose retained delegate OBIs, complete preference maps, accepted role
+  interfaces, and the role's admission/use description.
+- Keep JSON list reports as informative as text, including binding
+  preference/idempotency, source counts/support, and delegate preferences.
+- Reveal native nested context JSON with resolver metadata separate.
+- Use exit 4 for an explicitly selected unreadable source, as already ruled.
+- Shell-quote every argument substituted into a generated recovery command.
+- Parse binding preferences in decimal and use plain numeric diagnostics.
+- State the current input/output mutual exclusion in validation help.
+
+Paired value validation and changing invocation's literal prevalidation are
+design choices for Matt. The guide's blanket later-input statement was
+corrected after the freeze to explain known literal validation versus
+incrementally read streams. The runtime behavior was retained.
+
+An additional post-review audit found that the new identifier checker used
+Go's URI normalization beyond D-13's permitted resolution. The lab now checks
+RFC 3986 URI-reference grammar for D-05 and preserves authored components
+while resolving D-13 IDs, including userinfo percent spelling, empty queries,
+case, and repeated slashes. Focused tests and the lab suite pass. This repair
+and the guide clarification are **post-freeze, not independently re-reviewed**;
+round-5 binary, guide, and checksums remain unchanged.
+
 ## 7. Next steps
 
 1. Check Matt's answers on the five remaining decisions in 6B. Until he
    answers, the recommended defaults remain proposals, open for review.
    Only his rulings go into the guide's Decided section.
-2. The agreed fixes and recommended proposals are applied. Commit in small
-   steps, tests green each time; update the proposals when Matt answers.
-3. Run the guide's command list end to end and confirm each exits as the
-   guide says (a loop over its `./bin/ob` lines does it).
-4. Freeze round 5: create `design/ob-cli-surface/review-5/` with the built
-   binary, the guide, `openbindings.md` and `http-discovery.md` from spec
-   `de2c20b`, the interface READMEs (operation-invoker and binding-invoker
-   from the PR #36 branch; token-provider; schema-comparison), a `PINS.txt`,
-   and a `brief.md` copied from `review-4/brief.md` with the round number
-   changed. Make the frozen files read-only.
-5. Run fresh independent reviewers here in parallel, with the same brief
-   and frozen inputs. Matt explicitly excluded Claude for this round on
-   2026-10-01. Use fresh Codex reviewer agents, not the completed source-pull
-   panel; each works read-only and returns its full ranking report. Save
-   their reports separately, then adjudicate them against the pinned texts.
-6. Adjudicate: verify every finding against the spec and interfaces; sort
-   into rejected (with reasons), fixes that follow from rulings, and
-   decisions for Matt (stories with recommendations). The bar is met when
-   every reviewer ranks ob top three with no blocking findings.
+2. Round 5 is complete: the guide's 61 commands were exercised with expected
+   statuses, the suite passed, inputs were frozen at `4984a63`, and three
+   fresh independent Codex reports were saved and adjudicated. No Claude ran.
+3. Work from 6D's verified repair queue and the round-5 adjudication. Commit
+   in small steps, tests green each time; update proposals when Matt answers.
+4. A future full ranking is round 6, with a new immutable folder. Never
+   overwrite round 5 or present post-freeze repairs as reviewed by its panel.
+   Use the same fresh, independent, read-only reviewer method. The bar is met
+   only when every reviewer ranks ob top three with no blocking findings.
 
 ## 8. Gotchas learned the hard way
 

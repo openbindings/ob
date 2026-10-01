@@ -120,10 +120,14 @@ With `--frames`, every run that reaches the invoker ends with exactly one
 terminal frame, a refusal included. The interface's own error codes carry
 no `data`; the reason is on stderr.
 
-Checks follow the same boundary as the interface. A first input value that
-does not fit is refused before anything is sent (exit 3); a later one ends
-the exchange with `ERR_OPERATION_VALIDATION_FAILED` after earlier values
-were sent (exit 1). An output value that does not fit ends it the same way.
+Literal `--input VALUE` arguments are checked before opening the invocation.
+If any literal does not fit, the whole request is refused before anything is
+sent (exit 3), even when an earlier literal was valid. Values from `@FILE`
+or stdin are checked as they are read: an invalid first value is refused
+before dispatch (exit 3); an invalid later value ends the exchange with
+`ERR_OPERATION_VALIDATION_FAILED` after earlier values were sent (exit 1).
+If the binding closes input early, unread streamed values are ignored. An
+invalid output ends the invocation with exit 1.
 
 Context follows the context resolution pattern. A binding asks for context
 by an exact scope; ob looks up only that scope, uses stored values only when
@@ -194,6 +198,21 @@ Reviewers may challenge them:
   file 0600), remove it when that run stops, and let ob's commands read it
   for an exact matching service address. `start -F json` prints the record
   as one line, including the token, for other tools.
+
+Round-5 follow-up: all three independent reviewers support named credentials,
+explicit config typing, and the private startup record. Two challenge the
+bare `kind check` report and ask for explicit pure-contract comparison
+direction. The updated recommendations, still awaiting Matt's ruling, are:
+
+- Require `--role` for a `kind check` predicate; use an explicit `--report`
+  mode to inspect all roles. The frozen round-5 default above remains
+  playable until Matt rules on the change.
+- Keep both directions as the conservative pure-contract default, and add
+  `--direction provider|consumer|both` for operations with neither bindings
+  nor dependency use. Checking whether new contracts still serve old callers
+  selects `provider`; protecting old providers selects `consumer`. Existing
+  role inference for bound or dependency-used operations stays authoritative.
+  The new flag is a recommendation, not implemented in this preview yet.
 
 ## Decided
 

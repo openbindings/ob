@@ -123,7 +123,10 @@ func nxViolations(doc *nxObj) []string {
 	}
 	for _, p := range positions {
 		nxWalkRefs(p.value, func(ref string) {
+			_, wellFormed := nxParseURI(ref)
 			switch {
+			case !wellFormed:
+				add("OBI-D-05", "%s: %q must be a well-formed URI-reference", p.label, ref)
 			case ref == "" || strings.HasPrefix(ref, "#"):
 				if !nxResolvesToSchema(doc, ref) {
 					add("OBI-D-12", "%s: %q does not name a schema in this document", p.label, ref)
@@ -178,22 +181,11 @@ func nxAdditionalRules(doc *nxObj) []string {
 		}
 		if obj.Has("$id") {
 			id, _ := obj.Get("$id").(string)
-			u, err := url.Parse(id)
-			if inDocument && (err != nil || !u.IsAbs()) {
-				add("OBI-D-05", "%s: $id must be an absolute URI", label)
+			u, wellFormed := nxParseURI(id)
+			if inDocument && (!wellFormed || u.scheme == "") {
+				add("OBI-D-05", "%s: $id must be a well-formed absolute URI", label)
 			}
-			if err == nil && (u.IsAbs() || base != "") {
-				b, _ := url.Parse(base)
-				resolved := b.ResolveReference(u).String()
-				// net/url folds the scheme's case. D-13 compares exact
-				// spellings after resolution, so retain the authored scheme.
-				schemeSource := base
-				if u.IsAbs() {
-					schemeSource = id
-				}
-				if colon := strings.IndexByte(schemeSource, ':'); colon >= 0 {
-					resolved = schemeSource[:colon] + resolved[strings.IndexByte(resolved, ':'):]
-				}
+			if resolved, comparable := nxResolveID(base, id); comparable {
 				base = strings.TrimSuffix(resolved, "#")
 				if other, duplicate := ids[base]; duplicate {
 					add("OBI-D-13", "%s and %s declare the same $id %q", other, label, base)
@@ -269,18 +261,10 @@ func nxExternalRefs(doc *nxObj) []nxExternal {
 }
 
 func nxResolveURI(base, ref string) string {
-	r, err := url.Parse(ref)
-	if err != nil {
-		return ref
+	if resolved, ok := nxResolveID(base, ref); ok {
+		return resolved
 	}
-	if base == "" {
-		return r.String()
-	}
-	b, err := url.Parse(base)
-	if err != nil {
-		return ref
-	}
-	return b.ResolveReference(r).String()
+	return ref
 }
 
 // nxSchemaNameFor names an embedded schema from its URI: the last path
