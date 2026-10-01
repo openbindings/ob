@@ -264,7 +264,11 @@ func TestNextJSONOutputsParse(t *testing.T) {
 		if cmd.Flags().Lookup("format") == nil || !strings.Contains(cmd.Flags().Lookup("format").Usage, "json") {
 			return
 		}
+		path := strings.Fields(strings.TrimPrefix(cmd.CommandPath(), "ob "))
 		for _, args := range nxExampleCommands(t, cmd.Example) {
+			if len(args) < len(path) || strings.Join(args[:len(path)], " ") != strings.Join(path, " ") {
+				continue // another command in the example's pipeline
+			}
 			out, _, err := nxExec("", append(args, "-F", "json")...)
 			if nxExitCode(err) == 2 {
 				t.Errorf("ob %s -F json: %v", strings.Join(args, " "), err)

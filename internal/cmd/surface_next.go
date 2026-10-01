@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"fmt"
+	"os"
 	"strings"
 	"text/tabwriter"
 
@@ -443,6 +444,30 @@ func (c *nxCtx) value(flag string) (any, bool, error) {
 		return nil, true, nxUsageErr("--%s: expected one JSON value, @file, or - for stdin", flag)
 	}
 	return v, true, nil
+}
+
+// creating refuses to replace an existing file unless --force is given.
+func (c *nxCtx) creating(path string) error {
+	if path == "" || path == "-" || c.on("force") {
+		return nil
+	}
+	if _, err := os.Stat(path); err == nil {
+		return nxRefuse("%s already exists, so nothing was written; --force replaces it", path)
+	}
+	return nil
+}
+
+// object reads a value flag that must be a JSON object, such as a context.
+func (c *nxCtx) object(flag string) (*nxObj, bool, error) {
+	v, ok, err := c.value(flag)
+	if err != nil || !ok {
+		return nil, ok, err
+	}
+	obj, isObj := v.(*nxObj)
+	if !isObj {
+		return nil, true, nxUsageErr("--%s must be a JSON object", flag)
+	}
+	return obj, true, nil
 }
 
 func (c *nxCtx) schema(flag string) (any, bool, error) {

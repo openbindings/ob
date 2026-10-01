@@ -53,16 +53,22 @@ never used to choose.
 Checks: ob checks each input value against the operation's input schema
 before sending it, and each output value against its output schema. A
 value given with --input VALUE is checked before ob asks for any context.
---no-check skips both.
+When a schema cannot be fully resolved, ob cannot check against it and
+stops with ERR_SCHEMA_UNRESOLVED.
 
 Context: what a binding needs beyond the input, such as a credential, comes
 from ob's context store, looked up by the exact scope the binding asks for.
-At a terminal ob asks for anything missing; otherwise it stops before
-sending anything and prints the ob context set command that supplies it.
---context gives context for this call only. A delegate that invokes for ob
-resolves its own context: ob never sends it stored context, and if it asks
-for something, ob asks you or stops. --preflight prints what the binding
-already knows it will ask for, and sends nothing.
+At a terminal ob gets anything missing: it asks for a value, or runs the
+sign-in the binding names (such as an OAuth 2.0 flow in your browser), and
+offers to store the result. Stored tokens are renewed as they expire.
+Otherwise ob stops before sending anything and prints the ob context set
+command that supplies it. --context gives context for this call only, as a
+JSON object. A delegate that invokes for ob resolves its own context: ob
+never sends it stored context, and if it asks for something, ob asks you or
+stops. --preflight prints what the binding already knows it will ask for,
+and sends nothing.
+
+Without --frames, an error's code, and any data it carries, go to stderr.
 
 Exit status: 0 completed; 1 the operation failed or an output did not fit
 (either may have taken effect); 3 refused before anything was sent;
@@ -76,8 +82,7 @@ Exit status: 0 completed; 1 the operation failed or an output did not fit
 	cmd.Flags().String("input", "", "the input: one JSON value, @file, or - to stream values from stdin")
 	cmd.Flags().StringArray("binding", nil, "use this binding; repeat for an ordered list")
 	cmd.Flags().Bool("frames", false, "print the whole exchange as frames, not just output values")
-	cmd.Flags().String("context", "", "context for this call only: JSON, @file, or -")
-	cmd.Flags().Bool("no-check", false, "skip checking values against the operation's schemas")
+	cmd.Flags().String("context", "", "context for this call only: a JSON object, @file, or -")
 	cmd.Flags().Bool("preflight", false, "print what the binding knows it will ask for; send nothing")
 	return cmd
 }
@@ -97,8 +102,7 @@ whole exchange, one frame per line.`,
 			return nxInvokeThrough(c, doc, fmt.Sprint(b.Get("operation")), c.args[1], true)
 		})
 	cmd.Flags().String("input", "", "the input: one JSON value, @file, or - to stream values from stdin")
-	cmd.Flags().String("context", "", "context for this call only: JSON, @file, or -")
-	cmd.Flags().Bool("no-check", false, "skip checking values against the operation's schemas")
+	cmd.Flags().String("context", "", "context for this call only: a JSON object, @file, or -")
 	cmd.Flags().Bool("preflight", false, "print what the binding knows it will ask for; send nothing")
 	return cmd
 }
@@ -133,7 +137,11 @@ func nxInvoke(c *nxCtx) error {
 	}
 	key, ok := nxResolveOperation(doc, c.args[1])
 	if !ok {
-		return refuse("ERR_OPERATION_NOT_FOUND", "no operation named %q in %s; ob operation list shows them", c.args[1], c.args[0])
+		hint := nxDidYouMean(doc, c.args[1])
+		if hint == "" {
+			hint = "; ob operation list shows them"
+		}
+		return refuse("ERR_OPERATION_NOT_FOUND", "no operation named %q in %s%s", c.args[1], c.args[0], hint)
 	}
 	bindings := nxReferrers(doc, "bindings", "operation", key)
 	if len(bindings) == 0 {
@@ -188,7 +196,7 @@ func nxInvoke(c *nxCtx) error {
 		case 1:
 			chosen = usable[0]
 		default:
-			return refuse("ERR_BINDING_SELECTION_REQUIRED", "%s has %d bindings ob can invoke; choose with --binding:\n%s", key, len(usable), listing(usable))
+			return refuse("ERR_BINDING_SELECTION_REQUIRED", "%s has %d bindings ob can invoke; choose one by adding --binding to your command, for example --binding %s:\n%s", key, len(usable), usable[0], listing(usable))
 		}
 	}
 	return nxInvokeThrough(c, doc, key, chosen, c.on("frames"))
@@ -201,12 +209,17 @@ func nxInvokeThrough(c *nxCtx, doc *nxObj, key, binding string, frames bool) err
 	need, needs := nxBindingNeeds[binding]
 	var callContext bool
 	if c.set("context") {
-		if _, _, err := c.value("context"); err != nil {
+		if _, _, err := c.object("context"); err != nil {
 			return err
 		}
 		callContext = true
 	}
 	if c.on("preflight") {
+		for _, f := range []string{"input", "frames"} {
+			if c.set(f) {
+				return nxUsageErr("--preflight sends nothing, so it does not take --%s; it prints the binding's requirements as one JSON value", f)
+			}
+		}
 		if !needs {
 			c.note(binding + " knows of nothing it will ask for.")
 			c.println("null")
@@ -230,9 +243,6 @@ func nxInvokeThrough(c *nxCtx, doc *nxObj, key, binding string, frames bool) err
 	defer closeInputs()
 	sent := 0
 	checkInput := func(v any) error {
-		if c.on("no-check") {
-			return nil
-		}
 		problems, checked, err := nxCheck(doc, key, "input", v)
 		if err != nil || !checked || len(problems) == 0 {
 			return err
@@ -275,6 +285,8 @@ func nxInvokeThrough(c *nxCtx, doc *nxObj, key, binding string, frames bool) err
 			c.note("using the context given with --context for this call")
 		case stored && need.durable:
 			c.note("using stored context for " + need.scope)
+		case nxInteractive(c) && need.requirement == "auth.oauth2":
+			c.note(fmt.Sprintf("(preview: ob would run the OAuth 2.0 sign-in %s names, in your browser, then offer to store the tokens for %s and renew them as they expire)", binding, need.scope))
 		case nxInteractive(c):
 			c.note(fmt.Sprintf("(preview: ob would ask you here for %s for %s, and offer to store it)", need.describe, need.scope))
 		default:
@@ -289,13 +301,11 @@ func nxInvokeThrough(c *nxCtx, doc *nxObj, key, binding string, frames bool) err
 	}
 	c.live()
 	emit := func(v any) error {
-		if !c.on("no-check") {
-			if problems, checked, err := nxCheck(doc, key, "output", v); err == nil && checked && len(problems) > 0 {
-				if frames {
-					c.println(nxErrorFrame("ERR_OPERATION_VALIDATION_FAILED", nil))
-				}
-				return nxFail(1, "an output value does not fit %s's output schema (%s); it was not printed, and the operation may have taken effect", key, strings.Join(problems, "; "))
+		if problems, checked, err := nxCheck(doc, key, "output", v); err == nil && checked && len(problems) > 0 {
+			if frames {
+				c.println(nxErrorFrame("ERR_OPERATION_VALIDATION_FAILED", nil))
 			}
+			return nxFail(1, "an output value does not fit %s's output schema (%s); it was not printed, and the operation may have taken effect", key, strings.Join(problems, "; "))
 		}
 		if frames {
 			c.println(nxCompact(nxNewObj().Set("kind", "output").Set("value", v)))

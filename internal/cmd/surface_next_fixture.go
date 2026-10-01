@@ -225,6 +225,44 @@ func nxResolveOperation(doc *nxObj, name string) (string, bool) {
 	return "", false
 }
 
+// nxDidYouMean suggests the operation name closest to a name that does not
+// resolve: one differing only in case, or by at most two edits.
+func nxDidYouMean(doc *nxObj, name string) string {
+	best, bestDist := "", 3
+	for _, key := range nxPartKeys(doc, "operations") {
+		for _, cand := range append([]string{key}, nxStrings(doc.Obj("operations").Obj(key).Get("aliases"))...) {
+			d := nxEditDistance(strings.ToLower(name), strings.ToLower(cand))
+			if d < bestDist {
+				best, bestDist = cand, d
+			}
+		}
+	}
+	if best == "" {
+		return ""
+	}
+	return fmt.Sprintf("; did you mean %s?", best)
+}
+
+func nxEditDistance(a, b string) int {
+	prev := make([]int, len(b)+1)
+	for j := range prev {
+		prev[j] = j
+	}
+	for i := 1; i <= len(a); i++ {
+		cur := make([]int, len(b)+1)
+		cur[0] = i
+		for j := 1; j <= len(b); j++ {
+			cost := 1
+			if a[i-1] == b[j-1] {
+				cost = 0
+			}
+			cur[j] = min(prev[j]+1, cur[j-1]+1, prev[j-1]+cost)
+		}
+		prev = cur
+	}
+	return prev[len(b)]
+}
+
 func nxStrings(v any) []string {
 	var out []string
 	switch t := v.(type) {
@@ -313,6 +351,10 @@ var nxInstalledKinds = []nxKindSupport{
 }
 
 var nxRoles = []string{"invoke", "inspect", "synthesize"}
+
+// The pretend installation has not installed ob's local certificate
+// authority, so ob start --tls needs --install-ca the first time.
+var nxCAInstalled = false
 
 func nxSupports(kind, role string) (string, bool) {
 	for _, k := range nxInstalledKinds {

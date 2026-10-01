@@ -12,7 +12,7 @@ import (
 func (c *nxCtx) opKey(doc *nxObj, name string) (string, error) {
 	key, ok := nxResolveOperation(doc, name)
 	if !ok {
-		return "", c.missing("no operation named %q in %s", name, c.args[0])
+		return "", c.missing("no operation named %q in %s%s", name, c.args[0], nxDidYouMean(doc, name))
 	}
 	if key != name {
 		c.note(fmt.Sprintf("(%s is an alias of operation %s)", name, key))
