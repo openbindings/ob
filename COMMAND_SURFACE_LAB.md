@@ -53,8 +53,9 @@ Things to try:
 ./bin/ob show https://private.example.com < /dev/null          # refused: the service asks for sign-in
 ./bin/ob show https://nothing.example.com                      # no OBI published there (exit 1)
 ./bin/ob validate https://old.example.com                      # refused: written for OpenBindings 0.1
-./bin/ob context set https://api.example.com --bearer-token abc   # refused: a secret on the command line
+./bin/ob context set https://api.example.com --bearer-token abc   # usage error (exit 2): secrets take - or @FILE
 ./bin/ob context show https://api.example.com
+./bin/ob context set https://tokens.example.com --token-credential -   # rotates the stored provider's credential
 ./bin/ob mcp tasks.obi.json --binding createTask.http
 ./bin/ob start --allow-origin https://editor.example.com
 ./bin/ob ca show
@@ -289,7 +290,8 @@ Proposals not ruled on, open to challenge:
   `watchTasks` is paced only at a terminal. Values given as `@file` or `-` to
   other commands are replaced by a marked placeholder.
 - The pretend installation stores context for `https://api.example.com` and
-  `https://api.example.com/openapi.json`, and none for the MCP server. It
+  `https://api.example.com/openapi.json`, and a pinned token provider for
+  `https://tokens.example.com`; none is stored for the MCP server. It
   can invoke gRPC but not inspect it, so `status` and `pull` cannot check
   `grpcApi`. It has installed ob's local certificate authority.
 - The sample's `Task` references two published schemas
@@ -301,6 +303,9 @@ Proposals not ruled on, open to challenge:
 - The sample's kinds (`example.openapi@1`, `example.mcp@1`) are the spec's
   illustrative ones; nothing here says how a published kind reads its content.
 - Each command starts from the same sample, so edits do not accumulate.
+- Matched schemas in the sample contract fit. The comparison engine is not
+  implemented here; tests supply illustrative profile failures to check the
+  report's issue order, reasons, and verdict dominance.
 
 ## Tests
 

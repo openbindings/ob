@@ -78,6 +78,8 @@ func nxContextField(name string) (string, bool) {
 		return "bearerToken", true
 	case "access-token":
 		return "accessToken", true
+	case "token-credential":
+		return "tokenCredential", true
 	case "api-key":
 		return "apiKey", true
 	case "basic", "token-provider":
@@ -90,6 +92,28 @@ func nxContextField(name string) (string, bool) {
 		return "configuration." + rest, true
 	}
 	return "", false
+}
+
+func nxContextFlagField(field string) string {
+	switch field {
+	case "bearerToken":
+		return "bearer-token"
+	case "accessToken":
+		return "access-token"
+	case "apiKey":
+		return "api-key"
+	case "tokenProvider":
+		return "token-provider"
+	case "tokenCredential":
+		return "token-credential"
+	}
+	if rest, ok := strings.CutPrefix(field, "headers."); ok {
+		return "header." + rest
+	}
+	if rest, ok := strings.CutPrefix(field, "configuration."); ok {
+		return "config." + rest
+	}
+	return field
 }
 
 func nxPrefix(p string, list []string) []string {
@@ -129,7 +153,9 @@ one list covers them all: give the mint binding and the refresh binding you
 want, in any order, and each applies to its own operation.
 
 --unset removes a field, named as its flag is: bearer-token, access-token,
-api-key, basic, token-provider, header.NAME, or config.POINT.
+api-key, basic, token-provider, token-credential, header.NAME, or config.POINT.
+Text reports use these flag names; JSON reports keep the interface's field
+names. A stored token provider also lets --token-credential rotate on its own.
 
 `+scopeHelp,
 		`  ob context set https://api.example.com --bearer-token -
@@ -167,13 +193,18 @@ api-key, basic, token-provider, header.NAME, or config.POINT.
 				c.println("Replaced the context for " + scope)
 				return nil
 			}
-			if (c.set("token-credential") || c.set("token-binding")) && !c.set("token-provider") {
-				return nxUsageErr("--token-credential and --token-binding go with --token-provider")
+			stored, _ := nxStoredContext(scope)
+			pinned := false
+			for _, h := range stored.holds {
+				pinned = pinned || h[0] == "tokenProvider"
+			}
+			if (c.set("token-credential") || c.set("token-binding")) && !c.set("token-provider") && !pinned {
+				return nxUsageErr("--token-credential and --token-binding need a stored token provider or --token-provider")
 			}
 			// Each change, by the name --unset would use and the stored field.
 			type change struct{ name, field string }
 			var changes []change
-			for _, f := range []struct{ flag, field string }{{"bearer-token", "bearerToken"}, {"access-token", "accessToken"}, {"api-key", "apiKey"}, {"basic", "basic"}} {
+			for _, f := range []struct{ flag, field string }{{"bearer-token", "bearerToken"}, {"access-token", "accessToken"}, {"api-key", "apiKey"}, {"basic", "basic"}, {"token-credential", "tokenCredential"}} {
 				if c.set(f.flag) {
 					changes = append(changes, change{f.flag, f.field})
 				}
@@ -208,12 +239,11 @@ api-key, basic, token-provider, header.NAME, or config.POINT.
 				changes = append(changes, change{"token-provider", "tokenProvider"})
 				c.note(fmt.Sprintf("(preview: ob would keep a copy of %s's OBI and check that it offers the token-provider operations)", c.str("token-provider")))
 			}
-			stored, _ := nxStoredContext(scope)
 			var removed []string
 			for _, u := range c.strs("unset") {
 				field, ok := nxContextField(u)
 				if !ok {
-					return nxUsageErr("--unset takes bearer-token, access-token, api-key, basic, token-provider, header.NAME, or config.POINT")
+					return nxUsageErr("--unset takes bearer-token, access-token, api-key, basic, token-provider, token-credential, header.NAME, or config.POINT")
 				}
 				for _, ch := range changes {
 					if ch.name == u {
@@ -227,13 +257,13 @@ api-key, basic, token-provider, header.NAME, or config.POINT.
 				if !held {
 					return nxNotFound("nothing is stored as %s for %q; ob context show %s lists what is", u, scope, scope)
 				}
-				removed = append(removed, field)
+				removed = append(removed, u)
 			}
 			line := "Context for " + scope + ":"
 			if len(changes) > 0 {
 				var fields []string
 				for _, ch := range changes {
-					fields = append(fields, ch.field)
+					fields = append(fields, ch.name)
 				}
 				line += " set " + strings.Join(fields, ", ")
 				if len(removed) > 0 {
@@ -244,6 +274,13 @@ api-key, basic, token-provider, header.NAME, or config.POINT.
 				line += " removed " + strings.Join(removed, ", ")
 			}
 			c.println(line)
+			knownScope := false
+			for _, need := range nxBindingNeeds {
+				knownScope = knownScope || need.scope == scope
+			}
+			if !knownScope {
+				c.note("hint: no binding in the sample document asks for this exact scope; ob uses only the scope string a binding names")
+			}
 			return nil
 		})
 	set.Flags().String("bearer-token", "", "a bearer token: - (stdin, or asked for) or @FILE")
@@ -256,7 +293,7 @@ api-key, basic, token-provider, header.NAME, or config.POINT.
 	set.Flags().String("token-provider", "", "mint bearer tokens from this token service (its OBI: a path or URL)")
 	set.Flags().String("token-credential", "", "the credential to mint with: - (stdin, or asked for) or @FILE")
 	set.Flags().StringArray("token-binding", nil, "use this binding of the token service; repeat for an ordered list")
-	set.Flags().StringArray("unset", nil, "remove a field: bearer-token, access-token, api-key, basic, token-provider, header.NAME, config.POINT")
+	set.Flags().StringArray("unset", nil, "remove a field: bearer-token, access-token, api-key, basic, token-provider, token-credential, header.NAME, config.POINT")
 
 	list := nxListFormats(nxLeaf("context.list", "list", "List stored contexts", "List the scopes that have stored context, and what each holds. Secrets are masked.",
 		`  ob context list`, nxArgs(0, 0), func(c *nxCtx) error {
@@ -267,14 +304,20 @@ api-key, basic, token-provider, header.NAME, or config.POINT.
 				for _, h := range ctx.holds {
 					fields = append(fields, h[0])
 				}
-				rows = append(rows, []string{ctx.scope, strings.Join(fields, ", ")})
+				var labels []string
+				for _, f := range fields {
+					labels = append(labels, nxContextFlagField(f))
+				}
+				rows = append(rows, []string{ctx.scope, strings.Join(labels, ", ")})
 				out = append(out, nxNewObj().Set("scope", ctx.scope).Set("fields", nxToAny(fields)))
 			}
 			c.render(out, func() { c.table("SCOPE\tFIELDS", rows) })
 			return nil
 		}))
 	show := nxListFormats(nxLeaf("context.show", "show <scope>", "Show a stored context", `Show what is stored for one scope. Every value is masked, since headers
-and configuration can hold secrets too; --reveal prints them.`,
+and configuration can hold secrets too; --reveal prints them. Text names
+match --unset; JSON keeps the interface's field names and represents each
+hidden value as {"masked":true}.`,
 		`  ob context show https://api.example.com`, nxArgs(1, 1), func(c *nxCtx) error {
 			ctx, ok := nxStoredContext(c.args[0])
 			if !ok {
@@ -287,11 +330,15 @@ and configuration can hold secrets too; --reveal prints them.`,
 				switch {
 				case c.on("reveal") && strings.HasPrefix(value, "••••"):
 					value = "preview-secret-" + strings.TrimPrefix(value, "••••")
-				case !c.on("reveal") && !strings.HasPrefix(value, "••••"):
+				case !c.on("reveal"):
 					value = "••••"
 				}
-				fields.Set(h[0], value)
-				rows = append(rows, []string{"  " + h[0], value})
+				if c.on("reveal") {
+					fields.Set(h[0], value)
+				} else {
+					fields.Set(h[0], nxNewObj().Set("masked", true))
+				}
+				rows = append(rows, []string{"  " + nxContextFlagField(h[0]), value})
 			}
 			c.render(nxNewObj().Set("scope", ctx.scope).Set("fields", fields), func() {
 				c.println(ctx.scope)
@@ -475,6 +522,13 @@ defines, indeterminate outranks incompatible: one comparison outside the
 profile makes the whole result indeterminate, while the report still lists
 every operation found incompatible.
 
+JSON reports list operations in sorted contract-key order. Each issue has
+an operation, kind (missing, output_incompatible, or input_incompatible),
+and detail carrying the profile's reason; output issues precede input issues
+for a matched pair. Outside-profile comparisons are reported as
+indeterminate with their reason. This preview's matched sample schemas fit;
+the sample also demonstrates missing operations and their remedies.
+
 Exit status: 0 compatible; 1 incompatible; 4 indeterminate.`,
 		`  ob compat tasks.obi.json acme-tasks.obi.json
   ob compat https://api.example.com https://contracts.example.com/acme-tasks.json -q`,
@@ -484,32 +538,74 @@ Exit status: 0 compatible; 1 incompatible; 4 indeterminate.`,
 			c.note(fmt.Sprintf("(preview: a sample contract, Acme Tasks, stands in for %s)", c.args[1]))
 			var rows [][]string
 			var out []any
+			issues := []any{}
 			var missing []string
 			ok := true
-			for _, cname := range contract.Obj("operations").Keys() {
+			indeterminate := false
+			for _, cname := range nxSorted(contract.Obj("operations").Keys()) {
 				if key, found := nxResolveOperation(doc, cname); found {
 					roles := nxOperationRoles(doc, key)
-					rows = append(rows, []string{cname, "yes", key + " (schemas fit)", strings.Join(roles, ", ")})
-					out = append(out, nxNewObj().Set("operation", cname).Set("satisfied", true).Set("by", key).Set("as", nxToAny(roles)))
+					opIssues := []any{}
+					var met any = true
+					label := "yes"
+					// Stable output-before-input ordering is part of the
+					// profile's interface-level report.
+					for _, kind := range []string{"output_incompatible", "input_incompatible", "outside-profile"} {
+						for _, result := range nxCompatComparisons[cname] {
+							if result.kind != kind {
+								continue
+							}
+							issue := nxNewObj().Set("operation", cname).Set("kind", kind).Set("detail", result.detail)
+							opIssues = append(opIssues, issue)
+							issues = append(issues, issue)
+							if kind == "outside-profile" {
+								indeterminate = true
+								met, label = nil, "undetermined"
+							} else {
+								ok = false
+								met, label = false, "no"
+							}
+						}
+					}
+					by := key + " (schemas fit)"
+					if len(opIssues) > 0 {
+						by = key
+					}
+					rows = append(rows, []string{cname, label, by, strings.Join(roles, ", ")})
+					out = append(out, nxNewObj().Set("operation", cname).Set("satisfied", met).Set("by", key).Set("as", nxToAny(roles)).Set("issues", opIssues))
 				} else {
 					ok = false
 					missing = append(missing, cname)
 					rows = append(rows, []string{cname, "no", "no operation answers to this name", "-"})
-					out = append(out, nxNewObj().Set("operation", cname).Set("satisfied", false).Set("remedies", nxToAny(nxRemedies(c, cname))))
+					issue := nxNewObj().Set("operation", cname).Set("kind", "missing").Set("detail", "no operation answers to this contract name")
+					issues = append(issues, issue)
+					out = append(out, nxNewObj().Set("operation", cname).Set("satisfied", false).Set("issues", []any{issue}).Set("remedies", nxToAny(nxRemedies(c, cname))))
 				}
 			}
 			conclusion := "compatible"
 			if !ok {
 				conclusion = "incompatible"
 			}
+			if indeterminate {
+				conclusion = "indeterminate"
+			}
 			if !c.on("quiet") {
-				c.render(nxNewObj().Set("conclusion", conclusion).Set("profile", "OB-2020-12").Set("operations", out), func() {
+				c.render(nxNewObj().Set("conclusion", conclusion).Set("profile", "OB-2020-12").Set("operations", out).Set("issues", issues), func() {
 					verdict := "satisfies"
 					if !ok {
 						verdict = "does not satisfy"
 					}
+					if indeterminate {
+						verdict = "could not be compared with"
+					}
 					c.println(fmt.Sprintf("%s %s Acme Tasks (%s)", c.args[0], verdict, c.args[1]))
 					c.table("CONTRACT OPERATION\tMET\tBY\tAS", rows)
+					for _, issue := range issues {
+						i := issue.(*nxObj)
+						if i.Get("kind") != "missing" {
+							c.println(fmt.Sprintf("  %s: %s: %s", i.Get("operation"), i.Get("kind"), i.Get("detail")))
+						}
+					}
 					for _, cname := range missing {
 						r := nxRemedies(c, cname)
 						c.println("")
@@ -518,6 +614,9 @@ Exit status: 0 compatible; 1 incompatible; 4 indeterminate.`,
 						c.println("  otherwise, add it from the contract:        " + r[1])
 					}
 				})
+			}
+			if indeterminate {
+				return nxFail(4, "")
 			}
 			if !ok {
 				return nxFail(1, "")
@@ -686,7 +785,14 @@ this command is a placeholder for that mapping.`,
 				op := fmt.Sprint(doc.Obj("bindings").Obj(b).Get("operation"))
 				named[op] = append(named[op], b)
 			}
-			var tools, skipped []string
+			var tools, skipped, warnings []string
+			warnContext := func(op, binding string) {
+				if need, asks := nxBindingNeeds[binding]; asks {
+					if _, stored := nxStoredContext(need.scope); !stored {
+						warnings = append(warnings, fmt.Sprintf("%s (via %s) needs context for %s; before calling it, run:\n    ob invoke %s %s --binding %s --preflight", op, binding, need.scope, c.args[0], op, binding))
+					}
+				}
+			}
 			for _, key := range nxPartKeys(doc, "operations") {
 				if len(only) > 0 && !only[key] {
 					continue
@@ -703,6 +809,7 @@ this command is a placeholder for that mapping.`,
 						return nxRefuse("this ob cannot invoke any binding you named for %s (%s), so nothing was served", key, strings.Join(list, ", "))
 					}
 					tools = append(tools, key+" (via "+chosen+")")
+					warnContext(key, chosen)
 					continue
 				}
 				var usable []string
@@ -720,6 +827,7 @@ this command is a placeholder for that mapping.`,
 					}
 				case 1:
 					tools = append(tools, key)
+					warnContext(key, usable[0])
 				default:
 					reason = fmt.Sprintf("%d bindings ob can invoke (%s); choose with --binding", len(usable), strings.Join(usable, ", "))
 				}
@@ -734,6 +842,9 @@ this command is a placeholder for that mapping.`,
 			c.note(fmt.Sprintf("Serving %s on stdio: %s", nxCount(len(tools), "tool"), strings.Join(tools, ", ")))
 			if len(skipped) > 0 {
 				c.note("Skipped:\n  " + strings.Join(skipped, "\n  "))
+			}
+			if len(warnings) > 0 {
+				c.note("Context needed:\n  " + strings.Join(warnings, "\n  "))
 			}
 			c.note("Waiting for an MCP client on stdin.")
 			return nil
@@ -769,7 +880,12 @@ answer for one kind.`,
 					row = append(row, nxYesNo(nxContains(k.roles, r)))
 				}
 				rows = append(rows, append(row, k.handler))
-				out = append(out, nxNewObj().Set("kind", k.kind).Set("roles", nxToAny(k.roles)).Set("handler", k.handler))
+				handlers := nxNewObj()
+				for _, role := range k.roles {
+					handler, _ := nxSupports(k.kind, role)
+					handlers.Set(role, handler)
+				}
+				out = append(out, nxNewObj().Set("kind", k.kind).Set("roles", nxToAny(k.roles)).Set("handlers", handlers))
 			}
 			c.render(out, func() { c.table("KIND\tINVOKE\tINSPECT\tSYNTHESIZE\tHANDLED BY", rows) })
 			return nil

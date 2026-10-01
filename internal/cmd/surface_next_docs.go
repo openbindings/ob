@@ -40,7 +40,7 @@ member). The OpenBindings version is always 0.2.0.`,
 			for _, f := range []struct{ flag, member string }{{"name", "name"}, {"interface-version", "version"}, {"description", "description"}} {
 				if c.set(f.flag) {
 					if f.flag == "interface-version" && c.str(f.flag) == "" {
-						return nxUsageErr("--interface-version must not be empty")
+						return nxRefuse("OBI-D-02: version is a non-empty string; --interface-version must not be empty; nothing was written")
 					}
 					doc.Set(f.member, c.str(f.flag))
 				}
@@ -95,7 +95,7 @@ description, or interface-version.`,
 					return nxUsageErr("--%s and --unset %s ask for opposite changes; choose one", f.flag, f.flag)
 				}
 				if f.member == "version" && c.str(f.flag) == "" {
-					return nxUsageErr("--interface-version must not be empty")
+					return nxRefuse("OBI-D-02: version is a non-empty string; --interface-version must not be empty; nothing was written")
 				}
 				after.SetCanon(f.member, c.str(f.flag), nxDocOrder)
 				changed = append(changed, f.member)
@@ -492,14 +492,14 @@ func nxValidateExamples(c *nxCtx, doc *nxObj) error {
 				switch {
 				case !checked:
 					parts = append(parts, side+" not checked (no "+side+" schema)")
-					entry.Set(side, "not checked")
+					entry.Set(side, nil)
 					unchecked++
 				case len(problems) == 0:
 					parts = append(parts, side+" fits")
-					entry.Set(side, "fits")
+					entry.Set(side, true)
 				default:
 					parts = append(parts, side+" does not fit: "+strings.Join(problems, "; "))
-					entry.Set(side, "does not fit").Set(side+"Problems", nxProblemObjs(problems))
+					entry.Set(side, false).Set(side+"Problems", nxProblemObjs(problems))
 					bad++
 				}
 			}
@@ -992,7 +992,8 @@ document unless -o is given; -o refuses to replace an existing file unless
 --force is given.
 
 To add another artifact to an existing document, use ob source import and
-then ob source pull.`,
+then ob source pull <obi> <source> --target <target> for one target, or
+--all-targets for all of them.`,
 		`  ob synthesize ./openapi.json --kind example.openapi@1 -o tasks.obi.json
   ob synthesize https://api.example.com/mcp --kind example.mcp@1`,
 		nxArgs(1, 1), func(c *nxCtx) error {
@@ -1083,7 +1084,7 @@ With --exit-code: 1 when something has drifted.`,
 					drift = append(drift, nxNewObj().Set("change", "changed").Set("operation", s.operation).Set("detail", s.side+" schema differs"))
 				}
 				for _, t := range d.unbound {
-					unbound = append(unbound, nxNewObj().Set("target", t.target).Set("suggestedOperation", t.operation).Set("binding", t.binding))
+					unbound = append(unbound, nxNewObj().Set("target", t.target).Set("suggestedOperation", t.operation).Set("suggestedBindingKey", t.binding))
 				}
 				drifted = drifted || len(drift) > 0
 				sources = append(sources, entry.Set("drift", drift).Set("unbound", unbound))

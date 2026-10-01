@@ -215,6 +215,12 @@ func (nxPublishedLoader) Load(u string) (any, error) {
 func nxFixture() *nxObj  { return nxMustParse(nxFixtureJSON).(*nxObj) }
 func nxContract() *nxObj { return nxMustParse(nxContractJSON).(*nxObj) }
 
+// Pretend profile results for matched operations. The sample's pairs fit;
+// tests supply failures here to exercise the report, not a comparison engine.
+type nxProfileIssue struct{ kind, detail string }
+
+var nxCompatComparisons = map[string][]nxProfileIssue{}
+
 // A part map of the document, created in canonical position when missing.
 func nxPart(doc *nxObj, part string) *nxObj {
 	if m := doc.Obj(part); m != nil {
@@ -434,6 +440,7 @@ type nxContext struct {
 var nxContexts = []nxContext{
 	{"https://api.example.com", [][2]string{{"bearerToken", "••••3f9a"}, {"headers.X-Client", "ob"}}},
 	{"https://api.example.com/openapi.json", [][2]string{{"configuration.server", `{"url":"https://api.example.com"}`}}},
+	{"https://tokens.example.com", [][2]string{{"tokenProvider", "https://auth.example.com"}, {"tokenCredential", "••••9a2c"}}},
 }
 
 func nxStoredContext(scope string) (nxContext, bool) {

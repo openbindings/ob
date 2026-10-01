@@ -38,21 +38,36 @@ var nxStructural = func() *jsonschema.Schema {
 var nxURIScheme = regexp.MustCompile(`^[A-Za-z][A-Za-z0-9+.-]*:`)
 
 // nxViolations reports the document rules a document breaks, as far as the
-// preview can decide them: the structural schema (OBI-D-02), unique names
-// (OBI-D-04), reference forms (OBI-D-05), references to operations and
+// preview can decide them: the structural schema (OBI-D-02), names and
+// uniqueness (OBI-D-03, D-04), reference forms and dialect (OBI-D-05, D-06), references to operations and
 // sources (OBI-D-07, D-08, D-11), meta-schema validity (OBI-D-10), and
-// same-document references (OBI-D-12). Each entry names its rule.
+// same-document references and identifiers (OBI-D-12, D-13). Each entry names its rule.
 func nxViolations(doc *nxObj) []string {
-	var out []string
+	out := nxAdditionalRules(doc)
 	add := func(rule, format string, a ...any) {
 		out = append(out, rule+": "+fmt.Sprintf(format, a...))
 	}
 	if inst, err := jsonschema.UnmarshalJSON(strings.NewReader(nxCompact(doc))); err == nil {
 		if err := nxStructural.Validate(inst); err != nil {
-			for _, line := range strings.Split(err.Error(), "\n") {
-				if line = strings.TrimSpace(line); strings.HasPrefix(line, "- ") {
-					add("OBI-D-02", "%s", strings.TrimPrefix(line, "- "))
+			if ve, ok := err.(*jsonschema.ValidationError); ok {
+				var leaves func(*jsonschema.ValidationError)
+				leaves = func(e *jsonschema.ValidationError) {
+					if len(e.Causes) > 0 {
+						for _, cause := range e.Causes {
+							leaves(cause)
+						}
+						return
+					}
+					// D-06 explains dialect errors. The other anyOf branch
+					// merely says an object is not a boolean.
+					if strings.HasSuffix(e.SchemaURL, "/JSONSchema/anyOf/1") || len(e.InstanceLocation) > 0 && e.InstanceLocation[len(e.InstanceLocation)-1] == "$schema" {
+						return
+					}
+					add("OBI-D-02", "%s", strings.TrimPrefix(e.Error(), "- "))
 				}
+				leaves(ve)
+			} else {
+				add("OBI-D-02", "%v", err)
 			}
 		}
 	}
@@ -107,27 +122,105 @@ func nxViolations(doc *nxObj) []string {
 		}
 	}
 	for _, p := range positions {
-		broken := false
 		nxWalkRefs(p.value, func(ref string) {
 			switch {
-			case strings.HasPrefix(ref, "#"):
+			case ref == "" || strings.HasPrefix(ref, "#"):
 				if !nxResolvesToSchema(doc, ref) {
 					add("OBI-D-12", "%s: %q does not name a schema in this document", p.label, ref)
-					broken = true
 				}
 			case !nxURIScheme.MatchString(ref):
 				add("OBI-D-05", "%s: %q must be an absolute URI or start with #", p.label, ref)
-				broken = true
 			}
 		})
-		if broken {
-			continue
-		}
 		if err := nxMetaValid(p.value); err != "" {
 			add("OBI-D-10", "%s is not a valid JSON Schema: %s", p.label, err)
 		}
 	}
 	sort.Strings(out)
+	return out
+}
+
+// These rules need schema-aware walks beyond the derived structural schema.
+func nxAdditionalRules(doc *nxObj) []string {
+	var out []string
+	add := func(rule, format string, args ...any) {
+		out = append(out, rule+": "+fmt.Sprintf(format, args...))
+	}
+	name := func(label, key string) {
+		if !v02NamePattern.MatchString(key) {
+			add("OBI-D-03", "%s %q does not match ^[A-Za-z0-9_][A-Za-z0-9_.-]*$", label, key)
+		}
+	}
+	for _, part := range []string{"operations", "sources", "bindings", "dependencies", "schemas"} {
+		for _, key := range nxPartKeys(doc, part) {
+			name(part+" key", key)
+			if part == "operations" {
+				if op := doc.Obj(part).Obj(key); op != nil {
+					for _, alias := range nxStrings(op.Get("aliases")) {
+						name(key+" alias", alias)
+					}
+					for _, example := range nxPartKeys(op, "examples") {
+						name(key+" example key", example)
+					}
+				}
+			}
+		}
+	}
+	anchors, ids := map[string]string{}, map[string]string{}
+	var walk func(any, string, string, bool)
+	walk = func(value any, label, base string, inDocument bool) {
+		obj, ok := value.(*nxObj)
+		if !ok {
+			return
+		}
+		if obj.Has("$schema") && obj.Get("$schema") != "https://json-schema.org/draft/2020-12/schema" && obj.Get("$schema") != "https://json-schema.org/draft/2020-12/schema#" {
+			add("OBI-D-06", "%s: $schema must be https://json-schema.org/draft/2020-12/schema (an empty fragment is allowed); remove a pasted $schema to use 2020-12", label)
+		}
+		if obj.Has("$id") {
+			id, _ := obj.Get("$id").(string)
+			u, err := url.Parse(id)
+			if inDocument && (err != nil || !u.IsAbs()) {
+				add("OBI-D-05", "%s: $id must be an absolute URI", label)
+			}
+			if err == nil && (u.IsAbs() || base != "") {
+				b, _ := url.Parse(base)
+				resolved := b.ResolveReference(u).String()
+				// net/url folds the scheme's case. D-13 compares exact
+				// spellings after resolution, so retain the authored scheme.
+				schemeSource := base
+				if u.IsAbs() {
+					schemeSource = id
+				}
+				if colon := strings.IndexByte(schemeSource, ':'); colon >= 0 {
+					resolved = schemeSource[:colon] + resolved[strings.IndexByte(resolved, ':'):]
+				}
+				base = strings.TrimSuffix(resolved, "#")
+				if other, duplicate := ids[base]; duplicate {
+					add("OBI-D-13", "%s and %s declare the same $id %q", other, label, base)
+				}
+				ids[base] = label
+			} else {
+				base = ""
+			}
+			inDocument = false
+		}
+		if inDocument {
+			for _, keyword := range []string{"$anchor", "$dynamicAnchor"} {
+				if anchor, ok := obj.Get(keyword).(string); ok {
+					if other, duplicate := anchors[anchor]; duplicate {
+						add("OBI-D-13", "%s and %s declare the same document-resource plain name %q", other, label, anchor)
+					}
+					anchors[anchor] = label
+				}
+			}
+		}
+		for _, sub := range nxSubschemas(obj) {
+			walk(sub.schema, label+"/"+strings.Join(sub.tokens, "/"), base, inDocument)
+		}
+	}
+	for _, position := range nxPositions(doc) {
+		walk(position.value, position.label, "", true)
+	}
 	return out
 }
 

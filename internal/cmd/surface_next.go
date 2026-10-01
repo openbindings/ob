@@ -114,7 +114,107 @@ or called. ob invoke reads the input values you give it.`,
 	if variant == "binding-invoke" {
 		root.Example = strings.Replace(root.Example, "invoke tasks.obi.json completeTask ", "invoke tasks.obi.json completeTask.http ", 1)
 	}
+	root.SetHelpCommand(&cobra.Command{
+		Use: "help [command]", Short: "Help about any command",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			topic := root
+			for _, word := range args {
+				var next *cobra.Command
+				for _, child := range topic.Commands() {
+					if child.Name() == word || child.HasAlias(word) {
+						next = child
+						break
+					}
+				}
+				if next == nil {
+					return nxUnknown(topic, word)
+				}
+				topic = next
+			}
+			return topic.Help()
+		},
+	})
+	nxInstallNameCompletion(root)
 	return root
+}
+
+// The preview completes the names in its sample. A real build reads the
+// explicitly named document; there is no file-extension convention.
+func nxInstallNameCompletion(root *cobra.Command) {
+	doc := nxFixture()
+	names := func(part string, aliases bool, prefix string) []string {
+		keys := nxPartKeys(doc, part)
+		if aliases {
+			for _, key := range nxPartKeys(doc, "operations") {
+				keys = append(keys, nxStrings(doc.Obj("operations").Obj(key).Get("aliases"))...)
+			}
+		}
+		var out []string
+		for _, key := range nxSorted(keys) {
+			if strings.HasPrefix(key, prefix) {
+				out = append(out, key)
+			}
+		}
+		return out
+	}
+	var walk func(*cobra.Command)
+	walk = func(cmd *cobra.Command) {
+		id := cmd.Annotations["surface-id"]
+		cmd.ValidArgsFunction = func(cmd *cobra.Command, args []string, prefix string) ([]string, cobra.ShellCompDirective) {
+			if len(args) == 0 && strings.Contains(cmd.Use, "<obi>") {
+				return nil, cobra.ShellCompDirectiveDefault
+			}
+			part, aliases := "", false
+			if id == "invoke" && len(args) == 1 {
+				if root.Annotations["variant"] == "binding-invoke" {
+					part = "bindings"
+				} else {
+					part, aliases = "operations", true
+				}
+			}
+			for _, p := range []string{"operation", "binding", "source", "dependency", "schema"} {
+				if strings.HasPrefix(id, p+".") && len(args) == 1 {
+					action := strings.TrimPrefix(id, p+".")
+					if action == "show" || action == "set" || action == "remove" || action == "rename" || action == "inspect" || action == "pull" || strings.HasPrefix(action, "example.") {
+						part = p + "s"
+						if p == "dependency" {
+							part = "dependencies"
+						}
+						aliases = p == "operation" && action != "rename" && action != "remove"
+					}
+				}
+			}
+			if part == "" {
+				return nil, cobra.ShellCompDirectiveNoFileComp
+			}
+			return names(part, aliases, prefix), cobra.ShellCompDirectiveNoFileComp
+		}
+		for flag, part := range map[string]string{"operation": "operations", "update-operation": "operations", "binding": "bindings", "source": "sources"} {
+			if cmd.Flags().Lookup(flag) != nil {
+				part := part
+				_ = cmd.RegisterFlagCompletionFunc(flag, func(cmd *cobra.Command, args []string, prefix string) ([]string, cobra.ShellCompDirective) {
+					keys := names(part, part == "operations", prefix)
+					if id == "invoke" && part == "bindings" && len(args) > 1 {
+						if key, ok := nxResolveOperation(doc, args[1]); ok {
+							allowed := nxReferrers(doc, "bindings", "operation", key)
+							var filtered []string
+							for _, b := range keys {
+								if nxContains(allowed, b) {
+									filtered = append(filtered, b)
+								}
+							}
+							keys = filtered
+						}
+					}
+					return keys, cobra.ShellCompDirectiveNoFileComp
+				})
+			}
+		}
+		for _, child := range cmd.Commands() {
+			walk(child)
+		}
+	}
+	walk(root)
 }
 
 func nxAdd(root *cobra.Command, group string, cmds ...*cobra.Command) {
@@ -587,7 +687,7 @@ func (c *nxCtx) schema(flag string) (any, bool, error) {
 
 func nxName(what, value string) error {
 	if !v02NamePattern.MatchString(value) {
-		return nxUsageErr("%s %q is not a valid name: use letters, digits, and _ . - (starting with a letter, digit, or _)", what, value)
+		return nxRefuse("OBI-D-03: %s %q is not a valid name: use letters, digits, and _ . - (starting with a letter, digit, or _); nothing was written", what, value)
 	}
 	return nil
 }

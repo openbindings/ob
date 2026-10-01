@@ -215,9 +215,12 @@ fidelity to the model, economy of surface, overall.
 
 ## 6. Pending work
 
-### A. Fixes that need no decision (follow from rulings, spec, or interfaces)
+### A. Agreed fixes (applied in the continuation, 2026-10-01)
 
-From the round-4 reports, verified:
+From the round-4 reports, verified and applied in the preview. The lab suite
+includes focused regression checks; these changes await the round-5 freeze
+and fresh independent reviewers. This list records the fixes, not pending
+decisions:
 
 1. **Name the rule in every edit refusal.** Add OBI-D-03 (names match
    `^[A-Za-z0-9_][A-Za-z0-9_.-]*$`), OBI-D-06 (`$schema` must be the 2020-12
@@ -304,7 +307,7 @@ The following five decisions remain open.
 ## 7. Next steps
 
 1. Get Matt's answers on the five remaining decisions in 6B.
-2. Implement 6A and the decisions in the lab. Commit in small steps, tests
+2. Finish the decisions in the lab; 6A is applied. Commit in small steps, tests
    green each time. Keep the guide's "Decided" list current (add the new
    rulings; the guide is the reviewers' source of truth).
 3. Run the guide's command list end to end and confirm each exits as the
@@ -315,21 +318,15 @@ The following five decisions remain open.
    from the PR #36 branch; token-provider; schema-comparison), a `PINS.txt`,
    and a `brief.md` copied from `review-4/brief.md` with the round number
    changed. Make the frozen files read-only.
-5. Run both reviewers in parallel.
-   - Astra (GPT-6 through the Codex CLI bundled with the ChatGPT app):
-
-     ```sh
-     cd /Users/matt/Code/ob-pj/design/ob-cli-surface/review-5
-     /Applications/ChatGPT.app/Contents/Resources/codex-cli/bin/codex exec -m gpt-6-astra -c model_reasoning_effort='"xhigh"' -s read-only -C "$PWD" --skip-git-repo-check -o "$PWD/astra.md" - < brief.md > astra.log 2>&1
-     ```
-
-   - Opus: a fresh Claude Opus agent told to read `brief.md` in that folder
-     and do exactly what it asks, read-only, reading nothing outside the
-     folder, final message being the report. Save the report as `opus.md`.
+5. Run fresh independent reviewers here in parallel, with the same brief
+   and frozen inputs. Matt explicitly excluded Claude for this round on
+   2026-10-01. Use fresh Codex reviewer agents, not the completed source-pull
+   panel; each works read-only and returns its full ranking report. Save
+   their reports separately, then adjudicate them against the pinned texts.
 6. Adjudicate: verify every finding against the spec and interfaces; sort
    into rejected (with reasons), fixes that follow from rulings, and
    decisions for Matt (stories with recommendations). The bar is met when
-   both reviewers rank ob top three with no blocking findings.
+   every reviewer ranks ob top three with no blocking findings.
 
 ## 8. Gotchas learned the hard way
 

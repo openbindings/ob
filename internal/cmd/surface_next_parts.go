@@ -163,7 +163,7 @@ shared contract's name for it.`,
 				if key == name {
 					return nxRefuse("operation %q already exists in %s; use ob operation set to change it", name, c.args[0])
 				}
-				return nxRefuse("%q is already an alias of operation %s", name, key)
+				return nxRefuse("OBI-D-04: %q is already an alias of operation %s", name, key)
 			}
 			op := nxNewObj()
 			if err := nxOperationFields(c, after, op, name); err != nil {
@@ -183,8 +183,8 @@ shared contract's name for it.`,
 Only the flags you give change anything. --unset removes a member, named as
 its flag is (input-schema, output-schema, description, deprecated) or as the
 whole list (aliases, tags, examples); unsetting a schema leaves that side
-unspecified. Removing an alias or tag the operation does not have is
-refused.`,
+unspecified. Removing an alias or tag the operation does not have is a
+usage error (exit 2).`,
 		`  ob operation set tasks.obi.json createTask --add-alias acme.tasks.addTask
   ob operation set tasks.obi.json listTasks --deprecated
   ob operation set tasks.obi.json completeTask --unset output-schema`,
@@ -549,10 +549,10 @@ func nxOperationFields(c *nxCtx, doc, op *nxObj, key string) error {
 			return err
 		}
 		if a == key {
-			return nxUsageErr("%q is the operation's own name; an alias must be a different name", a)
+			return nxRefuse("OBI-D-04: %q is the operation's own name; an alias must be a different name", a)
 		}
 		if other, taken := nxResolveOperation(doc, a); taken && other != key {
-			return nxRefuse("%q is already a name of operation %s; names must be unique across operations and aliases", a, other)
+			return nxRefuse("OBI-D-04: %q is already a name of operation %s; names must be unique across operations and aliases", a, other)
 		}
 		aliases = nxAppendNew(aliases, a)
 	}
@@ -763,7 +763,8 @@ the exact stored source; content is shown as stored, never interpreted.`,
 	importCmd := nxEditable(nxLeaf("source.import", "import <obi> <name> <artifact> --kind <kind>", "Add a source built from an artifact", `Add a source for an artifact (a path or URL), using a handler for its kind.
 The handler decides what content to store, such as the artifact's address or
 the artifact itself. To add operations and bindings from it, run ob source
-pull afterwards.`,
+pull with --target to bind one target or --all-targets to bind every target
+afterwards.`,
 		`  ob source import tasks.obi.json billing https://billing.example.com/openapi.json --kind example.openapi@1`,
 		nxArgs(3, 3), func(c *nxCtx) error {
 			name, artifact, kind := c.args[1], c.args[2], c.str("kind")
@@ -819,7 +820,7 @@ handler suggests and any binding that already uses it.`,
 				}
 				for _, nt := range nxTargets {
 					if nt.source == c.args[1] && nt.target == t[0] {
-						entry.Set("binding", nxNewObj().Set("content", nxMustParse(nt.content)))
+						entry.Set("suggestedBindingKey", nt.binding).Set("bindingContent", nxMustParse(nt.content))
 					}
 				}
 				out = append(out, entry)
@@ -1014,7 +1015,7 @@ func nxBindPulledTarget(c *nxCtx, doc *nxObj, t nxTarget) (nxPulledTarget, error
 		return r, nxRefuse("%s supplies no operation name for %q; select --operation <existing-name> or --new-operation <new-name>; nothing was written", t.source, t.target)
 	}
 	if err := nxName("operation name", r.operation); err != nil {
-		return r, nxRefuse("OBI-D-03: %v; nothing was written", err)
+		return r, err
 	}
 	if c.set("new-operation") {
 		if key, ok := nxResolveOperation(doc, r.operation); ok && key != r.operation {
@@ -1034,7 +1035,7 @@ func nxBindPulledTarget(c *nxCtx, doc *nxObj, t nxTarget) (nxPulledTarget, error
 		return r, nxRefuse("%s supplies no binding key for %q; give --binding-key <new-key>; nothing was written", t.source, t.target)
 	}
 	if err := nxName("binding key", r.binding); err != nil {
-		return r, nxRefuse("OBI-D-03: %v; nothing was written", err)
+		return r, err
 	}
 	if bindings := doc.Obj("bindings"); bindings != nil && bindings.Has(r.binding) {
 		b := bindings.Obj(r.binding)
@@ -1704,15 +1705,15 @@ them).`,
 			for _, key := range nxPartKeys(doc, "schemas") {
 				refs := nxSchemaReferrers(doc, key)
 				rows = append(rows, []string{key, nxDash(strings.Join(refs, ", "))})
-				entry := nxNewObj().Set("name", key).Set("referencedBy", nxToAny(refs))
+				entry := nxNewObj().Set("name", key).Set("uri", nil).Set("external", false).Set("referencedBy", nxToAny(refs))
 				if id, ok := doc.Obj("schemas").Obj(key).Get("$id").(string); ok {
-					entry.Set("id", id)
+					entry.Set("uri", id)
 				}
 				out = append(out, entry)
 			}
 			external := nxExternalRefs(doc)
 			for _, x := range external {
-				out = append(out, nxNewObj().Set("uri", x.uri).Set("external", true).Set("referencedBy", nxToAny(x.users)))
+				out = append(out, nxNewObj().Set("name", nil).Set("uri", x.uri).Set("external", true).Set("referencedBy", nxToAny(x.users)))
 			}
 			c.render(out, func() {
 				c.table("NAME\tREFERENCED BY", rows)
@@ -1730,12 +1731,14 @@ them).`,
 		}))
 	bundle := nxEditable(nxLeaf("schema.bundle", "bundle <obi> [<uri>...]", "Embed external schemas", `Embed the external schemas the document references, so it no longer needs
 the network to resolve them. ob fetches each one and adds it to schemas
-with its $id (the URI it came from, unless it declares its own), along with
+with its $id (which must match the URI it came from), along with
 the external schemas it references in turn. References do not change: a
 reference to that URI now resolves to the copy in the document, as JSON
 Schema's bundling defines (spec §7.4). Named URIs limit it to those, and
 what they reference. Each copy is named from its URI; ob schema rename
-renames one. ob schema list shows what is still external.`,
+renames one. A different declared $id or a non-2020-12 $schema is refused
+with the URI and reason; nothing is written and that URI stays external.
+ob schema list shows what is still external.`,
 		`  ob schema bundle tasks.obi.json
   ob schema bundle tasks.obi.json https://schemas.example.com/time/date-time.json`,
 		nxArgs(1, -1), func(c *nxCtx) error {
@@ -1769,6 +1772,12 @@ renames one. ob schema list shows what is still external.`,
 					return nxFail(1, "could not fetch %s, so nothing was written", u)
 				}
 				schema := nxMustParse(raw).(*nxObj)
+				if schema.Has("$id") && strings.TrimSuffix(fmt.Sprint(schema.Get("$id")), "#") != strings.TrimSuffix(u, "#") {
+					return nxRefuse("%s declares a different $id (%v), so embedding it would leave references external; nothing was written and %s stays external", u, schema.Get("$id"), u)
+				}
+				if problems := nxAdditionalRules(nxNewObj().Set("operations", nxNewObj()).Set("schemas", nxNewObj().Set("fetched", schema))); len(problems) > 0 {
+					return nxRefuse("%s cannot be bundled: %s; nothing was written and %s stays external", u, strings.Join(problems, "; "), u)
+				}
 				if !schema.Has("$id") {
 					schema.Set("$id", u)
 				}
