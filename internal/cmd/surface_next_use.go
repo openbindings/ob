@@ -445,11 +445,9 @@ the role the document gives it:
              the contract accepts, and take every output the contract allows
 
 An operation with both is checked both ways; one with neither, as a
-provider. Schemas are
-compared under the Schema Comparison Profile OB-2020-12, published with the
-OpenBindings interfaces (schema-comparison); a comparison ob cannot decide
-is reported as undecided, not as a failure. Both arguments may be paths or
-URLs.
+provider. Schemas are compared under the Schema Comparison Profile
+OB-2020-12, published with the OpenBindings interfaces (schema-comparison).
+Both arguments may be paths or URLs.
 
 To check whether a new version of a document breaks callers of the old one,
 compare it against the old one as the contract: ob compat new.obi.json
@@ -459,8 +457,12 @@ For each contract operation that nothing answers to, it prints the two ways
 to meet it: give one of your operations the contract's name with ob
 operation set --add-alias, or add the contract's operation with ob merge.
 
-Exit status: 0 compatible; 1 not compatible; 4 no verdict (some comparison
-could not be decided, and nothing is known to be incompatible).`,
+The result is compatible, incompatible, or indeterminate, and as the profile
+defines, indeterminate outranks incompatible: one comparison outside the
+profile makes the whole result indeterminate, while the report still lists
+every operation found incompatible.
+
+Exit status: 0 compatible; 1 incompatible; 4 indeterminate.`,
 		`  ob compat tasks.obi.json acme-tasks.obi.json
   ob compat https://api.example.com https://contracts.example.com/acme-tasks.json -q`,
 		nxArgs(2, 2), func(c *nxCtx) error {
@@ -485,7 +487,7 @@ could not be decided, and nothing is known to be incompatible).`,
 			}
 			conclusion := "compatible"
 			if !ok {
-				conclusion = "not compatible"
+				conclusion = "incompatible"
 			}
 			if !c.on("quiet") {
 				c.render(nxNewObj().Set("conclusion", conclusion).Set("profile", "OB-2020-12").Set("operations", out), func() {
