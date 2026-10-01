@@ -59,14 +59,16 @@ or called. ob invoke reads the input values you give it.`,
 	}
 	root.SetVersionTemplate("ob {{.Version}}\n")
 	root.SetFlagErrorFunc(func(cmd *cobra.Command, err error) error {
-		if strings.Contains(err.Error(), "unknown flag: --json") {
-			return fmt.Errorf("%v; did you mean -F json?", err)
+		for flag, hint := range map[string]string{
+			"--json": "-F json", "--openbindings": "ob describe -F obi",
+			"--usage-spec": "ob describe -F usage", "--agent-primer": "ob help primer",
+		} {
+			if strings.Contains(err.Error(), "unknown flag: "+flag) {
+				return fmt.Errorf("%v; did you mean %s?", err, hint)
+			}
 		}
 		return err
 	})
-	root.Flags().Bool("openbindings", false, "print ob's own OBI and exit")
-	root.Flags().Bool("usage-spec", false, "print ob's usage spec (usage.kdl) and exit")
-	root.Flags().Bool("agent-primer", false, "print the OpenBindings primer for AI agents and exit")
 
 	for _, g := range []*cobra.Group{
 		{ID: "docs", Title: "Documents"},
@@ -87,6 +89,7 @@ or called. ob invoke reads the input values you give it.`,
 	nxAdd(root, "use", nxFetchCmd(), nxInvokeCmd(variant), nxContextCmd(), nxCodegenCmd())
 	nxAdd(root, "serve", nxStartCmd(), nxMCPCmd())
 	nxAdd(root, "extend", nxKindCmd(), nxDelegateCmd())
+	root.AddCommand(nxDescribeCmd(), nxPrimerTopic())
 	nxApplyEditMode(root, variant)
 	root.Example = `  ob init tasks.obi.json --name "Task Manager"
   ob operation add tasks.obi.json createTask --input-schema '{"type":"object"}'
@@ -108,12 +111,20 @@ func nxAdd(root *cobra.Command, group string, cmds ...*cobra.Command) {
 }
 
 func nxRootRun(cmd *cobra.Command, args []string) error {
-	for _, flag := range []string{"openbindings", "usage-spec", "agent-primer"} {
-		if on, _ := cmd.Flags().GetBool(flag); on {
-			return nxRun(cmd, args, func(c *nxCtx) error {
-				switch flag {
-				case "openbindings":
-					c.println(`{
+	return cmd.Help()
+}
+
+// nxDescribeCmd describes this ob itself, including as an OBI and as a
+// usage spec, for tools that drive ob.
+func nxDescribeCmd() *cobra.Command {
+	cmd := nxLeaf("describe", "describe", "Describe this ob", `Describe this ob: its version, the OpenBindings versions it reads, and what
+it can handle. -F obi prints ob's own OBI, for tools that drive ob through
+OpenBindings; -F usage prints its usage spec (usage.kdl).`,
+		`  ob describe
+  ob describe -F obi > ob.obi.json`, nxArgs(0, 0), func(c *nxCtx) error {
+			switch c.format() {
+			case "obi":
+				c.println(`{
   "openbindings": "0.2.0",
   "name": "ob",
   "description": "The OpenBindings CLI.",
@@ -124,22 +135,41 @@ func nxRootRun(cmd *cobra.Command, args []string) error {
   "sources": { "cli": { "kind": "openbindings.usage@1", "…": "…" } },
   "bindings": { "…": "…" }
 }`)
-				case "usage-spec":
-					c.println(`name "ob"
+				c.note("(abbreviated in the preview)")
+			case "usage":
+				c.println(`name "ob"
 bin "ob"
 about "Work with OpenBindings interface documents"
 cmd "init" help="Create a new OBI" { … }
 cmd "show" help="Show a document" { … }
 …`)
-				default:
-					c.println("# OpenBindings for agents\n\nAn OBI declares each operation once, as a protocol-independent contract, …")
-				}
 				c.note("(abbreviated in the preview)")
-				return nil
-			})
-		}
+			default:
+				info := nxNewObj().Set("version", "0.2-preview").Set("openbindings", nxNewObj().Set("reads", "0.2.x").Set("writes", "0.2.0")).
+					Set("kinds", len(nxInstalledKinds)).Set("delegates", len(nxDelegates))
+				c.render(info, func() {
+					c.println("ob 0.2-preview")
+					c.println("  OpenBindings: reads 0.2.x, writes 0.2.0")
+					c.println(fmt.Sprintf("  Kinds:        %d (ob kind list)", len(nxInstalledKinds)))
+					c.println(fmt.Sprintf("  Delegates:    %d (ob delegate list)", len(nxDelegates)))
+				})
+			}
+			return nil
+		})
+	nxFormat(cmd, "text", "json", "obi", "usage")
+	return cmd
+}
+
+// nxPrimerTopic is a help topic: ob help primer.
+func nxPrimerTopic() *cobra.Command {
+	return &cobra.Command{
+		Use:   "primer",
+		Short: "OpenBindings, explained for AI agents",
+		Long: `OpenBindings for agents (abbreviated in the preview)
+
+An OBI declares each operation once, as a protocol-independent contract,
+and binds it to the protocols that carry it out. …`,
 	}
-	return cmd.Help()
 }
 
 // nxCtx collects a preview's output. Every command prints the preview banner
@@ -217,9 +247,12 @@ func (c *nxCtx) set(flag string) bool {
 	return f != nil && f.Changed
 }
 
+// table prints aligned rows under a header; an empty header prints none.
 func (c *nxCtx) table(header string, rows [][]string) {
 	w := tabwriter.NewWriter(&c.out, 0, 0, 3, ' ', 0)
-	fmt.Fprintln(w, header)
+	if header != "" {
+		fmt.Fprintln(w, header)
+	}
 	for _, row := range rows {
 		fmt.Fprintln(w, strings.Join(row, "\t"))
 	}
@@ -512,7 +545,7 @@ func nxGroupCmd(use, short, long string, children ...*cobra.Command) *cobra.Comm
 
 var nxRootHints = map[string]string{
 	"new": "init", "create": "init",
-	"get": "show", "view": "show", "cat": "show", "print": "show", "read": "show", "describe": "show",
+	"get": "show", "view": "show", "cat": "show", "print": "show", "read": "show",
 	"check": "validate", "lint": "validate", "verify": "validate",
 	"compare": "diff (changes) or ob compat (contract fit)",
 	"format":  "fmt", "apply": "patch",
@@ -568,9 +601,10 @@ func nxUnknown(cmd *cobra.Command, word string) error {
 // NextPreflightArgs catches unknown command words before Cobra answers
 // --help for the nearest command or reports a flag error.
 func NextPreflightArgs(root *cobra.Command, args []string) error {
+	root.InitDefaultCompletionCmd()
 	current := root
 	for _, word := range args {
-		if word == "--" {
+		if word == "--" || strings.HasPrefix(word, "__complete") {
 			return nil
 		}
 		if strings.HasPrefix(word, "-") {

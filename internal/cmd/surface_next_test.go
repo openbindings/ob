@@ -92,7 +92,7 @@ func TestNextEveryExampleRuns(t *testing.T) {
 
 func TestNextEveryCommandIsDocumented(t *testing.T) {
 	nxWalk(NewNextSurfaceRoot(""), func(cmd *cobra.Command) {
-		if cmd.Name() == "help" || strings.HasPrefix(cmd.CommandPath(), "ob completion") {
+		if cmd.Name() == "help" || strings.HasPrefix(cmd.CommandPath(), "ob completion") || cmd.IsAdditionalHelpTopicCommand() {
 			return
 		}
 		if cmd.Short == "" {

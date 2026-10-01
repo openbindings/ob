@@ -159,7 +159,7 @@ func nxInvoke(c *nxCtx) error {
 		t := &nxCtx{}
 		t.table("", rows)
 		var lines []string
-		for _, l := range strings.Split(strings.TrimRight(strings.SplitN(t.out.String(), "\n", 2)[1], "\n"), "\n") {
+		for _, l := range strings.Split(strings.TrimRight(t.out.String(), "\n"), "\n") {
 			lines = append(lines, strings.TrimRight(l, " "))
 		}
 		return strings.Join(lines, "\n")

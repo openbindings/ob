@@ -164,7 +164,7 @@ func nxOverview(doc *nxObj) string {
 		b.WriteString("\n" + name + "\n")
 		c := &nxCtx{}
 		c.table("", rows)
-		for _, line := range strings.Split(strings.TrimRight(c.out.String(), "\n"), "\n")[1:] {
+		for _, line := range strings.Split(strings.TrimRight(c.out.String(), "\n"), "\n") {
 			b.WriteString("  " + strings.TrimRight(line, " ") + "\n")
 		}
 	}
@@ -230,6 +230,19 @@ func nxBindingSummary(b *nxObj) []string {
 		notes = append(notes, "deprecated")
 	}
 	return []string{fmt.Sprintf("%v → %v", b.Get("operation"), b.Get("source")), strings.Join(notes, ", ")}
+}
+
+// nxCountVerb counts with a verb that agrees: "1 value does", "2 values do".
+// With no noun, it is the bare number and verb.
+func nxCountVerb(n int, noun, one, many string) string {
+	counted := fmt.Sprint(n)
+	if noun != "" {
+		counted = nxCount(n, noun)
+	}
+	if n == 1 {
+		return counted + " " + one
+	}
+	return counted + " " + many
 }
 
 func nxCount(n int, noun string) string {
@@ -418,7 +431,7 @@ func nxValidateStream(c *nxCtx, doc *nxObj, key, side, raw string) error {
 		summary := fmt.Sprintf("%s checked against %s's %s schema", nxCount(count, "value"), key, side)
 		switch {
 		case bad > 0:
-			summary += fmt.Sprintf("; %d do not fit.", bad)
+			summary += fmt.Sprintf("; %s not fit.", nxCountVerb(bad, "", "does", "do"))
 		case unchecked > 0:
 			summary += "; there is no schema to check against."
 		default:
@@ -500,13 +513,13 @@ func nxValidateExamples(c *nxCtx, doc *nxObj) error {
 	}
 	if bad > 0 {
 		if text {
-			c.println(fmt.Sprintf("%s checked; %d value(s) do not fit.", nxCount(count, "example"), bad))
+			c.println(fmt.Sprintf("%s checked; %s not fit.", nxCount(count, "example"), nxCountVerb(bad, "value", "does", "do")))
 		}
 		return nxFail(1, "")
 	}
 	if unchecked > 0 {
 		if text {
-			c.println(fmt.Sprintf("%s checked; %d value(s) have no schema to check against.", nxCount(count, "example"), unchecked))
+			c.println(fmt.Sprintf("%s checked; %s no schema to check against.", nxCount(count, "example"), nxCountVerb(unchecked, "value", "has", "have")))
 		}
 		return nxFail(4, "")
 	}
