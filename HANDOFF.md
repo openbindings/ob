@@ -203,6 +203,15 @@ fidelity to the model, economy of surface, overall.
   the same name is "no change"; `Authorization`, `Proxy-Authorization`, and
   `Cookie` headers refuse literal values; `--config` takes `@FILE` and `-`;
   `--token-binding` keys apply per operation.
+- Continuation, 2026-10-01: Matt approved the revised source-pull naming
+  design after a panel of three AI reviewers supported it with changes.
+  `--operation` remains an existing-operation lookup; `--new-operation`
+  makes creation explicit, and `--binding-key` names a binding. The lab
+  models exact retries, occupied-key refusals, additional bindings for an
+  already covered target, and atomic bulk naming refusals. Bulk dry runs
+  show choices before the edit; post-edit guidance uses `binding set`.
+  The guide's "Decided" section records the current rules. This was a
+  focused design review, not the full round-5 ranking.
 
 ## 6. Pending work
 
@@ -249,24 +258,22 @@ From the round-4 reports, verified:
 
 ### B. Decisions waiting on Matt (with the recommendations he was given)
 
-1. **Naming what a pulled target becomes.** Recommendation: `--operation
-   NAME` binds to that operation or creates it under that name;
-   `--binding-key KEY` names the new binding; one target per run;
-   `--all-targets` lists each operation it creates, with the command to bind
-   that target to an existing operation instead.
-2. **Named credentials.** Recommendation: `--credential NAME=-|@FILE`,
+The source-pull naming decision is settled in the continuation above.
+The following five decisions remain open.
+
+1. **Named credentials.** Recommendation: `--credential NAME=-|@FILE`,
    `--cookie NAME=…` (like `--header`), `--refresh-token -|@FILE`, matching
    `--unset` names, and `ob context --help` listing every field a context can
    hold.
-3. **`--config` typing.** Recommendation: `POINT=VALUE` is always a string;
+2. **`--config` typing.** Recommendation: `POINT=VALUE` is always a string;
    `POINT:=JSON` gives a typed value (httpie's convention).
-4. **`kind check` without `--role`.** Recommendation: without `--role` it is
+3. **`kind check` without `--role`.** Recommendation: without `--role` it is
    a report (exit 0); with `--role` it is a yes/no check. Changes a round-2
    fix.
-5. **`compat` for an operation with neither bindings nor dependencies** (every
+4. **`compat` for an operation with neither bindings nor dependencies** (every
    operation of a pure contract). Recommendation: check it both ways. Changes
    the round-3 "as a provider".
-6. **How local tools get `ob start`'s access token.** Recommendation: `ob
+5. **How local tools get `ob start`'s access token.** Recommendation: `ob
    start` writes its address and token to a file only the user can read; ob's
    own commands read it; `ob start -F json` prints the same as one line.
 
@@ -296,7 +303,7 @@ From the round-4 reports, verified:
 
 ## 7. Next steps
 
-1. Get Matt's answers on the six decisions in 6B.
+1. Get Matt's answers on the five remaining decisions in 6B.
 2. Implement 6A and the decisions in the lab. Commit in small steps, tests
    green each time. Keep the guide's "Decided" list current (add the new
    rulings; the guide is the reviewers' source of truth).

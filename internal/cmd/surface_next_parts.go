@@ -841,10 +841,28 @@ operation you already have:
   - a target no binding covers is listed, not bound; --target binds one
     (and --all-targets binds every one), with the operation the handler
     suggests, or one you already have when you name it with --operation;
+  - --new-operation names a new operation instead; it cannot combine with
+    --operation. --binding-key names the binding. Without that flag, the
+    handler's suggested binding key stays the same even when you choose a
+    different operation. Existing operation fields are left unchanged;
   - where a source describes an operation's schemas differently, pull
     reports it, and --update-operation takes the source's schemas for that
     operation. When two sources being pulled describe it differently, pull
     refuses; pull one source to choose.
+
+An unknown --operation is a usage error, never a request to create one.
+An identical request is no change. An occupied binding key with different
+source, content, or operation is refused, never overwritten or numbered.
+To add another binding for an already bound target, give --binding-key;
+to change a binding you have, use ob binding set. A repeated --new-operation
+request is no change only when the requested binding already exists for it.
+If the handler supplies no operation framing, a new operation states no
+input or output schema. If it supplies no name, choose one explicitly.
+
+Use --all-targets --dry-run to see every target's binding and whether its
+operation would be created or reused, with commands for choosing an existing
+operation instead. After an edit, the report gives binding set commands.
+A naming collision refuses the whole edit, including any binding refreshes.
 
 A source whose kind this ob cannot read is named and left alone, and pull
 exits 4, since it cannot say the document is up to date with that source.
@@ -852,8 +870,9 @@ ob status reports the same, as a check, without changing anything.`,
 		`  ob source pull tasks.obi.json
   ob source pull tasks.obi.json httpApi --update-operation listTasks
   ob source pull tasks.obi.json httpApi --target "POST /tasks/{id}/archive"
+  ob source pull tasks.obi.json httpApi --target "POST /tasks/{id}/archive" --new-operation archive --binding-key archivalHttp
   ob source pull tasks.obi.json mcpServer --target tools/complete_task --operation completeTask
-  ob source pull tasks.obi.json httpApi --all-targets`,
+  ob source pull tasks.obi.json httpApi --all-targets --dry-run`,
 		nxArgs(1, -1), func(c *nxCtx) error {
 			before := c.doc(c.args[0])
 			after := nxClone(before).(*nxObj)
@@ -869,15 +888,22 @@ ob status reports the same, as a check, without changing anything.`,
 				if c.set("update-operation") || c.on("all-targets") {
 					return nxUsageErr("--target binds one target and changes nothing else, so it does not take --update-operation or --all-targets")
 				}
+				if c.set("operation") && c.set("new-operation") {
+					return nxUsageErr("--operation selects an existing operation; --new-operation creates one; choose one")
+				}
 				return nxPullTarget(c, before, after, c.args[1], c.str("target"))
 			}
-			if c.set("operation") {
-				return nxUsageErr("--operation says which operation a --target binding realizes; give it with --target")
+			for _, flag := range []string{"operation", "new-operation", "binding-key"} {
+				if c.set(flag) {
+					return nxUsageErr("--%s names part of one --target binding; give it with --target", flag)
+				}
 			}
 			return nxPull(c, before, after)
 		}))
 	pull.Flags().String("target", "", "bind this one target of the source, as ob source inspect lists it or by its identifier")
 	pull.Flags().String("operation", "", "with --target: bind it to this existing operation (key or alias)")
+	pull.Flags().String("new-operation", "", "with --target: create the suggested operation under this new name")
+	pull.Flags().String("binding-key", "", "with --target: use this binding key; an identical binding is no change, a different one is refused")
 	pull.Flags().StringArray("update-operation", nil, "take the source's schemas for this operation (repeatable)")
 	pull.Flags().Bool("all-targets", false, "bind every target no binding covers yet")
 
@@ -925,35 +951,133 @@ func nxPullTarget(c *nxCtx, before, after *nxObj, source, target string) error {
 		if t.source != source || (t.target != target && nxTargetID(t) != target) {
 			continue
 		}
-		for _, key := range nxReferrers(after, "bindings", "source", source) {
-			if nxCompact(after.Obj("bindings").Obj(key).Get("content")) == nxCompact(nxMustParse(t.content)) {
-				c.note(fmt.Sprintf("%s is already bound, by %s", t.target, key))
-				return c.wrote(c.args[0], before, after, "")
+		r, err := nxBindPulledTarget(c, after, t)
+		if err != nil {
+			return err
+		}
+		summary := ""
+		if r.changed {
+			summary = fmt.Sprintf("Bound %s as %s, for existing operation %s", t.target, r.binding, r.operation)
+			if r.created {
+				summary = fmt.Sprintf("Bound %s as %s, with a new operation %s", t.target, r.binding, r.operation)
 			}
-		}
-		op, binding := t.operation, t.binding
-		summary := "Bound " + t.target + " as "
-		if c.set("operation") {
-			key, err := c.opKey(after, c.str("operation"))
-			if err != nil {
-				return err
-			}
-			op, binding = key, key+binding[strings.Index(binding, "."):]
-		}
-		if after.Obj("bindings").Has(binding) {
-			return nxRefuse("binding %q already exists in %s, so nothing was written", binding, c.args[0])
-		}
-		summary += binding
-		if !after.Obj("operations").Has(op) {
-			after.Obj("operations").Set(op, nxMustParse(t.newOperation))
-			summary += ", with a new operation " + op
 		} else {
-			summary += ", for operation " + op
+			c.note(fmt.Sprintf("%s is already bound by %s, for operation %s", t.target, r.binding, r.operation))
 		}
-		after.Obj("bindings").Set(binding, nxNewObj().Set("operation", op).Set("source", source).Set("content", nxMustParse(t.content)))
 		return c.wrote(c.args[0], before, after, summary)
 	}
 	return nxNotFound("%s offers no target %q; ob source inspect %s %s lists them", source, target, c.args[0], source)
+}
+
+type nxPulledTarget struct {
+	target             nxTarget
+	operation, binding string
+	created, changed   bool
+}
+
+// nxTargetBindings uses the pretend handler's content to identify a target.
+// Neither the target identifier nor a binding key has a core naming structure.
+func nxTargetBindings(doc *nxObj, t nxTarget) []string {
+	var keys []string
+	for _, key := range nxReferrers(doc, "bindings", "source", t.source) {
+		if nxCompact(doc.Obj("bindings").Obj(key).Get("content")) == nxCompact(nxMustParse(t.content)) {
+			keys = append(keys, key)
+		}
+	}
+	return keys
+}
+
+// nxBindPulledTarget changes only the staged document. All explicit names
+// are checked before an existing binding can satisfy the requested result.
+func nxBindPulledTarget(c *nxCtx, doc *nxObj, t nxTarget) (nxPulledTarget, error) {
+	r := nxPulledTarget{target: t, operation: t.operation, binding: t.binding}
+	covered := nxTargetBindings(doc, t)
+	if c.set("operation") {
+		key, err := c.opKey(doc, c.str("operation"))
+		if err != nil {
+			return r, err
+		}
+		r.operation = key
+	} else if c.set("new-operation") {
+		r.operation = c.str("new-operation")
+	} else if !c.set("binding-key") && len(covered) > 0 {
+		r.binding = covered[0]
+		r.operation = fmt.Sprint(doc.Obj("bindings").Obj(r.binding).Get("operation"))
+		return r, nil
+	} else if key, ok := nxResolveOperation(doc, r.operation); ok {
+		r.operation = key
+	}
+	if c.set("binding-key") {
+		r.binding = c.str("binding-key")
+	}
+	if r.operation == "" && !c.set("new-operation") {
+		return r, nxRefuse("%s supplies no operation name for %q; select --operation <existing-name> or --new-operation <new-name>; nothing was written", t.source, t.target)
+	}
+	if err := nxName("operation name", r.operation); err != nil {
+		return r, nxRefuse("OBI-D-03: %v; nothing was written", err)
+	}
+	if c.set("new-operation") {
+		if key, ok := nxResolveOperation(doc, r.operation); ok && key != r.operation {
+			return r, nxRefuse("OBI-D-04: %q is an alias of operation %s; use --operation %s to select it; nothing was written", r.operation, key, r.operation)
+		}
+	}
+	if !c.set("binding-key") && len(covered) > 0 {
+		for _, key := range covered {
+			if doc.Obj("bindings").Obj(key).Get("operation") == r.operation {
+				r.binding = key
+				return r, nil
+			}
+		}
+		return r, nxRefuse("%q is already bound by %s to a different operation; give --binding-key <unused-key> to add the requested binding, or use ob binding set to change an existing one; nothing was written", t.target, strings.Join(covered, ", "))
+	}
+	if r.binding == "" && !c.set("binding-key") {
+		return r, nxRefuse("%s supplies no binding key for %q; give --binding-key <new-key>; nothing was written", t.source, t.target)
+	}
+	if err := nxName("binding key", r.binding); err != nil {
+		return r, nxRefuse("OBI-D-03: %v; nothing was written", err)
+	}
+	if bindings := doc.Obj("bindings"); bindings != nil && bindings.Has(r.binding) {
+		b := bindings.Obj(r.binding)
+		if b.Get("operation") == r.operation && b.Get("source") == t.source && nxCompact(b.Get("content")) == nxCompact(nxMustParse(t.content)) {
+			return r, nil
+		}
+		return r, nxRefuse("binding key %q is occupied by a different binding; give --binding-key <unused-key>, or use ob binding set to change it; nothing was written", r.binding)
+	}
+	if c.set("new-operation") && doc.Obj("operations").Has(r.operation) {
+		return r, nxRefuse("operation %q already exists; use --operation %s to select it, or choose an unused --new-operation name; nothing was written", r.operation, r.operation)
+	}
+	if !doc.Obj("operations").Has(r.operation) {
+		op := nxNewObj()
+		if t.newOperation != "" {
+			op = nxMustParse(t.newOperation).(*nxObj)
+		}
+		nxPart(doc, "operations").Set(r.operation, op)
+		r.created = true
+	}
+	nxPart(doc, "bindings").Set(r.binding, nxNewObj().Set("operation", r.operation).Set("source", t.source).Set("content", nxMustParse(t.content)))
+	r.changed = true
+	return r, nil
+}
+
+func nxPullShellArg(value string) string {
+	return "'" + strings.ReplaceAll(value, "'", "'\"'\"'") + "'"
+}
+
+func nxReportPulledTarget(c *nxCtx, r nxPulledTarget) {
+	state := "existing"
+	if r.created {
+		state = "new"
+	}
+	c.note(fmt.Sprintf("%s: %s -> binding %s, %s operation %s", r.target.source, r.target.target, r.binding, state, r.operation))
+	if !r.created {
+		return
+	}
+	path := nxPullShellArg(c.args[0])
+	if c.on("dry-run") {
+		c.note(fmt.Sprintf("To use an existing operation instead, run this in place of --all-targets:\n  ob source pull %s %s --target %s --operation <existing-operation> --binding-key %s", path, nxPullShellArg(r.target.source), nxPullShellArg(r.target.target), nxPullShellArg(r.binding)))
+	} else {
+		c.note(fmt.Sprintf("To reassign this binding to an existing operation:\n  ob binding set %s %s --operation <existing-operation>\nThen remove %s if it is unused:\n  ob operation remove %s %s", path, nxPullShellArg(r.binding), r.operation, path, nxPullShellArg(r.operation)))
+	}
 }
 
 // nxCanRead says whether this ob can read a source of a kind, which is what
@@ -1021,6 +1145,8 @@ func nxPull(c *nxCtx, before, after *nxObj) error {
 		update[key] = name
 	}
 	var skipped, notes, parts []string
+	var bound []nxPulledTarget
+	created := map[string]nxTarget{}
 	taken := map[string]string{}
 	for _, d := range drift {
 		if !d.readable {
@@ -1036,13 +1162,23 @@ func nxPull(c *nxCtx, before, after *nxObj) error {
 				available = append(available, t.target)
 				continue
 			}
-			if !after.Obj("operations").Has(t.operation) {
-				after.Obj("operations").Set(t.operation, nxMustParse(t.newOperation))
-				parts = append(parts, "added "+t.binding+" with a new operation "+t.operation)
-			} else {
-				parts = append(parts, "added "+t.binding)
+			r, err := nxBindPulledTarget(c, after, t)
+			if err != nil {
+				return err
 			}
-			after.Obj("bindings").Set(t.binding, nxNewObj().Set("operation", t.operation).Set("source", d.source).Set("content", nxMustParse(t.content)))
+			if other, ok := created[r.operation]; ok && (other.source != t.source || other.target != t.target) {
+				return nxRefuse("%s target %q and %s target %q both suggest new operation %q; pull them separately with --target and --operation or --new-operation to choose their contracts; nothing was written", other.source, other.target, t.source, t.target, r.operation)
+			}
+			if !r.changed {
+				continue
+			}
+			if r.created {
+				created[r.operation] = t
+				parts = append(parts, "added "+r.binding+" with a new operation "+r.operation)
+			} else {
+				parts = append(parts, "added "+r.binding+" for operation "+r.operation)
+			}
+			bound = append(bound, r)
 		}
 		if len(available) > 0 {
 			notes = append(notes, fmt.Sprintf("%s offers targets no binding covers: %s (--target binds one; --all-targets binds every one)", d.source, strings.Join(available, ", ")))
@@ -1072,19 +1208,25 @@ func nxPull(c *nxCtx, before, after *nxObj) error {
 			notes = append(notes, fmt.Sprintf("%s already matches the sources pulled", name))
 		}
 	}
-	for _, n := range notes {
-		c.note(n)
-	}
 	summary := "Pulled: " + strings.Join(parts, "; ")
 	if len(parts) == 0 {
 		c.note("The bindings are up to date.")
 		summary = ""
 	}
 	err := c.wrote(c.args[0], before, after, summary)
-	if err == nil && len(skipped) > 0 {
+	if err != nil {
+		return err
+	}
+	for _, n := range notes {
+		c.note(n)
+	}
+	for _, r := range bound {
+		nxReportPulledTarget(c, r)
+	}
+	if len(skipped) > 0 {
 		return nxFail(4, "not pulled: %s", strings.Join(skipped, ", "))
 	}
-	return err
+	return nil
 }
 
 // nxReferrersOf lists the bindings of one operation through one source.

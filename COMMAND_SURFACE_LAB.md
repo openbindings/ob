@@ -44,6 +44,8 @@ Things to try:
 ./bin/ob source pull tasks.obi.json httpApi --update-operation listTasks
 ./bin/ob source pull tasks.obi.json --update-operation createTask   # refused: two sources disagree
 ./bin/ob source pull tasks.obi.json mcpServer --target tools/complete_task --operation completeTask
+./bin/ob source pull tasks.obi.json httpApi --target 'POST /tasks/{id}/archive' --new-operation archive --binding-key archivalHttp
+./bin/ob source pull tasks.obi.json httpApi --all-targets --dry-run   # names and choices before the edit
 ./bin/ob compat tasks.obi.json acme-tasks.obi.json             # each operation checked in its role
 ./bin/ob merge tasks.obi.json acme-tasks.obi.json --operation acme.tasks.deleteTask --no-bindings
 ./bin/ob merge tasks.obi.json other.obi.json                   # refused: lists the conflicts
@@ -199,6 +201,33 @@ Sources:
   sources that disagree are refused. `status` reports drift apart from
   targets left unbound, and only drift fails `--exit-code`. A source ob
   cannot read is named, with exit 4.
+- With `--target`, `--operation NAME` selects an existing operation by exact
+  key or alias. An unknown name is exit 2, never implicit creation.
+  `--new-operation NAME` explicitly creates an operation under that name;
+  the two flags are mutually exclusive. `--binding-key KEY` names the
+  binding. These flags apply to one target, never to `--all-targets`.
+  Without an override, use the handler's suggestions; choosing an operation
+  leaves the suggested binding key unchanged. No dot segments are parsed
+  to derive a name. An existing operation keeps every field. A new operation
+  uses the handler's framing where supplied; absent framing states no input
+  or output schema. Missing name suggestions require explicit names.
+- A pull is no change only when the requested result is already true.
+  An explicit binding key with the requested source, content, and resolved
+  operation is no change; a different binding at that key is refused
+  (exit 3). An unused explicit key can add another binding for a target
+  already covered. Without an explicit key, a covered target can satisfy
+  the selected operation, but a different operation is refused with the
+  command that adds or changes the requested binding. `--new-operation`
+  accepts a retry only when its requested binding already exists for that
+  exact operation key; otherwise an occupied operation name is refused.
+- Naming conflicts refuse the whole pull before writing. Generated binding
+  keys are never overwritten or silently numbered. Two targets suggesting
+  the same new operation name require explicit choices in separate pulls.
+  Suggested names matching existing aliases resolve to the existing key.
+  `--all-targets --dry-run` lists each proposed target, binding, and new or
+  existing operation, with single-target commands for choosing an existing
+  operation before the edit. After the edit, guidance uses `binding set`
+  and, if the new operation becomes unused, `operation remove`.
 
 Invoking and context:
 
