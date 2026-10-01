@@ -632,6 +632,7 @@ var nxRootHints = map[string]string{
 	"kinds": "kind", "capabilities": "kind", "handlers": "kind", "binding-specs": "kind",
 	"delegates": "delegate", "plugin": "delegate", "plugins": "delegate",
 	"contexts": "context", "credentials": "context", "creds": "context", "auth": "context", "login": "context",
+	"bundle": "schema bundle", "trust": "ca", "cert": "ca", "certs": "ca",
 }
 
 var nxChildHints = map[string]string{
@@ -641,6 +642,7 @@ var nxChildHints = map[string]string{
 	"update": "set", "edit": "set", "modify": "set", "change": "set", "put": "set",
 	"delete": "remove", "rm": "remove", "del": "remove",
 	"mv": "rename", "move": "rename",
+	"register": "add", "unregister": "remove", "prefer": "set --preference",
 }
 
 func nxUnknown(cmd *cobra.Command, word string) error {

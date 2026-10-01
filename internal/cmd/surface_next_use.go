@@ -3,6 +3,7 @@ package cmd
 import (
 	"fmt"
 	"net/url"
+	"strconv"
 	"strings"
 
 	"github.com/spf13/cobra"
@@ -418,6 +419,21 @@ changes nothing unless --replace-schemas is given.`,
 	return cmd
 }
 
+// nxDelegatePreferences checks --preference ROLE=NUMBER against the roles
+// the delegate has.
+func nxDelegatePreferences(c *nxCtx, roles []string) error {
+	for _, p := range c.strs("preference") {
+		role, n, ok := strings.Cut(p, "=")
+		if !ok || !nxContains(roles, role) {
+			return nxUsageErr("--preference takes ROLE=NUMBER for a role the delegate has")
+		}
+		if _, err := strconv.Atoi(n); err != nil {
+			return nxUsageErr("--preference %s: %q is not a whole number", role, n)
+		}
+	}
+	return nil
+}
+
 func nxCompatCmd() *cobra.Command {
 	cmd := nxLeaf("compat", "compat <obi> <contract>", "Check a document against a shared contract", `Check whether <obi> satisfies a shared contract: for each contract
 operation, some operation must answer to its name, and fit the contract in
@@ -810,13 +826,13 @@ must offer for each.`, `  ob delegate roles`, nxArgs(0, 0), func(c *nxCtx) error
 		})
 		return nil
 	}))
-	register := nxLeaf("delegate.register", "register <delegate-obi> --role <role>", "Register a delegate", `Register another tool as a delegate for one or more roles. <delegate-obi>
-is the tool's OBI (a path, - for stdin, or a URL); ob keeps a copy, and
-checks that it offers the operations each role needs. --preference ROLE=N
-sets how strongly ob prefers it among delegates for that role. --replace ID
-re-registers an existing delegate with a new OBI or roles.`,
-		`  ob delegate register ./acme-rpc.obi.json --role invoke --preference invoke=10
-  ob fetch https://tools.example.com | ob delegate register - --role inspect --role synthesize`,
+	add := nxLeaf("delegate.add", "add <delegate-obi> --role <role>", "Register a delegate", `Register another tool as a delegate for one or more roles. <delegate-obi>
+is the tool's OBI (a path, - for stdin, or a URL); ob keeps a copy, checks
+that it offers the operations each role needs, and gives the registration an
+ID. --preference ROLE=N sets how strongly ob prefers it among delegates for
+that role; higher wins.`,
+		`  ob delegate add ./acme-rpc.obi.json --role invoke --preference invoke=10
+  ob fetch https://tools.example.com | ob delegate add - --role inspect --role synthesize`,
 		nxArgs(1, 1), func(c *nxCtx) error {
 			if len(c.strs("role")) == 0 {
 				return nxUsageErr("--role is required: invoke, inspect, or synthesize (repeatable)")
@@ -826,16 +842,10 @@ re-registers an existing delegate with a new OBI or roles.`,
 					return nxUsageErr("%v", err)
 				}
 			}
-			for _, p := range c.strs("preference") {
-				parts := strings.SplitN(p, "=", 2)
-				if len(parts) != 2 || !nxContains(c.strs("role"), parts[0]) {
-					return nxUsageErr("--preference takes ROLE=NUMBER for a role given with --role")
-				}
+			if err := nxDelegatePreferences(c, c.strs("role")); err != nil {
+				return err
 			}
 			id := "d_4e21"
-			if c.set("replace") {
-				id = c.str("replace")
-			}
 			c.note(fmt.Sprintf("(preview: %s was not read)", c.args[0]))
 			c.render(nxNewObj().Set("id", id).Set("name", "Acme Tools").Set("roles", nxToAny(c.strs("role"))), func() {
 				c.println(fmt.Sprintf("Registered %s (Acme Tools) for %s.", id, strings.Join(c.strs("role"), ", ")))
@@ -843,10 +853,9 @@ re-registers an existing delegate with a new OBI or roles.`,
 			})
 			return nil
 		})
-	nxFormat(register, "text", "json")
-	register.Flags().StringArray("role", nil, "a role to register for: invoke, inspect, or synthesize (repeatable)")
-	register.Flags().StringArray("preference", nil, "ROLE=NUMBER; higher is preferred (repeatable)")
-	register.Flags().String("replace", "", "re-register this delegate ID")
+	add.Flags().StringArray("role", nil, "a role to register for: invoke, inspect, or synthesize (repeatable)")
+	add.Flags().StringArray("preference", nil, "ROLE=NUMBER; higher is preferred (repeatable)")
+	nxFormat(add, "text", "json")
 	list := nxListFormats(nxLeaf("delegate.list", "list", "List delegates", "List registered delegates, their roles, and their preferences.",
 		`  ob delegate list
   ob delegate list --role invoke`, nxArgs(0, 0), func(c *nxCtx) error {
@@ -877,43 +886,112 @@ re-registers an existing delegate with a new OBI or roles.`,
 		}
 		return nxDelegate{}, nxNotFound("no delegate %q; ob delegate list shows them", id)
 	}
-	prefer := nxLeaf("delegate.prefer", "prefer <id> <number> --role <role>", "Set a delegate's preference for a role", `Set how strongly ob prefers a delegate among delegates for one role; higher
-wins. --clear removes the preference instead.`,
-		`  ob delegate prefer d_91c2 20 --role invoke
-  ob delegate prefer d_91c2 --clear --role invoke`, nxArgs(1, 2), func(c *nxCtx) error {
+	show := nxListFormats(nxLeaf("delegate.show", "show <id>", "Show a delegate", "Show a registered delegate: its roles, its preference for each, and the operations it offers for each.",
+		`  ob delegate show d_91c2`, nxArgs(1, 1), func(c *nxCtx) error {
 			d, err := find(c.args[0])
 			if err != nil {
 				return err
 			}
-			role := c.str("role")
-			if err := nxValidRole(role); err != nil {
-				return nxUsageErr("--role is required: %v", err)
+			prefs := nxNewObj()
+			offers := nxNewObj()
+			for _, r := range d.roles {
+				if p, ok := d.preferences[r]; ok {
+					prefs.Set(r, p)
+				}
+				offers.Set(r, nxToAny(nxRoleInterfaces[r]))
 			}
-			if !nxContains(d.roles, role) {
-				return nxRefuse("%s is not registered for %s", d.id, role)
+			c.render(nxNewObj().Set("id", d.id).Set("name", d.name).Set("roles", nxToAny(d.roles)).Set("preferences", prefs).Set("offers", offers), func() {
+				c.println(fmt.Sprintf("%s (%s)", d.id, d.name))
+				for _, r := range d.roles {
+					pref := "no preference"
+					if p, ok := d.preferences[r]; ok {
+						pref = fmt.Sprintf("preference %d", p)
+					}
+					c.println(fmt.Sprintf("  %s, %s, offering:", r, pref))
+					for _, op := range nxRoleInterfaces[r] {
+						c.println("    " + op)
+					}
+				}
+			})
+			return nil
+		}))
+	set := nxLeaf("delegate.set", "set <id>", "Change a delegate", `Change a registered delegate: replace its OBI with --obi, change its roles,
+or set its preference for a role. Only the flags you give change anything.
+--unset preference.ROLE removes a preference.`,
+		`  ob delegate set d_91c2 --preference invoke=20
+  ob delegate set d_91c2 --add-role synthesize
+  ob delegate set d_91c2 --unset preference.invoke`,
+		nxArgs(1, 1), func(c *nxCtx) error {
+			if err := nxNeedsChange(c); err != nil {
+				return err
 			}
-			if c.on("clear") && len(c.args) == 2 {
-				return nxUsageErr("--clear removes the preference, so it does not take a number; choose one")
+			if err := nxContradictions(c, nil, [2]string{"add-role", "remove-role"}); err != nil {
+				return err
 			}
-			if c.on("clear") {
-				c.println(fmt.Sprintf("%s has no preference for %s now.", d.id, role))
+			d, err := find(c.args[0])
+			if err != nil {
+				return err
+			}
+			roles := append([]string(nil), d.roles...)
+			var changes []string
+			for _, r := range c.strs("add-role") {
+				if err := nxValidRole(r); err != nil {
+					return nxUsageErr("%v", err)
+				}
+				if !nxContains(roles, r) {
+					roles = append(roles, r)
+					changes = append(changes, "added role "+r)
+				}
+			}
+			for _, r := range c.strs("remove-role") {
+				if !nxContains(roles, r) {
+					return nxNotFound("%s is not registered for %s", d.id, r)
+				}
+				roles = nxWithout(roles, r)
+				changes = append(changes, "removed role "+r)
+			}
+			if len(roles) == 0 {
+				return nxRefuse("that would leave %s with no role, so nothing was changed; to remove the delegate, use ob delegate remove %s", d.id, d.id)
+			}
+			if err := nxDelegatePreferences(c, roles); err != nil {
+				return err
+			}
+			for _, p := range c.strs("preference") {
+				changes = append(changes, "preference "+p)
+			}
+			for _, u := range c.strs("unset") {
+				role, ok := strings.CutPrefix(u, "preference.")
+				if !ok {
+					return nxUsageErr("--unset takes preference.ROLE")
+				}
+				if _, has := d.preferences[role]; !has {
+					return nxNotFound("%s has no preference for %s", d.id, role)
+				}
+				changes = append(changes, "removed the preference for "+role)
+			}
+			if c.set("obi") {
+				c.note(fmt.Sprintf("(preview: %s was not read)", c.str("obi")))
+				changes = append(changes, "replaced its OBI")
+			}
+			if len(changes) == 0 {
+				c.note(d.id + ": no change")
 				return nil
 			}
-			if len(c.args) < 2 {
-				return nxUsageErr("give a number, or --clear")
-			}
-			c.println(fmt.Sprintf("%s now has preference %s for %s.", d.id, c.args[1], role))
+			c.println(fmt.Sprintf("%s: %s.", d.id, strings.Join(changes, "; ")))
 			return nil
 		})
-	prefer.Flags().String("role", "", "the role the preference applies to (required)")
-	prefer.Flags().Bool("clear", false, "remove the preference")
-	unregister := nxLeaf("delegate.unregister", "unregister <id>", "Remove a delegate", "Remove a registered delegate.",
-		`  ob delegate unregister d_7f3a`, nxArgs(1, 1), func(c *nxCtx) error {
+	set.Flags().String("obi", "", "replace the delegate's OBI: a path, - for stdin, or a URL")
+	set.Flags().StringArray("add-role", nil, "register it for another role (repeatable)")
+	set.Flags().StringArray("remove-role", nil, "stop using it for a role (repeatable)")
+	set.Flags().StringArray("preference", nil, "ROLE=NUMBER; higher is preferred (repeatable)")
+	set.Flags().StringArray("unset", nil, "remove a preference: preference.ROLE")
+	remove := nxLeaf("delegate.remove", "remove <id>", "Remove a delegate", "Remove a registered delegate. ob stops handing it work and deletes its copy of the delegate's OBI.",
+		`  ob delegate remove d_7f3a`, nxArgs(1, 1), func(c *nxCtx) error {
 			d, err := find(c.args[0])
 			if err != nil {
 				return err
 			}
-			c.println(fmt.Sprintf("Unregistered %s (%s).", d.id, d.name))
+			c.println(fmt.Sprintf("Removed %s (%s).", d.id, d.name))
 			return nil
 		})
 	resolve := nxLeaf("delegate.resolve", "resolve --role <role> --kind <kind>", "Explain which handler ob would use", `Explain which handler ob would use for a kind of work on an exact kind: a
@@ -957,5 +1035,5 @@ this ob can handle the kind.`,
 	return nxGroupCmd("delegate", "Let other tools handle work for ob", `A delegate is another tool, described by its own OBI, that ob hands work
 to: invoking bindings, inspecting sources, or synthesizing documents, for
 kinds ob does not handle itself. Each kind of work is a role.`,
-		roles, register, list, prefer, unregister, resolve)
+		roles, add, set, remove, list, show, resolve)
 }
