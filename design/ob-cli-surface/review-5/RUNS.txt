@@ -1,0 +1,28 @@
+Round 5, 2026-10-01
+Input commit: 4984a63d18fea62c079d65f1afab025e71923211
+Input pins and hashes: PINS.txt, SHA256SUMS.txt
+
+Reviewer A: fresh in-app Codex sub-agent /root/round5_reviewer_a.
+History: none (fork_turns=none); model inherited, no override.
+Same frozen brief, no earlier reports, read-only, offline.
+Final report preserved as reviewer-a.md.
+
+Reviewers B and C: two separate fresh ephemeral Codex CLI sessions.
+Launcher: /Applications/ChatGPT.app/Contents/Resources/codex-cli/bin/codex
+Invocation: codex exec --ephemeral -s read-only -C <review-5> --skip-git-repo-check -o <report> -
+stdin: exact frozen brief.md
+Runtime reported: gpt-6.1-sol, OpenAI provider, xhigh effort; no model override.
+History: no resume and no parent conversation supplied.
+The launcher received automatic approval for runtime database access after
+the outer sandbox prevented initialization. Each reviewer retained the
+read-only agent sandbox and frozen-folder/offline instructions.
+Both completed exit 0; their full final reports are reviewer-b.md and reviewer-c.md.
+
+Each reviewer was instructed to read only the frozen folder, make no edits,
+use no network, delegate no work, and contact no other reviewer. All report
+checksum verification and offline read-only review. Outputs were saved only
+after the independent reviews completed. No Claude process or API was used.
+
+Parent adjudication verified reproductions and pinned contract passages.
+The parent's later URI audit consulted RFC 3986; reviewer inputs and reports
+were already complete and were not changed by that audit.

@@ -3,6 +3,7 @@
 *.exe
 *.test
 bin/
+/design/ob-cli-surface/review-*/ob
 dist/
 !internal/server/workbench/dist/
 !internal/server/workbench/dist/**

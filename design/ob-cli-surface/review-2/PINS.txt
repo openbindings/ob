@@ -1,0 +1,3 @@
+ob lab codex/cli-surface-lab f7a9d16
+spec release/0.2 de2c20b
+interfaces fix/strict-binding-selection 5e24312 (openbindings/interfaces#36)

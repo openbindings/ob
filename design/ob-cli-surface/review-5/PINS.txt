@@ -1,0 +1,5 @@
+ob lab codex/cli-surface-lab 4984a63d18fea62c079d65f1afab025e71923211
+spec release/0.2 de2c20be7e67f7ed82a88c6f44ece2ea631d81bb (openbindings.md, http-discovery.md)
+interfaces fix/strict-binding-selection 5e24312ae88dfaf6563311f0b1754bab690e175e (openbindings/interfaces#36; all interface texts)
+Review scope: surface design; five recommended defaults remain proposals.
+Reviewers: three fresh independent Codex agents in this chat; no Claude.

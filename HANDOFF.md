@@ -34,7 +34,9 @@ All paths are on Matt's machine.
 
 - Worktree: `/Users/matt/Code/ob-pj/openbindings/ob-cli-surface-lab`
 - Branch: `codex/cli-surface-lab` in the `openbindings/ob` repository.
-  **Local only, never pushed.** Do not push without Matt's explicit approval.
+  Matt explicitly authorized pushing this branch for remote preservation on
+  2026-10-01. The backup includes the prototype history and review text records;
+  it does not merge the preview into `main` or `release/0.2`.
 - Original head at handoff: `b62c182`. Round 5 froze lab `4984a63` after
   source-pull naming (`d1bef9f`), agreed repairs (`7b3d3b0`), and playable
   proposals (`4984a63`). See git history for post-freeze corrections.
@@ -77,6 +79,11 @@ Ignore them.
 
 ### Reviews
 
+- Versioned text archive:
+  `/Users/matt/Code/ob-pj/openbindings/ob-cli-surface-lab/design/ob-cli-surface/`.
+  Its README indexes all five rounds; archive checksums verify the exact text
+  copies. Binaries remain local, with their hashes and embedded build metadata
+  recorded in Git. The original frozen paths below remain historical evidence.
 - `/Users/matt/Code/ob-pj/design/ob-cli-surface/review-1` through `review-4`.
   Each holds a frozen read-only copy of the binary (`ob`), the guide, the
   spec texts, `brief.md`, `PINS.txt`, and the two reports (`astra.md`,
@@ -328,7 +335,7 @@ five proposals is a ruling until Matt answers.
 ### D. Round-5 findings and post-freeze corrections
 
 The full adjudication lives at
-`/Users/matt/Code/ob-pj/design/ob-cli-surface/review-5/adjudication.md`.
+`/Users/matt/Code/ob-pj/openbindings/ob-cli-surface-lab/design/ob-cli-surface/review-5/adjudication.md`.
 Verified repairs, not new design decisions:
 
 - Accept fractional and negative delegate preferences faithfully; reject

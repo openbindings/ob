@@ -1,0 +1,479 @@
+review-1/ob: go1.25.13
+	path	github.com/openbindings/ob/cmd/ob
+	mod	github.com/openbindings/ob	(devel)
+	dep	al.essio.dev/pkg/shellescape	v1.5.1	h1:86HrALUujYS/h+GtqoB26SBEdkWfmMI6FubjXlsXyho=
+	dep	github.com/atotto/clipboard	v0.1.4	h1:EH0zSVneZPSuFR11BlR9YppQTVDbh5+16AmcJi4g1z4=
+	dep	github.com/aymanbagabas/go-osc52/v2	v2.0.1	h1:HwpRHbFMcZLEVr42D4p7XBqjyuxQH5SMiErDT4WkJ2k=
+	dep	github.com/bufbuild/protocompile	v0.14.1	h1:iA73zAf/fyljNjQKwYzUHD6AD4R8KMasmwa/FBatYVw=
+	dep	github.com/calico32/kdl-go	v0.15.0	h1:S+hoQoHwfF0Y/hdHcmbIolJxtLmLPoXaRrku8L0y26Y=
+	dep	github.com/catppuccin/go	v0.3.0	h1:d+0/YicIq+hSTo5oPuRi5kOpqkVA5tAsU6dNhvRu+aY=
+	dep	github.com/charmbracelet/bubbles	v0.21.1-0.20250623103423-23b8fd6302d7	h1:JFgG/xnwFfbezlUnFMJy0nusZvytYysV4SCS2cYbvws=
+	dep	github.com/charmbracelet/bubbletea	v1.3.10	h1:otUDHWMMzQSB0Pkc87rm691KZ3SWa4KUlvF9nRvCICw=
+	dep	github.com/charmbracelet/colorprofile	v0.3.1	h1:k8dTHMd7fgw4bnFd7jXTLZrSU/CQrKnL3m+AxCzDz40=
+	dep	github.com/charmbracelet/huh	v0.8.0	h1:Xz/Pm2h64cXQZn/Jvele4J3r7DDiqFCNIVteYukxDvY=
+	dep	github.com/charmbracelet/lipgloss	v1.1.0	h1:vYXsiLHVkK7fp74RkV7b2kq9+zDLoEU4MZoFqR/noCY=
+	dep	github.com/charmbracelet/x/ansi	v0.10.1	h1:rL3Koar5XvX0pHGfovN03f5cxLbCF2YvLeyz7D2jVDQ=
+	dep	github.com/charmbracelet/x/cellbuf	v0.0.13	h1:/KBBKHuVRbq1lYx5BzEHBAFBP8VcQzJejZ/IA3iR28k=
+	dep	github.com/charmbracelet/x/exp/strings	v0.0.0-20240722160745-212f7b056ed0	h1:qko3AQ4gK1MTS/de7F5hPGx6/k1u0w4TeYmBFwzYVP4=
+	dep	github.com/charmbracelet/x/term	v0.2.1	h1:AQeHeLZ1OqSXhrAWpYUtZyX1T3zVxfpZuEQMIQaGIAQ=
+	dep	github.com/cockroachdb/apd/v3	v3.2.1	h1:U+8j7t0axsIgvQUqthuNm82HIrYXodOV2iWLWtEaIwg=
+	dep	github.com/coder/websocket	v1.8.15	h1:6B2JPeOGlpff2Uz6vOEH1Vzpi0iUz20A+lPVhPHtNUA=
+	dep	github.com/dlclark/regexp2	v1.12.0	h1:0j4c5qQmnC6XOWNjP3PIXURXN2gWx76rd3KvgdPkCz8=
+	dep	github.com/dlclark/regexp2/v2	v2.7.1	h1:yqDtwI1ptXXvEUNpYTk2lad4jLtAcKqkzepn4savSk4=
+	dep	github.com/dustin/go-humanize	v1.0.1	h1:GzkhY7T5VNhEkwH0PVJgjz+fX1rhBrR7pRT3mDkpeCY=
+	dep	github.com/getkin/kin-openapi	v0.149.0	h1:ZbhmVJ4yq5RZDUsyP8lcBcGMsjsaTqXEFt6isdtMDfA=
+	dep	github.com/go-openapi/jsonpointer	v0.22.5	h1:8on/0Yp4uTb9f4XvTrM2+1CPrV05QPZXu+rvu2o9jcA=
+	dep	github.com/go-openapi/swag/jsonname	v0.25.5	h1:8p150i44rv/Drip4vWI3kGi9+4W9TdI3US3uUYSFhSo=
+	dep	github.com/golang/snappy	v0.0.1	h1:Qgr9rKW7uDUkrbSmQeiDsGa8SjGyCOGtuasMWwvp2P4=
+	dep	github.com/google/jsonschema-go	v0.4.3	h1:/DBOLZTfDow7pe2GmaJNhltueGTtDKICi8V8p+DQPd0=
+	dep	github.com/google/shlex	v0.0.0-20191202100458-e7afc7fbc510	h1:El6M4kTTCOh6aBiKaUGG7oYTSPP8MxqL4YI3kZKwcP4=
+	dep	github.com/jhump/protoreflect/v2	v2.0.0-beta.1	h1:Dw1rslK/VotaUGYsv53XVWITr+5RCPXfvvlGrM/+B6w=
+	dep	github.com/linkedin/goavro/v2	v2.15.0	h1:pDj1UrjUOO62iXhgBiE7jQkpNIc5/tA5eZsgolMjgVI=
+	dep	github.com/lucasb-eyer/go-colorful	v1.2.0	h1:1nnpGOrhyZZuNyfu1QjKiUICQ74+3FNCN69Aj6K7nkY=
+	dep	github.com/mattn/go-isatty	v0.0.20	h1:xfD0iDuEKnDkl03q4limB+vH+GxLEtL/jb4xVJSWWEY=
+	dep	github.com/mattn/go-runewidth	v0.0.16	h1:E5ScNMtiwvlvB5paMFdw9p4kSQzbXFikJ5SQO6TULQc=
+	dep	github.com/mitchellh/hashstructure/v2	v2.0.2	h1:vGKWl0YJqUNxE8d+h8f6NJLcCJrgbhC4NcD46KavDd4=
+	dep	github.com/modelcontextprotocol/go-sdk	v1.6.1	h1:0zOSupjKUxPKSocPT1Wtago+mUHU2/uZ4xSOY0FGReU=
+	dep	github.com/muesli/ansi	v0.0.0-20230316100256-276c6243b2f6	h1:ZK8zHtRHOkbHy6Mmr5D264iyp3TiX5OmNcI5cIARiQI=
+	dep	github.com/muesli/cancelreader	v0.2.2	h1:3I4Kt4BQjOR54NavqnDogx/MIoWBFa0StPA8ELUXHmA=
+	dep	github.com/muesli/termenv	v0.16.0	h1:S5AlUN9dENB57rsbnkPyfdGuWIlkmzJjbFf0Tf5FWUc=
+	dep	github.com/oasdiff/yaml	v0.1.1	h1:6nHx+pn9gBRM6YpBlFZFQGCCd1nuvqOBtTD3KKTgGxY=
+	dep	github.com/oasdiff/yaml3	v0.0.14	h1:aLJee3hxBK2H5wdXd9iPcIXb93Nty1Ge0pT171eHtkw=
+	dep	github.com/openbindings/asyncapi-client/go	v0.1.0
+	=>	github.com/openbindings/asyncapi-client/go	v0.0.0-20260917182212-7326ce4e18c1	h1:kegI8Pm8RGh9f2xhKKWB3Ju5uFojjLodaWizyaI+SvQ=
+
+	dep	github.com/openbindings/jsonata/go	v0.0.0-20260910174534-e2a5e518e6b5	h1:k7S84e5OnJTPJF5flUPtC5f5VRuqhuULVq+xmSWKli4=
+	dep	github.com/openbindings/openapi-client/go	v0.1.0
+	=>	github.com/openbindings/openapi-client/go	v0.0.0-20260911032503-9f8020e2d9a7	h1:g4qjS4ZsyZepIfMyguo5SzUiUXptrBZRWY1EsTGb7Oo=
+
+	dep	github.com/openbindings/openbindings-go	v0.2.0
+	=>	github.com/openbindings/openbindings-go	v0.1.1-0.20260922210936-d76792a0d115	h1:d9RVH8mKROSPF3ffNajnxMss+qj+jMnA7K4fBVJnjbo=
+
+	dep	github.com/openbindings/openbindings-go/formats/asyncapi	v0.1.1-0.20260922210936-d76792a0d115	h1:St/YdMPBGmHQMfganSFCFhK9DnMRyE4mZi+VYjEImCY=
+	dep	github.com/openbindings/openbindings-go/formats/connect	v0.1.1-0.20260922210936-d76792a0d115	h1:lMtKyo0cnGkd9eJV/Ox7sVmp9sx8BKe5YmY0tRjupmk=
+	dep	github.com/openbindings/openbindings-go/formats/graphql	v0.1.1-0.20260922210936-d76792a0d115	h1:+lL8ZHPVBm5EgZLtmBO2UC2ay585YGMJ5Yur/fAoh0c=
+	dep	github.com/openbindings/openbindings-go/formats/grpc	v0.1.1-0.20260922210936-d76792a0d115	h1:zLglcN1RCwIXPvZEiwVHoZEz9uzBiiYq2rApNxgZMbY=
+	dep	github.com/openbindings/openbindings-go/formats/mcp	v0.1.1-0.20260922210936-d76792a0d115	h1:59X3QAXDBDsGcgifu9nYWUgilIHIXn9hYH+VsPJuenM=
+	dep	github.com/openbindings/openbindings-go/formats/openapi	v0.1.1-0.20260922210936-d76792a0d115	h1:d+7rp9t09GrvLtHCFk2u8x5I0Y7YfOQVtmZ9tALKWAQ=
+	dep	github.com/openbindings/openbindings-go/formats/operationgraph	v0.1.1-0.20260922210936-d76792a0d115	h1:VEd6wtxNqgWvFZZ6gKUPPi0n+P5lMscb85HKOnmCfy0=
+	dep	github.com/openbindings/openbindings-go/formats/usage	v0.1.1-0.20260922210936-d76792a0d115	h1:FW3bh2adsGGsL53gFto3YtQC6QYNhst++CCodZaSeO4=
+	dep	github.com/rivo/uniseg	v0.4.7	h1:WUdvkW8uEhrYfLC4ZzdpI2ztxP1I582+49Oc5Mq64VQ=
+	dep	github.com/santhosh-tekuri/jsonschema/v6	v6.0.3	h1:1EYB5IzjZawrrnELUi78f9fPu57HuXjmddZPjrls/28=
+	dep	github.com/segmentio/asm	v1.1.3	h1:WM03sfUOENvvKexOLp+pCqgb/WDjsi7EK8gIsICtzhc=
+	dep	github.com/segmentio/encoding	v0.5.4	h1:OW1VRern8Nw6ITAtwSZ7Idrl3MXCFwXHPgqESYfvNt0=
+	dep	github.com/spf13/cobra	v1.10.2	h1:DMTTonx5m65Ic0GOoRY2c16WCbHxOOw6xxezuLaBpcU=
+	dep	github.com/spf13/pflag	v1.0.9	h1:9exaQaMOCwffKiiiYk6/BndUBv+iRViNW+4lEMi0PvY=
+	dep	github.com/tidwall/gjson	v1.18.0	h1:FIDeeyB800efLX89e5a8Y0BNH+LOngJyGrIWxG2FKQY=
+	dep	github.com/tidwall/match	v1.1.1	h1:+Ho715JplO36QYgwN9PGYNhgZvoUSc9X2c80KVTi+GA=
+	dep	github.com/tidwall/pretty	v1.2.1	h1:qjsOFOWWQl+N3RsoF5/ssm1pHmJJwhjlSbZ51I6wMl4=
+	dep	github.com/xo/terminfo	v0.0.0-20220910002029-abceb7e1c41e	h1:JVG44RsyaB9T2KIHavMF/ppJZNG9ZpyihvCd0w101no=
+	dep	github.com/yosida95/uritemplate/v3	v3.0.2	h1:Ed3Oyj9yrmi9087+NczuL5BwkIc4wvTb5zIM+UJPGz4=
+	dep	github.com/zalando/go-keyring	v0.2.6	h1:r7Yc3+H+Ux0+M72zacZoItR3UDxeWfKTcabvkI8ua9s=
+	dep	golang.org/x/net	v0.56.0	h1:Rw8j/hFzGvJUZwNBXnAtf5sVDVt+65SK2C7IxCxZt5o=
+	dep	golang.org/x/oauth2	v0.36.0	h1:peZ/1z27fi9hUOFCAZaHyrpWG5lwe0RJEEEeH0ThlIs=
+	dep	golang.org/x/sync	v0.21.0	h1:HLII4xRRTtCRkxYp4HNFF0Js/Og6q2i++KXbg0gHCwM=
+	dep	golang.org/x/sys	v0.46.0	h1:noSf2Fq6F8DBgS+LysIkx7rIExoNHJsxOAtPp4rthXw=
+	dep	golang.org/x/term	v0.44.0	h1:0rLvDRCtNj0gZkyIXhCyOb2OAzEhLVqc4B+hrsBhrmc=
+	dep	golang.org/x/text	v0.39.0	h1:UbZz4pLOvn600D6Oh6GGEI6VAmndrEBLv8/6BEXzyus=
+	dep	google.golang.org/genproto/googleapis/rpc	v0.0.0-20260414002931-afd174a4e478	h1:RmoJA1ujG+/lRGNfUnOMfhCy5EipVMyvUE+KNbPbTlw=
+	dep	google.golang.org/grpc	v1.82.1	h1:NnAxzGRA0677vCa4BUkOAnO5+FfQqVl9iUXeD0IqcGE=
+	dep	google.golang.org/protobuf	v1.36.11	h1:fV6ZwhNocDyBLK0dj+fg8ektcVegBBuEolpbTQyBNVE=
+	dep	gopkg.in/yaml.v3	v3.0.1	h1:fxVm/GzAzEWqLHuvctI91KS9hhNmmWOoWu0XTYJS7CA=
+	build	-buildmode=exe
+	build	-compiler=gc
+	build	CGO_ENABLED=1
+	build	CGO_CFLAGS=
+	build	CGO_CPPFLAGS=
+	build	CGO_CXXFLAGS=
+	build	CGO_LDFLAGS=
+	build	GOARCH=arm64
+	build	GOOS=darwin
+	build	GOARM64=v8.0
+	build	vcs=git
+	build	vcs.revision=d9fe3650d62789702549878f5e25c8bf41d295ea
+	build	vcs.time=2026-09-29T21:08:00Z
+	build	vcs.modified=true
+
+review-2/ob: go1.25.13
+	path	github.com/openbindings/ob/cmd/ob
+	mod	github.com/openbindings/ob	(devel)
+	dep	al.essio.dev/pkg/shellescape	v1.5.1	h1:86HrALUujYS/h+GtqoB26SBEdkWfmMI6FubjXlsXyho=
+	dep	github.com/atotto/clipboard	v0.1.4	h1:EH0zSVneZPSuFR11BlR9YppQTVDbh5+16AmcJi4g1z4=
+	dep	github.com/aymanbagabas/go-osc52/v2	v2.0.1	h1:HwpRHbFMcZLEVr42D4p7XBqjyuxQH5SMiErDT4WkJ2k=
+	dep	github.com/bufbuild/protocompile	v0.14.1	h1:iA73zAf/fyljNjQKwYzUHD6AD4R8KMasmwa/FBatYVw=
+	dep	github.com/calico32/kdl-go	v0.15.0	h1:S+hoQoHwfF0Y/hdHcmbIolJxtLmLPoXaRrku8L0y26Y=
+	dep	github.com/catppuccin/go	v0.3.0	h1:d+0/YicIq+hSTo5oPuRi5kOpqkVA5tAsU6dNhvRu+aY=
+	dep	github.com/charmbracelet/bubbles	v0.21.1-0.20250623103423-23b8fd6302d7	h1:JFgG/xnwFfbezlUnFMJy0nusZvytYysV4SCS2cYbvws=
+	dep	github.com/charmbracelet/bubbletea	v1.3.10	h1:otUDHWMMzQSB0Pkc87rm691KZ3SWa4KUlvF9nRvCICw=
+	dep	github.com/charmbracelet/colorprofile	v0.3.1	h1:k8dTHMd7fgw4bnFd7jXTLZrSU/CQrKnL3m+AxCzDz40=
+	dep	github.com/charmbracelet/huh	v0.8.0	h1:Xz/Pm2h64cXQZn/Jvele4J3r7DDiqFCNIVteYukxDvY=
+	dep	github.com/charmbracelet/lipgloss	v1.1.0	h1:vYXsiLHVkK7fp74RkV7b2kq9+zDLoEU4MZoFqR/noCY=
+	dep	github.com/charmbracelet/x/ansi	v0.10.1	h1:rL3Koar5XvX0pHGfovN03f5cxLbCF2YvLeyz7D2jVDQ=
+	dep	github.com/charmbracelet/x/cellbuf	v0.0.13	h1:/KBBKHuVRbq1lYx5BzEHBAFBP8VcQzJejZ/IA3iR28k=
+	dep	github.com/charmbracelet/x/exp/strings	v0.0.0-20240722160745-212f7b056ed0	h1:qko3AQ4gK1MTS/de7F5hPGx6/k1u0w4TeYmBFwzYVP4=
+	dep	github.com/charmbracelet/x/term	v0.2.1	h1:AQeHeLZ1OqSXhrAWpYUtZyX1T3zVxfpZuEQMIQaGIAQ=
+	dep	github.com/cockroachdb/apd/v3	v3.2.1	h1:U+8j7t0axsIgvQUqthuNm82HIrYXodOV2iWLWtEaIwg=
+	dep	github.com/coder/websocket	v1.8.15	h1:6B2JPeOGlpff2Uz6vOEH1Vzpi0iUz20A+lPVhPHtNUA=
+	dep	github.com/dlclark/regexp2	v1.12.0	h1:0j4c5qQmnC6XOWNjP3PIXURXN2gWx76rd3KvgdPkCz8=
+	dep	github.com/dlclark/regexp2/v2	v2.7.1	h1:yqDtwI1ptXXvEUNpYTk2lad4jLtAcKqkzepn4savSk4=
+	dep	github.com/dustin/go-humanize	v1.0.1	h1:GzkhY7T5VNhEkwH0PVJgjz+fX1rhBrR7pRT3mDkpeCY=
+	dep	github.com/getkin/kin-openapi	v0.149.0	h1:ZbhmVJ4yq5RZDUsyP8lcBcGMsjsaTqXEFt6isdtMDfA=
+	dep	github.com/go-openapi/jsonpointer	v0.22.5	h1:8on/0Yp4uTb9f4XvTrM2+1CPrV05QPZXu+rvu2o9jcA=
+	dep	github.com/go-openapi/swag/jsonname	v0.25.5	h1:8p150i44rv/Drip4vWI3kGi9+4W9TdI3US3uUYSFhSo=
+	dep	github.com/golang/snappy	v0.0.1	h1:Qgr9rKW7uDUkrbSmQeiDsGa8SjGyCOGtuasMWwvp2P4=
+	dep	github.com/google/jsonschema-go	v0.4.3	h1:/DBOLZTfDow7pe2GmaJNhltueGTtDKICi8V8p+DQPd0=
+	dep	github.com/google/shlex	v0.0.0-20191202100458-e7afc7fbc510	h1:El6M4kTTCOh6aBiKaUGG7oYTSPP8MxqL4YI3kZKwcP4=
+	dep	github.com/jhump/protoreflect/v2	v2.0.0-beta.1	h1:Dw1rslK/VotaUGYsv53XVWITr+5RCPXfvvlGrM/+B6w=
+	dep	github.com/linkedin/goavro/v2	v2.15.0	h1:pDj1UrjUOO62iXhgBiE7jQkpNIc5/tA5eZsgolMjgVI=
+	dep	github.com/lucasb-eyer/go-colorful	v1.2.0	h1:1nnpGOrhyZZuNyfu1QjKiUICQ74+3FNCN69Aj6K7nkY=
+	dep	github.com/mattn/go-isatty	v0.0.20	h1:xfD0iDuEKnDkl03q4limB+vH+GxLEtL/jb4xVJSWWEY=
+	dep	github.com/mattn/go-runewidth	v0.0.16	h1:E5ScNMtiwvlvB5paMFdw9p4kSQzbXFikJ5SQO6TULQc=
+	dep	github.com/mitchellh/hashstructure/v2	v2.0.2	h1:vGKWl0YJqUNxE8d+h8f6NJLcCJrgbhC4NcD46KavDd4=
+	dep	github.com/modelcontextprotocol/go-sdk	v1.6.1	h1:0zOSupjKUxPKSocPT1Wtago+mUHU2/uZ4xSOY0FGReU=
+	dep	github.com/muesli/ansi	v0.0.0-20230316100256-276c6243b2f6	h1:ZK8zHtRHOkbHy6Mmr5D264iyp3TiX5OmNcI5cIARiQI=
+	dep	github.com/muesli/cancelreader	v0.2.2	h1:3I4Kt4BQjOR54NavqnDogx/MIoWBFa0StPA8ELUXHmA=
+	dep	github.com/muesli/termenv	v0.16.0	h1:S5AlUN9dENB57rsbnkPyfdGuWIlkmzJjbFf0Tf5FWUc=
+	dep	github.com/oasdiff/yaml	v0.1.1	h1:6nHx+pn9gBRM6YpBlFZFQGCCd1nuvqOBtTD3KKTgGxY=
+	dep	github.com/oasdiff/yaml3	v0.0.14	h1:aLJee3hxBK2H5wdXd9iPcIXb93Nty1Ge0pT171eHtkw=
+	dep	github.com/openbindings/asyncapi-client/go	v0.1.0
+	=>	github.com/openbindings/asyncapi-client/go	v0.0.0-20260917182212-7326ce4e18c1	h1:kegI8Pm8RGh9f2xhKKWB3Ju5uFojjLodaWizyaI+SvQ=
+
+	dep	github.com/openbindings/jsonata/go	v0.0.0-20260910174534-e2a5e518e6b5	h1:k7S84e5OnJTPJF5flUPtC5f5VRuqhuULVq+xmSWKli4=
+	dep	github.com/openbindings/openapi-client/go	v0.1.0
+	=>	github.com/openbindings/openapi-client/go	v0.0.0-20260911032503-9f8020e2d9a7	h1:g4qjS4ZsyZepIfMyguo5SzUiUXptrBZRWY1EsTGb7Oo=
+
+	dep	github.com/openbindings/openbindings-go	v0.2.0
+	=>	github.com/openbindings/openbindings-go	v0.1.1-0.20260922210936-d76792a0d115	h1:d9RVH8mKROSPF3ffNajnxMss+qj+jMnA7K4fBVJnjbo=
+
+	dep	github.com/openbindings/openbindings-go/formats/asyncapi	v0.1.1-0.20260922210936-d76792a0d115	h1:St/YdMPBGmHQMfganSFCFhK9DnMRyE4mZi+VYjEImCY=
+	dep	github.com/openbindings/openbindings-go/formats/connect	v0.1.1-0.20260922210936-d76792a0d115	h1:lMtKyo0cnGkd9eJV/Ox7sVmp9sx8BKe5YmY0tRjupmk=
+	dep	github.com/openbindings/openbindings-go/formats/graphql	v0.1.1-0.20260922210936-d76792a0d115	h1:+lL8ZHPVBm5EgZLtmBO2UC2ay585YGMJ5Yur/fAoh0c=
+	dep	github.com/openbindings/openbindings-go/formats/grpc	v0.1.1-0.20260922210936-d76792a0d115	h1:zLglcN1RCwIXPvZEiwVHoZEz9uzBiiYq2rApNxgZMbY=
+	dep	github.com/openbindings/openbindings-go/formats/mcp	v0.1.1-0.20260922210936-d76792a0d115	h1:59X3QAXDBDsGcgifu9nYWUgilIHIXn9hYH+VsPJuenM=
+	dep	github.com/openbindings/openbindings-go/formats/openapi	v0.1.1-0.20260922210936-d76792a0d115	h1:d+7rp9t09GrvLtHCFk2u8x5I0Y7YfOQVtmZ9tALKWAQ=
+	dep	github.com/openbindings/openbindings-go/formats/operationgraph	v0.1.1-0.20260922210936-d76792a0d115	h1:VEd6wtxNqgWvFZZ6gKUPPi0n+P5lMscb85HKOnmCfy0=
+	dep	github.com/openbindings/openbindings-go/formats/usage	v0.1.1-0.20260922210936-d76792a0d115	h1:FW3bh2adsGGsL53gFto3YtQC6QYNhst++CCodZaSeO4=
+	dep	github.com/rivo/uniseg	v0.4.7	h1:WUdvkW8uEhrYfLC4ZzdpI2ztxP1I582+49Oc5Mq64VQ=
+	dep	github.com/santhosh-tekuri/jsonschema/v6	v6.0.3	h1:1EYB5IzjZawrrnELUi78f9fPu57HuXjmddZPjrls/28=
+	dep	github.com/segmentio/asm	v1.1.3	h1:WM03sfUOENvvKexOLp+pCqgb/WDjsi7EK8gIsICtzhc=
+	dep	github.com/segmentio/encoding	v0.5.4	h1:OW1VRern8Nw6ITAtwSZ7Idrl3MXCFwXHPgqESYfvNt0=
+	dep	github.com/spf13/cobra	v1.10.2	h1:DMTTonx5m65Ic0GOoRY2c16WCbHxOOw6xxezuLaBpcU=
+	dep	github.com/spf13/pflag	v1.0.9	h1:9exaQaMOCwffKiiiYk6/BndUBv+iRViNW+4lEMi0PvY=
+	dep	github.com/tidwall/gjson	v1.18.0	h1:FIDeeyB800efLX89e5a8Y0BNH+LOngJyGrIWxG2FKQY=
+	dep	github.com/tidwall/match	v1.1.1	h1:+Ho715JplO36QYgwN9PGYNhgZvoUSc9X2c80KVTi+GA=
+	dep	github.com/tidwall/pretty	v1.2.1	h1:qjsOFOWWQl+N3RsoF5/ssm1pHmJJwhjlSbZ51I6wMl4=
+	dep	github.com/xo/terminfo	v0.0.0-20220910002029-abceb7e1c41e	h1:JVG44RsyaB9T2KIHavMF/ppJZNG9ZpyihvCd0w101no=
+	dep	github.com/yosida95/uritemplate/v3	v3.0.2	h1:Ed3Oyj9yrmi9087+NczuL5BwkIc4wvTb5zIM+UJPGz4=
+	dep	github.com/zalando/go-keyring	v0.2.6	h1:r7Yc3+H+Ux0+M72zacZoItR3UDxeWfKTcabvkI8ua9s=
+	dep	golang.org/x/net	v0.56.0	h1:Rw8j/hFzGvJUZwNBXnAtf5sVDVt+65SK2C7IxCxZt5o=
+	dep	golang.org/x/oauth2	v0.36.0	h1:peZ/1z27fi9hUOFCAZaHyrpWG5lwe0RJEEEeH0ThlIs=
+	dep	golang.org/x/sync	v0.21.0	h1:HLII4xRRTtCRkxYp4HNFF0Js/Og6q2i++KXbg0gHCwM=
+	dep	golang.org/x/sys	v0.46.0	h1:noSf2Fq6F8DBgS+LysIkx7rIExoNHJsxOAtPp4rthXw=
+	dep	golang.org/x/term	v0.44.0	h1:0rLvDRCtNj0gZkyIXhCyOb2OAzEhLVqc4B+hrsBhrmc=
+	dep	golang.org/x/text	v0.39.0	h1:UbZz4pLOvn600D6Oh6GGEI6VAmndrEBLv8/6BEXzyus=
+	dep	google.golang.org/genproto/googleapis/rpc	v0.0.0-20260414002931-afd174a4e478	h1:RmoJA1ujG+/lRGNfUnOMfhCy5EipVMyvUE+KNbPbTlw=
+	dep	google.golang.org/grpc	v1.82.1	h1:NnAxzGRA0677vCa4BUkOAnO5+FfQqVl9iUXeD0IqcGE=
+	dep	google.golang.org/protobuf	v1.36.11	h1:fV6ZwhNocDyBLK0dj+fg8ektcVegBBuEolpbTQyBNVE=
+	dep	gopkg.in/yaml.v3	v3.0.1	h1:fxVm/GzAzEWqLHuvctI91KS9hhNmmWOoWu0XTYJS7CA=
+	build	-buildmode=exe
+	build	-compiler=gc
+	build	CGO_ENABLED=1
+	build	CGO_CFLAGS=
+	build	CGO_CPPFLAGS=
+	build	CGO_CXXFLAGS=
+	build	CGO_LDFLAGS=
+	build	GOARCH=arm64
+	build	GOOS=darwin
+	build	GOARM64=v8.0
+	build	vcs=git
+	build	vcs.revision=d9fe3650d62789702549878f5e25c8bf41d295ea
+	build	vcs.time=2026-09-29T21:08:00Z
+	build	vcs.modified=true
+
+review-3/ob: go1.25.13
+	path	github.com/openbindings/ob/cmd/ob
+	mod	github.com/openbindings/ob	(devel)
+	dep	al.essio.dev/pkg/shellescape	v1.5.1	h1:86HrALUujYS/h+GtqoB26SBEdkWfmMI6FubjXlsXyho=
+	dep	github.com/atotto/clipboard	v0.1.4	h1:EH0zSVneZPSuFR11BlR9YppQTVDbh5+16AmcJi4g1z4=
+	dep	github.com/aymanbagabas/go-osc52/v2	v2.0.1	h1:HwpRHbFMcZLEVr42D4p7XBqjyuxQH5SMiErDT4WkJ2k=
+	dep	github.com/bufbuild/protocompile	v0.14.1	h1:iA73zAf/fyljNjQKwYzUHD6AD4R8KMasmwa/FBatYVw=
+	dep	github.com/calico32/kdl-go	v0.15.0	h1:S+hoQoHwfF0Y/hdHcmbIolJxtLmLPoXaRrku8L0y26Y=
+	dep	github.com/catppuccin/go	v0.3.0	h1:d+0/YicIq+hSTo5oPuRi5kOpqkVA5tAsU6dNhvRu+aY=
+	dep	github.com/charmbracelet/bubbles	v0.21.1-0.20250623103423-23b8fd6302d7	h1:JFgG/xnwFfbezlUnFMJy0nusZvytYysV4SCS2cYbvws=
+	dep	github.com/charmbracelet/bubbletea	v1.3.10	h1:otUDHWMMzQSB0Pkc87rm691KZ3SWa4KUlvF9nRvCICw=
+	dep	github.com/charmbracelet/colorprofile	v0.3.1	h1:k8dTHMd7fgw4bnFd7jXTLZrSU/CQrKnL3m+AxCzDz40=
+	dep	github.com/charmbracelet/huh	v0.8.0	h1:Xz/Pm2h64cXQZn/Jvele4J3r7DDiqFCNIVteYukxDvY=
+	dep	github.com/charmbracelet/lipgloss	v1.1.0	h1:vYXsiLHVkK7fp74RkV7b2kq9+zDLoEU4MZoFqR/noCY=
+	dep	github.com/charmbracelet/x/ansi	v0.10.1	h1:rL3Koar5XvX0pHGfovN03f5cxLbCF2YvLeyz7D2jVDQ=
+	dep	github.com/charmbracelet/x/cellbuf	v0.0.13	h1:/KBBKHuVRbq1lYx5BzEHBAFBP8VcQzJejZ/IA3iR28k=
+	dep	github.com/charmbracelet/x/exp/strings	v0.0.0-20240722160745-212f7b056ed0	h1:qko3AQ4gK1MTS/de7F5hPGx6/k1u0w4TeYmBFwzYVP4=
+	dep	github.com/charmbracelet/x/term	v0.2.1	h1:AQeHeLZ1OqSXhrAWpYUtZyX1T3zVxfpZuEQMIQaGIAQ=
+	dep	github.com/cockroachdb/apd/v3	v3.2.1	h1:U+8j7t0axsIgvQUqthuNm82HIrYXodOV2iWLWtEaIwg=
+	dep	github.com/coder/websocket	v1.8.15	h1:6B2JPeOGlpff2Uz6vOEH1Vzpi0iUz20A+lPVhPHtNUA=
+	dep	github.com/dlclark/regexp2	v1.12.0	h1:0j4c5qQmnC6XOWNjP3PIXURXN2gWx76rd3KvgdPkCz8=
+	dep	github.com/dlclark/regexp2/v2	v2.7.1	h1:yqDtwI1ptXXvEUNpYTk2lad4jLtAcKqkzepn4savSk4=
+	dep	github.com/dustin/go-humanize	v1.0.1	h1:GzkhY7T5VNhEkwH0PVJgjz+fX1rhBrR7pRT3mDkpeCY=
+	dep	github.com/getkin/kin-openapi	v0.149.0	h1:ZbhmVJ4yq5RZDUsyP8lcBcGMsjsaTqXEFt6isdtMDfA=
+	dep	github.com/go-openapi/jsonpointer	v0.22.5	h1:8on/0Yp4uTb9f4XvTrM2+1CPrV05QPZXu+rvu2o9jcA=
+	dep	github.com/go-openapi/swag/jsonname	v0.25.5	h1:8p150i44rv/Drip4vWI3kGi9+4W9TdI3US3uUYSFhSo=
+	dep	github.com/golang/snappy	v0.0.1	h1:Qgr9rKW7uDUkrbSmQeiDsGa8SjGyCOGtuasMWwvp2P4=
+	dep	github.com/google/jsonschema-go	v0.4.3	h1:/DBOLZTfDow7pe2GmaJNhltueGTtDKICi8V8p+DQPd0=
+	dep	github.com/google/shlex	v0.0.0-20191202100458-e7afc7fbc510	h1:El6M4kTTCOh6aBiKaUGG7oYTSPP8MxqL4YI3kZKwcP4=
+	dep	github.com/jhump/protoreflect/v2	v2.0.0-beta.1	h1:Dw1rslK/VotaUGYsv53XVWITr+5RCPXfvvlGrM/+B6w=
+	dep	github.com/linkedin/goavro/v2	v2.15.0	h1:pDj1UrjUOO62iXhgBiE7jQkpNIc5/tA5eZsgolMjgVI=
+	dep	github.com/lucasb-eyer/go-colorful	v1.2.0	h1:1nnpGOrhyZZuNyfu1QjKiUICQ74+3FNCN69Aj6K7nkY=
+	dep	github.com/mattn/go-isatty	v0.0.20	h1:xfD0iDuEKnDkl03q4limB+vH+GxLEtL/jb4xVJSWWEY=
+	dep	github.com/mattn/go-runewidth	v0.0.16	h1:E5ScNMtiwvlvB5paMFdw9p4kSQzbXFikJ5SQO6TULQc=
+	dep	github.com/mitchellh/hashstructure/v2	v2.0.2	h1:vGKWl0YJqUNxE8d+h8f6NJLcCJrgbhC4NcD46KavDd4=
+	dep	github.com/modelcontextprotocol/go-sdk	v1.6.1	h1:0zOSupjKUxPKSocPT1Wtago+mUHU2/uZ4xSOY0FGReU=
+	dep	github.com/muesli/ansi	v0.0.0-20230316100256-276c6243b2f6	h1:ZK8zHtRHOkbHy6Mmr5D264iyp3TiX5OmNcI5cIARiQI=
+	dep	github.com/muesli/cancelreader	v0.2.2	h1:3I4Kt4BQjOR54NavqnDogx/MIoWBFa0StPA8ELUXHmA=
+	dep	github.com/muesli/termenv	v0.16.0	h1:S5AlUN9dENB57rsbnkPyfdGuWIlkmzJjbFf0Tf5FWUc=
+	dep	github.com/oasdiff/yaml	v0.1.1	h1:6nHx+pn9gBRM6YpBlFZFQGCCd1nuvqOBtTD3KKTgGxY=
+	dep	github.com/oasdiff/yaml3	v0.0.14	h1:aLJee3hxBK2H5wdXd9iPcIXb93Nty1Ge0pT171eHtkw=
+	dep	github.com/openbindings/asyncapi-client/go	v0.1.0
+	=>	github.com/openbindings/asyncapi-client/go	v0.0.0-20260917182212-7326ce4e18c1	h1:kegI8Pm8RGh9f2xhKKWB3Ju5uFojjLodaWizyaI+SvQ=
+
+	dep	github.com/openbindings/jsonata/go	v0.0.0-20260910174534-e2a5e518e6b5	h1:k7S84e5OnJTPJF5flUPtC5f5VRuqhuULVq+xmSWKli4=
+	dep	github.com/openbindings/openapi-client/go	v0.1.0
+	=>	github.com/openbindings/openapi-client/go	v0.0.0-20260911032503-9f8020e2d9a7	h1:g4qjS4ZsyZepIfMyguo5SzUiUXptrBZRWY1EsTGb7Oo=
+
+	dep	github.com/openbindings/openbindings-go	v0.2.0
+	=>	github.com/openbindings/openbindings-go	v0.1.1-0.20260922210936-d76792a0d115	h1:d9RVH8mKROSPF3ffNajnxMss+qj+jMnA7K4fBVJnjbo=
+
+	dep	github.com/openbindings/openbindings-go/formats/asyncapi	v0.1.1-0.20260922210936-d76792a0d115	h1:St/YdMPBGmHQMfganSFCFhK9DnMRyE4mZi+VYjEImCY=
+	dep	github.com/openbindings/openbindings-go/formats/connect	v0.1.1-0.20260922210936-d76792a0d115	h1:lMtKyo0cnGkd9eJV/Ox7sVmp9sx8BKe5YmY0tRjupmk=
+	dep	github.com/openbindings/openbindings-go/formats/graphql	v0.1.1-0.20260922210936-d76792a0d115	h1:+lL8ZHPVBm5EgZLtmBO2UC2ay585YGMJ5Yur/fAoh0c=
+	dep	github.com/openbindings/openbindings-go/formats/grpc	v0.1.1-0.20260922210936-d76792a0d115	h1:zLglcN1RCwIXPvZEiwVHoZEz9uzBiiYq2rApNxgZMbY=
+	dep	github.com/openbindings/openbindings-go/formats/mcp	v0.1.1-0.20260922210936-d76792a0d115	h1:59X3QAXDBDsGcgifu9nYWUgilIHIXn9hYH+VsPJuenM=
+	dep	github.com/openbindings/openbindings-go/formats/openapi	v0.1.1-0.20260922210936-d76792a0d115	h1:d+7rp9t09GrvLtHCFk2u8x5I0Y7YfOQVtmZ9tALKWAQ=
+	dep	github.com/openbindings/openbindings-go/formats/operationgraph	v0.1.1-0.20260922210936-d76792a0d115	h1:VEd6wtxNqgWvFZZ6gKUPPi0n+P5lMscb85HKOnmCfy0=
+	dep	github.com/openbindings/openbindings-go/formats/usage	v0.1.1-0.20260922210936-d76792a0d115	h1:FW3bh2adsGGsL53gFto3YtQC6QYNhst++CCodZaSeO4=
+	dep	github.com/rivo/uniseg	v0.4.7	h1:WUdvkW8uEhrYfLC4ZzdpI2ztxP1I582+49Oc5Mq64VQ=
+	dep	github.com/santhosh-tekuri/jsonschema/v6	v6.0.3	h1:1EYB5IzjZawrrnELUi78f9fPu57HuXjmddZPjrls/28=
+	dep	github.com/segmentio/asm	v1.1.3	h1:WM03sfUOENvvKexOLp+pCqgb/WDjsi7EK8gIsICtzhc=
+	dep	github.com/segmentio/encoding	v0.5.4	h1:OW1VRern8Nw6ITAtwSZ7Idrl3MXCFwXHPgqESYfvNt0=
+	dep	github.com/spf13/cobra	v1.10.2	h1:DMTTonx5m65Ic0GOoRY2c16WCbHxOOw6xxezuLaBpcU=
+	dep	github.com/spf13/pflag	v1.0.9	h1:9exaQaMOCwffKiiiYk6/BndUBv+iRViNW+4lEMi0PvY=
+	dep	github.com/tidwall/gjson	v1.18.0	h1:FIDeeyB800efLX89e5a8Y0BNH+LOngJyGrIWxG2FKQY=
+	dep	github.com/tidwall/match	v1.1.1	h1:+Ho715JplO36QYgwN9PGYNhgZvoUSc9X2c80KVTi+GA=
+	dep	github.com/tidwall/pretty	v1.2.1	h1:qjsOFOWWQl+N3RsoF5/ssm1pHmJJwhjlSbZ51I6wMl4=
+	dep	github.com/xo/terminfo	v0.0.0-20220910002029-abceb7e1c41e	h1:JVG44RsyaB9T2KIHavMF/ppJZNG9ZpyihvCd0w101no=
+	dep	github.com/yosida95/uritemplate/v3	v3.0.2	h1:Ed3Oyj9yrmi9087+NczuL5BwkIc4wvTb5zIM+UJPGz4=
+	dep	github.com/zalando/go-keyring	v0.2.6	h1:r7Yc3+H+Ux0+M72zacZoItR3UDxeWfKTcabvkI8ua9s=
+	dep	golang.org/x/net	v0.56.0	h1:Rw8j/hFzGvJUZwNBXnAtf5sVDVt+65SK2C7IxCxZt5o=
+	dep	golang.org/x/oauth2	v0.36.0	h1:peZ/1z27fi9hUOFCAZaHyrpWG5lwe0RJEEEeH0ThlIs=
+	dep	golang.org/x/sync	v0.21.0	h1:HLII4xRRTtCRkxYp4HNFF0Js/Og6q2i++KXbg0gHCwM=
+	dep	golang.org/x/sys	v0.46.0	h1:noSf2Fq6F8DBgS+LysIkx7rIExoNHJsxOAtPp4rthXw=
+	dep	golang.org/x/term	v0.44.0	h1:0rLvDRCtNj0gZkyIXhCyOb2OAzEhLVqc4B+hrsBhrmc=
+	dep	golang.org/x/text	v0.39.0	h1:UbZz4pLOvn600D6Oh6GGEI6VAmndrEBLv8/6BEXzyus=
+	dep	google.golang.org/genproto/googleapis/rpc	v0.0.0-20260414002931-afd174a4e478	h1:RmoJA1ujG+/lRGNfUnOMfhCy5EipVMyvUE+KNbPbTlw=
+	dep	google.golang.org/grpc	v1.82.1	h1:NnAxzGRA0677vCa4BUkOAnO5+FfQqVl9iUXeD0IqcGE=
+	dep	google.golang.org/protobuf	v1.36.11	h1:fV6ZwhNocDyBLK0dj+fg8ektcVegBBuEolpbTQyBNVE=
+	dep	gopkg.in/yaml.v3	v3.0.1	h1:fxVm/GzAzEWqLHuvctI91KS9hhNmmWOoWu0XTYJS7CA=
+	build	-buildmode=exe
+	build	-compiler=gc
+	build	CGO_ENABLED=1
+	build	CGO_CFLAGS=
+	build	CGO_CPPFLAGS=
+	build	CGO_CXXFLAGS=
+	build	CGO_LDFLAGS=
+	build	GOARCH=arm64
+	build	GOOS=darwin
+	build	GOARM64=v8.0
+	build	vcs=git
+	build	vcs.revision=d9fe3650d62789702549878f5e25c8bf41d295ea
+	build	vcs.time=2026-09-29T21:08:00Z
+	build	vcs.modified=true
+
+review-4/ob: go1.25.13
+	path	github.com/openbindings/ob/cmd/ob
+	mod	github.com/openbindings/ob	(devel)
+	dep	al.essio.dev/pkg/shellescape	v1.5.1	h1:86HrALUujYS/h+GtqoB26SBEdkWfmMI6FubjXlsXyho=
+	dep	github.com/atotto/clipboard	v0.1.4	h1:EH0zSVneZPSuFR11BlR9YppQTVDbh5+16AmcJi4g1z4=
+	dep	github.com/aymanbagabas/go-osc52/v2	v2.0.1	h1:HwpRHbFMcZLEVr42D4p7XBqjyuxQH5SMiErDT4WkJ2k=
+	dep	github.com/bufbuild/protocompile	v0.14.1	h1:iA73zAf/fyljNjQKwYzUHD6AD4R8KMasmwa/FBatYVw=
+	dep	github.com/calico32/kdl-go	v0.15.0	h1:S+hoQoHwfF0Y/hdHcmbIolJxtLmLPoXaRrku8L0y26Y=
+	dep	github.com/catppuccin/go	v0.3.0	h1:d+0/YicIq+hSTo5oPuRi5kOpqkVA5tAsU6dNhvRu+aY=
+	dep	github.com/charmbracelet/bubbles	v0.21.1-0.20250623103423-23b8fd6302d7	h1:JFgG/xnwFfbezlUnFMJy0nusZvytYysV4SCS2cYbvws=
+	dep	github.com/charmbracelet/bubbletea	v1.3.10	h1:otUDHWMMzQSB0Pkc87rm691KZ3SWa4KUlvF9nRvCICw=
+	dep	github.com/charmbracelet/colorprofile	v0.3.1	h1:k8dTHMd7fgw4bnFd7jXTLZrSU/CQrKnL3m+AxCzDz40=
+	dep	github.com/charmbracelet/huh	v0.8.0	h1:Xz/Pm2h64cXQZn/Jvele4J3r7DDiqFCNIVteYukxDvY=
+	dep	github.com/charmbracelet/lipgloss	v1.1.0	h1:vYXsiLHVkK7fp74RkV7b2kq9+zDLoEU4MZoFqR/noCY=
+	dep	github.com/charmbracelet/x/ansi	v0.10.1	h1:rL3Koar5XvX0pHGfovN03f5cxLbCF2YvLeyz7D2jVDQ=
+	dep	github.com/charmbracelet/x/cellbuf	v0.0.13	h1:/KBBKHuVRbq1lYx5BzEHBAFBP8VcQzJejZ/IA3iR28k=
+	dep	github.com/charmbracelet/x/exp/strings	v0.0.0-20240722160745-212f7b056ed0	h1:qko3AQ4gK1MTS/de7F5hPGx6/k1u0w4TeYmBFwzYVP4=
+	dep	github.com/charmbracelet/x/term	v0.2.1	h1:AQeHeLZ1OqSXhrAWpYUtZyX1T3zVxfpZuEQMIQaGIAQ=
+	dep	github.com/cockroachdb/apd/v3	v3.2.1	h1:U+8j7t0axsIgvQUqthuNm82HIrYXodOV2iWLWtEaIwg=
+	dep	github.com/coder/websocket	v1.8.15	h1:6B2JPeOGlpff2Uz6vOEH1Vzpi0iUz20A+lPVhPHtNUA=
+	dep	github.com/dlclark/regexp2	v1.12.0	h1:0j4c5qQmnC6XOWNjP3PIXURXN2gWx76rd3KvgdPkCz8=
+	dep	github.com/dlclark/regexp2/v2	v2.7.1	h1:yqDtwI1ptXXvEUNpYTk2lad4jLtAcKqkzepn4savSk4=
+	dep	github.com/dustin/go-humanize	v1.0.1	h1:GzkhY7T5VNhEkwH0PVJgjz+fX1rhBrR7pRT3mDkpeCY=
+	dep	github.com/getkin/kin-openapi	v0.149.0	h1:ZbhmVJ4yq5RZDUsyP8lcBcGMsjsaTqXEFt6isdtMDfA=
+	dep	github.com/go-openapi/jsonpointer	v0.22.5	h1:8on/0Yp4uTb9f4XvTrM2+1CPrV05QPZXu+rvu2o9jcA=
+	dep	github.com/go-openapi/swag/jsonname	v0.25.5	h1:8p150i44rv/Drip4vWI3kGi9+4W9TdI3US3uUYSFhSo=
+	dep	github.com/golang/snappy	v0.0.1	h1:Qgr9rKW7uDUkrbSmQeiDsGa8SjGyCOGtuasMWwvp2P4=
+	dep	github.com/google/jsonschema-go	v0.4.3	h1:/DBOLZTfDow7pe2GmaJNhltueGTtDKICi8V8p+DQPd0=
+	dep	github.com/google/shlex	v0.0.0-20191202100458-e7afc7fbc510	h1:El6M4kTTCOh6aBiKaUGG7oYTSPP8MxqL4YI3kZKwcP4=
+	dep	github.com/jhump/protoreflect/v2	v2.0.0-beta.1	h1:Dw1rslK/VotaUGYsv53XVWITr+5RCPXfvvlGrM/+B6w=
+	dep	github.com/linkedin/goavro/v2	v2.15.0	h1:pDj1UrjUOO62iXhgBiE7jQkpNIc5/tA5eZsgolMjgVI=
+	dep	github.com/lucasb-eyer/go-colorful	v1.2.0	h1:1nnpGOrhyZZuNyfu1QjKiUICQ74+3FNCN69Aj6K7nkY=
+	dep	github.com/mattn/go-isatty	v0.0.20	h1:xfD0iDuEKnDkl03q4limB+vH+GxLEtL/jb4xVJSWWEY=
+	dep	github.com/mattn/go-runewidth	v0.0.16	h1:E5ScNMtiwvlvB5paMFdw9p4kSQzbXFikJ5SQO6TULQc=
+	dep	github.com/mitchellh/hashstructure/v2	v2.0.2	h1:vGKWl0YJqUNxE8d+h8f6NJLcCJrgbhC4NcD46KavDd4=
+	dep	github.com/modelcontextprotocol/go-sdk	v1.6.1	h1:0zOSupjKUxPKSocPT1Wtago+mUHU2/uZ4xSOY0FGReU=
+	dep	github.com/muesli/ansi	v0.0.0-20230316100256-276c6243b2f6	h1:ZK8zHtRHOkbHy6Mmr5D264iyp3TiX5OmNcI5cIARiQI=
+	dep	github.com/muesli/cancelreader	v0.2.2	h1:3I4Kt4BQjOR54NavqnDogx/MIoWBFa0StPA8ELUXHmA=
+	dep	github.com/muesli/termenv	v0.16.0	h1:S5AlUN9dENB57rsbnkPyfdGuWIlkmzJjbFf0Tf5FWUc=
+	dep	github.com/oasdiff/yaml	v0.1.1	h1:6nHx+pn9gBRM6YpBlFZFQGCCd1nuvqOBtTD3KKTgGxY=
+	dep	github.com/oasdiff/yaml3	v0.0.14	h1:aLJee3hxBK2H5wdXd9iPcIXb93Nty1Ge0pT171eHtkw=
+	dep	github.com/openbindings/asyncapi-client/go	v0.1.0
+	=>	github.com/openbindings/asyncapi-client/go	v0.0.0-20260917182212-7326ce4e18c1	h1:kegI8Pm8RGh9f2xhKKWB3Ju5uFojjLodaWizyaI+SvQ=
+
+	dep	github.com/openbindings/jsonata/go	v0.0.0-20260910174534-e2a5e518e6b5	h1:k7S84e5OnJTPJF5flUPtC5f5VRuqhuULVq+xmSWKli4=
+	dep	github.com/openbindings/openapi-client/go	v0.1.0
+	=>	github.com/openbindings/openapi-client/go	v0.0.0-20260911032503-9f8020e2d9a7	h1:g4qjS4ZsyZepIfMyguo5SzUiUXptrBZRWY1EsTGb7Oo=
+
+	dep	github.com/openbindings/openbindings-go	v0.2.0
+	=>	github.com/openbindings/openbindings-go	v0.1.1-0.20260922210936-d76792a0d115	h1:d9RVH8mKROSPF3ffNajnxMss+qj+jMnA7K4fBVJnjbo=
+
+	dep	github.com/openbindings/openbindings-go/formats/asyncapi	v0.1.1-0.20260922210936-d76792a0d115	h1:St/YdMPBGmHQMfganSFCFhK9DnMRyE4mZi+VYjEImCY=
+	dep	github.com/openbindings/openbindings-go/formats/connect	v0.1.1-0.20260922210936-d76792a0d115	h1:lMtKyo0cnGkd9eJV/Ox7sVmp9sx8BKe5YmY0tRjupmk=
+	dep	github.com/openbindings/openbindings-go/formats/graphql	v0.1.1-0.20260922210936-d76792a0d115	h1:+lL8ZHPVBm5EgZLtmBO2UC2ay585YGMJ5Yur/fAoh0c=
+	dep	github.com/openbindings/openbindings-go/formats/grpc	v0.1.1-0.20260922210936-d76792a0d115	h1:zLglcN1RCwIXPvZEiwVHoZEz9uzBiiYq2rApNxgZMbY=
+	dep	github.com/openbindings/openbindings-go/formats/mcp	v0.1.1-0.20260922210936-d76792a0d115	h1:59X3QAXDBDsGcgifu9nYWUgilIHIXn9hYH+VsPJuenM=
+	dep	github.com/openbindings/openbindings-go/formats/openapi	v0.1.1-0.20260922210936-d76792a0d115	h1:d+7rp9t09GrvLtHCFk2u8x5I0Y7YfOQVtmZ9tALKWAQ=
+	dep	github.com/openbindings/openbindings-go/formats/operationgraph	v0.1.1-0.20260922210936-d76792a0d115	h1:VEd6wtxNqgWvFZZ6gKUPPi0n+P5lMscb85HKOnmCfy0=
+	dep	github.com/openbindings/openbindings-go/formats/usage	v0.1.1-0.20260922210936-d76792a0d115	h1:FW3bh2adsGGsL53gFto3YtQC6QYNhst++CCodZaSeO4=
+	dep	github.com/rivo/uniseg	v0.4.7	h1:WUdvkW8uEhrYfLC4ZzdpI2ztxP1I582+49Oc5Mq64VQ=
+	dep	github.com/santhosh-tekuri/jsonschema/v6	v6.0.3	h1:1EYB5IzjZawrrnELUi78f9fPu57HuXjmddZPjrls/28=
+	dep	github.com/segmentio/asm	v1.1.3	h1:WM03sfUOENvvKexOLp+pCqgb/WDjsi7EK8gIsICtzhc=
+	dep	github.com/segmentio/encoding	v0.5.4	h1:OW1VRern8Nw6ITAtwSZ7Idrl3MXCFwXHPgqESYfvNt0=
+	dep	github.com/spf13/cobra	v1.10.2	h1:DMTTonx5m65Ic0GOoRY2c16WCbHxOOw6xxezuLaBpcU=
+	dep	github.com/spf13/pflag	v1.0.9	h1:9exaQaMOCwffKiiiYk6/BndUBv+iRViNW+4lEMi0PvY=
+	dep	github.com/tidwall/gjson	v1.18.0	h1:FIDeeyB800efLX89e5a8Y0BNH+LOngJyGrIWxG2FKQY=
+	dep	github.com/tidwall/match	v1.1.1	h1:+Ho715JplO36QYgwN9PGYNhgZvoUSc9X2c80KVTi+GA=
+	dep	github.com/tidwall/pretty	v1.2.1	h1:qjsOFOWWQl+N3RsoF5/ssm1pHmJJwhjlSbZ51I6wMl4=
+	dep	github.com/xo/terminfo	v0.0.0-20220910002029-abceb7e1c41e	h1:JVG44RsyaB9T2KIHavMF/ppJZNG9ZpyihvCd0w101no=
+	dep	github.com/yosida95/uritemplate/v3	v3.0.2	h1:Ed3Oyj9yrmi9087+NczuL5BwkIc4wvTb5zIM+UJPGz4=
+	dep	github.com/zalando/go-keyring	v0.2.6	h1:r7Yc3+H+Ux0+M72zacZoItR3UDxeWfKTcabvkI8ua9s=
+	dep	golang.org/x/net	v0.56.0	h1:Rw8j/hFzGvJUZwNBXnAtf5sVDVt+65SK2C7IxCxZt5o=
+	dep	golang.org/x/oauth2	v0.36.0	h1:peZ/1z27fi9hUOFCAZaHyrpWG5lwe0RJEEEeH0ThlIs=
+	dep	golang.org/x/sync	v0.21.0	h1:HLII4xRRTtCRkxYp4HNFF0Js/Og6q2i++KXbg0gHCwM=
+	dep	golang.org/x/sys	v0.46.0	h1:noSf2Fq6F8DBgS+LysIkx7rIExoNHJsxOAtPp4rthXw=
+	dep	golang.org/x/term	v0.44.0	h1:0rLvDRCtNj0gZkyIXhCyOb2OAzEhLVqc4B+hrsBhrmc=
+	dep	golang.org/x/text	v0.39.0	h1:UbZz4pLOvn600D6Oh6GGEI6VAmndrEBLv8/6BEXzyus=
+	dep	google.golang.org/genproto/googleapis/rpc	v0.0.0-20260414002931-afd174a4e478	h1:RmoJA1ujG+/lRGNfUnOMfhCy5EipVMyvUE+KNbPbTlw=
+	dep	google.golang.org/grpc	v1.82.1	h1:NnAxzGRA0677vCa4BUkOAnO5+FfQqVl9iUXeD0IqcGE=
+	dep	google.golang.org/protobuf	v1.36.11	h1:fV6ZwhNocDyBLK0dj+fg8ektcVegBBuEolpbTQyBNVE=
+	dep	gopkg.in/yaml.v3	v3.0.1	h1:fxVm/GzAzEWqLHuvctI91KS9hhNmmWOoWu0XTYJS7CA=
+	build	-buildmode=exe
+	build	-compiler=gc
+	build	CGO_ENABLED=1
+	build	CGO_CFLAGS=
+	build	CGO_CPPFLAGS=
+	build	CGO_CXXFLAGS=
+	build	CGO_LDFLAGS=
+	build	GOARCH=arm64
+	build	GOOS=darwin
+	build	GOARM64=v8.0
+	build	vcs=git
+	build	vcs.revision=d9fe3650d62789702549878f5e25c8bf41d295ea
+	build	vcs.time=2026-09-29T21:08:00Z
+	build	vcs.modified=true
+
+review-5/ob: go1.25.13
+	path	github.com/openbindings/ob/cmd/ob
+	mod	github.com/openbindings/ob	(devel)
+	dep	al.essio.dev/pkg/shellescape	v1.5.1	h1:86HrALUujYS/h+GtqoB26SBEdkWfmMI6FubjXlsXyho=
+	dep	github.com/atotto/clipboard	v0.1.4	h1:EH0zSVneZPSuFR11BlR9YppQTVDbh5+16AmcJi4g1z4=
+	dep	github.com/aymanbagabas/go-osc52/v2	v2.0.1	h1:HwpRHbFMcZLEVr42D4p7XBqjyuxQH5SMiErDT4WkJ2k=
+	dep	github.com/bufbuild/protocompile	v0.14.1	h1:iA73zAf/fyljNjQKwYzUHD6AD4R8KMasmwa/FBatYVw=
+	dep	github.com/calico32/kdl-go	v0.15.0	h1:S+hoQoHwfF0Y/hdHcmbIolJxtLmLPoXaRrku8L0y26Y=
+	dep	github.com/catppuccin/go	v0.3.0	h1:d+0/YicIq+hSTo5oPuRi5kOpqkVA5tAsU6dNhvRu+aY=
+	dep	github.com/charmbracelet/bubbles	v0.21.1-0.20250623103423-23b8fd6302d7	h1:JFgG/xnwFfbezlUnFMJy0nusZvytYysV4SCS2cYbvws=
+	dep	github.com/charmbracelet/bubbletea	v1.3.10	h1:otUDHWMMzQSB0Pkc87rm691KZ3SWa4KUlvF9nRvCICw=
+	dep	github.com/charmbracelet/colorprofile	v0.3.1	h1:k8dTHMd7fgw4bnFd7jXTLZrSU/CQrKnL3m+AxCzDz40=
+	dep	github.com/charmbracelet/huh	v0.8.0	h1:Xz/Pm2h64cXQZn/Jvele4J3r7DDiqFCNIVteYukxDvY=
+	dep	github.com/charmbracelet/lipgloss	v1.1.0	h1:vYXsiLHVkK7fp74RkV7b2kq9+zDLoEU4MZoFqR/noCY=
+	dep	github.com/charmbracelet/x/ansi	v0.10.1	h1:rL3Koar5XvX0pHGfovN03f5cxLbCF2YvLeyz7D2jVDQ=
+	dep	github.com/charmbracelet/x/cellbuf	v0.0.13	h1:/KBBKHuVRbq1lYx5BzEHBAFBP8VcQzJejZ/IA3iR28k=
+	dep	github.com/charmbracelet/x/exp/strings	v0.0.0-20240722160745-212f7b056ed0	h1:qko3AQ4gK1MTS/de7F5hPGx6/k1u0w4TeYmBFwzYVP4=
+	dep	github.com/charmbracelet/x/term	v0.2.1	h1:AQeHeLZ1OqSXhrAWpYUtZyX1T3zVxfpZuEQMIQaGIAQ=
+	dep	github.com/cockroachdb/apd/v3	v3.2.1	h1:U+8j7t0axsIgvQUqthuNm82HIrYXodOV2iWLWtEaIwg=
+	dep	github.com/coder/websocket	v1.8.15	h1:6B2JPeOGlpff2Uz6vOEH1Vzpi0iUz20A+lPVhPHtNUA=
+	dep	github.com/dlclark/regexp2	v1.12.0	h1:0j4c5qQmnC6XOWNjP3PIXURXN2gWx76rd3KvgdPkCz8=
+	dep	github.com/dlclark/regexp2/v2	v2.7.1	h1:yqDtwI1ptXXvEUNpYTk2lad4jLtAcKqkzepn4savSk4=
+	dep	github.com/dustin/go-humanize	v1.0.1	h1:GzkhY7T5VNhEkwH0PVJgjz+fX1rhBrR7pRT3mDkpeCY=
+	dep	github.com/getkin/kin-openapi	v0.149.0	h1:ZbhmVJ4yq5RZDUsyP8lcBcGMsjsaTqXEFt6isdtMDfA=
+	dep	github.com/go-openapi/jsonpointer	v0.22.5	h1:8on/0Yp4uTb9f4XvTrM2+1CPrV05QPZXu+rvu2o9jcA=
+	dep	github.com/go-openapi/swag/jsonname	v0.25.5	h1:8p150i44rv/Drip4vWI3kGi9+4W9TdI3US3uUYSFhSo=
+	dep	github.com/golang/snappy	v0.0.1	h1:Qgr9rKW7uDUkrbSmQeiDsGa8SjGyCOGtuasMWwvp2P4=
+	dep	github.com/google/jsonschema-go	v0.4.3	h1:/DBOLZTfDow7pe2GmaJNhltueGTtDKICi8V8p+DQPd0=
+	dep	github.com/google/shlex	v0.0.0-20191202100458-e7afc7fbc510	h1:El6M4kTTCOh6aBiKaUGG7oYTSPP8MxqL4YI3kZKwcP4=
+	dep	github.com/jhump/protoreflect/v2	v2.0.0-beta.1	h1:Dw1rslK/VotaUGYsv53XVWITr+5RCPXfvvlGrM/+B6w=
+	dep	github.com/linkedin/goavro/v2	v2.15.0	h1:pDj1UrjUOO62iXhgBiE7jQkpNIc5/tA5eZsgolMjgVI=
+	dep	github.com/lucasb-eyer/go-colorful	v1.2.0	h1:1nnpGOrhyZZuNyfu1QjKiUICQ74+3FNCN69Aj6K7nkY=
+	dep	github.com/mattn/go-isatty	v0.0.20	h1:xfD0iDuEKnDkl03q4limB+vH+GxLEtL/jb4xVJSWWEY=
+	dep	github.com/mattn/go-runewidth	v0.0.16	h1:E5ScNMtiwvlvB5paMFdw9p4kSQzbXFikJ5SQO6TULQc=
+	dep	github.com/mitchellh/hashstructure/v2	v2.0.2	h1:vGKWl0YJqUNxE8d+h8f6NJLcCJrgbhC4NcD46KavDd4=
+	dep	github.com/modelcontextprotocol/go-sdk	v1.6.1	h1:0zOSupjKUxPKSocPT1Wtago+mUHU2/uZ4xSOY0FGReU=
+	dep	github.com/muesli/ansi	v0.0.0-20230316100256-276c6243b2f6	h1:ZK8zHtRHOkbHy6Mmr5D264iyp3TiX5OmNcI5cIARiQI=
+	dep	github.com/muesli/cancelreader	v0.2.2	h1:3I4Kt4BQjOR54NavqnDogx/MIoWBFa0StPA8ELUXHmA=
+	dep	github.com/muesli/termenv	v0.16.0	h1:S5AlUN9dENB57rsbnkPyfdGuWIlkmzJjbFf0Tf5FWUc=
+	dep	github.com/oasdiff/yaml	v0.1.1	h1:6nHx+pn9gBRM6YpBlFZFQGCCd1nuvqOBtTD3KKTgGxY=
+	dep	github.com/oasdiff/yaml3	v0.0.14	h1:aLJee3hxBK2H5wdXd9iPcIXb93Nty1Ge0pT171eHtkw=
+	dep	github.com/openbindings/asyncapi-client/go	v0.1.0
+	=>	github.com/openbindings/asyncapi-client/go	v0.0.0-20260917182212-7326ce4e18c1	h1:kegI8Pm8RGh9f2xhKKWB3Ju5uFojjLodaWizyaI+SvQ=
+
+	dep	github.com/openbindings/jsonata/go	v0.0.0-20260910174534-e2a5e518e6b5	h1:k7S84e5OnJTPJF5flUPtC5f5VRuqhuULVq+xmSWKli4=
+	dep	github.com/openbindings/openapi-client/go	v0.1.0
+	=>	github.com/openbindings/openapi-client/go	v0.0.0-20260911032503-9f8020e2d9a7	h1:g4qjS4ZsyZepIfMyguo5SzUiUXptrBZRWY1EsTGb7Oo=
+
+	dep	github.com/openbindings/openbindings-go	v0.2.0
+	=>	github.com/openbindings/openbindings-go	v0.1.1-0.20260922210936-d76792a0d115	h1:d9RVH8mKROSPF3ffNajnxMss+qj+jMnA7K4fBVJnjbo=
+
+	dep	github.com/openbindings/openbindings-go/formats/asyncapi	v0.1.1-0.20260922210936-d76792a0d115	h1:St/YdMPBGmHQMfganSFCFhK9DnMRyE4mZi+VYjEImCY=
+	dep	github.com/openbindings/openbindings-go/formats/connect	v0.1.1-0.20260922210936-d76792a0d115	h1:lMtKyo0cnGkd9eJV/Ox7sVmp9sx8BKe5YmY0tRjupmk=
+	dep	github.com/openbindings/openbindings-go/formats/graphql	v0.1.1-0.20260922210936-d76792a0d115	h1:+lL8ZHPVBm5EgZLtmBO2UC2ay585YGMJ5Yur/fAoh0c=
+	dep	github.com/openbindings/openbindings-go/formats/grpc	v0.1.1-0.20260922210936-d76792a0d115	h1:zLglcN1RCwIXPvZEiwVHoZEz9uzBiiYq2rApNxgZMbY=
+	dep	github.com/openbindings/openbindings-go/formats/mcp	v0.1.1-0.20260922210936-d76792a0d115	h1:59X3QAXDBDsGcgifu9nYWUgilIHIXn9hYH+VsPJuenM=
+	dep	github.com/openbindings/openbindings-go/formats/openapi	v0.1.1-0.20260922210936-d76792a0d115	h1:d+7rp9t09GrvLtHCFk2u8x5I0Y7YfOQVtmZ9tALKWAQ=
+	dep	github.com/openbindings/openbindings-go/formats/operationgraph	v0.1.1-0.20260922210936-d76792a0d115	h1:VEd6wtxNqgWvFZZ6gKUPPi0n+P5lMscb85HKOnmCfy0=
+	dep	github.com/openbindings/openbindings-go/formats/usage	v0.1.1-0.20260922210936-d76792a0d115	h1:FW3bh2adsGGsL53gFto3YtQC6QYNhst++CCodZaSeO4=
+	dep	github.com/rivo/uniseg	v0.4.7	h1:WUdvkW8uEhrYfLC4ZzdpI2ztxP1I582+49Oc5Mq64VQ=
+	dep	github.com/santhosh-tekuri/jsonschema/v6	v6.0.3	h1:1EYB5IzjZawrrnELUi78f9fPu57HuXjmddZPjrls/28=
+	dep	github.com/segmentio/asm	v1.1.3	h1:WM03sfUOENvvKexOLp+pCqgb/WDjsi7EK8gIsICtzhc=
+	dep	github.com/segmentio/encoding	v0.5.4	h1:OW1VRern8Nw6ITAtwSZ7Idrl3MXCFwXHPgqESYfvNt0=
+	dep	github.com/spf13/cobra	v1.10.2	h1:DMTTonx5m65Ic0GOoRY2c16WCbHxOOw6xxezuLaBpcU=
+	dep	github.com/spf13/pflag	v1.0.9	h1:9exaQaMOCwffKiiiYk6/BndUBv+iRViNW+4lEMi0PvY=
+	dep	github.com/tidwall/gjson	v1.18.0	h1:FIDeeyB800efLX89e5a8Y0BNH+LOngJyGrIWxG2FKQY=
+	dep	github.com/tidwall/match	v1.1.1	h1:+Ho715JplO36QYgwN9PGYNhgZvoUSc9X2c80KVTi+GA=
+	dep	github.com/tidwall/pretty	v1.2.1	h1:qjsOFOWWQl+N3RsoF5/ssm1pHmJJwhjlSbZ51I6wMl4=
+	dep	github.com/xo/terminfo	v0.0.0-20220910002029-abceb7e1c41e	h1:JVG44RsyaB9T2KIHavMF/ppJZNG9ZpyihvCd0w101no=
+	dep	github.com/yosida95/uritemplate/v3	v3.0.2	h1:Ed3Oyj9yrmi9087+NczuL5BwkIc4wvTb5zIM+UJPGz4=
+	dep	github.com/zalando/go-keyring	v0.2.6	h1:r7Yc3+H+Ux0+M72zacZoItR3UDxeWfKTcabvkI8ua9s=
+	dep	golang.org/x/net	v0.56.0	h1:Rw8j/hFzGvJUZwNBXnAtf5sVDVt+65SK2C7IxCxZt5o=
+	dep	golang.org/x/oauth2	v0.36.0	h1:peZ/1z27fi9hUOFCAZaHyrpWG5lwe0RJEEEeH0ThlIs=
+	dep	golang.org/x/sync	v0.21.0	h1:HLII4xRRTtCRkxYp4HNFF0Js/Og6q2i++KXbg0gHCwM=
+	dep	golang.org/x/sys	v0.46.0	h1:noSf2Fq6F8DBgS+LysIkx7rIExoNHJsxOAtPp4rthXw=
+	dep	golang.org/x/term	v0.44.0	h1:0rLvDRCtNj0gZkyIXhCyOb2OAzEhLVqc4B+hrsBhrmc=
+	dep	golang.org/x/text	v0.39.0	h1:UbZz4pLOvn600D6Oh6GGEI6VAmndrEBLv8/6BEXzyus=
+	dep	google.golang.org/genproto/googleapis/rpc	v0.0.0-20260414002931-afd174a4e478	h1:RmoJA1ujG+/lRGNfUnOMfhCy5EipVMyvUE+KNbPbTlw=
+	dep	google.golang.org/grpc	v1.82.1	h1:NnAxzGRA0677vCa4BUkOAnO5+FfQqVl9iUXeD0IqcGE=
+	dep	google.golang.org/protobuf	v1.36.11	h1:fV6ZwhNocDyBLK0dj+fg8ektcVegBBuEolpbTQyBNVE=
+	dep	gopkg.in/yaml.v3	v3.0.1	h1:fxVm/GzAzEWqLHuvctI91KS9hhNmmWOoWu0XTYJS7CA=
+	build	-buildmode=exe
+	build	-compiler=gc
+	build	CGO_ENABLED=1
+	build	CGO_CFLAGS=
+	build	CGO_CPPFLAGS=
+	build	CGO_CXXFLAGS=
+	build	CGO_LDFLAGS=
+	build	GOARCH=arm64
+	build	GOOS=darwin
+	build	GOARM64=v8.0
+	build	vcs=git
+	build	vcs.revision=d9fe3650d62789702549878f5e25c8bf41d295ea
+	build	vcs.time=2026-09-29T21:08:00Z
+	build	vcs.modified=true

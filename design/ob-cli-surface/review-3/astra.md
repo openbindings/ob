@@ -1,0 +1,41 @@
+1. **Major — `context set --token-credential`: accepts secrets in argv.**  
+   `ob context set S --token-provider P --token-credential example-credential` succeeds. The token-provider interface’s confidentiality requirement explicitly includes command lines and argv; recommending stdin does not remove the supported unsafe path. Make this option take a secret source (`-`, `@file`, or an interactive prompt), rather than a literal credential.
+
+2. **Major — `context set --token-provider`: excludes credential-free providers.**  
+   `ob context set S --token-provider P` exits **2**, saying the provider and credential flags must go together. The token-provider interface explicitly supports ambient-identity providers, whose `mint` input omits `credential`; an empty credential is not omission. Allow a pinned provider without `--token-credential`, preserving absence when minting.
+
+3. **Major — `fetch` and document URL arguments: authenticated discovery has no documented entry point.**  
+   A service may legitimately protect its OBI with authentication under HTTP Discovery. However, `ob fetch https://private.example.com --header Authorization=placeholder` exits **2**, and the help offers no download-authentication mechanism; the documented context machinery starts with a binding’s request, after obtaining the OBI. Expose a secure credential mechanism for document retrieval, shared by commands accepting URLs, and document recovery from gated discovery. This is a coverage gap, not a demand to change discovery semantics.
+
+4. **Major — `context set --unset`: breaks the common flag-name convention and misses contradictions.**  
+   `ob context set S --bearer-token example-token --unset bearer-token` exits **0**, reporting both “set bearerToken” and “removed bearer-token.” Using `--unset bearerToken` instead correctly produces a conflicting-flags error. This exception can make credential removal appear successful while addressing the wrong field. Map flag names consistently, reject contradictory changes after mapping, and define a separate, explicit notation for arbitrary nested context fields.
+
+5. **Major — `status --exit-code`: conceals the promised incomplete-check status.**  
+   On the sample, `ob status tasks.obi.json` exits **4** because `grpcApi` cannot be checked; adding `--exit-code` changes that to **1**. A script now cannot distinguish a complete drift check from an incomplete one through the documented status convention. Preserve **4** when a source cannot be checked, including with `--exit-code`, and continue reporting established drift in the report.
+
+6. **Major — `mcp --operation`: explicit requests can produce an empty server.**  
+   `ob mcp tasks.obi.json --operation createTask` reports **“Serving 0 tools”**, skips the explicitly requested operation because its binding is ambiguous, and proceeds to wait for a client. Selecting `events.deliver` similarly offers nothing because it has no binding. Refuse with **3** when an explicitly requested operation cannot be exposed, and name the remedy. Automatic omission can remain appropriate when the user requests the document generally.
+
+7. **Minor — `set`: cannot remove the optional document name.**  
+   `ob set tasks.obi.json --unset name` exits **2**, although core §5 makes `name` optional and `set` can assign it. An empty string does not express absence, and requiring JSON Patch for this one ordinary field undermines the otherwise complete editing family. Add `name` to `--unset`.
+
+8. **Minor — `codegen`: its implicit write destination is undisclosed.**  
+   `ob codegen tasks.obi.json --lang go` reports that it would write several files into **`.`**. Neither the option description nor the prose identifies that default, while the other document-derived creators default to stdout. Require `-o` for directory generation, or clearly document the current-directory default in usage, flag help, and the example without `-o`.
+
+No blocking findings. The issues above concern the proposed interface; sample values and unimplemented behavior are not counted.
+
+The rankings below judge command surfaces against their respective jobs, without awarding points for implementation maturity or ecosystem size. Each ordering runs best to worst; “Terraform” and “Redocly” mean their CLIs.
+
+| Criterion | Ranking | Reasons and what moves ob up one place |
+|---|---|---|
+| **Learnability in the first hour** | cargo → gh → buf → **ob (4)** → Redocly → Terraform → kubectl → git | Consistent editing verbs, an explicit document argument, and useful examples make ob approachable, but newcomers must connect operations, sources, kinds, and bindings before their first successful call. A short human-oriented artifact-to-invocation walkthrough, together with the credential fixes, would move it above buf. |
+| **Consistency of names and structure** | cargo → buf → **ob (3)** → gh → kubectl → Terraform → Redocly → git | The repeated add/set/rename/remove/list/show structure is unusually coherent for this breadth, and document arguments occupy predictable positions. Completing the `--unset` convention and making creation destinations explicit would move it above buf. |
+| **Coverage of users’ jobs** | git → gh → kubectl → cargo → buf → **ob (6)** → Terraform → Redocly | ob covers an impressive lifecycle: authoring, inspection, validation, comparison, source reconciliation, invocation, generation, and serving. Authenticated acquisition and ambient-identity token providers are ordinary missing connections between those jobs; closing them would move it above buf. |
+| **Editing ergonomics** | git → kubectl → **ob (3)** → gh → cargo → Redocly → Terraform → buf | In-place edits with previews, reference-aware renames, explicit cascading, and incremental repair form a strong editing interface; JSON Patch supplies an escape hatch. Complete ordinary field removal and add a convenient way to submit whole operation definitions without translating each member into flags to move above kubectl. |
+| **Output and scripting** | buf → gh → cargo → **ob (4)** → kubectl → Terraform → git → Redocly | Exact JSON for stored objects, JSON reports, and the invocation frame stream provide clean foundations, while the uniform exit table is substantially better than command-specific folklore. Honoring incomplete-check status and refusing unsatisfied explicit MCP selections would move it above cargo. |
+| **Errors and recovery** | cargo → gh → buf → **ob (4)** → Terraform → kubectl → Redocly → git | Alias refusals, dependency-aware removal errors, binding candidates, and copyable recovery commands are strong: errors usually explain what happened and how to proceed. Fix the context-field contradiction and empty MCP startup, and supply an authenticated-discovery recovery path, to move above buf. |
+| **Fidelity to the model served** | buf → git → **ob (3)** → cargo → kubectl → Terraform → Redocly → gh | ob carefully preserves the distinctions between operations and realizations, kinds and installation support, and non-conformance and an undetermined result; its invocation selection also respects the interface. Supporting credential absence and honoring token secrecy would move it above git in this surface review. |
+| **Economy of surface** | buf → cargo → Redocly → **ob (4)** → gh → Terraform → kubectl → git | The surface is large, but the repeated families earn their space and make much of it predictable; the settled overlapping commands do explain their purposes. Dropping gratuitous report-format variants, particularly YAML on individual-part reports, and keeping advanced administration out of the introductory help path would move it above Redocly. |
+| **Overall** | cargo → buf → gh → **ob (4)** → git → kubectl → Terraform → Redocly | ob already combines strong model fidelity and editing ergonomics with substantially more structural consistency than several established peers, but its credential and automation gaps interrupt ordinary end-to-end workflows. Fixing the major findings and cleaning up the documented defaults would move it above gh to third. |
+
+**The proposed surface does not meet the maintainer’s bar in this review: it ranks fourth overall, with no blocking findings.** Addressing the major findings would make it a top-three surface for me; the settled architecture does not need reopening.
