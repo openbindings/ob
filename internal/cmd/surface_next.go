@@ -37,7 +37,7 @@ Exit status, for every command:
   0    done, or yes
   1    failed, or no
   2    usage error
-  3    refused; nothing was done
+  3    refused; nothing was written or sent
   4    no verdict (a check could not decide)
   130  cancelled
 
@@ -233,10 +233,34 @@ func nxFail(code int, format string, a ...any) error {
 	return &nxExit{code: code, msg: fmt.Sprintf(format, a...)}
 }
 
+// nxRefuse is a request ob declined, with nothing written or sent.
+func nxRefuse(format string, a ...any) error { return nxFail(3, format, a...) }
+
+// Commands that write a file or stored state without being document edits.
+// What they cannot do is a refusal rather than a failure.
+var nxWritingCommands = map[string]bool{
+	"init": true, "fetch": true, "synthesize": true, "codegen": true, "fmt": true,
+	"context.set": true, "context.remove": true,
+	"delegate.register": true, "delegate.prefer": true, "delegate.unregister": true,
+}
+
+func (c *nxCtx) writes() bool {
+	return c.cmd.Annotations["edits"] == "true" || c.cmd.Annotations["writes"] == "true"
+}
+
+// missing reports a name that is not there: a refusal for a command that
+// would have changed something, a failure for one that only reads.
+func (c *nxCtx) missing(format string, a ...any) error {
+	if c.writes() {
+		return nxRefuse(format, a...)
+	}
+	return nxFail(1, format, a...)
+}
+
 func nxLeaf(id, use, short, long, example string, args cobra.PositionalArgs, run func(*nxCtx) error) *cobra.Command {
 	return &cobra.Command{
 		Use: use, Short: short, Long: long, Example: example, Args: args,
-		Annotations: map[string]string{"surface-id": id},
+		Annotations: map[string]string{"surface-id": id, "writes": fmt.Sprint(nxWritingCommands[id])},
 		RunE: func(cmd *cobra.Command, a []string) error {
 			return nxRun(cmd, a, run)
 		},
@@ -363,7 +387,7 @@ func (c *nxCtx) wrote(path string, before, after *nxObj, summary string) error {
 		return nil
 	}
 	if added := nxNewViolations(before, after); len(added) > 0 {
-		return nxFail(1, "refused: this change would make %s non-conformant, so nothing was written:\n  %s", path, strings.Join(added, "\n  "))
+		return nxRefuse("refused: this change would make %s non-conformant, so nothing was written:\n  %s", path, strings.Join(added, "\n  "))
 	}
 	if c.variant() == "filter-edits" {
 		if dest := c.str("out"); dest != "" {

@@ -698,7 +698,7 @@ use ob operation set --add-alias. ob compat shows which are missing.`,
 			names := c.strs("operation")
 			for _, n := range names {
 				if !fromOps.Has(n) {
-					return nxFail(1, "%s has no operation named %q", c.args[1], n)
+					return nxRefuse("%s has no operation named %q", c.args[1], n)
 				}
 			}
 			if len(names) == 0 {
@@ -745,7 +745,7 @@ use ob operation set --add-alias. ob compat shows which are missing.`,
 				}
 			}
 			if len(m.conflicts) > 0 {
-				return nxFail(1, "refused: %s and %s differ, so nothing was written:\n  %s\n--ours keeps what %s has; --theirs takes what %s has.", c.args[0], c.args[1], strings.Join(m.conflicts, "\n  "), c.args[0], c.args[1])
+				return nxRefuse("refused: %s and %s differ, so nothing was written:\n  %s\n--ours keeps what %s has; --theirs takes what %s has.", c.args[0], c.args[1], strings.Join(m.conflicts, "\n  "), c.args[0], c.args[1])
 			}
 			if len(added)+len(updated) == 0 {
 				c.println("Nothing to merge from " + c.args[1] + ".")
@@ -858,7 +858,7 @@ then ob source pull.`,
 				return nxUsageErr("--kind is required: the exact kind of the artifact, such as example.openapi@1")
 			}
 			if _, ok := nxSupports(kind, "synthesize"); !ok {
-				return nxFail(1, "this ob cannot synthesize from %s artifacts; ob kind list shows what it can handle", kind)
+				return nxRefuse("this ob cannot synthesize from %s artifacts; ob kind list shows what it can handle", kind)
 			}
 			name := c.str("source")
 			if name == "" {

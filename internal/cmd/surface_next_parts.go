@@ -12,7 +12,7 @@ import (
 func (c *nxCtx) opKey(doc *nxObj, name string) (string, error) {
 	key, ok := nxResolveOperation(doc, name)
 	if !ok {
-		return "", nxFail(1, "no operation named %q in %s", name, c.args[0])
+		return "", c.missing("no operation named %q in %s", name, c.args[0])
 	}
 	if key != name {
 		c.note(fmt.Sprintf("(%s is an alias of operation %s)", name, key))
@@ -24,7 +24,7 @@ func (c *nxCtx) entry(doc *nxObj, part, what, name string) (*nxObj, error) {
 	if m := doc.Obj(part); m != nil && m.Has(name) {
 		return m.Obj(name), nil
 	}
-	return nil, nxFail(1, "no %s named %q in %s", what, name, c.args[0])
+	return nil, c.missing("no %s named %q in %s", what, name, c.args[0])
 }
 
 func (c *nxCtx) unset(obj *nxObj, allowed ...string) error {
@@ -102,21 +102,21 @@ func nxRenameCmd(id, short, long, noun, part, example string, apply func(doc *nx
 		}
 		if part == "operations" && (after.Obj("operations") == nil || !after.Obj("operations").Has(from)) {
 			if key, ok := nxResolveOperation(after, from); ok {
-				return nxFail(1, "%s is an alias of operation %s; rename changes an operation's key (ob operation rename %s %s <new-name>), and aliases change with ob operation set --add-alias and --remove-alias", from, key, c.args[0], key)
+				return nxRefuse("%s is an alias of operation %s; rename changes an operation's key (ob operation rename %s %s <new-name>), and aliases change with ob operation set --add-alias and --remove-alias", from, key, c.args[0], key)
 			}
 		}
 		if _, err := c.entry(after, part, noun, from); err != nil {
 			return err
 		}
 		if after.Obj(part).Has(to) {
-			return nxFail(1, "%s %q already exists in %s", noun, to, c.args[0])
+			return nxRefuse("%s %q already exists in %s", noun, to, c.args[0])
 		}
 		if part == "operations" {
 			if other, taken := nxResolveOperation(after, to); taken {
 				if other == from {
-					return nxFail(1, "%q is already an alias of %s; remove that alias first (ob operation set %s %s --remove-alias %s), then rename", to, from, c.args[0], from, to)
+					return nxRefuse("%q is already an alias of %s; remove that alias first (ob operation set %s %s --remove-alias %s), then rename", to, from, c.args[0], from, to)
 				}
-				return nxFail(1, "%q is already an alias of operation %s", to, other)
+				return nxRefuse("%q is already an alias of operation %s", to, other)
 			}
 		}
 		after.Obj(part).Rename(from, to)
@@ -144,9 +144,9 @@ shared contract's name for it.`,
 			after := nxClone(before).(*nxObj)
 			if key, ok := nxResolveOperation(after, name); ok {
 				if key == name {
-					return nxFail(1, "operation %q already exists in %s; use ob operation set to change it", name, c.args[0])
+					return nxRefuse("operation %q already exists in %s; use ob operation set to change it", name, c.args[0])
 				}
-				return nxFail(1, "%q is already an alias of operation %s", name, key)
+				return nxRefuse("%q is already an alias of operation %s", name, key)
 			}
 			op := nxNewObj()
 			if err := nxOperationFields(c, after, op, name); err != nil {
@@ -232,7 +232,7 @@ operation; --cascade removes those too.`,
 			}
 			users := append(nxReferrers(after, "bindings", "operation", key), nxReferrers(after, "dependencies", "operation", key)...)
 			if len(users) > 0 && !c.on("cascade") {
-				return nxFail(1, "operation %s is used by %s; remove those first, or use --cascade", key, strings.Join(users, ", "))
+				return nxRefuse("operation %s is used by %s; remove those first, or use --cascade", key, strings.Join(users, ", "))
 			}
 			for _, part := range []string{"bindings", "dependencies"} {
 				for _, k := range nxReferrers(after, part, "operation", key) {
@@ -339,7 +339,7 @@ the schema always wins.`,
 				op.SetCanon("examples", examples, nxOperationOrder)
 			}
 			if examples.Has(c.args[2]) {
-				return nxFail(1, "operation %s already has an example named %q", key, c.args[2])
+				return nxRefuse("operation %s already has an example named %q", key, c.args[2])
 			}
 			ex := nxNewObj()
 			if c.set("description") {
@@ -376,7 +376,7 @@ the schema always wins.`,
 			}
 			op := after.Obj("operations").Obj(key)
 			if op.Obj("examples") == nil || !op.Obj("examples").Has(c.args[2]) {
-				return nxFail(1, "operation %s has no example named %q", key, c.args[2])
+				return nxRefuse("operation %s has no example named %q", key, c.args[2])
 			}
 			op.Obj("examples").Delete(c.args[2])
 			if op.Obj("examples").Len() == 0 {
@@ -391,7 +391,7 @@ the schema always wins.`,
 		}
 		examples := doc.Obj("operations").Obj(key).Obj("examples")
 		if examples == nil || !examples.Has(c.args[2]) {
-			return "", nil, nxFail(1, "operation %s has no example named %q", key, c.args[2])
+			return "", nil, c.missing("operation %s has no example named %q", key, c.args[2])
 		}
 		return key, examples.Obj(c.args[2]), nil
 	}
@@ -449,7 +449,7 @@ does not fit the operation's schema; the schema always wins.`,
 			}
 			examples := after.Obj("operations").Obj(key).Obj("examples")
 			if examples.Has(c.args[3]) {
-				return nxFail(1, "operation %s already has an example named %q", key, c.args[3])
+				return nxRefuse("operation %s already has an example named %q", key, c.args[3])
 			}
 			examples.Rename(c.args[2], c.args[3])
 			return c.wrote(c.args[0], before, after, fmt.Sprintf("Renamed example %s of operation %s to %s", c.args[2], key, c.args[3]))
@@ -527,7 +527,7 @@ func nxOperationFields(c *nxCtx, doc, op *nxObj, key string) error {
 			return nxUsageErr("%q is the operation's own name; an alias must be a different name", a)
 		}
 		if other, taken := nxResolveOperation(doc, a); taken && other != key {
-			return nxFail(1, "%q is already a name of operation %s; names must be unique across operations and aliases", a, other)
+			return nxRefuse("%q is already a name of operation %s; names must be unique across operations and aliases", a, other)
 		}
 		aliases = nxAppendNew(aliases, a)
 	}
@@ -605,7 +605,7 @@ explicit null, which is not the same as leaving content out.`,
 			before := c.doc(c.args[0])
 			after := nxClone(before).(*nxObj)
 			if after.Obj("sources") != nil && after.Obj("sources").Has(name) {
-				return nxFail(1, "source %q already exists in %s; use ob source set to change it", name, c.args[0])
+				return nxRefuse("source %q already exists in %s; use ob source set to change it", name, c.args[0])
 			}
 			src := nxNewObj().Set("kind", kind)
 			if err := nxSourceFields(c, src); err != nil {
@@ -676,7 +676,7 @@ removes those bindings too.`,
 			}
 			users := nxReferrers(after, "bindings", "source", c.args[1])
 			if len(users) > 0 && !c.on("cascade") {
-				return nxFail(1, "source %s is used by %s; remove those first, or use --cascade", c.args[1], strings.Join(users, ", "))
+				return nxRefuse("source %s is used by %s; remove those first, or use --cascade", c.args[1], strings.Join(users, ", "))
 			}
 			for _, k := range users {
 				after.Obj("bindings").Delete(k)
@@ -743,12 +743,12 @@ pull afterwards.`,
 				return nxUsageErr("--kind is required: the artifact's exact kind, such as example.openapi@1")
 			}
 			if _, ok := nxSupports(kind, "synthesize"); !ok {
-				return nxFail(1, "this ob has no handler that can import %s artifacts; ob kind list shows what it can handle", kind)
+				return nxRefuse("this ob has no handler that can import %s artifacts; ob kind list shows what it can handle", kind)
 			}
 			before := c.doc(c.args[0])
 			after := nxClone(before).(*nxObj)
 			if after.Obj("sources").Has(name) {
-				return nxFail(1, "source %q already exists in %s", name, c.args[0])
+				return nxRefuse("source %q already exists in %s", name, c.args[0])
 			}
 			nxPart(after, "sources").Set(name, nxNewObj().Set("kind", kind).Set("content", nxNewObj().Set("location", artifact)))
 			c.note(fmt.Sprintf("(preview: %s was not read; the %s handler would decide the content)", artifact, kind))
@@ -880,7 +880,7 @@ func nxPullTarget(c *nxCtx, before, after *nxObj, source, target string) error {
 		after.Obj("bindings").Set(t.binding, nxNewObj().Set("operation", t.operation).Set("source", source).Set("content", nxMustParse(t.content)))
 		return c.wrote(c.args[0], before, after, summary)
 	}
-	return nxFail(1, "%s offers no target %q; ob source inspect %s %s lists them", source, target, c.args[0], source)
+	return nxRefuse("%s offers no target %q; ob source inspect %s %s lists them", source, target, c.args[0], source)
 }
 
 func nxSourceFields(c *nxCtx, src *nxObj) error {
@@ -947,7 +947,7 @@ bindings; ob invoke shows it but does not choose by it.`,
 			before := c.doc(c.args[0])
 			after := nxClone(before).(*nxObj)
 			if after.Obj("bindings") != nil && after.Obj("bindings").Has(name) {
-				return nxFail(1, "binding %q already exists in %s; use ob binding set to change it", name, c.args[0])
+				return nxRefuse("binding %q already exists in %s; use ob binding set to change it", name, c.args[0])
 			}
 			b := nxNewObj()
 			if err := nxBindingFields(c, after, b); err != nil {
@@ -1129,7 +1129,7 @@ binding can serve it (any of those listed); leave it out to accept any kind.`,
 			before := c.doc(c.args[0])
 			after := nxClone(before).(*nxObj)
 			if after.Obj("dependencies") != nil && after.Obj("dependencies").Has(name) {
-				return nxFail(1, "dependency %q already exists in %s; use ob dependency set to change it", name, c.args[0])
+				return nxRefuse("dependency %q already exists in %s; use ob dependency set to change it", name, c.args[0])
 			}
 			d := nxNewObj()
 			if err := nxDependencyFields(c, after, d); err != nil {
@@ -1254,7 +1254,7 @@ func nxDependencyFields(c *nxCtx, doc, d *nxObj) error {
 	}
 	if c.set("kind") || c.set("add-kind") || c.set("remove-kind") {
 		if len(kinds) == 0 {
-			return nxFail(1, "that would remove the last kind, and a dependency without kinds declares no kind constraint (spec §5.5); to mean that, use --unset kinds")
+			return nxRefuse("that would remove the last kind, and a dependency without kinds declares no kind constraint (spec §5.5); to mean that, use --unset kinds")
 		} else {
 			d.SetCanon("kinds", nxToAny(kinds), nxDependOrder)
 		}
@@ -1285,7 +1285,7 @@ func nxSchemaCmd() *cobra.Command {
 			before := c.doc(c.args[0])
 			after := nxClone(before).(*nxObj)
 			if m := after.Obj("schemas"); m != nil && m.Has(c.args[1]) {
-				return nxFail(1, "schema %q already exists in %s; use ob schema set to replace it", c.args[1], c.args[0])
+				return nxRefuse("schema %q already exists in %s; use ob schema set to replace it", c.args[1], c.args[0])
 			}
 			nxPart(after, "schemas").Set(c.args[1], v)
 			return c.wrote(c.args[0], before, after, "Added schema "+c.args[1])
@@ -1324,7 +1324,7 @@ func nxSchemaCmd() *cobra.Command {
 				return err
 			}
 			if refs := nxSchemaReferrers(after, c.args[1]); len(refs) > 0 {
-				return nxFail(1, "schema %s is referenced by %s", c.args[1], strings.Join(refs, ", "))
+				return nxRefuse("schema %s is referenced by %s", c.args[1], strings.Join(refs, ", "))
 			}
 			after.Obj("schemas").Delete(c.args[1])
 			return c.wrote(c.args[0], before, after, "Removed schema "+c.args[1])

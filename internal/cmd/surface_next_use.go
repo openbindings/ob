@@ -191,7 +191,7 @@ them.`,
 	remove := nxLeaf("context.remove", "remove <scope>", "Remove a stored context", "Remove everything stored for one scope.",
 		`  ob context remove https://api.example.com/openapi.json`, nxArgs(1, 1), func(c *nxCtx) error {
 			if _, ok := nxStoredContext(c.args[0]); !ok {
-				return nxFail(1, "nothing is stored for %q", c.args[0])
+				return nxRefuse("nothing is stored for %q", c.args[0])
 			}
 			c.println("Removed the context for " + c.args[0])
 			return nil
@@ -605,7 +605,7 @@ re-registers an existing delegate with a new OBI or roles.`,
 				return d, nil
 			}
 		}
-		return nxDelegate{}, nxFail(1, "no delegate %q; ob delegate list shows them", id)
+		return nxDelegate{}, nxRefuse("no delegate %q; ob delegate list shows them", id)
 	}
 	prefer := nxLeaf("delegate.prefer", "prefer <id> <number> --role <role>", "Set a delegate's preference for a role", `Set how strongly ob prefers a delegate among delegates for one role; higher
 wins. --clear removes the preference instead.`,
@@ -620,7 +620,7 @@ wins. --clear removes the preference instead.`,
 				return nxUsageErr("--role is required: %v", err)
 			}
 			if !nxContains(d.roles, role) {
-				return nxFail(1, "%s is not registered for %s", d.id, role)
+				return nxRefuse("%s is not registered for %s", d.id, role)
 			}
 			if c.on("clear") && len(c.args) == 2 {
 				return nxUsageErr("--clear removes the preference, so it does not take a number; choose one")
