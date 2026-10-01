@@ -180,7 +180,7 @@ and configuration can hold secrets too; --reveal prints them.`,
 		`  ob context show https://api.example.com`, nxArgs(1, 1), func(c *nxCtx) error {
 			ctx, ok := nxStoredContext(c.args[0])
 			if !ok {
-				return nxFail(1, "nothing is stored for %q; ob context list shows the scopes that have context", c.args[0])
+				return nxNotFound("nothing is stored for %q; ob context list shows the scopes that have context", c.args[0])
 			}
 			fields := nxNewObj()
 			var rows [][]string
@@ -205,7 +205,7 @@ and configuration can hold secrets too; --reveal prints them.`,
 	remove := nxLeaf("context.remove", "remove <scope>", "Remove a stored context", "Remove everything stored for one scope.",
 		`  ob context remove https://api.example.com/openapi.json`, nxArgs(1, 1), func(c *nxCtx) error {
 			if _, ok := nxStoredContext(c.args[0]); !ok {
-				return nxRefuse("nothing is stored for %q", c.args[0])
+				return nxNotFound("nothing is stored for %q; ob context list shows the scopes that have context", c.args[0])
 			}
 			c.println("Removed the context for " + c.args[0])
 			return nil
@@ -471,14 +471,14 @@ that is not in the document is refused.`,
 			for _, name := range c.strs("operation") {
 				key, ok := nxResolveOperation(doc, name)
 				if !ok {
-					return nxRefuse("no operation named %q in %s%s, so nothing was served", name, c.args[0], nxDidYouMean(doc, name))
+					return nxNotFound("no operation named %q in %s%s", name, c.args[0], nxDidYouMean(doc, name))
 				}
 				only[key] = true
 			}
 			named := map[string][]string{}
 			for _, b := range c.strs("binding") {
 				if doc.Obj("bindings") == nil || !doc.Obj("bindings").Has(b) {
-					return nxRefuse("no binding named %q in %s, so nothing was served", b, c.args[0])
+					return nxNotFound("no binding named %q in %s", b, c.args[0])
 				}
 				op := fmt.Sprint(doc.Obj("bindings").Obj(b).Get("operation"))
 				named[op] = append(named[op], b)
@@ -709,7 +709,7 @@ re-registers an existing delegate with a new OBI or roles.`,
 				return d, nil
 			}
 		}
-		return nxDelegate{}, nxRefuse("no delegate %q; ob delegate list shows them", id)
+		return nxDelegate{}, nxNotFound("no delegate %q; ob delegate list shows them", id)
 	}
 	prefer := nxLeaf("delegate.prefer", "prefer <id> <number> --role <role>", "Set a delegate's preference for a role", `Set how strongly ob prefers a delegate among delegates for one role; higher
 wins. --clear removes the preference instead.`,

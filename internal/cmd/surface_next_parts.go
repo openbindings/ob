@@ -12,7 +12,7 @@ import (
 func (c *nxCtx) opKey(doc *nxObj, name string) (string, error) {
 	key, ok := nxResolveOperation(doc, name)
 	if !ok {
-		return "", c.missing("no operation named %q in %s%s", name, c.args[0], nxDidYouMean(doc, name))
+		return "", nxNotFound("no operation named %q in %s%s", name, c.args[0], nxDidYouMean(doc, name))
 	}
 	if key != name {
 		c.note(fmt.Sprintf("(%s is an alias of operation %s)", name, key))
@@ -24,7 +24,7 @@ func (c *nxCtx) entry(doc *nxObj, part, what, name string) (*nxObj, error) {
 	if m := doc.Obj(part); m != nil && m.Has(name) {
 		return m.Obj(name), nil
 	}
-	return nil, c.missing("no %s named %q in %s", what, name, c.args[0])
+	return nil, nxNotFound("no %s named %q in %s", what, name, c.args[0])
 }
 
 // unset removes the members --unset names. Each allowed entry is a name, or
@@ -45,6 +45,9 @@ func (c *nxCtx) unset(obj *nxObj, allowed ...string) error {
 		member, ok := names[u]
 		if !ok {
 			return nxUsageErr("--unset takes one of: %s", strings.Join(list, ", "))
+		}
+		if !obj.Has(member) {
+			return nxNotFound("there is no %s to remove", u)
 		}
 		obj.Delete(member)
 	}
@@ -83,7 +86,7 @@ func nxNeedsChange(c *nxCtx) error {
 }
 
 func nxListFormats(cmd *cobra.Command) *cobra.Command {
-	nxFormat(cmd, "text", "json", "yaml")
+	nxFormat(cmd, "text", "json")
 	return cmd
 }
 
@@ -91,8 +94,6 @@ func (c *nxCtx) render(v any, text func()) {
 	switch c.format() {
 	case "json":
 		c.println(nxPretty(v))
-	case "yaml":
-		c.println(nxYAML(v))
 	default:
 		text()
 	}
@@ -394,7 +395,7 @@ the schema always wins.`,
 			}
 			op := after.Obj("operations").Obj(key)
 			if op.Obj("examples") == nil || !op.Obj("examples").Has(c.args[2]) {
-				return nxRefuse("operation %s has no example named %q", key, c.args[2])
+				return nxNotFound("operation %s has no example named %q", key, c.args[2])
 			}
 			op.Obj("examples").Delete(c.args[2])
 			if op.Obj("examples").Len() == 0 {
@@ -409,7 +410,7 @@ the schema always wins.`,
 		}
 		examples := doc.Obj("operations").Obj(key).Obj("examples")
 		if examples == nil || !examples.Has(c.args[2]) {
-			return "", nil, c.missing("operation %s has no example named %q", key, c.args[2])
+			return "", nil, nxNotFound("operation %s has no example named %q", key, c.args[2])
 		}
 		return key, examples.Obj(c.args[2]), nil
 	}
@@ -551,7 +552,7 @@ func nxOperationFields(c *nxCtx, doc, op *nxObj, key string) error {
 	}
 	for _, a := range c.strs("remove-alias") {
 		if !nxContains(aliases, a) {
-			return nxRefuse("operation %s has no alias %q, so nothing was written", key, a)
+			return nxNotFound("operation %s has no alias %q", key, a)
 		}
 		aliases = nxWithout(aliases, a)
 	}
@@ -568,7 +569,7 @@ func nxOperationFields(c *nxCtx, doc, op *nxObj, key string) error {
 	}
 	for _, t := range c.strs("remove-tag") {
 		if !nxContains(tags, t) {
-			return nxRefuse("operation %s has no tag %q, so nothing was written", key, t)
+			return nxNotFound("operation %s has no tag %q", key, t)
 		}
 		tags = nxWithout(tags, t)
 	}
@@ -945,7 +946,7 @@ func nxPullTarget(c *nxCtx, before, after *nxObj, source, target string) error {
 		after.Obj("bindings").Set(binding, nxNewObj().Set("operation", op).Set("source", source).Set("content", nxMustParse(t.content)))
 		return c.wrote(c.args[0], before, after, summary)
 	}
-	return nxRefuse("%s offers no target %q; ob source inspect %s %s lists them", source, target, c.args[0], source)
+	return nxNotFound("%s offers no target %q; ob source inspect %s %s lists them", source, target, c.args[0], source)
 }
 
 // nxCanRead says whether this ob can read a source of a kind, which is what
@@ -1451,7 +1452,7 @@ func nxDependencyFields(c *nxCtx, doc, d *nxObj) error {
 	}
 	for _, k := range c.strs("remove-kind") {
 		if !nxContains(kinds, k) {
-			return nxRefuse("the dependency does not list kind %q, so nothing was written", k)
+			return nxNotFound("the dependency does not list kind %q", k)
 		}
 		kinds = nxWithout(kinds, k)
 	}

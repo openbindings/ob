@@ -29,12 +29,12 @@ writes your input values to it, prints each output value as it arrives, and
 finishes when the binding does. One value in and one out, a stream in, a
 stream out, or both at once all work the same way.
 
-Input:
-  --input VALUE   write one value (JSON), then close the input
-  --input @FILE   write each JSON value in the file, then close the input
-  --input -       write each JSON value read from stdin, and close the input
-                  when stdin ends (Ctrl-D at a terminal)
-  no --input      write nothing, and close the input
+Input: each --input writes, in order; then ob closes the input.
+  --input VALUE   one value (JSON)
+  --input @FILE   each JSON value in the file
+  --input -       each JSON value read from stdin, as it arrives, until
+                  stdin ends (Ctrl-D at a terminal)
+  no --input      nothing; ob closes the input at once
 
 Output: each output value, as one line of JSON, as it arrives. --frames
 prints the whole exchange instead, one frame per line, exactly as the
@@ -51,16 +51,21 @@ several, ob stops and lists them. Preference and deprecation are shown,
 never used to choose.
 
 Checks: ob checks each input value against the operation's input schema
-before sending it, and each output value against its output schema. A
-value given with --input VALUE is checked before ob asks for any context.
-When a schema cannot be fully resolved, ob cannot check against it and
-stops with ERR_SCHEMA_UNRESOLVED.
+before sending it, and each output value against its output schema. Values
+given with --input VALUE are checked before ob asks for any context. Where
+the operation states no schema for a side, its values pass unchecked
+(OBI-T-08). When a schema cannot be fully resolved, ob cannot check against
+it and stops with ERR_SCHEMA_UNRESOLVED, before sending anything.
+
+--timeout gives the call a deadline: ob passes it to the binding where the
+binding takes one, and cancels the exchange if it has not finished.
 
 Context: what a binding needs beyond the input, such as a credential, comes
 from ob's context store, looked up by the exact scope the binding asks for.
 At a terminal ob gets anything missing: it asks for a value, or runs the
 sign-in the binding names (such as an OAuth 2.0 flow in your browser), and
-offers to store the result. Stored tokens are renewed as they expire.
+offers to store the result when the binding says it may be reused (durable).
+Stored tokens are renewed as they expire.
 Otherwise ob stops before sending anything and prints what supplies it: an
 ob context set command, or, for a sign-in, this same invoke with
 --preflight to run once at a terminal. --context gives context for this call
@@ -74,17 +79,20 @@ running the sign-in, and stores it for later calls.
 
 Without --frames, an error's code, and any data it carries, go to stderr.
 
-Exit status: 0 completed; 1 the operation failed or an output did not fit
-(either may have taken effect); 3 refused before anything was sent;
-130 cancelled.`,
+Exit status: 0 completed; 1 the operation failed, an output did not fit,
+or the deadline passed (any of these may have taken effect); 2 a usage
+error, including a name that is not in the document; 3 refused before
+anything was sent (a value that does not fit, missing context, an
+unresolvable schema, or a binding's ERR_REFUSED); 130 cancelled.`,
 		`  ob invoke tasks.obi.json completeTask --input '{"id":"t_1"}'
   ob invoke tasks.obi.json createTask --binding createTask.http --input '{"title":"Ship it"}'
   printf '{"title":"a"}\n{"title":"b"}\n' | ob invoke tasks.obi.json importTasks --input -
   ob invoke tasks.obi.json watchTasks --frames
   ob invoke tasks.obi.json createTask --binding createTask.mcp --preflight`,
 		nxArgs(2, 2), nxInvoke)
-	cmd.Flags().String("input", "", "the input: one JSON value, @file, or - to stream values from stdin")
+	cmd.Flags().StringArray("input", nil, "a value to write: JSON, @file, or - to stream from stdin (repeatable, in order)")
 	cmd.Flags().StringArray("binding", nil, "use this binding; repeat for an ordered list")
+	cmd.Flags().Duration("timeout", 0, "a deadline for the call, such as 30s; ob cancels the exchange when it passes")
 	cmd.Flags().Bool("frames", false, "print the whole exchange as frames, not just output values")
 	cmd.Flags().String("context", "", "context for this call only: a JSON object, @file, or -")
 	cmd.Flags().Bool("preflight", false, "print what the binding will ask for, and at a terminal get what is missing; call nothing")
@@ -101,11 +109,11 @@ whole exchange, one frame per line.`,
 			b, err := c.entry(doc, "bindings", "binding", c.args[1])
 			if err != nil {
 				c.println(nxErrorFrame("ERR_BINDING_NOT_FOUND", nil))
-				return nxFail(3, "%s", err.Error())
+				return err
 			}
 			return nxInvokeThrough(c, doc, fmt.Sprint(b.Get("operation")), c.args[1], true)
 		})
-	cmd.Flags().String("input", "", "the input: one JSON value, @file, or - to stream values from stdin")
+	cmd.Flags().StringArray("input", nil, "a value to write: JSON, @file, or - to stream from stdin (repeatable, in order)")
 	cmd.Flags().String("context", "", "context for this call only: a JSON object, @file, or -")
 	cmd.Flags().Bool("preflight", false, "print what the binding will ask for, and at a terminal get what is missing; call nothing")
 	return cmd
@@ -139,13 +147,20 @@ func nxInvoke(c *nxCtx) error {
 		}
 		return nxFail(3, format, a...)
 	}
+	// A name that is not in the document is a usage error, with the same frame.
+	notFound := func(code, format string, a ...any) error {
+		if c.on("frames") {
+			c.println(nxErrorFrame(code, nil))
+		}
+		return nxNotFound(format, a...)
+	}
 	key, ok := nxResolveOperation(doc, c.args[1])
 	if !ok {
 		hint := nxDidYouMean(doc, c.args[1])
 		if hint == "" {
 			hint = "; ob operation list shows them"
 		}
-		return refuse("ERR_OPERATION_NOT_FOUND", "no operation named %q in %s%s", c.args[1], c.args[0], hint)
+		return notFound("ERR_OPERATION_NOT_FOUND", "no operation named %q in %s%s", c.args[1], c.args[0], hint)
 	}
 	bindings := nxReferrers(doc, "bindings", "operation", key)
 	if len(bindings) == 0 {
@@ -172,10 +187,10 @@ func nxInvoke(c *nxCtx) error {
 	if named := c.strs("binding"); len(named) > 0 {
 		for _, b := range named {
 			if doc.Obj("bindings") == nil || !doc.Obj("bindings").Has(b) {
-				return refuse("ERR_BINDING_NOT_FOUND", "no binding named %q in %s", b, c.args[0])
+				return notFound("ERR_BINDING_NOT_FOUND", "no binding named %q in %s", b, c.args[0])
 			}
 			if !nxContains(bindings, b) {
-				return refuse("ERR_BINDING_NOT_FOUND", "binding %s carries out %v, not %s", b, doc.Obj("bindings").Obj(b).Get("operation"), key)
+				return notFound("ERR_BINDING_NOT_FOUND", "binding %s carries out %v, not %s", b, doc.Obj("bindings").Obj(b).Get("operation"), key)
 			}
 		}
 		for _, b := range named {
@@ -251,11 +266,12 @@ func nxInvokeThrough(c *nxCtx, doc *nxObj, key, binding string, frames bool) err
 		c.println(nxCompact(details))
 		return nil
 	}
-	inputs, closeInputs, err := nxInputs(c)
+	sources, err := nxValueSources(c, "input")
 	if err != nil {
 		return err
 	}
-	defer closeInputs()
+	defer nxCloseSources(sources)
+	inputs := nxValueReader(sources)
 	sent := 0
 	checkInput := func(v any) error {
 		problems, checked, err := nxCheck(doc, key, "input", v)
@@ -270,19 +286,23 @@ func nxInvokeThrough(c *nxCtx, doc *nxObj, key, binding string, frames bool) err
 		}
 		return nxFail(1, "input value %d does not fit %s's input schema (%s); ob stopped after sending %s, which may have taken effect", sent+1, key, strings.Join(problems, "; "), nxCount(sent, "value"))
 	}
-	// ob checks a value it already holds before asking for anything.
-	prechecked := false
-	if raw := c.str("input"); c.set("input") && raw != "-" && !strings.HasPrefix(raw, "@") {
-		v, _ := nxParse(raw)
-		if err := checkInput(v); err != nil {
-			return err
+	// ob checks the values it already holds before asking for anything.
+	for _, src := range sources {
+		if src.isInline {
+			if err := checkInput(src.inline); err != nil {
+				return err
+			}
 		}
-		prechecked = true
 	}
 	// A stream that stops being JSON ends the call: ob, as the caller, cancels.
 	next := func() (any, bool, error) {
-		v, ok, err := inputs()
+		v, inline, ok, err := inputs()
 		if err == nil {
+			if ok && !inline {
+				if err := checkInput(v); err != nil {
+					return nil, false, err
+				}
+			}
 			return v, ok, nil
 		}
 		if frames {
@@ -343,9 +363,7 @@ func nxInvokeThrough(c *nxCtx, doc *nxObj, key, binding string, frames bool) err
 			if !ok {
 				break
 			}
-			if err := checkInput(v); err != nil {
-				return err
-			}
+			_ = v
 			sent++
 		}
 		if err := emit(nxNewObj().Set("imported", sent)); err != nil {
@@ -358,6 +376,10 @@ func nxInvokeThrough(c *nxCtx, doc *nxObj, key, binding string, frames bool) err
 		interrupt := make(chan os.Signal, 1)
 		signal.Notify(interrupt, os.Interrupt)
 		defer signal.Stop(interrupt)
+		var deadline <-chan time.Time
+		if d, _ := c.cmd.Flags().GetDuration("timeout"); d > 0 {
+			deadline = time.After(d)
+		}
 		for i, title := range []string{"Write the docs", "Review the spec", "Ship it"} {
 			if i > 0 && nxTerminalOut(c) {
 				select {
@@ -366,6 +388,11 @@ func nxInvokeThrough(c *nxCtx, doc *nxObj, key, binding string, frames bool) err
 						c.println(nxErrorFrame("ERR_CANCELLED", nil))
 					}
 					return nxFail(130, "cancelled")
+				case <-deadline:
+					if frames {
+						c.println(nxErrorFrame("ERR_CANCELLED", nil))
+					}
+					return nxFail(1, "the deadline passed, so ob cancelled the call; what it did so far may have taken effect")
 				case <-time.After(700 * time.Millisecond):
 				}
 			}
@@ -379,11 +406,6 @@ func nxInvokeThrough(c *nxCtx, doc *nxObj, key, binding string, frames bool) err
 			return err
 		}
 		if ok {
-			if !prechecked {
-				if err := checkInput(v); err != nil {
-					return err
-				}
-			}
 			sent++
 		} else {
 			c.note("(no input value was sent)")
@@ -391,7 +413,7 @@ func nxInvokeThrough(c *nxCtx, doc *nxObj, key, binding string, frames bool) err
 		if frames {
 			c.println(`{"kind":"input_closed"}`)
 		}
-		if _, more, _ := inputs(); more {
+		if _, _, more, _ := inputs(); more {
 			c.note(binding + " takes one input value; ob stopped reading after the first")
 		}
 		if err := emit(nxUnaryResult(key, v)); err != nil {
@@ -424,54 +446,85 @@ func nxUnaryResult(key string, input any) any {
 	return nxNewObj()
 }
 
-// nxInputs returns a reader of input values: one inline value, every value
-// in a file, or every value on stdin as it arrives.
-func nxInputs(c *nxCtx) (func() (any, bool, error), func(), error) {
-	none := func() (any, bool, error) { return nil, false, nil }
-	if !c.set("input") {
-		return none, func() {}, nil
-	}
-	raw := c.str("input")
-	var r io.Reader
-	closer := func() {}
-	switch {
-	case raw == "-":
-		r = c.cmd.InOrStdin()
-	case strings.HasPrefix(raw, "@"):
-		if raw == "@" {
-			return nil, nil, nxUsageErr("--input: @ must be followed by a file path")
-		}
-		f, err := os.Open(raw[1:])
-		if err != nil {
-			return nil, nil, nxFail(3, "cannot read input file %s: %v; nothing was sent", raw[1:], err)
-		}
-		r, closer = f, func() { f.Close() }
-	default:
-		v, err := nxParse(raw)
-		if err != nil {
-			return nil, nil, nxUsageErr("--input: expected one JSON value, @file, or - for stdin")
-		}
-		done := false
-		return func() (any, bool, error) {
-			if done {
-				return nil, false, nil
+// nxValueSource is one --input (or --output): an inline value, or a stream
+// of JSON values from a file or stdin.
+type nxValueSource struct {
+	inline   any
+	isInline bool
+	dec      *json.Decoder
+	closer   func()
+}
+
+// nxValueSources reads a repeatable value flag. Inline values are parsed at
+// once; files are opened; stdin may be given once.
+func nxValueSources(c *nxCtx, flag string) ([]nxValueSource, error) {
+	var out []nxValueSource
+	stdin := false
+	for _, raw := range c.strs(flag) {
+		switch {
+		case raw == "-":
+			if stdin {
+				return nil, nxUsageErr("--%s: stdin (-) can be given only once", flag)
 			}
-			done = true
-			return v, true, nil
-		}, func() {}, nil
+			stdin = true
+			dec := json.NewDecoder(c.cmd.InOrStdin())
+			dec.UseNumber()
+			out = append(out, nxValueSource{dec: dec})
+		case strings.HasPrefix(raw, "@"):
+			if raw == "@" {
+				return nil, nxUsageErr("--%s: @ must be followed by a file path", flag)
+			}
+			f, err := os.Open(raw[1:])
+			if err != nil {
+				nxCloseSources(out)
+				return nil, nxNotFound("cannot read %s: %v", raw[1:], err)
+			}
+			dec := json.NewDecoder(f)
+			dec.UseNumber()
+			out = append(out, nxValueSource{dec: dec, closer: func() { f.Close() }})
+		default:
+			v, err := nxParse(raw)
+			if err != nil {
+				nxCloseSources(out)
+				return nil, nxUsageErr("--%s: expected a JSON value, @file, or - for stdin", flag)
+			}
+			out = append(out, nxValueSource{inline: v, isInline: true})
+		}
 	}
-	dec := json.NewDecoder(r)
-	dec.UseNumber()
-	return func() (any, bool, error) {
-		v, err := nxDecode(dec)
-		if err == io.EOF {
-			return nil, false, nil
+	return out, nil
+}
+
+func nxCloseSources(sources []nxValueSource) {
+	for _, s := range sources {
+		if s.closer != nil {
+			s.closer()
 		}
-		if err != nil {
-			return nil, false, err
+	}
+}
+
+// nxValueReader returns the sources' values in order, saying whether each
+// was given inline.
+func nxValueReader(sources []nxValueSource) func() (any, bool, bool, error) {
+	i := 0
+	return func() (any, bool, bool, error) {
+		for i < len(sources) {
+			src := &sources[i]
+			if src.isInline {
+				i++
+				return src.inline, true, true, nil
+			}
+			v, err := nxDecode(src.dec)
+			if err == io.EOF {
+				i++
+				continue
+			}
+			if err != nil {
+				return nil, false, false, err
+			}
+			return v, false, true, nil
 		}
-		return v, true, nil
-	}, closer, nil
+		return nil, false, false, nil
+	}
 }
 
 // nxErrorFrame is an operation-invoker error frame. The codes the interface
@@ -485,7 +538,7 @@ func nxErrorFrame(code string, data any) string {
 }
 
 func nxInteractive(c *nxCtx) bool {
-	if c.str("input") == "-" {
+	if nxContains(c.strs("input"), "-") {
 		return false
 	}
 	f, ok := c.cmd.InOrStdin().(*os.File)

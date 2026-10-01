@@ -1,10 +1,7 @@
 package cmd
 
 import (
-	"encoding/json"
 	"fmt"
-	"io"
-	"os"
 	"regexp"
 	"sort"
 	"strings"
@@ -76,8 +73,8 @@ func nxSetCmd() *cobra.Command {
 	cmd := nxEditable(nxLeaf("set", "set <obi>", "Change a document's name, version label, or description", `Change the document's own fields: its name, its version label (the
 document's "version" member, the interface's own label, not the
 OpenBindings version), and its description. Only the flags you give change
-anything. --unset removes a field, named as its flag is: description or
-interface-version.`,
+anything. --unset removes a field, named as its flag is: name,
+description, or interface-version.`,
 		`  ob set tasks.obi.json --interface-version 1.5.0
   ob set tasks.obi.json --unset description`,
 		nxArgs(1, 1), func(c *nxCtx) error {
@@ -104,9 +101,12 @@ interface-version.`,
 				changed = append(changed, f.member)
 			}
 			for _, u := range c.strs("unset") {
-				member := map[string]string{"interface-version": "version", "description": "description"}[u]
+				member := map[string]string{"name": "name", "interface-version": "version", "description": "description"}[u]
 				if member == "" {
-					return nxUsageErr("--unset takes one of: description, interface-version")
+					return nxUsageErr("--unset takes one of: name, description, interface-version")
+				}
+				if !after.Has(member) {
+					return nxNotFound("the document has no %s to remove", u)
 				}
 				after.Delete(member)
 				changed = append(changed, member)
@@ -116,7 +116,7 @@ interface-version.`,
 	cmd.Flags().String("name", "", "a human-readable name")
 	cmd.Flags().String("interface-version", "", "the document's own version label")
 	cmd.Flags().String("description", "", "a human-readable description")
-	cmd.Flags().StringArray("unset", nil, "remove a field: description, interface-version")
+	cmd.Flags().StringArray("unset", nil, "remove a field: name, description, interface-version")
 	cmd.Flags().String("version", "", "")
 	_ = cmd.Flags().MarkHidden("version")
 	return cmd
@@ -262,35 +262,37 @@ func nxValidateCmd() *cobra.Command {
 A document written for an OpenBindings version ob does not support is
 refused rather than judged. The report names the spec text it applied.
 
---operation checks values against that operation's schemas instead: give
-one value with --input or --output, or a stream of JSON values with @file or
-- for stdin, each checked and reported in turn.
---examples checks every operation example against its schemas.
+--operation checks values against that operation's schemas instead: each
+--input or --output is a value (JSON), or a stream of JSON values from @file
+or - for stdin; every value is checked and reported in turn. --examples
+checks every operation's examples against its schemas, or with --operation,
+one operation's.
 
-Exit status: 0 conformant, or the value fits; 1 non-conformant, or it does
-not fit; 3 refused (an OpenBindings version ob does not support); 4 no
+Exit status: 0 conformant, or every value fits; 1 non-conformant, or some
+value does not fit; 2 a usage error, including a name that is not in the
+document; 3 refused (an OpenBindings version ob does not support); 4 no
 verdict (conformance undetermined, or no schema to check the value against).`,
 		`  ob validate tasks.obi.json
   ob validate tasks.obi.json --operation createTask --input '{"title":"Write the docs"}'
-  ob validate tasks.obi.json --examples`,
+  ob validate tasks.obi.json --examples --operation createTask`,
 		nxArgs(1, 1), func(c *nxCtx) error {
 			doc := c.doc(c.args[0])
 			hasValue := c.set("input") || c.set("output")
 			switch {
-			case c.on("examples") && (c.set("operation") || hasValue):
-				return nxUsageErr("--examples checks every example; it does not combine with --operation, --input, or --output")
+			case c.on("examples") && hasValue:
+				return nxUsageErr("--examples checks the examples; it does not combine with --input or --output")
 			case hasValue && !c.set("operation"):
 				return nxUsageErr("--input and --output need --operation to say which contract to check against")
-			case c.set("operation") && !hasValue:
-				return nxUsageErr("--operation needs a value to check: --input or --output")
+			case c.set("operation") && !hasValue && !c.on("examples"):
+				return nxUsageErr("--operation needs values to check (--input or --output), or --examples")
 			case c.set("input") && c.set("output"):
-				return nxUsageErr("check one value at a time: --input or --output")
-			}
-			if c.set("operation") {
-				return nxValidateValue(c, doc)
+				return nxUsageErr("check one side at a time: --input or --output")
 			}
 			if c.on("examples") {
 				return nxValidateExamples(c, doc)
+			}
+			if c.set("operation") {
+				return nxValidateValue(c, doc)
 			}
 			if c.on("quiet") {
 				return nil
@@ -310,8 +312,8 @@ verdict (conformance undetermined, or no schema to check the value against).`,
 			return nil
 		})
 	cmd.Flags().String("operation", "", "check a value against this operation (name or alias)")
-	cmd.Flags().String("input", "", "the input value to check: JSON, @file, or -")
-	cmd.Flags().String("output", "", "the output value to check: JSON, @file, or -")
+	cmd.Flags().StringArray("input", nil, "an input value to check: JSON, @file, or - (repeatable)")
+	cmd.Flags().StringArray("output", nil, "an output value to check: JSON, @file, or - (repeatable)")
 	cmd.Flags().Bool("examples", false, "check every operation example against its schemas")
 	cmd.Flags().BoolP("quiet", "q", false, "print nothing; report through the exit status only")
 	nxFormat(cmd, "text", "json")
@@ -322,20 +324,21 @@ func nxValidateValue(c *nxCtx, doc *nxObj) error {
 	name := c.str("operation")
 	key, ok := nxResolveOperation(doc, name)
 	if !ok {
-		return nxFail(1, "no operation named %q in %s%s", name, c.args[0], nxDidYouMean(doc, name))
+		return nxNotFound("no operation named %q in %s%s", name, c.args[0], nxDidYouMean(doc, name))
 	}
 	side := "input"
 	if c.set("output") {
 		side = "output"
 	}
-	if raw := c.str(side); raw == "-" || strings.HasPrefix(raw, "@") {
-		return nxValidateStream(c, doc, key, side, raw)
-	}
-	value, _, err := c.value(side)
+	sources, err := nxValueSources(c, side)
 	if err != nil {
 		return err
 	}
-	problems, checked, err := nxCheck(doc, key, side, value)
+	defer nxCloseSources(sources)
+	if len(sources) != 1 || !sources[0].isInline {
+		return nxValidateStream(c, doc, key, side, sources)
+	}
+	problems, checked, err := nxCheck(doc, key, side, sources[0].inline)
 	if err != nil {
 		return err
 	}
@@ -371,31 +374,18 @@ func nxValidateValue(c *nxCtx, doc *nxObj) error {
 
 // nxValidateStream checks each JSON value of a stream against one side of an
 // operation, reporting each by its position.
-func nxValidateStream(c *nxCtx, doc *nxObj, key, side, raw string) error {
-	var r io.Reader = c.cmd.InOrStdin()
-	if raw != "-" {
-		if raw == "@" {
-			return nxUsageErr("--%s: @ must be followed by a file path", side)
-		}
-		f, err := os.Open(raw[1:])
-		if err != nil {
-			return nxFail(1, "cannot read %s: %v", raw[1:], err)
-		}
-		defer f.Close()
-		r = f
-	}
-	dec := json.NewDecoder(r)
-	dec.UseNumber()
+func nxValidateStream(c *nxCtx, doc *nxObj, key, side string, sources []nxValueSource) error {
+	next := nxValueReader(sources)
 	text := c.format() != "json" && !c.on("quiet")
 	var results []any
 	count, bad, unchecked := 0, 0, 0
 	for {
-		v, err := nxDecode(dec)
-		if err == io.EOF {
-			break
-		}
+		v, _, ok, err := next()
 		if err != nil {
-			return nxFail(1, "value %d is not JSON: %v", count+1, err)
+			return nxUsageErr("value %d is not JSON: %v", count+1, err)
+		}
+		if !ok {
+			break
 		}
 		count++
 		problems, checked, err := nxCheck(doc, key, side, v)
@@ -470,7 +460,15 @@ func nxValidateExamples(c *nxCtx, doc *nxObj) error {
 	count, bad, unchecked := 0, 0, 0
 	var report []any
 	text := c.format() != "json" && !c.on("quiet")
-	for _, key := range nxPartKeys(doc, "operations") {
+	keys := nxPartKeys(doc, "operations")
+	if c.set("operation") {
+		key, err := c.opKey(doc, c.str("operation"))
+		if err != nil {
+			return err
+		}
+		keys = []string{key}
+	}
+	for _, key := range keys {
 		examples := doc.Obj("operations").Obj(key).Obj("examples")
 		if examples == nil {
 			continue
@@ -823,7 +821,7 @@ use ob operation set --add-alias. ob compat shows which are missing.`,
 			names := c.strs("operation")
 			for _, n := range names {
 				if !fromOps.Has(n) {
-					return nxRefuse("%s has no operation named %q", c.args[1], n)
+					return nxNotFound("%s has no operation named %q", c.args[1], n)
 				}
 			}
 			if len(names) == 0 {

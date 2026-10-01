@@ -5,8 +5,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"strings"
-
-	"gopkg.in/yaml.v3"
 )
 
 // The preview keeps JSON member order so that sample documents, edits, and
@@ -259,56 +257,6 @@ func nxWrite(b *strings.Builder, v any, indent int, pretty bool) {
 	default:
 		raw, _ := json.Marshal(t)
 		b.Write(raw)
-	}
-}
-
-func nxYAML(v any) string {
-	var node yaml.Node
-	nxYAMLNode(&node, v)
-	var buf bytes.Buffer
-	enc := yaml.NewEncoder(&buf)
-	enc.SetIndent(2)
-	_ = enc.Encode(&node)
-	return strings.TrimRight(buf.String(), "\n")
-}
-
-func nxYAMLNode(n *yaml.Node, v any) {
-	switch t := v.(type) {
-	case *nxObj:
-		n.Kind = yaml.MappingNode
-		for _, k := range t.keys {
-			key := &yaml.Node{Kind: yaml.ScalarNode, Value: k}
-			val := &yaml.Node{}
-			nxYAMLNode(val, t.vals[k])
-			n.Content = append(n.Content, key, val)
-		}
-	case []any:
-		n.Kind = yaml.SequenceNode
-		for _, item := range t {
-			child := &yaml.Node{}
-			nxYAMLNode(child, item)
-			n.Content = append(n.Content, child)
-		}
-	case []string:
-		n.Kind = yaml.SequenceNode
-		for _, item := range t {
-			n.Content = append(n.Content, &yaml.Node{Kind: yaml.ScalarNode, Value: item})
-		}
-	case nil:
-		n.Kind, n.Tag, n.Value = yaml.ScalarNode, "!!null", "null"
-	case bool:
-		n.Kind, n.Tag, n.Value = yaml.ScalarNode, "!!bool", fmt.Sprint(t)
-	case json.Number:
-		n.Kind, n.Tag, n.Value = yaml.ScalarNode, "!!int", t.String()
-		if strings.ContainsAny(t.String(), ".eE") {
-			n.Tag = "!!float"
-		}
-	case int:
-		n.Kind, n.Tag, n.Value = yaml.ScalarNode, "!!int", fmt.Sprint(t)
-	case string:
-		n.Kind, n.Tag, n.Value = yaml.ScalarNode, "!!str", t
-	default:
-		n.Kind, n.Value = yaml.ScalarNode, fmt.Sprint(t)
 	}
 }
 

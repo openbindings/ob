@@ -35,10 +35,11 @@ them, check them, compare them with shared contracts, and use them to call
 the services they describe.
 
 Exit status, for every command:
-  0    done, or yes
+  0    done, or yes (an edit that is already true is "no change")
   1    failed, or no
-  2    usage error
-  3    refused; nothing was written or sent
+  2    usage error, including a name that is not in the document
+  3    refused: ob understood the request and declined it; nothing was
+       written or sent
   4    no verdict (a check could not decide)
   130  cancelled
 
@@ -276,31 +277,14 @@ func nxFail(code int, format string, a ...any) error {
 // nxRefuse is a request ob declined, with nothing written or sent.
 func nxRefuse(format string, a ...any) error { return nxFail(3, format, a...) }
 
-// Commands that write a file or stored state without being document edits.
-// What they cannot do is a refusal rather than a failure.
-var nxWritingCommands = map[string]bool{
-	"init": true, "fetch": true, "synthesize": true, "codegen": true, "fmt": true,
-	"context.set": true, "context.remove": true,
-	"delegate.register": true, "delegate.prefer": true, "delegate.unregister": true,
-}
-
-func (c *nxCtx) writes() bool {
-	return c.cmd.Annotations["edits"] == "true" || c.cmd.Annotations["writes"] == "true"
-}
-
-// missing reports a name that is not there: a refusal for a command that
-// would have changed something, a failure for one that only reads.
-func (c *nxCtx) missing(format string, a ...any) error {
-	if c.writes() {
-		return nxRefuse(format, a...)
-	}
-	return nxFail(1, format, a...)
-}
+// nxNotFound is a name that is not in the document (or the store): a usage
+// error, so that a typo never reads as a "no" or as a refusal.
+func nxNotFound(format string, a ...any) error { return nxFail(2, format, a...) }
 
 func nxLeaf(id, use, short, long, example string, args cobra.PositionalArgs, run func(*nxCtx) error) *cobra.Command {
 	return &cobra.Command{
 		Use: use, Short: short, Long: long, Example: example, Args: args,
-		Annotations: map[string]string{"surface-id": id, "writes": fmt.Sprint(nxWritingCommands[id])},
+		Annotations: map[string]string{"surface-id": id},
 		RunE: func(cmd *cobra.Command, a []string) error {
 			return nxRun(cmd, a, run)
 		},
@@ -363,8 +347,17 @@ func nxCheckStdin(cmd *cobra.Command, args []string) error {
 		}
 	}
 	cmd.Flags().Visit(func(f *pflagFlag) {
-		if f.Value.Type() == "string" && f.Value.String() == "-" {
-			n++
+		switch v := f.Value.(type) {
+		case pflag.SliceValue:
+			for _, item := range v.GetSlice() {
+				if item == "-" {
+					n++
+				}
+			}
+		default:
+			if f.Value.Type() == "string" && f.Value.String() == "-" {
+				n++
+			}
 		}
 	})
 	if n > 1 {
