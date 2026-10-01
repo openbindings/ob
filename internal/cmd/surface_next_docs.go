@@ -343,13 +343,17 @@ func nxValidateValue(c *nxCtx, doc *nxObj) error {
 		return err
 	}
 	if !c.on("quiet") && c.format() == "json" {
-		report := nxNewObj().Set("operation", key).Set("value", side)
+		// One shape however the values were given: a result per value.
+		result := nxNewObj().Set("index", 1)
 		if !checked {
-			report.Set("fits", nil).Set("reason", "no "+side+" contract is specified")
+			result.Set("fits", nil)
 		} else {
-			report.Set("fits", len(problems) == 0).Set("problems", nxProblemObjs(problems))
+			result.Set("fits", len(problems) == 0)
+			if len(problems) > 0 {
+				result.Set("problems", nxProblemObjs(problems))
+			}
 		}
-		c.println(nxPretty(report))
+		c.println(nxPretty(nxNewObj().Set("operation", key).Set("value", side).Set("results", []any{result})))
 	}
 	if !checked {
 		if !c.on("quiet") && c.format() != "json" {

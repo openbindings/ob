@@ -111,6 +111,12 @@ func nxRenameCmd(id, short, long, noun, part, example string, apply func(doc *nx
 		if err := nxName(noun+" name", to); err != nil {
 			return err
 		}
+		if from == to {
+			if _, err := c.entry(after, part, noun, from); err != nil {
+				return err
+			}
+			return c.wrote(c.args[0], before, after, "")
+		}
 		if part == "operations" && (after.Obj("operations") == nil || !after.Obj("operations").Has(from)) {
 			if key, ok := nxResolveOperation(after, from); ok {
 				return nxRefuse("%s is an alias of operation %s; rename changes an operation's key (ob operation rename %s %s <new-name>), and aliases change with ob operation set --add-alias and --remove-alias", from, key, c.args[0], key)

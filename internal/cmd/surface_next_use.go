@@ -112,9 +112,11 @@ A secret never goes on the command line, where it would stay in your shell
 history: --bearer-token, --access-token, --api-key, --basic, and
 --token-credential take - (read from stdin, or asked for at a terminal
 without echo) or @FILE. --basic reads USER:PASSWORD. --header NAME=VALUE
-takes a literal value, or NAME=- or NAME=@FILE for a secret one. --config
-answers a configuration point a binding asks for, such as which server to
-use. --value replaces the whole context with a JSON object, from @FILE or -.
+takes a literal value, or NAME=- or NAME=@FILE for a secret one; the
+headers that carry credentials (Authorization, Proxy-Authorization, Cookie)
+take only those. --config POINT=VALUE answers a configuration point a binding
+asks for, such as which server to use; VALUE is JSON, a bare string, or
+@FILE or - for a value kept off the command line. --value replaces the whole context with a JSON object, from @FILE or -.
 
 --token-provider pins a token service: the OBI of a service that implements
 the token-provider interface. ob keeps a copy of it, and when a binding asks
@@ -122,7 +124,9 @@ this scope for a bearer token, ob mints one from that provider (and only that
 provider) and renews it before it expires. --token-credential is the
 credential to mint with; leave it out for a provider that uses an identity
 you are already signed in with. --token-binding chooses among the provider's
-bindings, as ob invoke --binding does.
+bindings, as ob invoke --binding does. A binding key names its operation, so
+one list covers them all: give the mint binding and the refresh binding you
+want, in any order, and each applies to its own operation.
 
 --unset removes a field, named as its flag is: bearer-token, access-token,
 api-key, basic, token-provider, header.NAME, or config.POINT.
@@ -182,12 +186,21 @@ api-key, basic, token-provider, header.NAME, or config.POINT.
 				if value == "@" {
 					return nxUsageErr("--header %s=@ must be followed by a file path", name)
 				}
+				switch strings.ToLower(name) {
+				case "authorization", "proxy-authorization", "cookie":
+					if value != "-" && !strings.HasPrefix(value, "@") {
+						return nxUsageErr("the %s header carries credentials, so it takes %s=- (stdin, or asked for) or %s=@FILE; for a bearer token, --bearer-token - is simpler", name, name, name)
+					}
+				}
 				changes = append(changes, change{"header." + name, "headers." + name})
 			}
 			for _, cfg := range c.strs("config") {
-				point, _, ok := strings.Cut(cfg, "=")
+				point, value, ok := strings.Cut(cfg, "=")
 				if !ok || point == "" {
-					return nxUsageErr("--config takes POINT=VALUE")
+					return nxUsageErr("--config takes POINT=VALUE, POINT=@FILE, or POINT=-")
+				}
+				if value == "@" {
+					return nxUsageErr("--config %s=@ must be followed by a file path", point)
 				}
 				changes = append(changes, change{"config." + point, "configuration." + point})
 			}
@@ -238,7 +251,7 @@ api-key, basic, token-provider, header.NAME, or config.POINT.
 	set.Flags().String("api-key", "", "an API key: - (stdin, or asked for) or @FILE")
 	set.Flags().String("basic", "", "HTTP Basic credentials as USER:PASSWORD: - (stdin, or asked for) or @FILE")
 	set.Flags().StringArray("header", nil, "a header to send: NAME=VALUE, or NAME=- or NAME=@FILE for a secret (repeatable)")
-	set.Flags().StringArray("config", nil, "a configuration value, POINT=VALUE; VALUE is JSON or a bare string (repeatable)")
+	set.Flags().StringArray("config", nil, "a configuration value: POINT=VALUE (JSON or a bare string), POINT=@FILE, or POINT=- (repeatable)")
 	set.Flags().String("value", "", "replace the whole context with a JSON object: @FILE or -")
 	set.Flags().String("token-provider", "", "mint bearer tokens from this token service (its OBI: a path or URL)")
 	set.Flags().String("token-credential", "", "the credential to mint with: - (stdin, or asked for) or @FILE")
