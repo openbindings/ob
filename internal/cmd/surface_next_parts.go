@@ -1196,7 +1196,9 @@ content, idempotent, preference, description, or deprecated.`,
 	set.Flags().StringArray("unset", nil, "remove a member: content, idempotent, preference, description, deprecated")
 
 	rename := nxRenameCmd("binding.rename", "Rename a binding", `Rename a binding. Nothing else in a document refers to a binding by name,
-so nothing else changes.`, "binding", "bindings", `  ob binding rename tasks.obi.json createTask.http createTask.rest`,
+so nothing else changes. Callers that name the old key, such as ob invoke
+--binding, ob mcp --binding, or a generated client's binding list, stop
+finding it.`, "binding", "bindings", `  ob binding rename tasks.obi.json createTask.http createTask.rest`,
 		func(*nxObj, string, string) string { return "" })
 
 	remove := nxEditable(nxLeaf("binding.remove", "remove <obi> <name>", "Remove a binding", "Remove a binding. The operation and source stay.",

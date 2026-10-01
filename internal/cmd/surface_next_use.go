@@ -314,10 +314,10 @@ the way ob invoke does: each call takes an optional ordered list of binding
 keys, like --binding; without one, a call uses the operation's only usable
 binding and refuses when there are several.
 
--o names the output directory. It refuses to replace files already there
-unless --force is given.`,
+-o names the output directory, and is required. It refuses to replace files
+already there unless --force is given.`,
 		`  ob codegen tasks.obi.json --lang go -o ./taskclient
-  ob codegen https://api.example.com --lang typescript --package @acme/tasks`,
+  ob codegen https://api.example.com --lang typescript --package @acme/tasks -o ./tasks-client`,
 		nxArgs(1, 1), func(c *nxCtx) error {
 			lang := c.str("lang")
 			if lang == "" {
@@ -328,7 +328,7 @@ unless --force is given.`,
 			}
 			dir := c.str("out")
 			if dir == "" {
-				dir = "."
+				return nxUsageErr("-o is required: the directory to write the client to")
 			}
 			ext := map[string]string{"go": ".go", "typescript": ".ts"}[lang]
 			for _, f := range []string{"client", "types", "operations"} {
@@ -345,7 +345,7 @@ unless --force is given.`,
 		})
 	cmd.Flags().String("lang", "", "go or typescript (required)")
 	cmd.Flags().String("package", "", "the package or module name")
-	cmd.Flags().StringP("out", "o", "", "the directory to write")
+	cmd.Flags().StringP("out", "o", "", "the directory to write (required)")
 	cmd.Flags().Bool("force", false, "replace files already in the directory")
 	return cmd
 }
@@ -643,8 +643,14 @@ binding key belongs to one operation, so each key applies to its own
 operation. An operation with several bindings ob can invoke, and none
 named, is skipped and listed with the reason.
 
---operation offers only the named operations (a key or an alias); a name
-that is not in the document is refused.`,
+--operation offers only the named operations (a key or an alias). A name
+that is not in the document is a usage error, and one ob cannot offer is
+refused.
+
+How operations appear as MCP tools (their names, input and output shapes,
+operations whose bindings stream, and errors) will follow the MCP binding
+specification, which is not yet written for OpenBindings 0.2. Until then
+this command is a placeholder for that mapping.`,
 		`  ob mcp tasks.obi.json --binding createTask.http
   ob mcp https://api.example.com --operation createTask --operation listTasks --binding createTask.mcp`,
 		nxArgs(1, 1), func(c *nxCtx) error {
@@ -690,18 +696,25 @@ that is not in the document is refused.`,
 						usable = append(usable, b)
 					}
 				}
+				reason := ""
 				switch len(usable) {
 				case 0:
+					reason = "no binding this ob can invoke"
 					if len(nxReferrers(doc, "bindings", "operation", key)) == 0 {
-						skipped = append(skipped, key+": no bindings")
-					} else {
-						skipped = append(skipped, key+": no binding this ob can invoke")
+						reason = "no bindings"
 					}
 				case 1:
 					tools = append(tools, key)
 				default:
-					skipped = append(skipped, fmt.Sprintf("%s: %d bindings ob can invoke (%s); choose with --binding", key, len(usable), strings.Join(usable, ", ")))
+					reason = fmt.Sprintf("%d bindings ob can invoke (%s); choose with --binding", len(usable), strings.Join(usable, ", "))
 				}
+				if reason == "" {
+					continue
+				}
+				if only[key] {
+					return nxRefuse("ob cannot offer %s, which you asked for: %s; nothing was served", key, reason)
+				}
+				skipped = append(skipped, key+": "+reason)
 			}
 			c.note(fmt.Sprintf("Serving %s on stdio: %s", nxCount(len(tools), "tool"), strings.Join(tools, ", ")))
 			if len(skipped) > 0 {
@@ -791,10 +804,15 @@ work); 1 it cannot.`,
 				}
 				if !any {
 					for _, k := range nxInstalledKinds {
-						if strings.EqualFold(k.kind, kind) || strings.SplitN(k.kind, "@", 2)[0] == strings.SplitN(kind, "@", 2)[0] {
+						switch {
+						case k.kind == kind:
+							c.println(fmt.Sprintf("Note: this ob handles %s for %s, not for %s.", kind, strings.Join(k.roles, " and "), c.str("role")))
+						case strings.EqualFold(k.kind, kind) || strings.SplitN(k.kind, "@", 2)[0] == strings.SplitN(kind, "@", 2)[0]:
 							c.println(fmt.Sprintf("Note: %s is handled, but kinds match only exactly; %s is a different kind.", k.kind, kind))
-							break
+						default:
+							continue
 						}
+						break
 					}
 				}
 			})
