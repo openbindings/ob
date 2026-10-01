@@ -438,7 +438,7 @@ type nxContext struct {
 }
 
 var nxContexts = []nxContext{
-	{"https://api.example.com", [][2]string{{"bearerToken", "••••3f9a"}, {"headers.X-Client", "ob"}}},
+	{"https://api.example.com", [][2]string{{"bearerToken", "••••3f9a"}, {"headers.X-Client", "ob"}, {"credentials.primary", "••••1a2b"}, {"credentials.secondary", "••••3c4d"}, {"cookies.session", "••••5e6f"}, {"refreshToken", "••••7a8b"}}},
 	{"https://api.example.com/openapi.json", [][2]string{{"configuration.server", `{"url":"https://api.example.com"}`}}},
 	{"https://tokens.example.com", [][2]string{{"tokenProvider", "https://auth.example.com"}, {"tokenCredential", "••••9a2c"}}},
 }

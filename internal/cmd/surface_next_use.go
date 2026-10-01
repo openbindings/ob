@@ -1,8 +1,11 @@
 package cmd
 
 import (
+	"encoding/json"
 	"fmt"
 	"net/url"
+	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 
@@ -78,6 +81,8 @@ func nxContextField(name string) (string, bool) {
 		return "bearerToken", true
 	case "access-token":
 		return "accessToken", true
+	case "refresh-token":
+		return "refreshToken", true
 	case "token-credential":
 		return "tokenCredential", true
 	case "api-key":
@@ -91,6 +96,12 @@ func nxContextField(name string) (string, bool) {
 	if rest, ok := strings.CutPrefix(name, "config."); ok && rest != "" {
 		return "configuration." + rest, true
 	}
+	if rest, ok := strings.CutPrefix(name, "credential."); ok && rest != "" {
+		return "credentials." + rest, true
+	}
+	if rest, ok := strings.CutPrefix(name, "cookie."); ok && rest != "" {
+		return "cookies." + rest, true
+	}
 	return "", false
 }
 
@@ -100,6 +111,8 @@ func nxContextFlagField(field string) string {
 		return "bearer-token"
 	case "accessToken":
 		return "access-token"
+	case "refreshToken":
+		return "refresh-token"
 	case "apiKey":
 		return "api-key"
 	case "tokenProvider":
@@ -113,7 +126,56 @@ func nxContextFlagField(field string) string {
 	if rest, ok := strings.CutPrefix(field, "configuration."); ok {
 		return "config." + rest
 	}
+	if rest, ok := strings.CutPrefix(field, "credentials."); ok {
+		return "credential." + rest
+	}
+	if rest, ok := strings.CutPrefix(field, "cookies."); ok {
+		return "cookie." + rest
+	}
 	return field
+}
+
+// The operator determines the type, including for file and stdin sources.
+func nxConfigAssignment(raw string) (point, kind string, err error) {
+	point, value, ok := strings.Cut(raw, "=")
+	if !ok || point == "" {
+		return "", "", nxUsageErr("--config takes POINT=VALUE for a string or POINT:=JSON for a typed value; either value may be @FILE or -")
+	}
+	typed := strings.HasSuffix(point, ":")
+	if typed {
+		point = strings.TrimSuffix(point, ":")
+	}
+	if point == "" {
+		return "", "", nxUsageErr("--config needs a configuration point before = or :=")
+	}
+	if value == "@" {
+		return "", "", nxUsageErr("--config %s=@ must be followed by a file path", point)
+	}
+	if !typed {
+		return point, "string", nil
+	}
+	if value == "-" || strings.HasPrefix(value, "@") {
+		return point, "JSON from file or stdin", nil
+	}
+	v, parseErr := nxParse(value)
+	if parseErr != nil {
+		return "", "", nxUsageErr("--config %s:= needs a JSON value: %v", point, parseErr)
+	}
+	switch v.(type) {
+	case nil:
+		kind = "JSON null"
+	case bool:
+		kind = "JSON boolean"
+	case json.Number:
+		kind = "JSON number"
+	case string:
+		kind = "JSON string"
+	case *nxObj:
+		kind = "JSON object"
+	case []any:
+		kind = "JSON array"
+	}
+	return point, kind, nil
 }
 
 func nxPrefix(p string, list []string) []string {
@@ -133,14 +195,25 @@ headers, and configuration values. ob uses a stored context only for that
 exact scope, and only when the binding says the value may be reused.
 
 A secret never goes on the command line, where it would stay in your shell
-history: --bearer-token, --access-token, --api-key, --basic, and
+history: --bearer-token, --access-token, --refresh-token, --api-key, --basic, and
 --token-credential take - (read from stdin, or asked for at a terminal
 without echo) or @FILE. --basic reads USER:PASSWORD. --header NAME=VALUE
 takes a literal value, or NAME=- or NAME=@FILE for a secret one; the
 headers that carry credentials (Authorization, Proxy-Authorization, Cookie)
 take only those. --config POINT=VALUE answers a configuration point a binding
-asks for, such as which server to use; VALUE is JSON, a bare string, or
-@FILE or - for a value kept off the command line. --value replaces the whole context with a JSON object, from @FILE or -.
+asks for, such as which server to use. POINT=VALUE always stores a string,
+so code=001 and enabled=false keep their exact text. POINT:=JSON stores a
+typed value, such as enabled:=false or server:={"url":"https://api.example.com"}.
+Either operator accepts @FILE or -: = reads text and := parses JSON.
+--value replaces the whole context with a JSON object, from @FILE or -.
+Only one value may read stdin per command; use separate files for the others.
+
+--credential NAME=- or NAME=@FILE stores a named credential in
+credentials[NAME]. Read a JSON string for a bearer token or API key, a JSON
+object {"username":...,"password":...} for Basic, or an OAuth object
+beginning with accessToken. NAME is the scheme name the binding asks for,
+an exact string. --cookie NAME=VALUE stores a non-secret cookie, or use
+NAME=- or NAME=@FILE for a secret one.
 
 --token-provider pins a token service: the OBI of a service that implements
 the token-provider interface. ob keeps a copy of it, and when a binding asks
@@ -153,14 +226,17 @@ one list covers them all: give the mint binding and the refresh binding you
 want, in any order, and each applies to its own operation.
 
 --unset removes a field, named as its flag is: bearer-token, access-token,
-api-key, basic, token-provider, token-credential, header.NAME, or config.POINT.
+refresh-token, api-key, basic, credential.NAME, cookie.NAME, token-provider,
+token-credential, header.NAME, or config.POINT.
 Text reports use these flag names; JSON reports keep the interface's field
 names. A stored token provider also lets --token-credential rotate on its own.
 
 `+scopeHelp,
 		`  ob context set https://api.example.com --bearer-token -
   printf 'ada:s3cret' | ob context set https://legacy.example.com --basic -
-  ob context set https://api.example.com/openapi.json --config server='{"url":"https://eu.example.com"}'
+  ob context set https://api.example.com/openapi.json --config 'server:={"url":"https://eu.example.com"}'
+  ob context set https://api.example.com --credential primary=@primary.json --credential secondary=@secondary.json
+  ob context set https://api.example.com --cookie locale=en --refresh-token -
   ob context set https://api.example.com --token-provider https://auth.example.com --token-credential @creds.txt
   ob context set https://api.example.com --unset header.X-Client`,
 		nxArgs(1, 1), func(c *nxCtx) error {
@@ -171,7 +247,7 @@ names. A stored token provider also lets --token-credential rotate on its own.
 			if err := nxNeedsChange(c); err != nil {
 				return err
 			}
-			for _, f := range []string{"bearer-token", "access-token", "api-key", "basic", "token-credential"} {
+			for _, f := range []string{"bearer-token", "access-token", "refresh-token", "api-key", "basic", "token-credential"} {
 				if c.set(f) {
 					if err := nxSecretFlag(c, f); err != nil {
 						return err
@@ -179,7 +255,7 @@ names. A stored token provider also lets --token-credential rotate on its own.
 				}
 			}
 			if c.set("value") {
-				for _, f := range []string{"bearer-token", "access-token", "api-key", "basic", "header", "config", "unset", "token-provider", "token-credential", "token-binding"} {
+				for _, f := range []string{"bearer-token", "access-token", "refresh-token", "api-key", "basic", "credential", "cookie", "header", "config", "unset", "token-provider", "token-credential", "token-binding"} {
 					if c.set(f) {
 						return nxUsageErr("--value replaces the whole context, so it does not combine with --%s", f)
 					}
@@ -198,16 +274,33 @@ names. A stored token provider also lets --token-credential rotate on its own.
 			for _, h := range stored.holds {
 				pinned = pinned || h[0] == "tokenProvider"
 			}
-			if (c.set("token-credential") || c.set("token-binding")) && !c.set("token-provider") && !pinned {
-				return nxUsageErr("--token-credential and --token-binding need a stored token provider or --token-provider")
+			if c.set("token-credential") && !c.set("token-provider") && !pinned {
+				return nxUsageErr("--token-credential needs a stored token provider or --token-provider")
+			}
+			if c.set("token-binding") && !c.set("token-provider") {
+				return nxUsageErr("--token-binding goes with --token-provider")
 			}
 			// Each change, by the name --unset would use and the stored field.
 			type change struct{ name, field string }
 			var changes []change
-			for _, f := range []struct{ flag, field string }{{"bearer-token", "bearerToken"}, {"access-token", "accessToken"}, {"api-key", "apiKey"}, {"basic", "basic"}, {"token-credential", "tokenCredential"}} {
+			for _, f := range []struct{ flag, field string }{{"bearer-token", "bearerToken"}, {"access-token", "accessToken"}, {"refresh-token", "refreshToken"}, {"api-key", "apiKey"}, {"basic", "basic"}, {"token-credential", "tokenCredential"}} {
 				if c.set(f.flag) {
 					changes = append(changes, change{f.flag, f.field})
 				}
+			}
+			for _, credential := range c.strs("credential") {
+				name, source, ok := strings.Cut(credential, "=")
+				if !ok || name == "" || !(source == "-" || strings.HasPrefix(source, "@") && len(source) > 1) {
+					return nxUsageErr("--credential takes NAME=- or NAME=@FILE; supply a JSON credential value, never a secret on the command line")
+				}
+				changes = append(changes, change{"credential." + name, "credentials." + name})
+			}
+			for _, cookie := range c.strs("cookie") {
+				name, value, ok := strings.Cut(cookie, "=")
+				if !ok || name == "" || value == "@" {
+					return nxUsageErr("--cookie takes NAME=VALUE, NAME=-, or NAME=@FILE; keep secret values off the command line")
+				}
+				changes = append(changes, change{"cookie." + name, "cookies." + name})
 			}
 			for _, h := range c.strs("header") {
 				name, value, ok := strings.Cut(h, "=")
@@ -226,13 +319,11 @@ names. A stored token provider also lets --token-credential rotate on its own.
 				changes = append(changes, change{"header." + name, "headers." + name})
 			}
 			for _, cfg := range c.strs("config") {
-				point, value, ok := strings.Cut(cfg, "=")
-				if !ok || point == "" {
-					return nxUsageErr("--config takes POINT=VALUE, POINT=@FILE, or POINT=-")
+				point, kind, err := nxConfigAssignment(cfg)
+				if err != nil {
+					return err
 				}
-				if value == "@" {
-					return nxUsageErr("--config %s=@ must be followed by a file path", point)
-				}
+				c.note(fmt.Sprintf("(preview: config.%s would be stored as %s)", point, kind))
 				changes = append(changes, change{"config." + point, "configuration." + point})
 			}
 			if c.set("token-provider") {
@@ -243,7 +334,7 @@ names. A stored token provider also lets --token-credential rotate on its own.
 			for _, u := range c.strs("unset") {
 				field, ok := nxContextField(u)
 				if !ok {
-					return nxUsageErr("--unset takes bearer-token, access-token, api-key, basic, token-provider, token-credential, header.NAME, or config.POINT")
+					return nxUsageErr("--unset takes bearer-token, access-token, refresh-token, api-key, basic, credential.NAME, cookie.NAME, token-provider, token-credential, header.NAME, or config.POINT")
 				}
 				for _, ch := range changes {
 					if ch.name == u {
@@ -285,15 +376,18 @@ names. A stored token provider also lets --token-credential rotate on its own.
 		})
 	set.Flags().String("bearer-token", "", "a bearer token: - (stdin, or asked for) or @FILE")
 	set.Flags().String("access-token", "", "an OAuth 2.0 access token: - (stdin, or asked for) or @FILE")
+	set.Flags().String("refresh-token", "", "an OAuth 2.0 refresh token: - (stdin, or asked for) or @FILE")
+	set.Flags().StringArray("credential", nil, "a named JSON credential: NAME=- or NAME=@FILE (repeatable)")
+	set.Flags().StringArray("cookie", nil, "a non-secret cookie: NAME=VALUE; for a secret use NAME=- or NAME=@FILE (repeatable)")
 	set.Flags().String("api-key", "", "an API key: - (stdin, or asked for) or @FILE")
 	set.Flags().String("basic", "", "HTTP Basic credentials as USER:PASSWORD: - (stdin, or asked for) or @FILE")
 	set.Flags().StringArray("header", nil, "a header to send: NAME=VALUE, or NAME=- or NAME=@FILE for a secret (repeatable)")
-	set.Flags().StringArray("config", nil, "a configuration value: POINT=VALUE (JSON or a bare string), POINT=@FILE, or POINT=- (repeatable)")
+	set.Flags().StringArray("config", nil, "POINT=VALUE stores a string; POINT:=JSON stores a typed value; either accepts @FILE or - (repeatable)")
 	set.Flags().String("value", "", "replace the whole context with a JSON object: @FILE or -")
 	set.Flags().String("token-provider", "", "mint bearer tokens from this token service (its OBI: a path or URL)")
 	set.Flags().String("token-credential", "", "the credential to mint with: - (stdin, or asked for) or @FILE")
 	set.Flags().StringArray("token-binding", nil, "use this binding of the token service; repeat for an ordered list")
-	set.Flags().StringArray("unset", nil, "remove a field: bearer-token, access-token, api-key, basic, token-provider, token-credential, header.NAME, config.POINT")
+	set.Flags().StringArray("unset", nil, "remove a field: bearer-token, access-token, refresh-token, api-key, basic, credential.NAME, cookie.NAME, token-provider, token-credential, header.NAME, config.POINT")
 
 	list := nxListFormats(nxLeaf("context.list", "list", "List stored contexts", "List the scopes that have stored context, and what each holds. Secrets are masked.",
 		`  ob context list`, nxArgs(0, 0), func(c *nxCtx) error {
@@ -361,6 +455,14 @@ uses it for its own invocations: only for the exact scope a binding asks
 for, only when the binding says the value may be reused, and only the fields
 that one request needs. Delegates resolve their own context; ob never sends
 them stored context.
+
+Well-known interface fields are bearerToken, apiKey, credentials (named
+strings or Basic/OAuth objects), apiKeys (historical named API keys), basic,
+accessToken, refreshToken, expiresAt, headers, cookies, environment,
+metadata, and configuration. Context is opaque and may also hold custom
+fields. context set --value takes any of these as a whole JSON object;
+the individual flags cover the common fields. Pinned token-provider settings
+are ob's local resolver configuration.
 
 `+scopeHelp, set, list, show, remove)
 }
@@ -504,8 +606,8 @@ the role the document gives it:
   consumer   a dependency calls it (spec §5.5): it must send only inputs
              the contract accepts, and take every output the contract allows
 
-An operation with both is checked both ways; one with neither, as a
-provider. Schemas are compared under the Schema Comparison Profile
+An operation with both is checked both ways; one with neither, such as an
+operation in a pure contract, is also checked both ways. Schemas are compared under the Schema Comparison Profile
 OB-2020-12, published with the OpenBindings interfaces (schema-comparison).
 Both arguments may be paths or URLs.
 
@@ -630,7 +732,7 @@ Exit status: 0 compatible; 1 incompatible; 4 indeterminate.`,
 
 // nxOperationRoles says how a document uses an operation: as a provider (it has
 // bindings), a consumer (a dependency calls it), or both. With neither, it
-// is checked as a provider.
+// is checked both ways, making pure-contract changes protect both sides.
 func nxOperationRoles(doc *nxObj, key string) []string {
 	var roles []string
 	if len(nxReferrers(doc, "bindings", "operation", key)) > 0 {
@@ -640,7 +742,7 @@ func nxOperationRoles(doc *nxObj, key string) []string {
 		roles = append(roles, "consumer")
 	}
 	if len(roles) == 0 {
-		roles = []string{"provider"}
+		roles = []string{"provider", "consumer"}
 	}
 	return roles
 }
@@ -659,8 +761,16 @@ func nxStartCmd() *cobra.Command {
 editors, browsers, and other tools. ob describes itself with an OBI at
 /.well-known/openbindings.
 
-Who may call it: ob prints an access token each time it starts, and every
-request must carry it as a bearer token. ob answers only requests addressed
+Who may call it: every request must carry this run's access token as a
+bearer token. ob saves the addresses and token in a private run record,
+readable only by this user (file mode 0600, directory 0700). Its own commands
+read the record automatically for an exact matching service address.
+Text output names the file; -F json prints the startup record, including
+the token, as one line. Other tools can read that record to connect.
+The record is removed when this run stops; simultaneous runs use separate
+records by HTTP port.
+
+ob answers only requests addressed
 to 127.0.0.1 or localhost by name, which stops a web page from reaching it
 through DNS rebinding, and a browser page only from an origin given with
 --allow-origin.
@@ -680,11 +790,30 @@ install the authority first with ob ca install.`,
 					return nxUsageErr("--allow-origin takes an origin, such as https://editor.example.com")
 				}
 			}
-			c.println(fmt.Sprintf("ob is serving on http://127.0.0.1:%d", port))
+			if port < 1 || port > 65535 || c.on("tls") && port == 65535 {
+				return nxUsageErr("--port must be 1 through 65535 (through 65534 with --tls)")
+			}
+			configDir, err := os.UserConfigDir()
+			if err != nil {
+				return nxFail(1, "could not locate this user's configuration directory: %v", err)
+			}
+			stateFile := filepath.Join(configDir, "ob", "runs", fmt.Sprintf("%d.json", port))
+			address := fmt.Sprintf("http://127.0.0.1:%d", port)
+			record := nxNewObj().Set("address", address).Set("token", "ob_run_4c1e9a7d2b").Set("stateFile", stateFile).Set("obi", address+"/.well-known/openbindings")
+			if c.on("tls") {
+				record.Set("tlsAddress", fmt.Sprintf("https://127.0.0.1:%d", port+1))
+			}
+			c.note("(preview: ob would save this run record privately and remove it when the service stops; nothing was written)")
+			if c.format() == "json" {
+				c.println(nxCompact(record))
+				return nil
+			}
+			c.println("ob is serving on " + address)
 			if c.on("tls") {
 				c.println(fmt.Sprintf("              and https://127.0.0.1:%d", port+1))
 			}
-			c.println("Access token for this run: ob_run_4c1e9a7d2b (send it as a bearer token)")
+			c.println("Connection record (user only): " + stateFile)
+			c.println("ob's own commands use its token automatically for this address.")
 			if o := c.strs("allow-origin"); len(o) > 0 {
 				c.println("Browser pages allowed from: " + strings.Join(o, ", "))
 			}
@@ -695,6 +824,7 @@ install the authority first with ob ca install.`,
 	cmd.Flags().Int("port", 20290, "the HTTP port; with --tls, HTTPS uses the next one")
 	cmd.Flags().Bool("tls", false, "also serve HTTPS, with a certificate from ob's local certificate authority")
 	cmd.Flags().StringArray("allow-origin", nil, "let browser pages from this origin call ob (repeatable)")
+	nxFormat(cmd, "text", "json")
 	return cmd
 }
 
@@ -896,8 +1026,8 @@ or for each. Kinds are compared exactly: example.openapi@1 and
 example.openapi@2 are unrelated kinds. To see which handler ob would use,
 and why, use ob delegate resolve.
 
-Exit status: 0 this ob can handle it (for --role, or for at least one kind of
-work); 1 it cannot.`,
+Without --role, this is a report: exit 0 even if no work is supported.
+With --role, it is a yes/no check: exit 0 supported, 1 unsupported.`,
 		`  ob kind check example.openapi@1
   ob kind check acme.billing-rpc@1 --role invoke`, nxArgs(1, 1), func(c *nxCtx) error {
 			kind := c.args[0]
@@ -947,7 +1077,7 @@ work); 1 it cannot.`,
 					}
 				}
 			})
-			if !any {
+			if c.set("role") && !any {
 				return nxFail(1, "")
 			}
 			return nil

@@ -56,8 +56,14 @@ Things to try:
 ./bin/ob context set https://api.example.com --bearer-token abc   # usage error (exit 2): secrets take - or @FILE
 ./bin/ob context show https://api.example.com
 ./bin/ob context set https://tokens.example.com --token-credential -   # rotates the stored provider's credential
+./bin/ob context set https://api.example.com --credential primary=@primary.json --credential secondary=@secondary.json
+./bin/ob context set https://api.example.com --config code=001 --config enabled:=false   # a string and a JSON boolean
+./bin/ob context set https://api.example.com --cookie session=@session.txt --refresh-token @refresh.txt
+./bin/ob kind check nope@1                                    # a report without --role (exit 0)
 ./bin/ob mcp tasks.obi.json --binding createTask.http
 ./bin/ob start --allow-origin https://editor.example.com
+./bin/ob start -F json                                        # one startup record, including its access token
+./bin/ob show http://127.0.0.1:20290                            # reads the local run's token automatically
 ./bin/ob ca show
 ./bin/ob delegate show d_91c2
 ./bin/ob describe
@@ -95,7 +101,7 @@ printf '{"title":"a"}\n{"title":"b"}\n{"title":"c"}\n' | ./bin/ob invoke tasks.o
 ./bin/ob invoke tasks.obi.json watchTasks --frames
 printf '{"title":"a"}\n{"title":"b"}\n' | ./bin/ob invoke tasks.obi.json createTask --binding createTask.http --input - --frames
 printf '{"title":"a"}\n{"title":5}\n' | ./bin/ob invoke tasks.obi.json importTasks --input - --frames
-./bin/ob invoke tasks.obi.json createTask --binding createTask.mcp --input '{"title":"x"}' < /dev/null
+./bin/ob invoke tasks.obi.json createTask --binding createTask.mcp --input '{"title":"x"}' < /dev/null   # refused: missing context (exit 3)
 ./bin/ob invoke tasks.obi.json createTask --binding createTask.mcp --preflight
 ```
 
@@ -161,6 +167,33 @@ The default tree takes the proposed side of each open decision. Set
 | Changing and renaming | `set` and `rename` for every part, and `ob set` for the document's own fields; `rename` changes the key and the references to it, nothing else | none in this tree; `v02-lab` has only add, list, show, remove |
 | What `invoke` takes | An operation name or alias, with the binding chosen as described above | `binding-invoke`: an exact binding key, always frames |
 | Which other areas return | All of them: serving (`start`, `mcp`), `codegen`, `context`, `fetch`, `delegate`, `compat`, `status`, `merge`, `fmt` | remove what should not be here |
+
+The following five recommendations are also playable defaults for round 5.
+They are **proposals awaiting Matt's ruling**, not additions to Decided.
+Reviewers may challenge them:
+
+- A service asking for two credentials needs two names, rather than two
+  values fighting over one `apiKey`. Use repeatable `--credential NAME=-`
+  or `NAME=@FILE`, reading a JSON credential value (string for a token/key,
+  object for Basic/OAuth). Add `--cookie` and `--refresh-token`, matching
+  unset names. The context help lists every well-known field; whole-context
+  JSON covers other and custom fields.
+- `--config code=001` should keep the identifier's text. `POINT=VALUE`
+  always stores a string; `POINT:=JSON` stores a typed value. The same rule
+  applies to `@FILE` and stdin. No automatic detection changes the type.
+- A bare `kind check` should let a person inspect support without picking
+  a meaning for "any". Without `--role`, report all roles and exit 0; with
+  a role, give the yes/no status for that work.
+- A pure contract has no bindings or dependencies to select a direction.
+  Compare those operations both ways, protecting callers and providers
+  when a contract changes. Bound and dependency-used operations retain the
+  existing role rules.
+- A tool connecting to `ob start` should get its address and run token from
+  a private file rather than copy terminal text. Save a record for each
+  HTTP port in ob's per-user configuration directory (directory 0700,
+  file 0600), remove it when that run stops, and let ob's commands read it
+  for an exact matching service address. `start -F json` prints the record
+  as one line, including the token, for other tools.
 
 ## Decided
 
@@ -282,6 +315,8 @@ Proposals not ruled on, open to challenge:
   CLI face of the delegate-manager interface. Both use "role" (invoke,
   inspect, synthesize), the interface's word, a known leftover pending a
   rename.
+- The five defaults under Open decisions remain proposals, including the
+  changes to no-role `kind check` and pure-contract `compat`.
 
 ## What the preview does not model
 

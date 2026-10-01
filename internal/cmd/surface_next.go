@@ -184,6 +184,9 @@ func nxInstallNameCompletion(root *cobra.Command) {
 					}
 				}
 			}
+			if id == "source.pull" && len(args) >= 1 {
+				part = "sources"
+			}
 			if part == "" {
 				return nil, cobra.ShellCompDirectiveNoFileComp
 			}
@@ -470,7 +473,9 @@ func nxCheckStdin(cmd *cobra.Command, args []string) error {
 		switch v := f.Value.(type) {
 		case pflag.SliceValue:
 			for _, item := range v.GetSlice() {
-				if item == "-" {
+				_, assigned, assignment := strings.Cut(item, "=")
+				keyedInput := cmd.Annotations["surface-id"] == "context.set" && nxContains([]string{"credential", "cookie", "header", "config"}, f.Name)
+				if item == "-" || keyedInput && assignment && assigned == "-" {
 					n++
 				}
 			}
@@ -544,6 +549,9 @@ func nxDocumentGate(c *nxCtx) error {
 			continue
 		}
 		origin := u.Scheme + "://" + u.Host
+		if origin == "http://127.0.0.1:20290" || origin == "https://127.0.0.1:20291" {
+			c.note("(preview: using this local service's access token from its private run record)")
+		}
 		switch u.Hostname() {
 		case "private.example.com":
 			if _, ok := nxStoredContext(origin); ok {

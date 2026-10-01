@@ -388,7 +388,7 @@ func TestNextRefusalsExitWithTheirOwnStatus(t *testing.T) {
 		{[]string{"validate", "tasks.obi.json", "--operation", "createTask", "--input", `{"title":5}`}, 1},
 		{[]string{"kind", "check", "example.openapi@2", "--role", "invoke"}, 1},
 		{[]string{"schema", "remove", "tasks.obi.json", "Task"}, 3},
-		{[]string{"kind", "check", "nope@1"}, 1},
+		{[]string{"kind", "check", "nope@1"}, 0},
 		{[]string{"dependency", "set", "tasks.obi.json", "notifier", "--remove-kind", "example.openapi@1", "--remove-kind", "example.grpc@1"}, 3},
 		{[]string{"operation", "rename", "tasks.obi.json", "acme.tasks.createTask", "addTask"}, 3},
 		{[]string{"operation", "rename", "tasks.obi.json", "createTask", "acme.tasks.createTask"}, 3},

@@ -264,6 +264,11 @@ decisions:
 The source-pull naming decision is settled in the continuation above.
 The following five decisions remain open.
 
+Continuation: their recommended sides are implemented as **reviewable
+proposals** in the default preview, awaiting Matt's answers. They are listed
+under the guide's Open decisions, outside Decided, and remain open for the
+round-5 reviewers to challenge. Their implementation is not approval.
+
 1. **Named credentials.** Recommendation: `--credential NAME=-|@FILE`,
    `--cookie NAME=…` (like `--header`), `--refresh-token -|@FILE`, matching
    `--unset` names, and `ob context --help` listing every field a context can
@@ -306,10 +311,11 @@ The following five decisions remain open.
 
 ## 7. Next steps
 
-1. Get Matt's answers on the five remaining decisions in 6B.
-2. Finish the decisions in the lab; 6A is applied. Commit in small steps, tests
-   green each time. Keep the guide's "Decided" list current (add the new
-   rulings; the guide is the reviewers' source of truth).
+1. Check Matt's answers on the five remaining decisions in 6B. Until he
+   answers, the recommended defaults remain proposals, open for review.
+   Only his rulings go into the guide's Decided section.
+2. The agreed fixes and recommended proposals are applied. Commit in small
+   steps, tests green each time; update the proposals when Matt answers.
 3. Run the guide's command list end to end and confirm each exits as the
    guide says (a loop over its `./bin/ob` lines does it).
 4. Freeze round 5: create `design/ob-cli-surface/review-5/` with the built
