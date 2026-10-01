@@ -417,6 +417,10 @@ func (c *nxCtx) wrote(path string, before, after *nxObj, summary string) error {
 	}
 	if nxCompact(before) == nxCompact(after) {
 		c.note(path + ": no change")
+		// A filter always passes its document on, changed or not.
+		if path == "-" || c.variant() == "filter-edits" {
+			c.println(nxPretty(after))
+		}
 		return nil
 	}
 	if added := nxNewViolations(before, after); len(added) > 0 {

@@ -828,26 +828,26 @@ handler suggests and any binding that already uses it.`,
 	pull := nxEditable(nxLeaf("source.pull", "pull <obi> [<source>...]", "Update a document from its sources", `Update the document from its sources, using a handler for each source's
 kind. With no sources named, pull every source.
 
-Pull adds a binding for each target no binding covers yet, with the
-operation the handler suggests when the document does not have one, and
-refreshes the content of existing bindings. It never changes an operation
-you already have: where a source describes an operation's schemas
-differently, pull reports it, and --update-operation takes the source's
-schemas for that operation. When two sources being pulled describe it
-differently, pull refuses; pull one source to choose.
+Pull refreshes the content of the bindings you have, so they keep up with
+their sources. It adds nothing you did not ask for, and never changes an
+operation you already have:
+
+  - a target no binding covers is listed, not bound; --target binds one
+    (and --all-targets binds every one), with the operation the handler
+    suggests, or one you already have when you name it with --operation;
+  - where a source describes an operation's schemas differently, pull
+    reports it, and --update-operation takes the source's schemas for that
+    operation. When two sources being pulled describe it differently, pull
+    refuses; pull one source to choose.
 
 A source whose kind this ob cannot read is named and left alone, and pull
 exits 4, since it cannot say the document is up to date with that source.
-ob status reports the same changes without making them.
-
---target binds one target of one source, given as ob source inspect lists
-it or by its identifier in the source: ob adds a binding for it, with the
-suggested operation, or with an operation you already have when you name it
-with --operation. Nothing else changes.`,
+ob status reports the same, as a check, without changing anything.`,
 		`  ob source pull tasks.obi.json
   ob source pull tasks.obi.json httpApi --update-operation listTasks
   ob source pull tasks.obi.json httpApi --target "POST /tasks/{id}/archive"
-  ob source pull tasks.obi.json mcpServer --target tools/complete_task --operation completeTask`,
+  ob source pull tasks.obi.json mcpServer --target tools/complete_task --operation completeTask
+  ob source pull tasks.obi.json httpApi --all-targets`,
 		nxArgs(1, -1), func(c *nxCtx) error {
 			before := c.doc(c.args[0])
 			after := nxClone(before).(*nxObj)
@@ -860,8 +860,8 @@ with --operation. Nothing else changes.`,
 				if len(c.args) != 2 {
 					return nxUsageErr("--target binds a target of one source; name that source: ob source pull %s <source> --target ...", c.args[0])
 				}
-				if c.set("update-operation") {
-					return nxUsageErr("--target binds one target and changes nothing else, so it does not take --update-operation")
+				if c.set("update-operation") || c.on("all-targets") {
+					return nxUsageErr("--target binds one target and changes nothing else, so it does not take --update-operation or --all-targets")
 				}
 				return nxPullTarget(c, before, after, c.args[1], c.str("target"))
 			}
@@ -873,6 +873,7 @@ with --operation. Nothing else changes.`,
 	pull.Flags().String("target", "", "bind this one target of the source, as ob source inspect lists it or by its identifier")
 	pull.Flags().String("operation", "", "with --target: bind it to this existing operation (key or alias)")
 	pull.Flags().StringArray("update-operation", nil, "take the source's schemas for this operation (repeatable)")
+	pull.Flags().Bool("all-targets", false, "bind every target no binding covers yet")
 
 	return nxPartGroup("source", "Add, change, and remove sources, and read their artifacts", `A source is a kind plus optional content the kind reads, such as an
 artifact's address. Bindings realize operations through sources. import,
@@ -1023,7 +1024,12 @@ func nxPull(c *nxCtx, before, after *nxObj) error {
 			skipped = append(skipped, fmt.Sprintf("%s (this ob cannot read %s sources)", d.source, d.kind))
 			continue
 		}
+		var available []string
 		for _, t := range d.unbound {
+			if !c.on("all-targets") {
+				available = append(available, t.target)
+				continue
+			}
 			if !after.Obj("operations").Has(t.operation) {
 				after.Obj("operations").Set(t.operation, nxMustParse(t.newOperation))
 				parts = append(parts, "added "+t.binding+" with a new operation "+t.operation)
@@ -1031,6 +1037,9 @@ func nxPull(c *nxCtx, before, after *nxObj) error {
 				parts = append(parts, "added "+t.binding)
 			}
 			after.Obj("bindings").Set(t.binding, nxNewObj().Set("operation", t.operation).Set("source", d.source).Set("content", nxMustParse(t.content)))
+		}
+		if len(available) > 0 {
+			notes = append(notes, fmt.Sprintf("%s offers targets no binding covers: %s (--target binds one; --all-targets binds every one)", d.source, strings.Join(available, ", ")))
 		}
 		for _, s := range d.differs {
 			if _, ok := update[s.operation]; !ok {
@@ -1060,12 +1069,12 @@ func nxPull(c *nxCtx, before, after *nxObj) error {
 	for _, n := range notes {
 		c.note(n)
 	}
-	var err error
+	summary := "Pulled: " + strings.Join(parts, "; ")
 	if len(parts) == 0 {
-		c.note("Nothing to pull.")
-	} else {
-		err = c.wrote(c.args[0], before, after, "Pulled: "+strings.Join(parts, "; "))
+		c.note("The bindings are up to date.")
+		summary = ""
 	}
+	err := c.wrote(c.args[0], before, after, summary)
 	if err == nil && len(skipped) > 0 {
 		return nxFail(4, "not pulled: %s", strings.Join(skipped, ", "))
 	}

@@ -686,7 +686,7 @@ apply.`,
 					}
 					out = append(out, o)
 				}
-				c.println(nxPretty(out))
+				c.println(nxPretty(nxNewObj().Set("before", c.args[0]).Set("after", c.args[1]).Set("differ", len(changes) > 0).Set("changes", out)))
 			default:
 				last := ""
 				for _, ch := range changes {
@@ -1043,65 +1043,62 @@ then ob source pull.`,
 }
 
 func nxStatusCmd() *cobra.Command {
-	cmd := nxLeaf("status", "status <obi>", "Show how a document has drifted from its sources", `For every source, show how the document differs from it: targets no
-binding covers yet, which ob source pull would add, and operations whose
-schemas the source describes differently, which pull applies only with
---update-operation. Changes nothing; it is ob source pull --dry-run for all
-sources, as a report.
+	cmd := nxLeaf("status", "status <obi>", "Show how a document has drifted from its sources", `For every source, show how the document has drifted from it: bindings whose
+content or target changed, and operations whose schemas the source describes
+differently. Targets no binding covers are listed apart: leaving one unbound
+can be a choice, so it is not drift. Changes nothing; it reports what ob
+source pull --dry-run would, for all sources, as a check.
 
 A source whose kind this ob cannot read is listed as not checked, and
 status exits 4: it cannot say whether that source has drifted.
 
 Exit status: 0 checked every source; 4 some source could not be checked.
-With --exit-code: 1 when anything has drifted.`,
+With --exit-code: 1 when something has drifted.`,
 		`  ob status tasks.obi.json
   ob status tasks.obi.json --exit-code`,
 		nxArgs(1, 1), func(c *nxCtx) error {
 			doc := c.doc(c.args[0])
 			drifted, unchecked := false, false
-			var report []any
+			var sources []any
 			for _, d := range nxDrift(doc, nil) {
 				entry := nxNewObj().Set("source", d.source).Set("kind", d.kind).Set("checked", d.readable)
 				if !d.readable {
 					unchecked = true
 					entry.Set("reason", "this ob cannot read "+d.kind+" sources")
-					report = append(report, entry)
+					sources = append(sources, entry)
 					continue
 				}
-				var changes []any
-				for _, t := range d.unbound {
-					ch := nxNewObj().Set("change", "added").Set("binding", t.binding).Set("target", t.target).Set("operation", t.operation)
-					ch.Set("newOperation", !doc.Obj("operations").Has(t.operation))
-					changes = append(changes, ch)
-				}
+				var drift, unbound []any
 				for _, s := range d.differs {
-					changes = append(changes, nxNewObj().Set("change", "changed").Set("operation", s.operation).Set("detail", s.side+" schema differs"))
+					drift = append(drift, nxNewObj().Set("change", "changed").Set("operation", s.operation).Set("detail", s.side+" schema differs"))
 				}
-				drifted = drifted || len(changes) > 0
-				report = append(report, entry.Set("changes", changes))
+				for _, t := range d.unbound {
+					unbound = append(unbound, nxNewObj().Set("target", t.target).Set("suggestedOperation", t.operation).Set("binding", t.binding))
+				}
+				drifted = drifted || len(drift) > 0
+				sources = append(sources, entry.Set("drift", drift).Set("unbound", unbound))
 			}
+			report := nxNewObj().Set("document", c.args[0]).Set("drifted", drifted).Set("complete", !unchecked).Set("sources", sources)
 			c.render(report, func() {
 				for _, d := range nxDrift(doc, nil) {
 					c.println(fmt.Sprintf("%s (%s)", d.source, d.kind))
 					switch {
 					case !d.readable:
 						c.println("  not checked: this ob cannot read " + d.kind + " sources")
-					case len(d.unbound)+len(d.differs) == 0:
-						c.println("  up to date")
-					}
-					for _, t := range d.unbound {
-						what := "for operation " + t.operation
-						if !doc.Obj("operations").Has(t.operation) {
-							what = "with a new operation " + t.operation
-						}
-						c.println(fmt.Sprintf("  + %-18s new target %s, %s", t.binding, t.target, what))
+					case len(d.differs) == 0:
+						c.println("  no drift")
 					}
 					for _, s := range d.differs {
 						c.println(fmt.Sprintf("  ~ %-18s %s schema differs (--update-operation %s takes it)", s.operation, s.side, s.operation))
 					}
+					if len(d.unbound) > 0 {
+						var ts []string
+						for _, t := range d.unbound {
+							ts = append(ts, t.target)
+						}
+						c.println("  not bound: " + strings.Join(ts, ", "))
+					}
 				}
-				c.println("")
-				c.println("ob source pull " + c.args[0] + " adds the new targets; schema changes apply only with --update-operation.")
 			})
 			switch {
 			case c.on("exit-code") && drifted:
@@ -1111,7 +1108,7 @@ With --exit-code: 1 when anything has drifted.`,
 			}
 			return nil
 		})
-	cmd.Flags().Bool("exit-code", false, "exit 1 when anything has drifted, for CI")
+	cmd.Flags().Bool("exit-code", false, "exit 1 when something has drifted, for CI")
 	nxFormat(cmd, "text", "json")
 	return cmd
 }

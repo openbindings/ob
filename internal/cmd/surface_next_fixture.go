@@ -172,6 +172,10 @@ const nxContractJSON = `{
         "required": ["id"]
       },
       "output": { "type": "object", "maxProperties": 0 }
+    },
+    "acme.events.deliver": {
+      "input": { "type": "object" },
+      "output": { "type": "object", "maxProperties": 0 }
     }
   }
 }`

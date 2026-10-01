@@ -411,8 +411,16 @@ changes nothing unless --replace-schemas is given.`,
 
 func nxCompatCmd() *cobra.Command {
 	cmd := nxLeaf("compat", "compat <obi> <contract>", "Check a document against a shared contract", `Check whether <obi> satisfies a shared contract: for each contract
-operation, some operation must answer to its name, accept every input the
-contract allows, and return only outputs the contract allows. Schemas are
+operation, some operation must answer to its name, and fit the contract in
+the role the document gives it:
+
+  provider   it has bindings: it must accept every input the contract
+             allows, and return only outputs the contract allows
+  consumer   a dependency calls it (spec §5.5): it must send only inputs
+             the contract accepts, and take every output the contract allows
+
+An operation with both is checked both ways; one with neither, as a
+provider. Schemas are
 compared under the Schema Comparison Profile OB-2020-12, published with the
 OpenBindings interfaces (schema-comparison); a comparison ob cannot decide
 is reported as undecided, not as a failure. Both arguments may be paths or
@@ -440,12 +448,13 @@ could not be decided, and nothing is known to be incompatible).`,
 			ok := true
 			for _, cname := range contract.Obj("operations").Keys() {
 				if key, found := nxResolveOperation(doc, cname); found {
-					rows = append(rows, []string{cname, "yes", key + " (schemas fit)"})
-					out = append(out, nxNewObj().Set("operation", cname).Set("satisfied", true).Set("by", key))
+					roles := nxOperationRoles(doc, key)
+					rows = append(rows, []string{cname, "yes", key + " (schemas fit)", strings.Join(roles, ", ")})
+					out = append(out, nxNewObj().Set("operation", cname).Set("satisfied", true).Set("by", key).Set("as", nxToAny(roles)))
 				} else {
 					ok = false
 					missing = append(missing, cname)
-					rows = append(rows, []string{cname, "no", "no operation answers to this name"})
+					rows = append(rows, []string{cname, "no", "no operation answers to this name", "-"})
 					out = append(out, nxNewObj().Set("operation", cname).Set("satisfied", false).Set("remedies", nxToAny(nxRemedies(c, cname))))
 				}
 			}
@@ -460,7 +469,7 @@ could not be decided, and nothing is known to be incompatible).`,
 						verdict = "does not satisfy"
 					}
 					c.println(fmt.Sprintf("%s %s Acme Tasks (%s)", c.args[0], verdict, c.args[1]))
-					c.table("CONTRACT OPERATION\tMET\tBY", rows)
+					c.table("CONTRACT OPERATION\tMET\tBY\tAS", rows)
 					for _, cname := range missing {
 						r := nxRemedies(c, cname)
 						c.println("")
@@ -480,10 +489,27 @@ could not be decided, and nothing is known to be incompatible).`,
 	return cmd
 }
 
+// nxOperationRoles says how a document uses an operation: as a provider (it has
+// bindings), a consumer (a dependency calls it), or both. With neither, it
+// is checked as a provider.
+func nxOperationRoles(doc *nxObj, key string) []string {
+	var roles []string
+	if len(nxReferrers(doc, "bindings", "operation", key)) > 0 {
+		roles = append(roles, "provider")
+	}
+	if len(nxReferrers(doc, "dependencies", "operation", key)) > 0 {
+		roles = append(roles, "consumer")
+	}
+	if len(roles) == 0 {
+		roles = []string{"provider"}
+	}
+	return roles
+}
+
 func nxRemedies(c *nxCtx, contractOp string) []string {
 	return []string{
 		fmt.Sprintf("ob operation set %s <operation> --add-alias %s", c.args[0], contractOp),
-		fmt.Sprintf("ob merge %s %s --operation %s", c.args[0], c.args[1], contractOp),
+		fmt.Sprintf("ob merge %s %s --operation %s --no-bindings", c.args[0], c.args[1], contractOp),
 	}
 }
 
