@@ -226,6 +226,8 @@ func TestNextEditsKeepDocumentsConformant(t *testing.T) {
 		{"schema", "add", "-", "TaskList", "--value", `{"type":"array","items":{"$ref":"#/schemas/Task"}}`},
 		{"schema", "set", "-", "Problem", "--value", "true"},
 		{"schema", "rename", "-", "Task", "Todo"},
+		{"schema", "bundle", "-"},
+		{"schema", "bundle", "-", "https://schemas.example.com/people/person.json"},
 		{"patch", "-", "changes.json"},
 		{"merge", "-", "other.obi.json", "--theirs"},
 		{"merge", "-", "acme-tasks.obi.json", "--ours"},
@@ -509,5 +511,31 @@ func TestNextInvokeFollowsTheInvocationPattern(t *testing.T) {
 	_, _, err = nxExecIn("", "", "invoke", "t.obi.json", "createTask", "--input", `{"title":"x"}`)
 	if err == nil || !strings.Contains(err.Error(), "createTask.http") || !strings.Contains(err.Error(), "createTask.mcp") || !strings.Contains(err.Error(), "preference 10") {
 		t.Errorf("the choice refusal should list both bindings with their signals: %v", err)
+	}
+}
+
+// Bundling embeds every external schema, so nothing is left to fetch, and
+// leaves every reference as it was.
+func TestNextSchemaBundleLeavesNothingExternal(t *testing.T) {
+	out, _, err := nxExec("", "schema", "bundle", "-")
+	if err != nil {
+		t.Fatal(err)
+	}
+	doc := nxMustParse(out).(*nxObj)
+	if left := nxExternalRefs(doc); len(left) != 0 {
+		t.Errorf("still external after bundling: %v", left)
+	}
+	if v := nxViolations(doc); len(v) != 0 {
+		t.Errorf("the bundled document breaks rules: %v", v)
+	}
+	if got := nxCompact(doc.Obj("schemas").Obj("Task")); got != nxCompact(nxFixture().Obj("schemas").Obj("Task")) {
+		t.Errorf("bundling changed a reference:\n%s", got)
+	}
+	out, _, err = nxExec("", "schema", "bundle", "-", "https://schemas.example.com/time/date-time.json")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if left := nxExternalRefs(nxMustParse(out).(*nxObj)); len(left) != 1 || left[0].uri != "https://schemas.example.com/people/person.json" {
+		t.Errorf("a named bundle should leave the rest external: %v", left)
 	}
 }

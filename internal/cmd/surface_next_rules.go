@@ -4,6 +4,8 @@ import (
 	"bytes"
 	_ "embed"
 	"fmt"
+	"net/url"
+	"path"
 	"regexp"
 	"sort"
 	"strings"
@@ -129,9 +131,15 @@ func nxViolations(doc *nxObj) []string {
 	return out
 }
 
+// nxWalkRefs visits the references in the document resource. A schema that
+// declares $id is a resource of its own: its references resolve against its
+// base (spec §7.2), so the walk does not enter it.
 func nxWalkRefs(v any, visit func(string)) {
 	switch t := v.(type) {
 	case *nxObj:
+		if t.Has("$id") {
+			return
+		}
 		for _, k := range t.Keys() {
 			if k == "$ref" || k == "$dynamicRef" {
 				if s, ok := t.Get(k).(string); ok {
@@ -146,6 +154,141 @@ func nxWalkRefs(v any, visit func(string)) {
 			nxWalkRefs(item, visit)
 		}
 	}
+}
+
+// An external schema the document references, and where.
+type nxExternal struct {
+	uri   string
+	users []string
+}
+
+// nxExternalRefs lists the absolute URIs the document's schemas reference
+// that no schema in the document declares as its $id. A reference inside a
+// schema that declares $id resolves against that $id.
+func nxExternalRefs(doc *nxObj) []nxExternal {
+	var out []nxExternal
+	index := map[string]int{}
+	note := func(uri, user string) {
+		if nxDeclaresID(doc, uri) {
+			return
+		}
+		i, ok := index[uri]
+		if !ok {
+			index[uri] = len(out)
+			out = append(out, nxExternal{uri: uri})
+			i = len(out) - 1
+		}
+		if !nxContains(out[i].users, user) {
+			out[i].users = append(out[i].users, user)
+		}
+	}
+	for _, key := range nxPartKeys(doc, "schemas") {
+		for _, u := range nxRefsIn(doc.Obj("schemas").Get(key), "") {
+			note(u, "schema "+key)
+		}
+	}
+	for _, key := range nxPartKeys(doc, "operations") {
+		op := doc.Obj("operations").Obj(key)
+		for _, side := range []string{"input", "output"} {
+			if op != nil && op.Has(side) {
+				for _, u := range nxRefsIn(op.Get(side), "") {
+					note(u, key+" "+side)
+				}
+			}
+		}
+	}
+	return out
+}
+
+// nxRefsIn lists the absolute URIs (without fragments) a schema references,
+// resolving each reference against the nearest enclosing $id.
+func nxRefsIn(v any, base string) []string {
+	var out []string
+	var walk func(v any, base string)
+	walk = func(v any, base string) {
+		switch t := v.(type) {
+		case *nxObj:
+			if id, ok := t.Get("$id").(string); ok {
+				base = nxResolveURI(base, id)
+			}
+			for _, k := range t.Keys() {
+				if k == "$ref" || k == "$dynamicRef" {
+					ref, _ := t.Get(k).(string)
+					if strings.HasPrefix(ref, "#") && base == "" {
+						continue
+					}
+					if u := strings.SplitN(nxResolveURI(base, ref), "#", 2)[0]; nxURIScheme.MatchString(u) && !nxContains(out, u) && u != strings.SplitN(base, "#", 2)[0] {
+						out = append(out, u)
+					}
+					continue
+				}
+				walk(t.Get(k), base)
+			}
+		case []any:
+			for _, item := range t {
+				walk(item, base)
+			}
+		}
+	}
+	walk(v, base)
+	return out
+}
+
+func nxResolveURI(base, ref string) string {
+	r, err := url.Parse(ref)
+	if err != nil {
+		return ref
+	}
+	if base == "" {
+		return r.String()
+	}
+	b, err := url.Parse(base)
+	if err != nil {
+		return ref
+	}
+	return b.ResolveReference(r).String()
+}
+
+// nxDeclaresID says whether a schema in the document declares this $id.
+func nxDeclaresID(doc *nxObj, uri string) bool {
+	found := false
+	var walk func(v any)
+	walk = func(v any) {
+		switch t := v.(type) {
+		case *nxObj:
+			if id, ok := t.Get("$id").(string); ok && strings.TrimSuffix(id, "#") == uri {
+				found = true
+			}
+			for _, k := range t.Keys() {
+				walk(t.Get(k))
+			}
+		case []any:
+			for _, item := range t {
+				walk(item)
+			}
+		}
+	}
+	walk(doc.Get("schemas"))
+	walk(doc.Get("operations"))
+	return found
+}
+
+// nxSchemaNameFor names an embedded schema from its URI: the last path
+// segment without its extension, made unique.
+func nxSchemaNameFor(doc *nxObj, uri string) string {
+	name := uri
+	if u, err := url.Parse(uri); err == nil {
+		name = path.Base(u.Path)
+	}
+	name = strings.TrimSuffix(name, path.Ext(name))
+	if name == "" || !v02NamePattern.MatchString(name) {
+		name = "external"
+	}
+	candidate := name
+	for i := 2; doc.Obj("schemas") != nil && doc.Obj("schemas").Has(candidate); i++ {
+		candidate = fmt.Sprintf("%s-%d", name, i)
+	}
+	return candidate
 }
 
 // nxResolvesToSchema looks a same-document reference up in the document, as
@@ -184,6 +327,15 @@ func nxMetaValid(doc *nxObj, value any) string {
 	schema := nxClone(value)
 	if obj, ok := schema.(*nxObj); ok && doc.Obj("schemas") != nil {
 		defs := nxClone(doc.Obj("schemas")).(*nxObj)
+		// A schema with its own $id is checked as itself, not also as a
+		// definition beside itself.
+		if id, ok := obj.Get("$id").(string); ok {
+			for _, k := range defs.Keys() {
+				if d, isObj := defs.Get(k).(*nxObj); isObj && d.Get("$id") == id {
+					defs.Delete(k)
+				}
+			}
+		}
 		for _, k := range defs.Keys() {
 			nxRewriteRefs(defs, "#/schemas/"+k, "#/$defs/"+k)
 			nxRewriteRefs(obj, "#/schemas/"+k, "#/$defs/"+k)
@@ -195,6 +347,7 @@ func nxMetaValid(doc *nxObj, value any) string {
 		return err.Error()
 	}
 	c := jsonschema.NewCompiler()
+	c.UseLoader(nxPublishedLoader{})
 	if err := c.AddResource("urn:ob-preview:meta", parsed); err != nil {
 		return err.Error()
 	}

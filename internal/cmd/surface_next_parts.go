@@ -1542,7 +1542,9 @@ func nxSchemaCmd() *cobra.Command {
 			after.Obj("schemas").Delete(c.args[1])
 			return c.wrote(c.args[0], before, after, "Removed schema "+c.args[1])
 		}))
-	list := nxListFormats(nxLeaf("schema.list", "list <obi>", "List reusable schemas", "List named schemas and what references each.",
+	list := nxListFormats(nxLeaf("schema.list", "list <obi>", "List reusable schemas", `List named schemas and what references each, then the external schemas the
+document references that no schema in it declares (ob schema bundle embeds
+them).`,
 		`  ob schema list tasks.obi.json`, nxArgs(1, 1), func(c *nxCtx) error {
 			doc := c.doc(c.args[0])
 			var rows [][]string
@@ -1550,10 +1552,85 @@ func nxSchemaCmd() *cobra.Command {
 			for _, key := range nxPartKeys(doc, "schemas") {
 				refs := nxSchemaReferrers(doc, key)
 				rows = append(rows, []string{key, nxDash(strings.Join(refs, ", "))})
-				out = append(out, nxNewObj().Set("name", key).Set("referencedBy", nxToAny(refs)))
+				entry := nxNewObj().Set("name", key).Set("referencedBy", nxToAny(refs))
+				if id, ok := doc.Obj("schemas").Obj(key).Get("$id").(string); ok {
+					entry.Set("id", id)
+				}
+				out = append(out, entry)
 			}
-			c.render(out, func() { c.table("NAME\tREFERENCED BY", rows) })
+			external := nxExternalRefs(doc)
+			for _, x := range external {
+				out = append(out, nxNewObj().Set("uri", x.uri).Set("external", true).Set("referencedBy", nxToAny(x.users)))
+			}
+			c.render(out, func() {
+				c.table("NAME\tREFERENCED BY", rows)
+				if len(external) > 0 {
+					c.println("")
+					c.println("External (ob schema bundle embeds them):")
+					var ext [][]string
+					for _, x := range external {
+						ext = append(ext, []string{"  " + x.uri, strings.Join(x.users, ", ")})
+					}
+					c.table("", ext)
+				}
+			})
 			return nil
+		}))
+	bundle := nxEditable(nxLeaf("schema.bundle", "bundle <obi> [<uri>...]", "Embed external schemas", `Embed the external schemas the document references, so it no longer needs
+the network to resolve them. ob fetches each one and adds it to schemas
+with its $id (the URI it came from, unless it declares its own), along with
+the external schemas it references in turn. References do not change: a
+reference to that URI now resolves to the copy in the document, as JSON
+Schema's bundling defines (spec §7.4). Named URIs limit it to those, and
+what they reference. Each copy is named from its URI; ob schema rename
+renames one. ob schema list shows what is still external.`,
+		`  ob schema bundle tasks.obi.json
+  ob schema bundle tasks.obi.json https://schemas.example.com/time/date-time.json`,
+		nxArgs(1, -1), func(c *nxCtx) error {
+			before := c.doc(c.args[0])
+			after := nxClone(before).(*nxObj)
+			external := nxExternalRefs(after)
+			queue := c.args[1:]
+			if len(queue) == 0 {
+				for _, x := range external {
+					queue = append(queue, x.uri)
+				}
+			}
+			for _, u := range c.args[1:] {
+				found := false
+				for _, x := range external {
+					found = found || x.uri == u
+				}
+				if !found {
+					return nxNotFound("%s does not reference %s as an external schema; ob schema list shows the ones it does", c.args[0], u)
+				}
+			}
+			var embedded []string
+			for len(queue) > 0 {
+				u := queue[0]
+				queue = queue[1:]
+				if nxDeclaresID(after, u) {
+					continue
+				}
+				raw, ok := nxPublishedSchemas[u]
+				if !ok {
+					return nxFail(1, "could not fetch %s, so nothing was written", u)
+				}
+				schema := nxMustParse(raw).(*nxObj)
+				if !schema.Has("$id") {
+					schema.Set("$id", u)
+				}
+				name := nxSchemaNameFor(after, u)
+				nxPart(after, "schemas").Set(name, schema)
+				embedded = append(embedded, name+" ("+u+")")
+				for _, x := range nxRefsIn(schema, u) {
+					queue = append(queue, x)
+				}
+			}
+			if len(embedded) == 0 {
+				return c.wrote(c.args[0], before, after, "")
+			}
+			return c.wrote(c.args[0], before, after, fmt.Sprintf("Embedded %s: %s", nxCount(len(embedded), "schema"), strings.Join(embedded, ", ")))
 		}))
 	show := nxListFormats(nxLeaf("schema.show", "show <obi> <name>", "Show a reusable schema", "Print a named schema.",
 		`  ob schema show tasks.obi.json Task`, nxArgs(2, 2), func(c *nxCtx) error {
@@ -1566,5 +1643,6 @@ func nxSchemaCmd() *cobra.Command {
 			return nil
 		}))
 	return nxPartGroup("schema", "Add, change, and remove reusable schemas", `Named JSON Schemas that operations share by reference, such as
-{"$ref": "#/schemas/Task"}.`, add, set, rename, remove, list, show)
+{"$ref": "#/schemas/Task"}. bundle embeds the external schemas a document
+references.`, add, set, rename, remove, list, show, bundle)
 }

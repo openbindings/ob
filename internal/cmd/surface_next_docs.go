@@ -551,6 +551,7 @@ func nxCheck(doc *nxObj, opKey, side string, value any) ([]string, bool, error) 
 		return nil, true, err
 	}
 	compiler := jsonschema.NewCompiler()
+	compiler.UseLoader(nxPublishedLoader{})
 	if err := compiler.AddResource("urn:ob-preview:check", parsed); err != nil {
 		return nil, true, err
 	}

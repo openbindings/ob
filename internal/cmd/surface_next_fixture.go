@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"sort"
 	"strings"
+
+	"github.com/santhosh-tekuri/jsonschema/v6"
 )
 
 // The preview answers every command from this one sample document, modeled
@@ -21,7 +23,9 @@ const nxFixtureJSON = `{
       "properties": {
         "id": { "type": "string" },
         "title": { "type": "string" },
-        "done": { "type": "boolean" }
+        "done": { "type": "boolean" },
+        "due": { "$ref": "https://schemas.example.com/time/date-time.json" },
+        "owner": { "$ref": "https://schemas.example.com/people/person.json" }
       },
       "required": ["id", "title"]
     },
@@ -188,6 +192,25 @@ var (
 	nxBindingOrder   = []string{"operation", "source", "content", "idempotent", "preference", "description", "deprecated"}
 	nxDependOrder    = []string{"operation", "kinds", "description"}
 )
+
+// Schemas published elsewhere that the sample references, standing in for
+// the network. person.json references contact.json relative to its $id.
+var nxPublishedSchemas = map[string]string{
+	"https://schemas.example.com/time/date-time.json": `{"$id":"https://schemas.example.com/time/date-time.json","type":"string","format":"date-time"}`,
+	"https://schemas.example.com/people/person.json":  `{"$id":"https://schemas.example.com/people/person.json","type":"object","properties":{"name":{"type":"string"},"contact":{"$ref":"contact.json"}},"required":["name"]}`,
+	"https://schemas.example.com/people/contact.json": `{"$id":"https://schemas.example.com/people/contact.json","type":"object","properties":{"email":{"type":"string"}}}`,
+}
+
+// nxPublishedLoader lets the schema compiler reach the published schemas.
+type nxPublishedLoader struct{}
+
+func (nxPublishedLoader) Load(u string) (any, error) {
+	raw, ok := nxPublishedSchemas[strings.TrimSuffix(u, "#")]
+	if !ok {
+		return nil, fmt.Errorf("%s is not published", u)
+	}
+	return jsonschema.UnmarshalJSON(strings.NewReader(raw))
+}
 
 func nxFixture() *nxObj  { return nxMustParse(nxFixtureJSON).(*nxObj) }
 func nxContract() *nxObj { return nxMustParse(nxContractJSON).(*nxObj) }
