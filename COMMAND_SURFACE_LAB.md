@@ -26,20 +26,31 @@ Things to try:
 ./bin/ob operation add tasks.obi.json x --input-schema '{"type":42}'   # refused: the result would be non-conformant
 ./bin/ob set tasks.obi.json --interface-version 2.0.0
 ./bin/ob operation example set tasks.obi.json createTask basic --input '{"title":"Plan"}'
-./bin/ob operation remove tasks.obi.json createTask            # refuses: bindings use it
+./bin/ob operation remove tasks.obi.json createTask            # refused: bindings use it (exit 3)
+./bin/ob operation remove tasks.obi.json acme.tasks.createTask  # refused: that is an alias
+./bin/ob operation set tasks.obi.json completeTask --unset output-schema
 ./bin/ob binding set tasks.obi.json createTask.mcp --preference 20 --dry-run
 ./bin/ob schema rename tasks.obi.json Task Todo                # updates every $ref
 ./bin/ob validate tasks.obi.json
 ./bin/ob validate tasks.obi.json --operation createTask --input '{"title":5}'
+printf '{"title":"a"}\n{"title":5}\n' | ./bin/ob validate tasks.obi.json --operation createTask --input -
 ./bin/ob source inspect tasks.obi.json httpApi
-./bin/ob source pull tasks.obi.json httpApi --target "GET /health"
-./bin/ob status tasks.obi.json
+./bin/ob status tasks.obi.json                                 # drift per source; grpcApi cannot be checked (exit 4)
+./bin/ob source pull tasks.obi.json --dry-run                  # adds new targets; never rewrites an operation unasked
+./bin/ob source pull tasks.obi.json httpApi --update-operation listTasks
+./bin/ob source pull tasks.obi.json --update-operation createTask   # refused: two sources disagree
+./bin/ob source pull tasks.obi.json mcpServer --target tools/complete_task --operation completeTask
 ./bin/ob compat tasks.obi.json acme-tasks.obi.json             # what a contract needs, and the commands that add it
 ./bin/ob operation set tasks.obi.json listTasks --add-alias acme.tasks.listTasks
 ./bin/ob merge tasks.obi.json acme-tasks.obi.json --operation acme.tasks.deleteTask
+./bin/ob merge tasks.obi.json acme-tasks.obi.json              # skips what already meets the contract
 ./bin/ob merge tasks.obi.json other.obi.json                   # refused: lists the conflicts
 ./bin/ob merge tasks.obi.json other.obi.json --theirs          # take the other side of each conflict
 ./bin/ob context list
+./bin/ob mcp tasks.obi.json                                    # createTask is skipped: two bindings, none chosen
+./bin/ob mcp tasks.obi.json --binding createTask.http
+./bin/ob start --tls                                           # refused: installing the CA is its own step
+./bin/ob describe
 ./bin/ob kind check example.openapi@2 --role invoke
 ./bin/ob delegate resolve --role invoke --kind acme.billing-rpc@1
 ./bin/ob operations list tasks.obi.json                        # near miss: suggests ob operation
@@ -101,9 +112,12 @@ were sent (exit 1). An output value that does not fit ends it the same way.
 Context follows the context resolution pattern. A binding asks for context
 by an exact scope; ob looks up only that scope, uses stored values only when
 the requirement says they may be reused (durable), and sends only the fields
-that one request needs. With nothing stored, ob asks at a terminal, and
-otherwise stops before sending anything and prints the `ob context set`
-command that supplies it. `--context` supplies context for one call.
+that one request needs. With nothing stored, ob gets it at a terminal: it
+asks for a value, or runs the sign-in the binding names (an OAuth 2.0 flow
+for the MCP binding), stores the tokens, and renews them as they expire.
+Otherwise it stops before sending anything and prints the `ob context set`
+command that supplies it. `--context` supplies context for one call, as a
+JSON object.
 Registering a delegate as an invoker does not give it the context store: a
 delegate resolves its own context, and a challenge from one is shown to you
 (naming who asked) or refused.
@@ -121,8 +135,8 @@ The same table for every command:
 | 0 | done, or yes |
 | 1 | failed, or no (for `invoke`, the operation may have taken effect) |
 | 2 | usage error |
-| 3 | refused; nothing was done or sent |
-| 4 | no verdict: a check could not decide (`validate`, `compat`) |
+| 3 | refused; nothing was written or sent (every refused edit, merge, remove, rename, and invoke) |
+| 4 | no verdict: a check could not decide (`validate`, `compat`, `status`, a `source pull` that skipped a source) |
 | 130 | cancelled |
 
 ## Open decisions, and how to feel each
@@ -162,11 +176,47 @@ Also decided on 2026-09-30:
 - `invoke --binding` is strict: a named binding that does not exist fails,
   and ob never falls back to a binding you did not name.
 - `source pull --target` binds one target of a source.
-- Commands that create a new file take `-o, --out`.
+- Commands that derive a new file from other input take `-o, --out`.
 - Contradictory flags on one edit (for example `--input-schema false` with
-  `--unset input`) are a usage error. Removing a dependency's last kind is
-  refused, because a dependency without kinds declares no kind constraint
-  (spec §5.5); `--unset kinds` says that on purpose.
+  `--unset input-schema`) are a usage error. Removing a dependency's last
+  kind is refused, because a dependency without kinds declares no kind
+  constraint (spec §5.5); `--unset kinds` says that on purpose.
+
+Decided on 2026-10-01, after review round 2:
+
+- Every refusal that writes or sends nothing exits 3. A lookup that finds
+  nothing in a read-only command exits 1.
+- `invoke` has no `--no-check`; checking values is part of what an operation
+  invoker does.
+- `source pull` adds targets no binding covers yet and refreshes binding
+  content. It never changes an operation you have: schema differences are
+  reported, `--update-operation` takes them, and two sources that disagree
+  are refused. `status` reports the same. A source ob cannot read is named,
+  and the exit status is 4.
+- `source pull --target` accepts a target's label or its identifier, and
+  `--operation` binds it to an operation you already have.
+- `init <obi>` keeps its positional document. Every command that creates a
+  file refuses to replace one without `--force` (`init`, `fetch -o`,
+  `synthesize -o`, `codegen -o`).
+- `start` serves HTTP. `--tls` adds HTTPS, and installing ob's local
+  certificate authority is its own explicit step (`--install-ca`).
+- `operation remove` refuses an alias, as `rename` does.
+- No `migrate` command. `diff --help` and `compat --help` say that `compat
+  new old` is the breaking-change check.
+- `ob describe` (with `-F obi` and `-F usage`) and the help topic `ob help
+  primer` replace the root flags `--openbindings`, `--usage-spec`, and
+  `--agent-primer`.
+- `show` has no YAML form; an OBI is JSON.
+- `--unset` takes a flag's own name (`--unset input-schema` undoes
+  `--input-schema`).
+- `merge` skips operations that already meet `<from>`'s operation, and lists
+  them as met.
+- The overlapping pairs stay, each saying how it differs: `status` and
+  `source pull --dry-run`, `kind check` and `delegate resolve`, `fetch` and
+  `show -F json`. The three exit-status flags stay, each matching its peers:
+  `-q` (validate, compat), `--exit-code` (diff, status), `--check` (fmt).
+
+Still open: the command a non-terminal OAuth refusal should print.
 
 Other proposals in this tree worth a look:
 
@@ -184,8 +234,6 @@ Other proposals in this tree worth a look:
   CLI face of the delegate-manager interface. Both use "role" (invoke,
   inspect, synthesize), the interface's word, which is a known leftover
   pending a rename.
-- `--openbindings`, `--usage-spec`, and `--agent-primer` stay as root flags,
-  as in production.
 
 ## What the preview does not model
 
@@ -194,7 +242,9 @@ Other proposals in this tree worth a look:
   `watchTasks` is paced only at a terminal. Values given as `@file` or `-` to
   other commands are replaced by a marked placeholder.
 - The pretend installation stores context for `https://api.example.com` and
-  `https://api.example.com/openapi.json`, and none for the MCP server.
+  `https://api.example.com/openapi.json`, and none for the MCP server. It
+  can invoke gRPC but not inspect it, so `status` and `pull` cannot check
+  `grpcApi`. It has not installed ob's local certificate authority.
 - The sample's kinds (`example.openapi@1`, `example.mcp@1`) are the spec's
   illustrative ones; nothing here says how a published kind reads its content.
 - Each command starts from the same sample, so edits do not accumulate.
