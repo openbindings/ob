@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"fmt"
+	"net/url"
 	"strings"
 
 	"github.com/spf13/cobra"
@@ -18,8 +19,16 @@ https://api.example.com, is looked up at /.well-known/openbindings
 document unless -o is given; -o refuses to replace an existing file unless
 --force is given.
 
+A service may ask for sign-in to read its OBI. ob then uses the context
+stored for the URL's origin (ob context set <origin>), asks at a terminal,
+and otherwise stops. fetch keeps a document written for an OpenBindings
+version this ob does not read, and says so.
+
 Commands that read a document, such as ob show and ob invoke, also accept a
-URL directly; fetch is for keeping a copy.`,
+URL directly and answer the same way; fetch is for keeping a copy.
+
+Exit status: 0 fetched; 1 no OBI is published there; 3 refused: the
+service asks for sign-in and nothing stored or given answers it.`,
 		`  ob fetch https://api.example.com -o tasks.obi.json
   ob fetch https://api.example.com | jq '.operations | keys'`,
 		nxArgs(1, 1), func(c *nxCtx) error {
@@ -520,26 +529,34 @@ func nxStartCmd() *cobra.Command {
 editors, browsers, and other tools. ob describes itself with an OBI at
 /.well-known/openbindings.
 
---tls also serves HTTPS, on the next port, with a certificate from a local
+Who may call it: ob prints an access token each time it starts, and every
+request must carry it as a bearer token. ob answers only requests addressed
+to 127.0.0.1 or localhost by name, which stops a web page from reaching it
+through DNS rebinding, and a browser page only from an origin given with
+--allow-origin.
+
+--tls also serves HTTPS, on the next port, with a certificate from ob's local
 certificate authority. ob never changes what this machine trusts on its own:
-the first time, add --install-ca to install that authority into the system
-trust store (it asks for an administrator's password).`,
+install the authority first with ob ca install.`,
 		`  ob start
-  ob start --port 8080
-  ob start --tls --install-ca`, nxArgs(0, 0), func(c *nxCtx) error {
+  ob start --port 8080 --allow-origin https://editor.example.com
+  ob start --tls`, nxArgs(0, 0), func(c *nxCtx) error {
 			port, _ := c.cmd.Flags().GetInt("port")
-			if c.on("install-ca") && !c.on("tls") {
-				return nxUsageErr("--install-ca installs the authority --tls uses; give it with --tls")
+			if c.on("tls") && !nxCAInstalled {
+				return nxRefuse("--tls needs ob's local certificate authority, which is not installed, so nothing was started;\n  install it (this asks for an administrator's password):  ob ca install")
 			}
-			if c.on("tls") && !c.on("install-ca") && !nxCAInstalled {
-				return nxRefuse("--tls needs ob's local certificate authority, which is not installed, so nothing was started;\nto install it (this asks for an administrator's password): ob start --tls --install-ca")
-			}
-			if c.on("install-ca") {
-				c.note("(preview: ob would install its local certificate authority into the system trust store here)")
+			for _, o := range c.strs("allow-origin") {
+				if u, err := url.Parse(o); err != nil || u.Scheme == "" || u.Host == "" || u.Path != "" {
+					return nxUsageErr("--allow-origin takes an origin, such as https://editor.example.com")
+				}
 			}
 			c.println(fmt.Sprintf("ob is serving on http://127.0.0.1:%d", port))
 			if c.on("tls") {
 				c.println(fmt.Sprintf("              and https://127.0.0.1:%d", port+1))
+			}
+			c.println("Access token for this run: ob_run_4c1e9a7d2b (send it as a bearer token)")
+			if o := c.strs("allow-origin"); len(o) > 0 {
+				c.println("Browser pages allowed from: " + strings.Join(o, ", "))
 			}
 			c.println(fmt.Sprintf("Its OBI: http://127.0.0.1:%d/.well-known/openbindings", port))
 			c.println("Press Ctrl-C to stop.")
@@ -547,8 +564,56 @@ trust store (it asks for an administrator's password).`,
 		})
 	cmd.Flags().Int("port", 20290, "the HTTP port; with --tls, HTTPS uses the next one")
 	cmd.Flags().Bool("tls", false, "also serve HTTPS, with a certificate from ob's local certificate authority")
-	cmd.Flags().Bool("install-ca", false, "with --tls: install that authority into the system trust store first")
+	cmd.Flags().StringArray("allow-origin", nil, "let browser pages from this origin call ob (repeatable)")
 	return cmd
+}
+
+// nxCACmd manages ob's local certificate authority, which ob start --tls
+// uses. Changing what the machine trusts is always its own step.
+func nxCACmd() *cobra.Command {
+	install := nxLeaf("ca.install", "install", "Install ob's local certificate authority", `Create ob's local certificate authority, if there is none yet, and install it
+into this machine's trust store, so browsers and tools trust ob start --tls.
+It asks for an administrator's password. Nothing else changes what this
+machine trusts.`,
+		`  ob ca install`, nxArgs(0, 0), func(c *nxCtx) error {
+			if nxCAInstalled {
+				c.note("ob's local certificate authority is already installed; no change")
+				return nil
+			}
+			c.note("(preview: ob would ask for an administrator's password, then install its authority)")
+			c.println("Installed ob's local certificate authority (expires 2036-10-01).")
+			return nil
+		})
+	remove := nxLeaf("ca.remove", "remove", "Remove ob's local certificate authority", `Remove ob's local certificate authority from this machine's trust store and
+delete its key. ob start --tls stops working until it is installed again.`,
+		`  ob ca remove`, nxArgs(0, 0), func(c *nxCtx) error {
+			if !nxCAInstalled {
+				return nxNotFound("ob's local certificate authority is not installed; there is nothing to remove")
+			}
+			c.println("Removed ob's local certificate authority.")
+			return nil
+		})
+	show := nxLeaf("ca.show", "show", "Show ob's local certificate authority", "Say whether ob's local certificate authority is installed, and if so, its fingerprint and expiry.",
+		`  ob ca show`, nxArgs(0, 0), func(c *nxCtx) error {
+			info := nxNewObj().Set("installed", nxCAInstalled)
+			if nxCAInstalled {
+				info.Set("fingerprint", "SHA256:4f:9c:1a:e2:77:0b:5d:c3").Set("expires", "2036-10-01")
+			}
+			c.render(info, func() {
+				if !nxCAInstalled {
+					c.println("ob's local certificate authority is not installed (ob ca install installs it).")
+					return
+				}
+				c.println("ob's local certificate authority is installed in this machine's trust store.")
+				c.println("  Fingerprint:  SHA256:4f:9c:1a:e2:77:0b:5d:c3")
+				c.println("  Expires:      2036-10-01")
+			})
+			return nil
+		})
+	nxFormat(show, "text", "json")
+	return nxGroupCmd("ca", "Manage the certificate authority ob start --tls uses", `ob start --tls serves HTTPS with certificates from a local certificate
+authority. These commands install it into this machine's trust store, show
+it, and remove it.`, install, remove, show)
 }
 
 func nxMCPCmd() *cobra.Command {

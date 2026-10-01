@@ -2,12 +2,14 @@ package cmd
 
 import (
 	"fmt"
+	"net/url"
 	"os"
 	"strings"
 	"text/tabwriter"
 
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
+	"golang.org/x/term"
 )
 
 type pflagFlag = pflag.Flag
@@ -33,6 +35,19 @@ func NewNextSurfaceRoot(variant string) *cobra.Command {
 		Long: `ob works with OpenBindings interface documents (OBIs): create and edit
 them, check them, compare them with shared contracts, and use them to call
 the services they describe.
+
+Start here:
+  ob init tasks.obi.json         create a document (ob synthesize makes one
+                                 from an artifact, such as an OpenAPI file)
+  ob show tasks.obi.json         see what it describes
+  ob validate tasks.obi.json     check it
+  ob invoke tasks.obi.json <operation> --input '{...}'
+                                 call one of its operations
+
+A document can be a path, - for stdin, or a URL; a bare origin is looked up
+at /.well-known/openbindings. Commands that interpret a document refuse one
+written for an OpenBindings version this ob does not read (exit 3); ob show
+-F json and ob fetch still print it.
 
 Exit status, for every command:
   0    done, or yes (an edit that is already true is "no change")
@@ -76,8 +91,7 @@ or called. ob invoke reads the input values you give it.`,
 		{ID: "parts", Title: "Parts of a document"},
 		{ID: "sources", Title: "Sources"},
 		{ID: "use", Title: "Using a service"},
-		{ID: "serve", Title: "Serving"},
-		{ID: "extend", Title: "Kinds and delegates"},
+		{ID: "advanced", Title: "Advanced"},
 	} {
 		root.AddGroup(g)
 	}
@@ -87,10 +101,9 @@ or called. ob invoke reads the input values you give it.`,
 	}
 	nxAdd(root, "parts", nxOperationCmd(), nxSourceCmd(), nxBindingCmd(), nxDependencyCmd(), nxSchemaCmd())
 	nxAdd(root, "sources", nxSynthesizeCmd(), nxStatusCmd())
-	nxAdd(root, "use", nxFetchCmd(), nxInvokeCmd(variant), nxContextCmd(), nxCodegenCmd())
-	nxAdd(root, "serve", nxStartCmd(), nxMCPCmd())
-	nxAdd(root, "extend", nxKindCmd(), nxDelegateCmd())
-	root.AddCommand(nxDescribeCmd(), nxPrimerTopic())
+	nxAdd(root, "use", nxFetchCmd(), nxInvokeCmd(variant), nxContextCmd())
+	nxAdd(root, "advanced", nxCodegenCmd(), nxStartCmd(), nxMCPCmd(), nxCACmd(), nxKindCmd(), nxDelegateCmd(), nxDescribeCmd())
+	root.AddCommand(nxPrimerTopic())
 	nxApplyEditMode(root, variant)
 	root.Example = `  ob init tasks.obi.json --name "Task Manager"
   ob operation add tasks.obi.json createTask --input-schema '{"type":"object"}'
@@ -307,6 +320,13 @@ func nxRun(cmd *cobra.Command, args []string, run func(*nxCtx) error) error {
 		}
 	}
 	c := &nxCtx{cmd: cmd, args: args}
+	if err := nxDocumentGate(c); err != nil {
+		fmt.Fprintln(cmd.ErrOrStderr(), c.bannerText())
+		for _, n := range c.notes {
+			fmt.Fprintln(cmd.ErrOrStderr(), n)
+		}
+		return err
+	}
 	err := run(c)
 	var usage *nxUsage
 	if err != nil && asUsage(err, &usage) {
@@ -400,6 +420,53 @@ func nxApplyEditMode(root *cobra.Command, variant string) {
 		}
 	}
 	visit(root)
+}
+
+// Commands whose arguments are not documents: scopes, artifacts.
+var nxNotDocumentArgs = map[string]bool{
+	"context.set": true, "context.show": true, "context.remove": true,
+	"synthesize": true, "source.import": true,
+}
+
+// nxDocumentGate answers for the pretend services a document URL can name:
+// one that asks for sign-in to read its OBI, one that publishes none, and
+// one whose OBI is written for OpenBindings 0.1.
+func nxDocumentGate(c *nxCtx) error {
+	if nxNotDocumentArgs[c.cmd.Annotations["surface-id"]] {
+		return nil
+	}
+	for _, arg := range c.args {
+		if !nxIsURL(arg) {
+			continue
+		}
+		u, err := url.Parse(arg)
+		if err != nil {
+			continue
+		}
+		origin := u.Scheme + "://" + u.Host
+		switch u.Hostname() {
+		case "private.example.com":
+			if _, ok := nxStoredContext(origin); ok {
+				c.note("using stored context for " + origin)
+				continue
+			}
+			if f, ok := c.cmd.InOrStdin().(*os.File); ok && term.IsTerminal(int(f.Fd())) {
+				c.note(fmt.Sprintf("(preview: %s asks for sign-in to read its OBI; ob would ask you for a credential and offer to store it for %s)", origin, origin))
+				continue
+			}
+			return nxRefuse("%s asks for sign-in to read its OBI (401), so nothing was read;\n  store a credential for it:  ob context set '%s' --bearer-token -", origin, origin)
+		case "nothing.example.com":
+			return nxFail(1, "no OBI is published at %s/.well-known/openbindings (404)", origin)
+		case "old.example.com":
+			id := c.cmd.Annotations["surface-id"]
+			if id == "fetch" || id == "show" && c.format() == "json" {
+				c.note(fmt.Sprintf("note: %s publishes an OBI written for OpenBindings 0.1.0, which this ob does not read; it is shown as published", origin))
+				continue
+			}
+			return nxRefuse("%s publishes an OBI written for OpenBindings 0.1.0, and this ob reads 0.2.x, so it was not interpreted; ob show -F json or ob fetch still prints it", origin)
+		}
+	}
+	return nil
 }
 
 // nxDoc returns the sample document standing in for the <obi> argument.

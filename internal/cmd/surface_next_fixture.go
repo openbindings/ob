@@ -356,9 +356,9 @@ var nxInstalledKinds = []nxKindSupport{
 
 var nxRoles = []string{"invoke", "inspect", "synthesize"}
 
-// The pretend installation has not installed ob's local certificate
-// authority, so ob start --tls needs --install-ca the first time.
-var nxCAInstalled = false
+// The pretend installation has installed ob's local certificate authority
+// (with ob ca install), so ob start --tls works.
+var nxCAInstalled = true
 
 func nxSupports(kind, role string) (string, bool) {
 	for _, k := range nxInstalledKinds {
