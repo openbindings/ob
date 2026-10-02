@@ -1,0 +1,226 @@
+{
+  "openbindings": "0.2.0",
+  "name": "Source Inspector (ob inspect requirement)",
+  "version": "0.1.0",
+  "description": "Playable lab adaptation of the operation subset ob consumes for its inspect role, with the settled kinds model. Retains the complete referenced schema graph; not a published shared interface revision.",
+  "schemas": {
+    "KindInfo": {
+      "type": "object",
+      "description": "Information about a supported kind.",
+      "properties": {
+        "kind": {
+          "type": "string",
+          "description": "Kind identifier, exact and opaque (e.g., example.openapi@1, example.mcp@1)."
+        },
+        "description": {
+          "type": "string",
+          "description": "Human-readable description of this kind."
+        }
+      },
+      "required": [
+        "kind"
+      ]
+    },
+    "Source": {
+      "type": "object",
+      "description": "A complete OpenBindings 0.2 source, forwarded by value. Its exact kind governs its content.",
+      "properties": {
+        "kind": {
+          "type": "string",
+          "minLength": 1
+        },
+        "content": {},
+        "description": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "kind"
+      ],
+      "additionalProperties": true
+    },
+    "Operation": {
+      "type": "object",
+      "description": "Potential OpenBindings operation framing for a bindable target.",
+      "properties": {
+        "description": {
+          "type": "string"
+        },
+        "deprecated": {
+          "type": "boolean"
+        },
+        "tags": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "input": {},
+        "output": {}
+      },
+      "additionalProperties": true
+    },
+    "BindableTarget": {
+      "type": "object",
+      "description": "A target admitted by the source's governing kind that can be framed as an OpenBindings operation. Any included framing is a sound projection of this same target.",
+      "properties": {
+        "selector": {
+          "type": "string",
+          "description": "Selector string a conforming binding entry can use under the governing kind."
+        },
+        "operationKey": {
+          "type": "string",
+          "description": "Suggested operation key for this target."
+        },
+        "operation": {
+          "$ref": "#/schemas/Operation"
+        }
+      },
+      "required": [
+        "selector"
+      ]
+    },
+    "InspectSourceInput": {
+      "type": "object",
+      "properties": {
+        "source": {
+          "$ref": "#/schemas/Source"
+        }
+      },
+      "required": [
+        "source"
+      ],
+      "additionalProperties": false
+    },
+    "SourceInspection": {
+      "type": "object",
+      "description": "Inspection result for a binding source artifact. Its inventory boundary is the targets admitted by the governing kind, not every interaction in the upstream artifact.",
+      "properties": {
+        "targets": {
+          "type": "array",
+          "items": {
+            "$ref": "#/schemas/BindableTarget"
+          }
+        },
+        "exhaustive": {
+          "type": "boolean",
+          "description": "True when targets is the complete list of targets admitted by the governing kind. False means more admitted targets may exist and requires limitation evidence."
+        },
+        "limitation": {
+          "$ref": "#/schemas/InspectionLimitation"
+        }
+      },
+      "required": [
+        "targets",
+        "exhaustive"
+      ],
+      "oneOf": [
+        {
+          "properties": {
+            "exhaustive": {
+              "const": true
+            }
+          }
+        },
+        {
+          "properties": {
+            "exhaustive": {
+              "const": false
+            }
+          },
+          "required": [
+            "limitation"
+          ]
+        }
+      ]
+    },
+    "InspectionLimitation": {
+      "type": "object",
+      "description": "Machine-readable evidence explaining why a source inspection is not exhaustive.",
+      "properties": {
+        "code": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Stable namespaced reason code."
+        },
+        "message": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Human-readable explanation of what may be missing and why."
+        },
+        "details": {
+          "type": "object",
+          "description": "Optional implementation- or family-specific structured evidence.",
+          "additionalProperties": true
+        }
+      },
+      "required": [
+        "code",
+        "message"
+      ]
+    },
+    "KindVerdict": {
+      "type": "object",
+      "description": "Authoritative support verdict for one exact kind identifier. Future optional fields may annotate this verdict but never qualify or soften supported.",
+      "properties": {
+        "kind": {
+          "type": "string",
+          "description": "Exact kind identifier token as supplied by the caller."
+        },
+        "supported": {
+          "type": "boolean",
+          "description": "Strict support verdict. True warrants that this implementation implements the specification denoted by the exact kind string, as published; false is an unqualified refusal."
+        }
+      },
+      "required": [
+        "kind",
+        "supported"
+      ]
+    }
+  },
+  "operations": {
+    "openbindings.source-inspector.listSupportedKinds": {
+      "description": "List the kinds this inspector can inspect, by exact identifier.",
+      "output": {
+        "type": "array",
+        "items": {
+          "$ref": "#/schemas/KindInfo"
+        }
+      }
+    },
+    "openbindings.interface-synthesizer.checkKindSupport": {
+      "description": "Authoritatively determine support for exact, opaque kind identifier tokens. This is the only operation a consumer may use to make a support decision such as source acceptance, refusal, or delegation. The result contains one verdict per unique input token in first-occurrence order. supported is always a strict boolean; true warrants that this implementation implements the specification the exact string denotes, as published. The result is deterministic for a given implementation version and the operation is side-effect free. An internal pattern may compress the warranted set but MUST NOT extend it: an implementation never answers true for a specification it has not implemented and never matches future revisions by prefix or regular expression. Future optional verdict fields may annotate a verdict but never qualify or soften supported.",
+      "input": {
+        "type": "object",
+        "properties": {
+          "kinds": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Exact, opaque kind identifier tokens to check. The array may be empty."
+          }
+        },
+        "required": [
+          "kinds"
+        ],
+        "additionalProperties": false
+      },
+      "output": {
+        "type": "array",
+        "items": {
+          "$ref": "#/schemas/KindVerdict"
+        }
+      }
+    },
+    "openbindings.source-inspector.inspectSource": {
+      "description": "Inspect a binding source artifact and return targets admitted by its governing kind, optionally with sound operation framing. The result states whether enumeration is exhaustive and explains any partial result.",
+      "input": {
+        "$ref": "#/schemas/InspectSourceInput"
+      },
+      "output": {
+        "$ref": "#/schemas/SourceInspection"
+      }
+    }
+  }
+}

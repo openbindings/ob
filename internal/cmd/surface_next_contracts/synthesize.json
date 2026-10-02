@@ -1,0 +1,171 @@
+{
+  "openbindings": "0.2.0",
+  "name": "Interface Synthesizer (ob synthesize requirement)",
+  "version": "0.2.0",
+  "description": "Playable lab adaptation of the operation subset ob consumes for its synthesize role, with the settled kinds model. Retains the complete referenced schema graph; not a published shared interface revision.",
+  "schemas": {
+    "KindInfo": {
+      "type": "object",
+      "description": "Information about a supported kind.",
+      "properties": {
+        "kind": {
+          "type": "string",
+          "description": "Kind identifier, exact and opaque (e.g., example.openapi@1, example.mcp@1)."
+        },
+        "description": {
+          "type": "string",
+          "description": "Human-readable description of this kind."
+        }
+      },
+      "required": [
+        "kind"
+      ]
+    },
+    "KindVerdict": {
+      "type": "object",
+      "description": "Authoritative support verdict for one exact kind identifier. Future optional fields may annotate this verdict but never qualify or soften supported.",
+      "properties": {
+        "kind": {
+          "type": "string",
+          "description": "Exact kind identifier token as supplied by the caller."
+        },
+        "supported": {
+          "type": "boolean",
+          "description": "Strict support verdict. True warrants that this implementation implements the specification denoted by the exact kind string, as published; false is an unqualified refusal."
+        }
+      },
+      "required": [
+        "kind",
+        "supported"
+      ]
+    },
+    "SynthesizeInterfaceSource": {
+      "type": "object",
+      "description": "A binding source to synthesize an interface from.",
+      "properties": {
+        "kind": {
+          "type": "string",
+          "description": "Kind identifier governing this source."
+        },
+        "name": {
+          "type": "string",
+          "description": "Key name for this binding source in the output."
+        },
+        "location": {
+          "type": "string",
+          "description": "Location to fetch content from (path or URL)."
+        },
+        "content": {
+          "description": "Content provided directly."
+        },
+        "outputLocation": {
+          "type": "string",
+          "description": "Location to reference in the output."
+        },
+        "embed": {
+          "type": "boolean",
+          "description": "If true, embed content inline in the output."
+        },
+        "description": {
+          "type": "string",
+          "description": "Human-readable description for this source."
+        }
+      },
+      "required": [
+        "kind"
+      ],
+      "anyOf": [
+        {
+          "required": [
+            "location"
+          ]
+        },
+        {
+          "required": [
+            "content"
+          ]
+        }
+      ],
+      "additionalProperties": false
+    },
+    "SynthesizeInterfaceInput": {
+      "type": "object",
+      "properties": {
+        "openbindingsVersion": {
+          "type": "string",
+          "description": "Target OpenBindings spec version."
+        },
+        "sources": {
+          "type": "array",
+          "items": {
+            "$ref": "#/schemas/SynthesizeInterfaceSource"
+          },
+          "description": "Binding sources to synthesize from."
+        },
+        "name": {
+          "type": "string",
+          "description": "Interface name override."
+        },
+        "version": {
+          "type": "string",
+          "description": "Interface contract version override."
+        },
+        "description": {
+          "type": "string",
+          "description": "Interface description override."
+        }
+      },
+      "additionalProperties": false
+    },
+    "OpenBindingsInterface": {
+      "type": "object",
+      "description": "A valid OpenBindings interface document.",
+      "additionalProperties": true
+    }
+  },
+  "operations": {
+    "openbindings.interface-synthesizer.listSupportedKinds": {
+      "description": "Return an advisory glance at kinds this synthesizer can name, for display, documentation, and pickers. Presence is a support warrant, and every listed identifier MUST receive supported: true from checkKindSupport. Absence carries no information and MUST NOT be treated as a negative support decision.",
+      "output": {
+        "type": "array",
+        "items": {
+          "$ref": "#/schemas/KindInfo"
+        }
+      }
+    },
+    "openbindings.interface-synthesizer.checkKindSupport": {
+      "description": "Authoritatively determine support for exact, opaque kind identifier tokens. This is the only operation a consumer may use to make a support decision such as source acceptance, refusal, or delegation. The result contains one verdict per unique input token in first-occurrence order. supported is always a strict boolean; true warrants that this implementation implements the specification the exact string denotes, as published. The result is deterministic for a given implementation version and the operation is side-effect free. An internal pattern may compress the warranted set but MUST NOT extend it: an implementation never answers true for a specification it has not implemented and never matches future revisions by prefix or regular expression. Future optional verdict fields may annotate a verdict but never qualify or soften supported.",
+      "input": {
+        "type": "object",
+        "properties": {
+          "kinds": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Exact, opaque kind identifier tokens to check. The array may be empty."
+          }
+        },
+        "required": [
+          "kinds"
+        ],
+        "additionalProperties": false
+      },
+      "output": {
+        "type": "array",
+        "items": {
+          "$ref": "#/schemas/KindVerdict"
+        }
+      }
+    },
+    "openbindings.interface-synthesizer.synthesizeInterface": {
+      "description": "Synthesize a creation-time-sound OpenBindings interface, optionally from binding source artifacts. Every emitted binding resolves to a supported target and admits a faithful invocation path. For every accepted source input, represent every callable target admitted by its governing binding revision; an implementation may refuse an unsupported artifact as a whole but MUST refuse instead of silently returning a partial interface when one admitted target cannot be represented faithfully.",
+      "input": {
+        "$ref": "#/schemas/SynthesizeInterfaceInput"
+      },
+      "output": {
+        "$ref": "#/schemas/OpenBindingsInterface"
+      }
+    }
+  }
+}

@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"encoding/json"
 	"fmt"
 	"sort"
 	"strings"
@@ -415,32 +416,28 @@ func nxSupports(kind, role string) (string, bool) {
 
 type nxDelegate struct {
 	id, name    string
+	iface       *nxObj
 	roles       []string
-	preferences map[string]int
+	preferences map[string]json.Number
 }
 
 var nxDelegates = []nxDelegate{
-	{"d_7f3a", "Usage Tools", []string{"invoke"}, map[string]int{}},
-	{"d_91c2", "Acme RPC", []string{"invoke", "inspect"}, map[string]int{"invoke": 10}},
-}
-
-var nxRoleInterfaces = map[string][]string{
-	"invoke":     {"openbindings.binding-invoker.invokeBinding", "openbindings.binding-invoker.preflightBinding", "openbindings.binding-invoker.listSupportedKinds", "openbindings.binding-invoker.checkKindSupport"},
-	"inspect":    {"openbindings.source-inspector.inspectSource", "openbindings.source-inspector.listSupportedKinds", "openbindings.source-inspector.checkKindSupport"},
-	"synthesize": {"openbindings.interface-synthesizer.synthesizeInterface", "openbindings.interface-synthesizer.listSupportedKinds", "openbindings.interface-synthesizer.checkKindSupport"},
+	{"d_7f3a", "Usage Tools", nxProviderInterface("Usage Tools", []string{"invoke"}), []string{"invoke"}, map[string]json.Number{}},
+	{"d_91c2", "Acme RPC", nxProviderInterface("Acme RPC", nxRoles), []string{"invoke", "inspect"}, map[string]json.Number{"invoke": "10"}},
 }
 
 // The pretend context store, keyed by the exact scope an engine asserts in
 // its challenge.
 type nxContext struct {
-	scope string
-	holds [][2]string // field, masked value
+	scope    string
+	context  *nxObj
+	resolver *nxObj // ob-local settings, never forwarded as Context
 }
 
 var nxContexts = []nxContext{
-	{"https://api.example.com", [][2]string{{"bearerToken", "••••3f9a"}, {"headers.X-Client", "ob"}, {"credentials.primary", "••••1a2b"}, {"credentials.secondary", "••••3c4d"}, {"cookies.session", "••••5e6f"}, {"refreshToken", "••••7a8b"}}},
-	{"https://api.example.com/openapi.json", [][2]string{{"configuration.server", `{"url":"https://api.example.com"}`}}},
-	{"https://tokens.example.com", [][2]string{{"tokenProvider", "https://auth.example.com"}, {"tokenCredential", "••••9a2c"}}},
+	{"https://api.example.com", nxMustParse(`{"bearerToken":"preview-secret-3f9a","headers":{"X-Client":"ob"},"credentials":{"primary":"preview-secret-1a2b","secondary":"preview-secret-3c4d"},"cookies":{"session":"preview-secret-5e6f"},"refreshToken":"preview-secret-7a8b"}`).(*nxObj), nxNewObj()},
+	{"https://api.example.com/openapi.json", nxMustParse(`{"configuration":{"server":{"url":"https://api.example.com"}}}`).(*nxObj), nxNewObj()},
+	{"https://tokens.example.com", nxNewObj(), nxMustParse(`{"tokenProvider":"https://auth.example.com","tokenCredential":"preview-secret-9a2c"}`).(*nxObj)},
 }
 
 func nxStoredContext(scope string) (nxContext, bool) {

@@ -15,10 +15,11 @@ This is **design only**. The Go SDK is being rebuilt, so nothing here is
 implemented for real. The work lives in a **playable preview**: a build of
 `ob` whose every command answers from a built-in sample document (a Task
 Manager API) and a pretend installation. Edits print the diff they would
-make; `invoke` and `validate` really read and check input values; nothing
-is read from or written to disk (beyond the binary itself) and nothing is
-called. Matt plays with it to make decisions, and two AI reviewers rank it
-against peer CLIs.
+make; `invoke` and `validate` really read and check input values. Context
+whole-object replacement reads JSON from stdin or a file, and delegate edits
+read OBIs from stdin, so export/reuse can be exercised. Edits do not persist
+and no service is called. Matt plays with it to make decisions; fresh reviewers
+rank the frozen preview against peer CLIs.
 
 **The bar** Matt set: a top-three overall ranking from every reviewer, with
 no blocking findings. Current state: round 5 is frozen and reviewed by three
@@ -57,6 +58,10 @@ All paths are on Matt's machine.
   - `surface_next_fixture.go`: the sample document, the sample contract, the
     pretend installation (kinds, delegates, context store, published
     schemas).
+  - `surface_next_inspection.go` and `surface_next_contracts/`: native Context
+    inspection, full delegate registrations and role contracts, and their
+    whole-value input readers. The contracts README records their provenance
+    and the lab's adaptations to the settled kinds model.
   - `surface_next_schema.json`: embedded copy of the 0.2 derived schema.
   - `surface_next_test.go`: the lab's tests.
 - Play guide: `COMMAND_SURFACE_LAB.md` in the worktree root. Its
@@ -141,7 +146,10 @@ Ignore them.
   kind").
 - **One irreducible thing per command; no macros.** (A command that applies
   one job to a whole document, like `schema bundle`, is fine.)
-- **Never push or deploy without explicit approval in the current turn.**
+- **Push or deploy only within Matt's explicit authorization.** Remote
+  preservation is authorized for `codex/cli-surface-lab`: Matt authorized saving
+  this branch remotely on 2026-10-01 and continuing the lab inspection fixes on
+  2026-10-02. This does not authorize merging or deploying.
   Commit locally freely.
 - **No Co-Authored-By or AI attribution lines** in commits or PR bodies.
 - **Avoid em dashes** in anything Matt reads.
@@ -338,13 +346,21 @@ The full adjudication lives at
 `/Users/matt/Code/ob-pj/openbindings/ob-cli-surface-lab/design/ob-cli-surface/review-5/adjudication.md`.
 Verified repairs, not new design decisions:
 
-- Accept fractional and negative delegate preferences faithfully; reject
-  duplicate requested roles.
-- Expose retained delegate OBIs, complete preference maps, accepted role
-  interfaces, and the role's admission/use description.
-- Keep JSON list reports as informative as text, including binding
-  preference/idempotency, source counts/support, and delegate preferences.
-- Reveal native nested context JSON with resolver metadata separate.
+- Applied 2026-10-02: accept fractional and negative delegate preferences
+  faithfully, preserve explicit zero versus absence, and reject duplicate
+  requested roles or contradictory edits.
+- Applied: expose retained delegate OBIs, complete `rolePreferences`, accepted
+  role interfaces and their schema graphs, and the admission/use description.
+  The role fixtures follow ob's existing admission catalogue, adapted to the
+  settled kinds model. Optional preflight is not required; inspection consumes
+  the Interface Synthesizer query, rather than inventing a Source Inspector
+  query. Shared drafts and frozen inputs remain unchanged.
+- Applied: JSON lists include present binding preference/idempotency/deprecation,
+  source counts/support, and delegate preferences. Absence, zero, and false are
+  distinguished.
+- Applied: reveal native nested Context JSON with resolver metadata separate.
+  Whole Context JSON and delegate OBIs from stdin can be reused in the preview;
+  the lab still does not persist edits or implement admission comparison.
 - Use exit 4 for an explicitly selected unreadable source, as already ruled.
 - Shell-quote every argument substituted into a generated recovery command.
 - Parse binding preferences in decimal and use plain numeric diagnostics.
@@ -362,6 +378,10 @@ while resolving D-13 IDs, including userinfo percent spelling, empty queries,
 case, and repeated slashes. Focused tests and the lab suite pass. This repair
 and the guide clarification are **post-freeze, not independently re-reviewed**;
 round-5 binary, guide, and checksums remain unchanged.
+
+The 2026-10-02 inspection pass above is also post-freeze and has not received
+another independent review. Its focused regression checks and the required
+lab suite pass. It does not settle any of the five decisions in 6B.
 
 ## 7. Next steps
 

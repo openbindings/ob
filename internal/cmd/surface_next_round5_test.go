@@ -63,9 +63,12 @@ func TestNextContextMaskingAndVocabulary(t *testing.T) {
 	}
 	out, _, err = nxExec("", "context", "show", "https://api.example.com", "-F", "json")
 	var report struct {
-		Fields map[string]struct{ Masked bool } `json:"fields"`
+		Context struct {
+			BearerToken struct{ Masked bool }
+			Headers     map[string]struct{ Masked bool }
+		}
 	}
-	if err != nil || json.Unmarshal([]byte(out), &report) != nil || !report.Fields["bearerToken"].Masked || !report.Fields["headers.X-Client"].Masked || strings.Contains(out, "3f9a") {
+	if err != nil || json.Unmarshal([]byte(out), &report) != nil || !report.Context.BearerToken.Masked || !report.Context.Headers["X-Client"].Masked || strings.Contains(out, "3f9a") {
 		t.Fatalf("JSON structural masking: %q, %v", out, err)
 	}
 	out, _, err = nxExec("", "context", "show", "https://api.example.com", "--reveal")

@@ -6,7 +6,6 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
-	"strconv"
 	"strings"
 
 	"github.com/spf13/cobra"
@@ -263,17 +262,14 @@ names. A stored token provider also lets --token-credential rotate on its own.
 				if raw := c.str("value"); raw != "-" && !strings.HasPrefix(raw, "@") {
 					return nxUsageErr("--value takes @FILE or - (stdin): a context can hold secrets, and a value on the command line stays in your shell history")
 				}
-				if _, _, err := c.object("value"); err != nil {
+				if _, err := c.readJSONObject(c.str("value"), "--value"); err != nil {
 					return err
 				}
 				c.println("Replaced the context for " + scope)
 				return nil
 			}
 			stored, _ := nxStoredContext(scope)
-			pinned := false
-			for _, h := range stored.holds {
-				pinned = pinned || h[0] == "tokenProvider"
-			}
+			pinned := stored.resolver != nil && stored.resolver.Has("tokenProvider")
 			if c.set("token-credential") && !c.set("token-provider") && !pinned {
 				return nxUsageErr("--token-credential needs a stored token provider or --token-provider")
 			}
@@ -341,11 +337,7 @@ names. A stored token provider also lets --token-credential rotate on its own.
 						return nxUsageErr("--%s and --unset %s ask for opposite changes; choose one", strings.SplitN(u, ".", 2)[0], u)
 					}
 				}
-				held := false
-				for _, h := range stored.holds {
-					held = held || h[0] == field
-				}
-				if !held {
+				if !stored.hasField(field) {
 					return nxNotFound("nothing is stored as %s for %q; ob context show %s lists what is", u, scope, scope)
 				}
 				removed = append(removed, u)
@@ -394,49 +386,44 @@ names. A stored token provider also lets --token-credential rotate on its own.
 			var rows [][]string
 			var out []any
 			for _, ctx := range nxContexts {
-				var fields []string
-				for _, h := range ctx.holds {
-					fields = append(fields, h[0])
-				}
+				fields := nxContextFields(ctx.context)
+				resolverFields := nxContextFields(ctx.resolver)
 				var labels []string
-				for _, f := range fields {
+				for _, f := range append(append([]string(nil), fields...), resolverFields...) {
 					labels = append(labels, nxContextFlagField(f))
 				}
 				rows = append(rows, []string{ctx.scope, strings.Join(labels, ", ")})
-				out = append(out, nxNewObj().Set("scope", ctx.scope).Set("fields", nxToAny(fields)))
+				out = append(out, nxNewObj().Set("scope", ctx.scope).Set("fields", nxToAny(fields)).Set("resolverFields", nxToAny(resolverFields)))
 			}
 			c.render(out, func() { c.table("SCOPE\tFIELDS", rows) })
 			return nil
 		}))
 	show := nxListFormats(nxLeaf("context.show", "show <scope>", "Show a stored context", `Show what is stored for one scope. Every value is masked, since headers
 and configuration can hold secrets too; --reveal prints them. Text names
-match --unset; JSON keeps the interface's field names and represents each
-hidden value as {"masked":true}.`,
+match --unset; JSON contains scope, the native nested context object, and
+ob-local resolver settings separately. Hidden values are {"masked":true}.
+With --reveal, extract .context to reuse it with context set --value; resolver
+settings are never forwarded as Context. Revealed values may contain secrets.`,
 		`  ob context show https://api.example.com`, nxArgs(1, 1), func(c *nxCtx) error {
 			ctx, ok := nxStoredContext(c.args[0])
 			if !ok {
 				return nxNotFound("nothing is stored for %q; ob context list shows the scopes that have context", c.args[0])
 			}
-			fields := nxNewObj()
-			var rows [][]string
-			for _, h := range ctx.holds {
-				value := h[1]
-				switch {
-				case c.on("reveal") && strings.HasPrefix(value, "••••"):
-					value = "preview-secret-" + strings.TrimPrefix(value, "••••")
-				case !c.on("reveal"):
-					value = "••••"
+			context, resolver := nxClone(ctx.context).(*nxObj), nxClone(ctx.resolver).(*nxObj)
+			if !c.on("reveal") {
+				context = nxMaskContext(context)
+				// Resolver settings are local values, not a Context map.
+				for _, key := range resolver.Keys() {
+					resolver.Set(key, nxNewObj().Set("masked", true))
 				}
-				if c.on("reveal") {
-					fields.Set(h[0], value)
-				} else {
-					fields.Set(h[0], nxNewObj().Set("masked", true))
-				}
-				rows = append(rows, []string{"  " + nxContextFlagField(h[0]), value})
 			}
-			c.render(nxNewObj().Set("scope", ctx.scope).Set("fields", fields), func() {
+			c.render(nxNewObj().Set("scope", ctx.scope).Set("context", context).Set("resolver", resolver), func() {
 				c.println(ctx.scope)
-				c.table("", rows)
+				c.table("", nxContextRows(ctx.context, c.on("reveal")))
+				if ctx.resolver.Len() > 0 {
+					c.println("  Resolver settings (local to ob):")
+					c.table("", nxContextRows(ctx.resolver, c.on("reveal")))
+				}
 			})
 			return nil
 		}))
@@ -583,17 +570,24 @@ changes nothing unless --replace-schemas is given.`,
 
 // nxDelegatePreferences checks --preference ROLE=NUMBER against the roles
 // the delegate has.
-func nxDelegatePreferences(c *nxCtx, roles []string) error {
+func nxDelegatePreferences(c *nxCtx, roles []string) (map[string]json.Number, error) {
+	out := map[string]json.Number{}
 	for _, p := range c.strs("preference") {
 		role, n, ok := strings.Cut(p, "=")
 		if !ok || !nxContains(roles, role) {
-			return nxUsageErr("--preference takes ROLE=NUMBER for a role the delegate has")
+			return nil, nxUsageErr("--preference takes ROLE=NUMBER for a role the delegate has")
 		}
-		if _, err := strconv.Atoi(n); err != nil {
-			return nxUsageErr("--preference %s: %q is not a whole number", role, n)
+		if _, duplicate := out[role]; duplicate {
+			return nil, nxUsageErr("--preference repeats role %q; give one number per role", role)
 		}
+		value, err := nxParse(n)
+		number, isNumber := value.(json.Number)
+		if !json.Valid([]byte(n)) || err != nil || !isNumber {
+			return nil, nxUsageErr("--preference %s: %q is not a JSON number", role, n)
+		}
+		out[role] = number
 	}
-	return nil
+	return out, nil
 }
 
 func nxCompatCmd() *cobra.Command {
@@ -1089,16 +1083,21 @@ what this installation can do; they never judge a document.`, list, check)
 }
 
 func nxDelegateCmd() *cobra.Command {
-	roles := nxListFormats(nxLeaf("delegate.roles", "roles", "List the work ob can hand to delegates", `List the roles ob accepts delegates for, with the operations a delegate
-must offer for each.`, `  ob delegate roles`, nxArgs(0, 0), func(c *nxCtx) error {
+	roles := nxListFormats(nxLeaf("delegate.roles", "roles", "List the work ob can hand to delegates", `List the roles ob accepts, their admission/use policy, and their complete
+expected interfaces. -F json carries id, description, and acceptedInterfaces
+as the delegate-manager contract defines. Each accepted interface includes
+all required operations and their referenced schemas, without bindings or
+dependencies. The preview uses lab adaptations to the settled kinds model.`, `  ob delegate roles`, nxArgs(0, 0), func(c *nxCtx) error {
 		var out []any
 		for _, r := range nxRoles {
-			out = append(out, nxNewObj().Set("role", r).Set("requires", nxToAny(nxRoleInterfaces[r])))
+			out = append(out, nxNewObj().Set("id", r).Set("description", nxRolePurposes[r]+" "+nxRolePolicy).Set("acceptedInterfaces", []any{nxClone(nxRoleRequirements[r])}))
 		}
 		c.render(out, func() {
 			for _, r := range nxRoles {
 				c.println(r)
-				for _, op := range nxRoleInterfaces[r] {
+				c.println("  " + nxRolePurposes[r])
+				c.println("  " + nxRolePolicy)
+				for _, op := range nxRoleRequirements[r].Obj("operations").Keys() {
 					c.println("  " + op)
 				}
 			}
@@ -1108,36 +1107,47 @@ must offer for each.`, `  ob delegate roles`, nxArgs(0, 0), func(c *nxCtx) error
 	add := nxLeaf("delegate.add", "add <delegate-obi> --role <role>", "Register a delegate", `Register another tool as a delegate for one or more roles. <delegate-obi>
 is the tool's OBI (a path, - for stdin, or a URL); ob keeps a copy, checks
 that it offers the operations each role needs, and gives the registration an
-ID. --preference ROLE=N sets how strongly ob prefers it among delegates for
-that role; higher wins.`,
+ID. --preference ROLE=NUMBER sets how strongly ob prefers it among eligible
+delegates for that role; higher wins. Negative and fractional numbers are
+allowed. Absence has effective preference zero; an explicit zero stays
+explicit. Each role may be requested once. -F json prints the full retained
+registration, including interface and rolePreferences. In the preview, stdin
+is really read, but role schema compatibility and eligibility are illustrative.`,
 		`  ob delegate add ./acme-rpc.obi.json --role invoke --preference invoke=10
-  ob fetch https://tools.example.com | ob delegate add - --role inspect --role synthesize`,
+  ob delegate add https://tools.example.com --role inspect --role synthesize`,
 		nxArgs(1, 1), func(c *nxCtx) error {
 			if len(c.strs("role")) == 0 {
 				return nxUsageErr("--role is required: invoke, inspect, or synthesize (repeatable)")
 			}
-			for _, r := range c.strs("role") {
-				if err := nxValidRole(r); err != nil {
-					return nxUsageErr("%v", err)
-				}
-			}
-			if err := nxDelegatePreferences(c, c.strs("role")); err != nil {
+			if err := nxUniqueRoles(c.strs("role"), "role"); err != nil {
 				return err
 			}
-			id := "d_4e21"
-			c.note(fmt.Sprintf("(preview: %s was not read)", c.args[0]))
-			c.render(nxNewObj().Set("id", id).Set("name", "Acme Tools").Set("roles", nxToAny(c.strs("role"))), func() {
-				c.println(fmt.Sprintf("Registered %s (Acme Tools) for %s.", id, strings.Join(c.strs("role"), ", ")))
-				c.println("It offers every operation those roles need.")
+			prefs, err := nxDelegatePreferences(c, c.strs("role"))
+			if err != nil {
+				return err
+			}
+			iface, err := c.delegateInterface(c.args[0])
+			if err != nil {
+				return err
+			}
+			name, _ := iface.Get("name").(string)
+			d := nxDelegate{"d_4e21", name, iface, c.strs("role"), prefs}
+			c.render(d.report(), func() {
+				c.println(fmt.Sprintf("Registered %s (%s) for %s.", d.id, nxDash(d.name), strings.Join(d.roles, ", ")))
 			})
 			return nil
 		})
 	add.Flags().StringArray("role", nil, "a role to register for: invoke, inspect, or synthesize (repeatable)")
-	add.Flags().StringArray("preference", nil, "ROLE=NUMBER; higher is preferred (repeatable)")
+	add.Flags().StringArray("preference", nil, "ROLE=NUMBER, including negative/fractional values; higher is preferred (repeatable)")
 	nxFormat(add, "text", "json")
 	list := nxListFormats(nxLeaf("delegate.list", "list", "List delegates", "List registered delegates, their roles, and their preferences.",
 		`  ob delegate list
   ob delegate list --role invoke`, nxArgs(0, 0), func(c *nxCtx) error {
+			if c.set("role") {
+				if err := nxValidRole(c.str("role")); err != nil {
+					return nxUsageErr("%v", err)
+				}
+			}
 			var rows [][]string
 			var out []any
 			for _, d := range nxDelegates {
@@ -1147,11 +1157,11 @@ that role; higher wins.`,
 				var prefs []string
 				for _, r := range d.roles {
 					if p, ok := d.preferences[r]; ok {
-						prefs = append(prefs, fmt.Sprintf("%s=%d", r, p))
+						prefs = append(prefs, fmt.Sprintf("%s=%s", r, p))
 					}
 				}
 				rows = append(rows, []string{d.id, d.name, strings.Join(d.roles, ", "), nxDash(strings.Join(prefs, ", "))})
-				out = append(out, nxNewObj().Set("id", d.id).Set("name", d.name).Set("roles", nxToAny(d.roles)))
+				out = append(out, d.report())
 			}
 			c.render(out, func() { c.table("ID\tNAME\tROLES\tPREFERENCES", rows) })
 			return nil
@@ -1165,38 +1175,38 @@ that role; higher wins.`,
 		}
 		return nxDelegate{}, nxNotFound("no delegate %q; ob delegate list shows them", id)
 	}
-	show := nxListFormats(nxLeaf("delegate.show", "show <id>", "Show a delegate", "Show a registered delegate: its roles, its preference for each, and the operations it offers for each.",
+	show := nxListFormats(nxLeaf("delegate.show", "show <id>", "Show a delegate", `Show a registered delegate, its roles, and its explicit role preferences.
+-F json prints the full retained interface and rolePreferences, including
+schemas, bindings, sources, and extension values. Extract .interface to reuse
+it with delegate set --obi -.`,
 		`  ob delegate show d_91c2`, nxArgs(1, 1), func(c *nxCtx) error {
 			d, err := find(c.args[0])
 			if err != nil {
 				return err
 			}
-			prefs := nxNewObj()
-			offers := nxNewObj()
-			for _, r := range d.roles {
-				if p, ok := d.preferences[r]; ok {
-					prefs.Set(r, p)
-				}
-				offers.Set(r, nxToAny(nxRoleInterfaces[r]))
-			}
-			c.render(nxNewObj().Set("id", d.id).Set("name", d.name).Set("roles", nxToAny(d.roles)).Set("preferences", prefs).Set("offers", offers), func() {
+			c.render(d.report(), func() {
 				c.println(fmt.Sprintf("%s (%s)", d.id, d.name))
 				for _, r := range d.roles {
 					pref := "no preference"
 					if p, ok := d.preferences[r]; ok {
-						pref = fmt.Sprintf("preference %d", p)
+						pref = fmt.Sprintf("preference %s", p)
 					}
-					c.println(fmt.Sprintf("  %s, %s, offering:", r, pref))
-					for _, op := range nxRoleInterfaces[r] {
-						c.println("    " + op)
-					}
+					c.println(fmt.Sprintf("  %s, %s", r, pref))
+				}
+				c.println("  Retained interface operations:")
+				for _, op := range d.iface.Obj("operations").Keys() {
+					c.println("    " + op)
 				}
 			})
 			return nil
 		}))
 	set := nxLeaf("delegate.set", "set <id>", "Change a delegate", `Change a registered delegate: replace its OBI with --obi, change its roles,
 or set its preference for a role. Only the flags you give change anything.
---unset preference.ROLE removes a preference.`,
+Numbers may be negative or fractional. --unset preference.ROLE removes an
+explicit preference. Removing a role also removes its preference; at least
+one role must remain. Repeated or contradictory role changes are usage errors.
+-F json prints the resulting full registration; --obi - really reads stdin
+in the preview, without implementing admission comparison or persistence.`,
 		`  ob delegate set d_91c2 --preference invoke=20
   ob delegate set d_91c2 --add-role synthesize
   ob delegate set d_91c2 --unset preference.invoke`,
@@ -1207,11 +1217,20 @@ or set its preference for a role. Only the flags you give change anything.
 			if err := nxContradictions(c, nil, [2]string{"add-role", "remove-role"}); err != nil {
 				return err
 			}
+			for _, flag := range []string{"add-role", "remove-role"} {
+				if err := nxUniqueRoles(c.strs(flag), flag); err != nil {
+					return err
+				}
+			}
 			d, err := find(c.args[0])
 			if err != nil {
 				return err
 			}
 			roles := append([]string(nil), d.roles...)
+			prefs := map[string]json.Number{}
+			for r, p := range d.preferences {
+				prefs[r] = p
+			}
 			var changes []string
 			for _, r := range c.strs("add-role") {
 				if err := nxValidRole(r); err != nil {
@@ -1227,43 +1246,64 @@ or set its preference for a role. Only the flags you give change anything.
 					return nxNotFound("%s is not registered for %s", d.id, r)
 				}
 				roles = nxWithout(roles, r)
+				delete(prefs, r)
 				changes = append(changes, "removed role "+r)
 			}
 			if len(roles) == 0 {
 				return nxRefuse("that would leave %s with no role, so nothing was changed; to remove the delegate, use ob delegate remove %s", d.id, d.id)
 			}
-			if err := nxDelegatePreferences(c, roles); err != nil {
+			requested, err := nxDelegatePreferences(c, roles)
+			if err != nil {
 				return err
 			}
-			for _, p := range c.strs("preference") {
-				changes = append(changes, "preference "+p)
+			for _, r := range roles {
+				if p, ok := requested[r]; ok {
+					if old, present := prefs[r]; !present || old != p {
+						changes = append(changes, "preference "+r+"="+string(p))
+					}
+					prefs[r] = p
+				}
 			}
 			for _, u := range c.strs("unset") {
 				role, ok := strings.CutPrefix(u, "preference.")
 				if !ok {
 					return nxUsageErr("--unset takes preference.ROLE")
 				}
-				if _, has := d.preferences[role]; !has {
+				if _, opposite := requested[role]; opposite {
+					return nxUsageErr("--preference %s and --unset %s ask for opposite changes; choose one", role, u)
+				}
+				if _, has := prefs[role]; !has {
 					return nxNotFound("%s has no preference for %s", d.id, role)
 				}
+				delete(prefs, role)
 				changes = append(changes, "removed the preference for "+role)
 			}
 			if c.set("obi") {
-				c.note(fmt.Sprintf("(preview: %s was not read)", c.str("obi")))
-				changes = append(changes, "replaced its OBI")
+				iface, err := c.delegateInterface(c.str("obi"))
+				if err != nil {
+					return err
+				}
+				if nxCompact(iface) != nxCompact(d.iface) {
+					changes = append(changes, "replaced its OBI")
+				}
+				d.iface = iface
+				d.name, _ = iface.Get("name").(string)
 			}
+			d.roles, d.preferences = roles, prefs
 			if len(changes) == 0 {
 				c.note(d.id + ": no change")
+				c.render(d.report(), func() {})
 				return nil
 			}
-			c.println(fmt.Sprintf("%s: %s.", d.id, strings.Join(changes, "; ")))
+			c.render(d.report(), func() { c.println(fmt.Sprintf("%s: %s.", d.id, strings.Join(changes, "; "))) })
 			return nil
 		})
 	set.Flags().String("obi", "", "replace the delegate's OBI: a path, - for stdin, or a URL")
 	set.Flags().StringArray("add-role", nil, "register it for another role (repeatable)")
 	set.Flags().StringArray("remove-role", nil, "stop using it for a role (repeatable)")
-	set.Flags().StringArray("preference", nil, "ROLE=NUMBER; higher is preferred (repeatable)")
+	set.Flags().StringArray("preference", nil, "ROLE=NUMBER, including negative/fractional values; higher is preferred (repeatable)")
 	set.Flags().StringArray("unset", nil, "remove a preference: preference.ROLE")
+	nxFormat(set, "text", "json")
 	remove := nxLeaf("delegate.remove", "remove <id>", "Remove a delegate", "Remove a registered delegate. ob stops handing it work and deletes its copy of the delegate's OBI.",
 		`  ob delegate remove d_7f3a`, nxArgs(1, 1), func(c *nxCtx) error {
 			d, err := find(c.args[0])

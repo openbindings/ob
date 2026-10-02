@@ -3,9 +3,10 @@
 This branch is a playable preview of the proposed `ob` command surface for
 OpenBindings 0.2. Every command answers from a built-in sample document (a
 Task Manager API modeled on the spec's §4 example) and a pretend
-installation. Nothing is read, written, or called. Edit commands show the
-change they would make as a diff, and read commands answer about the sample,
-so commands agree with each other the way a real `ob` would.
+installation. Document arguments stand in for the sample. Edit commands show
+the change they would make, without saving it or calling a service. `invoke`
+and value validation read real inputs; whole Context JSON and delegate OBIs
+from stdin are also read so inspection/reuse can be played through.
 
 The tree is `NewNextSurfaceRoot` in `internal/cmd/surface_next*.go`. It
 follows the spec's `release/0.2` draft at `de2c20b`.
@@ -146,6 +147,50 @@ delegate resolves its own context, and a challenge from one is shown to you
 The sample's shapes: `completeTask`, `createTask`, and `listTasks` take one
 value and return one; `importTasks` takes a stream and returns one;
 `watchTasks` takes one and returns a stream.
+
+## Inspecting and reusing stored values
+
+`context show -F json` returns `{scope, context, resolver}`. `context` is the
+native nested Context object, with JSON value types and literal member names
+intact when revealed. `resolver` holds ob-local token-provider settings and
+is never forwarded as Context. Every value is masked by default, including
+headers and configuration. `--reveal` is required to export usable values.
+
+```sh
+./bin/ob context show https://api.example.com/openapi.json --reveal -F json | jq '.context' | ./bin/ob context set https://api.example.com/openapi.json --value -
+./bin/ob delegate show d_91c2 -F json | jq '.interface' | ./bin/ob delegate set d_91c2 --obi - -F json
+./bin/ob delegate set d_91c2 --preference invoke=-0.125 -F json
+./bin/ob delegate roles -F json
+```
+
+The preview really reads `context set --value -|@FILE` and a delegate OBI
+supplied as `-`. It validates the input shape, retains JSON numbers without
+float conversion, and carries complete delegate OBIs through the edit report.
+Other document paths and URLs still use sample documents. Edits do not persist
+between commands. Context replacement prints a confirmation without values.
+Default masked Context reports are descriptions, not replacement inputs.
+
+Delegate show, list, add, and set JSON include `interface`, `roles`, and the
+complete explicit `rolePreferences` map. An absent preference stays absent;
+an explicit zero stays explicit. Negative and fractional JSON numbers are
+accepted without rounding. Removing a role also removes its preference.
+Duplicate role requests and conflicting preference edits exit 2.
+
+`delegate roles` includes each role's `id`, application-owned admission/use
+`description`, and complete `acceptedInterfaces`, including their referenced
+schema graph. The lab follows ob's existing admission slices, adapted to the
+settled kinds model. Invocation does not require optional preflight, and
+inspection uses the Interface Synthesizer support query because Source
+Inspector defines none of its own. Provenance and adaptations are recorded in
+`internal/cmd/surface_next_contracts/README.md`. The preview does not run role
+schema comparison or dispatch eligibility checks.
+
+JSON binding lists include present `preference`, `idempotent`, and `deprecated`
+signals. Source lists include `bindingCount` and `canInvoke`. Zero and false
+remain values; optional absent signals are omitted.
+
+This inspection pass follows Matt's 2026-10-02 instruction. It is a post-round-5
+repair, not a new full ranking. The five Open decisions below remain unruled.
 
 ## Exit status
 
@@ -339,10 +384,11 @@ Proposals not ruled on, open to challenge:
 
 ## What the preview does not model
 
-- Nothing runs, and outputs are illustrative. `invoke` reads real input
-  values and checks them, but answers with sample results; the stream from
-  `watchTasks` is paced only at a terminal. Values given as `@file` or `-` to
-  other commands are replaced by a marked placeholder.
+- Nothing calls a service, and results are illustrative. `invoke` reads real
+  input values and checks them, but answers with sample results; the stream
+  from `watchTasks` is paced only at a terminal. Value validation, Context
+  whole-object replacement, and delegate OBIs from stdin also read real JSON.
+  Other `@file` and `-` value flags use marked placeholders.
 - The pretend installation stores context for `https://api.example.com` and
   `https://api.example.com/openapi.json`, and a pinned token provider for
   `https://tokens.example.com`; none is stored for the MCP server. It
@@ -373,6 +419,11 @@ result, and every new document, passes the 0.2 schema (vendored from spec
 in and out, early close, both kinds of input failure, binding choice, and
 context refusal); and check refusals, near-miss hints, exit statuses, and
 `-F json` output.
+
+Inspection regression tests also check native Context export/reuse, complete
+structural masking, literal dotted member names, complete role schema graphs,
+retained delegate extensions, exact JSON numbers, explicit zero versus absence,
+and rejection of duplicate or conflicting edits.
 
 The production tests elsewhere in this branch fail, because `cmd/ob` now
 builds the preview tree and the sibling SDK and spec checkouts have moved.

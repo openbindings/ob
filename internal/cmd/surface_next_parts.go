@@ -75,7 +75,7 @@ func nxContradictions(c *nxCtx, setFlags map[string]string, pairs ...[2]string) 
 func nxNeedsChange(c *nxCtx) error {
 	changed := false
 	c.cmd.Flags().Visit(func(f *pflagFlag) {
-		if f.Name != "dry-run" && f.Name != "out" {
+		if f.Name != "dry-run" && f.Name != "out" && f.Name != "format" {
 			changed = true
 		}
 	})
@@ -730,7 +730,7 @@ removes those bindings too.`,
 				kind := fmt.Sprint(doc.Obj("sources").Obj(key).Get("kind"))
 				_, can := nxSupports(kind, "invoke")
 				rows = append(rows, []string{key, kind, nxCount(len(nxReferrers(doc, "bindings", "source", key)), "binding"), nxYesNo(can)})
-				out = append(out, nxNewObj().Set("name", key).Set("kind", kind))
+				out = append(out, nxSourceListEntry(doc, key))
 			}
 			c.render(out, func() { c.table("NAME\tKIND\tBINDINGS\tCAN INVOKE", rows) })
 			return nil
@@ -1383,7 +1383,7 @@ finding it.`, "binding", "bindings", `  ob binding rename tasks.obi.json createT
 				src := fmt.Sprint(b.Get("source"))
 				kind := fmt.Sprint(doc.Obj("sources").Obj(src).Get("kind"))
 				rows = append(rows, []string{key, fmt.Sprint(b.Get("operation")), src, kind, nxDash(nxBindingSummary(b)[1])})
-				out = append(out, nxNewObj().Set("name", key).Set("operation", b.Get("operation")).Set("source", src).Set("kind", kind))
+				out = append(out, nxBindingListEntry(doc, key))
 			}
 			c.render(out, func() { c.table("NAME\tOPERATION\tSOURCE\tKIND\tSIGNALS", rows) })
 			return nil
