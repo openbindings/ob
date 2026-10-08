@@ -10,11 +10,6 @@ The OpenBindings CLI (`ob`) authors, validates, invokes, and serves OpenBindings
 > the draft, clone `ob` beside `openbindings-go`, follow
 > [`CONTRIBUTING.md`](CONTRIBUTING.md), and build from the local workspace.
 
-When handing OpenBindings work to an AI agent, `ob --agent-primer` prints the
-version-aligned project primer as Markdown. The same canonical primer is
-published at [openbindings.com/agents](https://openbindings.com/agents) and
-linked first from the site's `llms.txt`.
-
 ## Visual system
 
 Human-facing terminal output and embedded browser pages adapt the stable

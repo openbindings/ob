@@ -5,11 +5,6 @@ import (
 	_ "embed"
 )
 
-// agent-primer.md is authored in the spec repository and copied here by
-// gen_agentprimer.go; quick-reference.md is ob's own. Run
-// `go generate ./internal/server/...` after the canonical primer changes.
-//go:generate go run gen_agentprimer.go
-
 //go:embed resources/*
 var specResources embed.FS
 

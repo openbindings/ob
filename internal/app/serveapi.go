@@ -463,7 +463,7 @@ func addInfrastructurePaths(paths map[string]any) {
 		"operationId": "readSpecResource", "summary": "Read a bundled OpenBindings guidance resource.",
 		"parameters": []any{map[string]any{
 			"name": "name", "in": "path", "required": true,
-			"schema": map[string]any{"type": "string", "enum": []string{"agent-primer.md", "quick-reference.md"}},
+			"schema": map[string]any{"type": "string", "enum": []string{"quick-reference.md"}},
 		}},
 		"responses": map[string]any{"200": map[string]any{"description": "Resource contents.", "content": map[string]any{"text/markdown": map[string]any{"schema": map[string]any{"type": "string"}}}}},
 	}}
