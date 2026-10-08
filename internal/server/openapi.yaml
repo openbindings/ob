@@ -2631,7 +2631,6 @@ paths:
                   required: true
                   schema:
                     enum:
-                        - agent-primer.md
                         - quick-reference.md
                     type: string
             responses:

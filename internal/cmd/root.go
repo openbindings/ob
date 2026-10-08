@@ -7,7 +7,6 @@ import (
 	"fmt"
 
 	"github.com/openbindings/ob/internal/app"
-	"github.com/openbindings/ob/internal/server"
 	"github.com/openbindings/openbindings-go/canonicaljson"
 	"github.com/spf13/cobra"
 )
@@ -23,7 +22,6 @@ var embeddedUsageSpec string
 // We keep errors/usage silent and let our main() decide how to print ExitResult vs generic errors.
 func NewRoot() *cobra.Command {
 	var usageSpec bool
-	var agentPrimer bool
 	var openbindingsFlag bool
 
 	root := &cobra.Command{
@@ -40,14 +38,6 @@ service's operations independent of the protocols that carry them.`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if usageSpec {
 				_, err := fmt.Fprint(cmd.OutOrStdout(), embeddedUsageSpec)
-				return err
-			}
-			if agentPrimer {
-				content, err := server.SpecResource("agent-primer.md")
-				if err != nil {
-					return fmt.Errorf("load embedded agent primer: %w", err)
-				}
-				_, err = cmd.OutOrStdout().Write(content)
 				return err
 			}
 			if openbindingsFlag {
@@ -82,7 +72,6 @@ service's operations independent of the protocols that carry them.`,
 	}
 
 	root.Flags().BoolVar(&usageSpec, "usage-spec", false, "output the usage.kdl spec for this CLI")
-	root.Flags().BoolVar(&agentPrimer, "agent-primer", false, "output the OpenBindings primer for AI agents")
 	root.Flags().BoolVar(&openbindingsFlag, "openbindings", false, "output the OpenBindings interface for this CLI")
 	root.PersistentFlags().StringP("output", "o", "", "write output to file (default: stdout)")
 	root.PersistentFlags().StringP("format", "F", "", "output format: json|yaml|text")
