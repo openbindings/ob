@@ -403,6 +403,13 @@ ship as part of 0.2.0.
 
 ### Added
 
+- An unpublished Rust command-surface preview based on the current default CLI
+  design. Help, parsing, version output, and static shell completions work;
+  all 73 domain commands explicitly refuse with exit 3 and perform no operation.
+  The Go implementation remains preserved. See
+  [the Rust migration boundary](docs/rust-command-surface.md); the existing
+  release workflow still builds Go.
+
 - CORS middleware now responds to Chrome's Private Network Access preflight
   (`Access-Control-Allow-Private-Network: true`), fixing the
   CSP-shaped error Chrome produced when HTTP pages fetched `http://localhost`.

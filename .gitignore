@@ -33,3 +33,6 @@ go.work.sum
 # Consumer qualification build outputs
 /qualification/delegate-manager/go/provider
 /qualification/delegate-manager/ts/node_modules/
+
+# Rust command surface
+/target/
