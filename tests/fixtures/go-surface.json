@@ -1,0 +1,2519 @@
+{
+  "path": "ob",
+  "id": "",
+  "usage": "ob",
+  "summary": "Work with OpenBindings interface documents",
+  "description": "ob works with OpenBindings interface documents (OBIs): create and edit\nthem, check them, compare them with shared contracts, and use them to call\nthe services they describe.\n\nStart here:\n  ob init tasks.obi.json         create a document (ob synthesize makes one\n                                 from an artifact, such as an OpenAPI file)\n  ob show tasks.obi.json         see what it describes\n  ob validate tasks.obi.json     check it\n  ob invoke tasks.obi.json \u003coperation\u003e --input '{...}'\n                                 call one of its operations\n\nA document can be a path, - for stdin, or a URL; a bare origin is looked up\nat /.well-known/openbindings. Commands that interpret a document refuse one\nwritten for an OpenBindings version this ob does not read (exit 3); ob show\n-F json and ob fetch still print it.\n\nExit status, for every command:\n  0    done, or yes (an edit that is already true is \"no change\")\n  1    failed, or no\n  2    usage error, including a name that is not in the document\n  3    refused: ob understood the request and declined it; nothing was\n       written or sent\n  4    no verdict (a check could not decide)\n  130  cancelled\n\nPREVIEW: this build shows the proposed command surface. Commands answer from\na built-in sample document (a Task Manager API); nothing is read, written,\nor called. ob invoke reads the input values you give it.",
+  "examples": "  ob init tasks.obi.json --name \"Task Manager\"\n  ob operation add tasks.obi.json createTask --input-schema '{\"type\":\"object\"}'\n  ob source add tasks.obi.json httpApi --kind example.openapi@1 --content '{\"location\":\"https://api.example.com/openapi.json\"}'\n  ob binding add tasks.obi.json createTask.http --operation createTask --source httpApi --content '{\"target\":\"#/paths/~1tasks/post\"}'\n  ob validate tasks.obi.json\n  ob invoke tasks.obi.json completeTask --input '{\"id\":\"t_1\"}'",
+  "min": -1,
+  "max": -1,
+  "flags": null,
+  "children": [
+    {
+      "path": "ob init",
+      "id": "init",
+      "usage": "init [\u003cobi\u003e]",
+      "summary": "Create a new OBI",
+      "description": "Create a new OBI with an empty operations map, written to \u003cobi\u003e, or to\nstdout when \u003cobi\u003e is omitted or -. It refuses to replace an existing file\nunless --force is given.\n\n--interface-version sets the document's own version label (its \"version\"\nmember). The OpenBindings version is always 0.2.0.",
+      "examples": "  ob init tasks.obi.json --name \"Task Manager\"\n  ob init --name \"Task Manager\" --interface-version 1.0.0 \u003e tasks.obi.json",
+      "group": "docs",
+      "min": 0,
+      "max": 1,
+      "flags": [
+        {
+          "name": "description",
+          "kind": "string",
+          "help": "a human-readable description",
+          "default": ""
+        },
+        {
+          "name": "force",
+          "kind": "bool",
+          "help": "replace an existing file",
+          "default": "false"
+        },
+        {
+          "name": "interface-version",
+          "kind": "string",
+          "help": "the document's own version label",
+          "default": ""
+        },
+        {
+          "name": "name",
+          "kind": "string",
+          "help": "a human-readable name",
+          "default": ""
+        },
+        {
+          "name": "version",
+          "kind": "string",
+          "help": "",
+          "default": "",
+          "hidden": true
+        }
+      ],
+      "children": null
+    },
+    {
+      "path": "ob show",
+      "id": "show",
+      "usage": "show \u003cobi\u003e",
+      "summary": "Show a document",
+      "description": "Show an overview of a document: its operations, sources, bindings,\ndependencies, and schemas. -F json prints the exact stored document; an OBI\nis JSON, so there is no other document format.\n\n\u003cobi\u003e is a path, - for stdin, or a URL. A bare origin such as\nhttps://api.example.com is looked up at /.well-known/openbindings.",
+      "examples": "  ob show tasks.obi.json\n  ob show https://api.example.com -F json",
+      "group": "docs",
+      "min": 1,
+      "max": 1,
+      "flags": [
+        {
+          "name": "format",
+          "short": "F",
+          "kind": "string",
+          "help": "output format: text, json",
+          "default": "text",
+          "annotations": {
+            "allowed": [
+              "text,json"
+            ]
+          }
+        }
+      ],
+      "children": null
+    },
+    {
+      "path": "ob set",
+      "id": "set",
+      "usage": "set \u003cobi\u003e",
+      "summary": "Change a document's name, version label, or description",
+      "description": "Change the document's own fields: its name, its version label (the\ndocument's \"version\" member, the interface's own label, not the\nOpenBindings version), and its description. Only the flags you give change\nanything. --unset removes a field, named as its flag is: name,\ndescription, or interface-version.\n\nChanges \u003cobi\u003e in place. Give - as \u003cobi\u003e to read a document from stdin and\nprint the result instead, or use --dry-run to see the change without\nwriting it.",
+      "examples": "  ob set tasks.obi.json --interface-version 1.5.0\n  ob set tasks.obi.json --unset description",
+      "group": "docs",
+      "min": 1,
+      "max": 1,
+      "flags": [
+        {
+          "name": "description",
+          "kind": "string",
+          "help": "a human-readable description",
+          "default": ""
+        },
+        {
+          "name": "dry-run",
+          "kind": "bool",
+          "help": "show the change without writing it",
+          "default": "false"
+        },
+        {
+          "name": "interface-version",
+          "kind": "string",
+          "help": "the document's own version label",
+          "default": ""
+        },
+        {
+          "name": "name",
+          "kind": "string",
+          "help": "a human-readable name",
+          "default": ""
+        },
+        {
+          "name": "unset",
+          "kind": "stringArray",
+          "help": "remove a field: name, description, interface-version",
+          "default": "[]"
+        },
+        {
+          "name": "version",
+          "kind": "string",
+          "help": "",
+          "default": "",
+          "hidden": true
+        }
+      ],
+      "children": null
+    },
+    {
+      "path": "ob validate",
+      "id": "validate",
+      "usage": "validate \u003cobi\u003e",
+      "summary": "Check a document, a value, or examples",
+      "description": "Check a document against OpenBindings 0.2. The result is one of:\n\n  conformant                 every rule was checked and none is violated\n  non-conformant             at least one rule is violated\n  conformance undetermined   nothing is violated, but some rule could not be checked\n\nA document written for an OpenBindings version ob does not support is\nrefused rather than judged. The report names the spec text it applied.\n\n--operation checks values against that operation's schemas instead: each\n--input or --output is a value (JSON), or a stream of JSON values from @file\nor - for stdin; every value is checked and reported in turn. --examples\nchecks every operation's examples against its schemas, or with --operation,\none operation's.\n\nExit status: 0 conformant, or every value fits; 1 non-conformant, or some\nvalue does not fit; 2 a usage error, including a name that is not in the\ndocument; 3 refused (an OpenBindings version ob does not support); 4 no\nverdict (conformance undetermined, or no schema to check the value against).",
+      "examples": "  ob validate tasks.obi.json\n  ob validate tasks.obi.json --operation createTask --input '{\"title\":\"Write the docs\"}'\n  ob validate tasks.obi.json --examples --operation createTask",
+      "group": "docs",
+      "min": 1,
+      "max": 1,
+      "flags": [
+        {
+          "name": "examples",
+          "kind": "bool",
+          "help": "check every operation example against its schemas",
+          "default": "false"
+        },
+        {
+          "name": "format",
+          "short": "F",
+          "kind": "string",
+          "help": "output format: text, json",
+          "default": "text",
+          "annotations": {
+            "allowed": [
+              "text,json"
+            ]
+          }
+        },
+        {
+          "name": "input",
+          "kind": "stringArray",
+          "help": "an input value to check: JSON, @file, or - (repeatable)",
+          "default": "[]"
+        },
+        {
+          "name": "operation",
+          "kind": "string",
+          "help": "check a value against this operation (name or alias)",
+          "default": ""
+        },
+        {
+          "name": "output",
+          "kind": "stringArray",
+          "help": "an output value to check: JSON, @file, or - (repeatable)",
+          "default": "[]"
+        },
+        {
+          "name": "quiet",
+          "short": "q",
+          "kind": "bool",
+          "help": "print nothing; report through the exit status only",
+          "default": "false"
+        }
+      ],
+      "children": null
+    },
+    {
+      "path": "ob diff",
+      "id": "diff",
+      "usage": "diff \u003cbefore\u003e \u003cafter\u003e",
+      "summary": "Compare two documents",
+      "description": "List what changed between two documents, part by part. It reports\ndifferences only. To check whether \u003cafter\u003e still serves the callers of\n\u003cbefore\u003e, use ob compat \u003cafter\u003e \u003cbefore\u003e, which treats \u003cbefore\u003e as the\ncontract; ob compat also checks a document against a shared contract.\n--patch prints the changes as an RFC 6902 JSON Patch, which ob patch can\napply.",
+      "examples": "  ob diff tasks.obi.json tasks-next.obi.json\n  ob diff tasks.obi.json tasks-next.obi.json --patch \u003e changes.json",
+      "group": "docs",
+      "min": 2,
+      "max": 2,
+      "flags": [
+        {
+          "name": "exit-code",
+          "kind": "bool",
+          "help": "exit 1 when the documents differ",
+          "default": "false"
+        },
+        {
+          "name": "format",
+          "short": "F",
+          "kind": "string",
+          "help": "output format: text, json",
+          "default": "text",
+          "annotations": {
+            "allowed": [
+              "text,json"
+            ]
+          }
+        },
+        {
+          "name": "patch",
+          "kind": "bool",
+          "help": "print the changes as a JSON Patch",
+          "default": "false"
+        }
+      ],
+      "children": null
+    },
+    {
+      "path": "ob compat",
+      "id": "compat",
+      "usage": "compat \u003cobi\u003e \u003ccontract\u003e",
+      "summary": "Check a document against a shared contract",
+      "description": "Check whether \u003cobi\u003e satisfies a shared contract: for each contract\noperation, some operation must answer to its name, and fit the contract in\nthe role the document gives it:\n\n  provider   it has bindings: it must accept every input the contract\n             allows, and return only outputs the contract allows\n  consumer   a dependency calls it (spec §5.5): it must send only inputs\n             the contract accepts, and take every output the contract allows\n\nAn operation with both is checked both ways; one with neither, such as an\noperation in a pure contract, is also checked both ways. Schemas are compared under the Schema Comparison Profile\nOB-2020-12, published with the OpenBindings interfaces (schema-comparison).\nBoth arguments may be paths or URLs.\n\nTo check whether a new version of a document breaks callers of the old one,\ncompare it against the old one as the contract: ob compat new.obi.json\nold.obi.json.\n\nFor each contract operation that nothing answers to, it prints the two ways\nto meet it: give one of your operations the contract's name with ob\noperation set --add-alias, or add the contract's operation with ob merge.\n\nThe result is compatible, incompatible, or indeterminate, and as the profile\ndefines, indeterminate outranks incompatible: one comparison outside the\nprofile makes the whole result indeterminate, while the report still lists\nevery operation found incompatible.\n\nJSON reports list operations in sorted contract-key order. Each issue has\nan operation, kind (missing, output_incompatible, or input_incompatible),\nand detail carrying the profile's reason; output issues precede input issues\nfor a matched pair. Outside-profile comparisons are reported as\nindeterminate with their reason. This preview's matched sample schemas fit;\nthe sample also demonstrates missing operations and their remedies.\n\nExit status: 0 compatible; 1 incompatible; 4 indeterminate.",
+      "examples": "  ob compat tasks.obi.json acme-tasks.obi.json\n  ob compat https://api.example.com https://contracts.example.com/acme-tasks.json -q",
+      "group": "docs",
+      "min": 2,
+      "max": 2,
+      "flags": [
+        {
+          "name": "format",
+          "short": "F",
+          "kind": "string",
+          "help": "output format: text, json",
+          "default": "text",
+          "annotations": {
+            "allowed": [
+              "text,json"
+            ]
+          }
+        },
+        {
+          "name": "quiet",
+          "short": "q",
+          "kind": "bool",
+          "help": "print nothing; report through the exit status only",
+          "default": "false"
+        }
+      ],
+      "children": null
+    },
+    {
+      "path": "ob fmt",
+      "id": "fmt",
+      "usage": "fmt \u003cobi\u003e...",
+      "summary": "Format documents",
+      "description": "Rewrite each document with two-space indentation and the spec's member\norder (openbindings, name, version, description, schemas, operations,\ndependencies, sources, bindings, and the same within each part). Entries\nkeep the order you gave them.\n\n--check changes nothing; it lists files that would change and exits 1 if\nany would. --dry-run shows the change without writing it. Give - to format\na document from stdin to stdout. Values, including numbers, are kept exactly\nas written. --canonical prints the JSON Canonicalization Scheme form\n(RFC 8785), for hashing and signing, instead of rewriting.",
+      "examples": "  ob fmt tasks.obi.json\n  ob fmt --check *.obi.json\n  ob fmt --canonical tasks.obi.json | sha256sum",
+      "group": "docs",
+      "min": 1,
+      "max": -1,
+      "flags": [
+        {
+          "name": "canonical",
+          "kind": "bool",
+          "help": "print the RFC 8785 canonical form instead",
+          "default": "false"
+        },
+        {
+          "name": "check",
+          "kind": "bool",
+          "help": "report files that would change and exit 1 if any would",
+          "default": "false"
+        },
+        {
+          "name": "dry-run",
+          "kind": "bool",
+          "help": "show the formatting change without writing it",
+          "default": "false"
+        }
+      ],
+      "children": null
+    },
+    {
+      "path": "ob patch",
+      "id": "patch",
+      "usage": "patch \u003cobi\u003e \u003cpatch\u003e",
+      "summary": "Apply a JSON Patch",
+      "description": "Apply an RFC 6902 JSON Patch (a file, or - for stdin) for edits no other\ncommand covers, such as extension fields. Like every edit, it refuses a\npatch that would break a document rule the document did not already break,\nso you can repair a document one problem at a time.\n\nChanges \u003cobi\u003e in place. Give - as \u003cobi\u003e to read a document from stdin and\nprint the result instead, or use --dry-run to see the change without\nwriting it.",
+      "examples": "  ob patch tasks.obi.json changes.json\n  ob diff old.obi.json new.obi.json --patch | ob patch tasks.obi.json -",
+      "group": "docs",
+      "min": 2,
+      "max": 2,
+      "flags": [
+        {
+          "name": "dry-run",
+          "kind": "bool",
+          "help": "show the change without writing it",
+          "default": "false"
+        }
+      ],
+      "children": null
+    },
+    {
+      "path": "ob merge",
+      "id": "merge",
+      "usage": "merge \u003cobi\u003e \u003cfrom\u003e",
+      "summary": "Bring operations in from another document",
+      "description": "Copy operations from \u003cfrom\u003e (a path or URL) into \u003cobi\u003e, with the schemas,\nbindings, and sources they need. --operation limits the merge to the named\noperations of \u003cfrom\u003e.\n\nAn entry both documents have, by the same name (for an operation, its key or\nan alias), is left alone when the two are identical, and an operation of\n\u003cobi\u003e that already meets \u003cfrom\u003e's operation, as ob compat checks it, is left\nalone and listed as met. Otherwise, when they differ, ob lists every\ndifference and writes nothing, unless you say which side wins: --ours keeps\nwhat \u003cobi\u003e has, --theirs takes what \u003cfrom\u003e has.\n\nA shared contract is just another OBI, so merging from one adds the contract\noperations you don't have yet, under the contract's names and with its\nschemas. To give an operation you already have a contract's name instead,\nuse ob operation set --add-alias. ob compat shows which are missing.\n\nChanges \u003cobi\u003e in place. Give - as \u003cobi\u003e to read a document from stdin and\nprint the result instead, or use --dry-run to see the change without\nwriting it.",
+      "examples": "  ob merge tasks.obi.json tasks-next.obi.json --operation archiveTask\n  ob merge tasks.obi.json tasks-next.obi.json --theirs\n  ob merge tasks.obi.json acme-tasks.obi.json --operation acme.tasks.deleteTask",
+      "group": "docs",
+      "min": 2,
+      "max": 2,
+      "flags": [
+        {
+          "name": "dry-run",
+          "kind": "bool",
+          "help": "show the change without writing it",
+          "default": "false"
+        },
+        {
+          "name": "no-bindings",
+          "kind": "bool",
+          "help": "bring operations without their bindings",
+          "default": "false"
+        },
+        {
+          "name": "operation",
+          "kind": "stringArray",
+          "help": "merge only this operation of \u003cfrom\u003e (repeatable)",
+          "default": "[]"
+        },
+        {
+          "name": "ours",
+          "kind": "bool",
+          "help": "where the documents differ, keep what \u003cobi\u003e has",
+          "default": "false"
+        },
+        {
+          "name": "theirs",
+          "kind": "bool",
+          "help": "where the documents differ, take what \u003cfrom\u003e has",
+          "default": "false"
+        }
+      ],
+      "children": null
+    },
+    {
+      "path": "ob operation",
+      "id": "",
+      "usage": "operation",
+      "summary": "Add, change, and remove operations",
+      "description": "An operation is a protocol-independent contract: a name, and optional\nschemas for each input and output value. Bindings say how to carry it out;\ndependencies say where it is called.",
+      "examples": "",
+      "group": "parts",
+      "min": -1,
+      "max": -1,
+      "flags": null,
+      "children": [
+        {
+          "path": "ob operation add",
+          "id": "operation.add",
+          "usage": "add \u003cobi\u003e \u003cname\u003e",
+          "summary": "Add an operation",
+          "description": "Add an operation: a protocol-independent contract, with an optional schema\nfor each input value and each output value. Leaving a schema out leaves that\nside unspecified. Aliases are other names the operation answers to, such as a\nshared contract's name for it.\n\nChanges \u003cobi\u003e in place. Give - as \u003cobi\u003e to read a document from stdin and\nprint the result instead, or use --dry-run to see the change without\nwriting it.",
+          "examples": "  ob operation add tasks.obi.json archiveTask --description \"Archive a task.\" \\\n      --input-schema '{\"type\":\"object\",\"properties\":{\"id\":{\"type\":\"string\"}},\"required\":[\"id\"]}' \\\n      --output-schema '{\"$ref\":\"#/schemas/Task\"}'",
+          "min": 2,
+          "max": 2,
+          "flags": [
+            {
+              "name": "alias",
+              "kind": "stringArray",
+              "help": "another name the operation answers to (repeatable)",
+              "default": "[]"
+            },
+            {
+              "name": "deprecated",
+              "kind": "bool",
+              "help": "mark the operation deprecated",
+              "default": "false"
+            },
+            {
+              "name": "description",
+              "kind": "string",
+              "help": "what the operation does",
+              "default": ""
+            },
+            {
+              "name": "dry-run",
+              "kind": "bool",
+              "help": "show the change without writing it",
+              "default": "false"
+            },
+            {
+              "name": "input-schema",
+              "kind": "string",
+              "help": "schema for each input value: JSON, @file, or -",
+              "default": ""
+            },
+            {
+              "name": "output-schema",
+              "kind": "string",
+              "help": "schema for each output value: JSON, @file, or -",
+              "default": ""
+            },
+            {
+              "name": "tag",
+              "kind": "stringArray",
+              "help": "a documentation tag (repeatable)",
+              "default": "[]"
+            }
+          ],
+          "children": null
+        },
+        {
+          "path": "ob operation set",
+          "id": "operation.set",
+          "usage": "set \u003cobi\u003e \u003cname\u003e",
+          "summary": "Change an operation",
+          "description": "Change an operation's description, schemas, aliases, tags, or deprecation.\nOnly the flags you give change anything. --unset removes a member, named as\nits flag is (input-schema, output-schema, description, deprecated) or as the\nwhole list (aliases, tags, examples); unsetting a schema leaves that side\nunspecified. Removing an alias or tag the operation does not have is a\nusage error (exit 2).\n\nChanges \u003cobi\u003e in place. Give - as \u003cobi\u003e to read a document from stdin and\nprint the result instead, or use --dry-run to see the change without\nwriting it.",
+          "examples": "  ob operation set tasks.obi.json createTask --add-alias acme.tasks.addTask\n  ob operation set tasks.obi.json listTasks --deprecated\n  ob operation set tasks.obi.json completeTask --unset output-schema",
+          "min": 2,
+          "max": 2,
+          "flags": [
+            {
+              "name": "add-alias",
+              "kind": "stringArray",
+              "help": "add an alias (repeatable)",
+              "default": "[]"
+            },
+            {
+              "name": "add-tag",
+              "kind": "stringArray",
+              "help": "add a tag (repeatable)",
+              "default": "[]"
+            },
+            {
+              "name": "deprecated",
+              "kind": "bool",
+              "help": "mark deprecated; --deprecated=false marks it current",
+              "default": "false"
+            },
+            {
+              "name": "description",
+              "kind": "string",
+              "help": "what the operation does",
+              "default": ""
+            },
+            {
+              "name": "dry-run",
+              "kind": "bool",
+              "help": "show the change without writing it",
+              "default": "false"
+            },
+            {
+              "name": "input-schema",
+              "kind": "string",
+              "help": "schema for each input value: JSON, @file, or -",
+              "default": ""
+            },
+            {
+              "name": "output-schema",
+              "kind": "string",
+              "help": "schema for each output value: JSON, @file, or -",
+              "default": ""
+            },
+            {
+              "name": "remove-alias",
+              "kind": "stringArray",
+              "help": "remove an alias (repeatable)",
+              "default": "[]"
+            },
+            {
+              "name": "remove-tag",
+              "kind": "stringArray",
+              "help": "remove a tag (repeatable)",
+              "default": "[]"
+            },
+            {
+              "name": "unset",
+              "kind": "stringArray",
+              "help": "remove a member: input-schema, output-schema, description, deprecated, aliases, tags, examples",
+              "default": "[]"
+            }
+          ],
+          "children": null
+        },
+        {
+          "path": "ob operation rename",
+          "id": "operation.rename",
+          "usage": "rename \u003cobi\u003e \u003cname\u003e \u003cnew-name\u003e",
+          "summary": "Rename an operation",
+          "description": "Rename an operation's key, and update every binding and dependency that\nuses it. Nothing else changes: its aliases stay as they are, and the old\nname is gone. To keep answering to the old name, add it as an alias\nafterwards with ob operation set --add-alias.\n\nChanges \u003cobi\u003e in place. Give - as \u003cobi\u003e to read a document from stdin and\nprint the result instead, or use --dry-run to see the change without\nwriting it.",
+          "examples": "  ob operation rename tasks.obi.json createTask addTask",
+          "min": 3,
+          "max": 3,
+          "flags": [
+            {
+              "name": "dry-run",
+              "kind": "bool",
+              "help": "show the change without writing it",
+              "default": "false"
+            }
+          ],
+          "children": null
+        },
+        {
+          "path": "ob operation remove",
+          "id": "operation.remove",
+          "usage": "remove \u003cobi\u003e \u003cname\u003e",
+          "summary": "Remove an operation",
+          "description": "Remove an operation, named by its key. It refuses while bindings or\ndependencies use the operation; --cascade removes those too. Given an alias,\nit refuses and says whose alias it is: an alias goes with ob operation set\n--remove-alias.\n\nChanges \u003cobi\u003e in place. Give - as \u003cobi\u003e to read a document from stdin and\nprint the result instead, or use --dry-run to see the change without\nwriting it.",
+          "examples": "  ob operation remove tasks.obi.json completeTask --cascade",
+          "min": 2,
+          "max": 2,
+          "flags": [
+            {
+              "name": "cascade",
+              "kind": "bool",
+              "help": "also remove the bindings and dependencies that use it",
+              "default": "false"
+            },
+            {
+              "name": "dry-run",
+              "kind": "bool",
+              "help": "show the change without writing it",
+              "default": "false"
+            }
+          ],
+          "children": null
+        },
+        {
+          "path": "ob operation list",
+          "id": "operation.list",
+          "usage": "list \u003cobi\u003e",
+          "summary": "List operations",
+          "description": "List operations with their aliases and how each is realized or consumed.",
+          "examples": "  ob operation list tasks.obi.json",
+          "min": 1,
+          "max": 1,
+          "flags": [
+            {
+              "name": "format",
+              "short": "F",
+              "kind": "string",
+              "help": "output format: text, json",
+              "default": "text",
+              "annotations": {
+                "allowed": [
+                  "text,json"
+                ]
+              }
+            }
+          ],
+          "children": null
+        },
+        {
+          "path": "ob operation show",
+          "id": "operation.show",
+          "usage": "show \u003cobi\u003e \u003cname\u003e",
+          "summary": "Show an operation",
+          "description": "Show an operation, looked up by name or alias, with the bindings that\nrealize it. -F json prints the exact stored operation.",
+          "examples": "  ob operation show tasks.obi.json createTask\n  ob operation show tasks.obi.json acme.tasks.createTask -F json",
+          "min": 2,
+          "max": 2,
+          "flags": [
+            {
+              "name": "format",
+              "short": "F",
+              "kind": "string",
+              "help": "output format: text, json",
+              "default": "text",
+              "annotations": {
+                "allowed": [
+                  "text,json"
+                ]
+              }
+            }
+          ],
+          "children": null
+        },
+        {
+          "path": "ob operation example",
+          "id": "",
+          "usage": "example",
+          "summary": "Add, change, and remove operation examples",
+          "description": "An example is a named input value, output value, or both, that the\nauthor claims fit the operation's schemas.",
+          "examples": "",
+          "min": -1,
+          "max": -1,
+          "flags": null,
+          "children": [
+            {
+              "path": "ob operation example add",
+              "id": "operation.example.add",
+              "usage": "add \u003cobi\u003e \u003coperation\u003e \u003cname\u003e",
+              "summary": "Add an example to an operation",
+              "description": "Add a named example: an input value, an output value, or both. ob checks\neach value against the operation's schema and warns when it does not fit;\nthe schema always wins.\n\nChanges \u003cobi\u003e in place. Give - as \u003cobi\u003e to read a document from stdin and\nprint the result instead, or use --dry-run to see the change without\nwriting it.",
+              "examples": "  ob operation example add tasks.obi.json listTasks empty --input '{}' --output '[]'",
+              "min": 3,
+              "max": 3,
+              "flags": [
+                {
+                  "name": "description",
+                  "kind": "string",
+                  "help": "what the example shows",
+                  "default": ""
+                },
+                {
+                  "name": "dry-run",
+                  "kind": "bool",
+                  "help": "show the change without writing it",
+                  "default": "false"
+                },
+                {
+                  "name": "input",
+                  "kind": "string",
+                  "help": "the example's input value: JSON, @file, or -",
+                  "default": ""
+                },
+                {
+                  "name": "output",
+                  "kind": "string",
+                  "help": "the example's output value: JSON, @file, or -",
+                  "default": ""
+                }
+              ],
+              "children": null
+            },
+            {
+              "path": "ob operation example set",
+              "id": "operation.example.set",
+              "usage": "set \u003cobi\u003e \u003coperation\u003e \u003cname\u003e",
+              "summary": "Change an example",
+              "description": "Change an example's input value, output value, or description. Only the\nflags you give change anything; --unset removes one. ob warns when a value\ndoes not fit the operation's schema; the schema always wins.\n\nChanges \u003cobi\u003e in place. Give - as \u003cobi\u003e to read a document from stdin and\nprint the result instead, or use --dry-run to see the change without\nwriting it.",
+              "examples": "  ob operation example set tasks.obi.json createTask basic --input '{\"title\":\"Plan the release\"}'",
+              "min": 3,
+              "max": 3,
+              "flags": [
+                {
+                  "name": "description",
+                  "kind": "string",
+                  "help": "what the example shows",
+                  "default": ""
+                },
+                {
+                  "name": "dry-run",
+                  "kind": "bool",
+                  "help": "show the change without writing it",
+                  "default": "false"
+                },
+                {
+                  "name": "input",
+                  "kind": "string",
+                  "help": "the example's input value: JSON, @file, or -",
+                  "default": ""
+                },
+                {
+                  "name": "output",
+                  "kind": "string",
+                  "help": "the example's output value: JSON, @file, or -",
+                  "default": ""
+                },
+                {
+                  "name": "unset",
+                  "kind": "stringArray",
+                  "help": "remove a member: input, output, description",
+                  "default": "[]"
+                }
+              ],
+              "children": null
+            },
+            {
+              "path": "ob operation example rename",
+              "id": "operation.example.rename",
+              "usage": "rename \u003cobi\u003e \u003coperation\u003e \u003cname\u003e \u003cnew-name\u003e",
+              "summary": "Rename an example",
+              "description": "Rename an example of an operation. Nothing else changes.\n\nChanges \u003cobi\u003e in place. Give - as \u003cobi\u003e to read a document from stdin and\nprint the result instead, or use --dry-run to see the change without\nwriting it.",
+              "examples": "  ob operation example rename tasks.obi.json createTask basic minimal",
+              "min": 4,
+              "max": 4,
+              "flags": [
+                {
+                  "name": "dry-run",
+                  "kind": "bool",
+                  "help": "show the change without writing it",
+                  "default": "false"
+                }
+              ],
+              "children": null
+            },
+            {
+              "path": "ob operation example remove",
+              "id": "operation.example.remove",
+              "usage": "remove \u003cobi\u003e \u003coperation\u003e \u003cname\u003e",
+              "summary": "Remove an example",
+              "description": "Remove a named example from an operation.\n\nChanges \u003cobi\u003e in place. Give - as \u003cobi\u003e to read a document from stdin and\nprint the result instead, or use --dry-run to see the change without\nwriting it.",
+              "examples": "  ob operation example remove tasks.obi.json createTask basic",
+              "min": 3,
+              "max": 3,
+              "flags": [
+                {
+                  "name": "dry-run",
+                  "kind": "bool",
+                  "help": "show the change without writing it",
+                  "default": "false"
+                }
+              ],
+              "children": null
+            },
+            {
+              "path": "ob operation example list",
+              "id": "operation.example.list",
+              "usage": "list \u003cobi\u003e \u003coperation\u003e",
+              "summary": "List an operation's examples",
+              "description": "List an operation's examples and what each includes.",
+              "examples": "  ob operation example list tasks.obi.json createTask",
+              "min": 2,
+              "max": 2,
+              "flags": [
+                {
+                  "name": "format",
+                  "short": "F",
+                  "kind": "string",
+                  "help": "output format: text, json",
+                  "default": "text",
+                  "annotations": {
+                    "allowed": [
+                      "text,json"
+                    ]
+                  }
+                }
+              ],
+              "children": null
+            },
+            {
+              "path": "ob operation example show",
+              "id": "operation.example.show",
+              "usage": "show \u003cobi\u003e \u003coperation\u003e \u003cname\u003e",
+              "summary": "Show an example",
+              "description": "Show an example. -F json prints the exact stored example.",
+              "examples": "  ob operation example show tasks.obi.json createTask basic",
+              "min": 3,
+              "max": 3,
+              "flags": [
+                {
+                  "name": "format",
+                  "short": "F",
+                  "kind": "string",
+                  "help": "output format: text, json",
+                  "default": "text",
+                  "annotations": {
+                    "allowed": [
+                      "text,json"
+                    ]
+                  }
+                }
+              ],
+              "children": null
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "path": "ob source",
+      "id": "",
+      "usage": "source",
+      "summary": "Add, change, and remove sources, and read their artifacts",
+      "description": "A source is a kind plus optional content the kind reads, such as an\nartifact's address. Bindings realize operations through sources. import,\ninspect, and pull use a handler for the source's kind.",
+      "examples": "",
+      "group": "parts",
+      "min": -1,
+      "max": -1,
+      "flags": null,
+      "children": [
+        {
+          "path": "ob source add",
+          "id": "source.add",
+          "usage": "add \u003cobi\u003e \u003cname\u003e --kind \u003ckind\u003e",
+          "summary": "Add a source",
+          "description": "Add a source: a kind, and optional content that the kind reads, such as an\nartifact's address or the artifact itself. ob stores both exactly as given,\nand does not need to support the kind to do so. --content null stores an\nexplicit null, which is not the same as leaving content out.\n\nChanges \u003cobi\u003e in place. Give - as \u003cobi\u003e to read a document from stdin and\nprint the result instead, or use --dry-run to see the change without\nwriting it.",
+          "examples": "  ob source add tasks.obi.json httpApi --kind example.openapi@1 \\\n      --content '{\"location\":\"https://api.example.com/openapi.json\"}'",
+          "min": 2,
+          "max": 2,
+          "flags": [
+            {
+              "name": "content",
+              "kind": "string",
+              "help": "content the kind reads: JSON, @file, or -",
+              "default": ""
+            },
+            {
+              "name": "description",
+              "kind": "string",
+              "help": "a human-readable description",
+              "default": ""
+            },
+            {
+              "name": "dry-run",
+              "kind": "bool",
+              "help": "show the change without writing it",
+              "default": "false"
+            },
+            {
+              "name": "kind",
+              "kind": "string",
+              "help": "the source's exact kind (required)",
+              "default": ""
+            }
+          ],
+          "children": null
+        },
+        {
+          "path": "ob source set",
+          "id": "source.set",
+          "usage": "set \u003cobi\u003e \u003cname\u003e",
+          "summary": "Change a source",
+          "description": "Change a source's kind, content, or description. Only the flags you give\nchange anything; --unset removes content or the description. Changing the\nkind changes how the source's bindings are read.\n\nChanges \u003cobi\u003e in place. Give - as \u003cobi\u003e to read a document from stdin and\nprint the result instead, or use --dry-run to see the change without\nwriting it.",
+          "examples": "  ob source set tasks.obi.json httpApi --content '{\"location\":\"https://api.example.com/v2/openapi.json\"}'",
+          "min": 2,
+          "max": 2,
+          "flags": [
+            {
+              "name": "content",
+              "kind": "string",
+              "help": "content the kind reads: JSON, @file, or -",
+              "default": ""
+            },
+            {
+              "name": "description",
+              "kind": "string",
+              "help": "a human-readable description",
+              "default": ""
+            },
+            {
+              "name": "dry-run",
+              "kind": "bool",
+              "help": "show the change without writing it",
+              "default": "false"
+            },
+            {
+              "name": "kind",
+              "kind": "string",
+              "help": "the source's exact kind",
+              "default": ""
+            },
+            {
+              "name": "unset",
+              "kind": "stringArray",
+              "help": "remove a member: content, description",
+              "default": "[]"
+            }
+          ],
+          "children": null
+        },
+        {
+          "path": "ob source rename",
+          "id": "source.rename",
+          "usage": "rename \u003cobi\u003e \u003cname\u003e \u003cnew-name\u003e",
+          "summary": "Rename a source",
+          "description": "Rename a source, and update every binding that goes through it.\n\nChanges \u003cobi\u003e in place. Give - as \u003cobi\u003e to read a document from stdin and\nprint the result instead, or use --dry-run to see the change without\nwriting it.",
+          "examples": "  ob source rename tasks.obi.json httpApi restApi",
+          "min": 3,
+          "max": 3,
+          "flags": [
+            {
+              "name": "dry-run",
+              "kind": "bool",
+              "help": "show the change without writing it",
+              "default": "false"
+            }
+          ],
+          "children": null
+        },
+        {
+          "path": "ob source remove",
+          "id": "source.remove",
+          "usage": "remove \u003cobi\u003e \u003cname\u003e",
+          "summary": "Remove a source",
+          "description": "Remove a source. It refuses while bindings use the source; --cascade\nremoves those bindings too.\n\nChanges \u003cobi\u003e in place. Give - as \u003cobi\u003e to read a document from stdin and\nprint the result instead, or use --dry-run to see the change without\nwriting it.",
+          "examples": "  ob source remove tasks.obi.json mcpServer --cascade",
+          "min": 2,
+          "max": 2,
+          "flags": [
+            {
+              "name": "cascade",
+              "kind": "bool",
+              "help": "also remove the bindings that use it",
+              "default": "false"
+            },
+            {
+              "name": "dry-run",
+              "kind": "bool",
+              "help": "show the change without writing it",
+              "default": "false"
+            }
+          ],
+          "children": null
+        },
+        {
+          "path": "ob source list",
+          "id": "source.list",
+          "usage": "list \u003cobi\u003e",
+          "summary": "List sources",
+          "description": "List sources with their kinds, and whether this ob can invoke through them.",
+          "examples": "  ob source list tasks.obi.json",
+          "min": 1,
+          "max": 1,
+          "flags": [
+            {
+              "name": "format",
+              "short": "F",
+              "kind": "string",
+              "help": "output format: text, json",
+              "default": "text",
+              "annotations": {
+                "allowed": [
+                  "text,json"
+                ]
+              }
+            }
+          ],
+          "children": null
+        },
+        {
+          "path": "ob source show",
+          "id": "source.show",
+          "usage": "show \u003cobi\u003e \u003cname\u003e",
+          "summary": "Show a source",
+          "description": "Show a source's kind, content, and the bindings that use it. -F json prints\nthe exact stored source; content is shown as stored, never interpreted.",
+          "examples": "  ob source show tasks.obi.json httpApi",
+          "min": 2,
+          "max": 2,
+          "flags": [
+            {
+              "name": "format",
+              "short": "F",
+              "kind": "string",
+              "help": "output format: text, json",
+              "default": "text",
+              "annotations": {
+                "allowed": [
+                  "text,json"
+                ]
+              }
+            }
+          ],
+          "children": null
+        },
+        {
+          "path": "ob source import",
+          "id": "source.import",
+          "usage": "import \u003cobi\u003e \u003cname\u003e \u003cartifact\u003e --kind \u003ckind\u003e",
+          "summary": "Add a source built from an artifact",
+          "description": "Add a source for an artifact (a path or URL), using a handler for its kind.\nThe handler decides what content to store, such as the artifact's address or\nthe artifact itself. To add operations and bindings from it, run ob source\npull with --target to bind one target or --all-targets to bind every target\nafterwards.\n\nChanges \u003cobi\u003e in place. Give - as \u003cobi\u003e to read a document from stdin and\nprint the result instead, or use --dry-run to see the change without\nwriting it.",
+          "examples": "  ob source import tasks.obi.json billing https://billing.example.com/openapi.json --kind example.openapi@1",
+          "min": 3,
+          "max": 3,
+          "flags": [
+            {
+              "name": "dry-run",
+              "kind": "bool",
+              "help": "show the change without writing it",
+              "default": "false"
+            },
+            {
+              "name": "kind",
+              "kind": "string",
+              "help": "the artifact's exact kind (required)",
+              "default": ""
+            }
+          ],
+          "children": null
+        },
+        {
+          "path": "ob source inspect",
+          "id": "source.inspect",
+          "usage": "inspect \u003cobi\u003e \u003cname\u003e",
+          "summary": "List what a source offers",
+          "description": "List the targets a source offers, the things a binding could be written\nfor, using a handler for its kind. Each shows the operation name the\nhandler suggests and any binding that already uses it.",
+          "examples": "  ob source inspect tasks.obi.json httpApi",
+          "min": 2,
+          "max": 2,
+          "flags": [
+            {
+              "name": "format",
+              "short": "F",
+              "kind": "string",
+              "help": "output format: text, json",
+              "default": "text",
+              "annotations": {
+                "allowed": [
+                  "text,json"
+                ]
+              }
+            }
+          ],
+          "children": null
+        },
+        {
+          "path": "ob source pull",
+          "id": "source.pull",
+          "usage": "pull \u003cobi\u003e [\u003csource\u003e...]",
+          "summary": "Update a document from its sources",
+          "description": "Update the document from its sources, using a handler for each source's\nkind. With no sources named, pull every source.\n\nPull refreshes the content of the bindings you have, so they keep up with\ntheir sources. It adds nothing you did not ask for, and never changes an\noperation you already have:\n\n  - a target no binding covers is listed, not bound; --target binds one\n    (and --all-targets binds every one), with the operation the handler\n    suggests, or one you already have when you name it with --operation;\n  - --new-operation names a new operation instead; it cannot combine with\n    --operation. --binding-key names the binding. Without that flag, the\n    handler's suggested binding key stays the same even when you choose a\n    different operation. Existing operation fields are left unchanged;\n  - where a source describes an operation's schemas differently, pull\n    reports it, and --update-operation takes the source's schemas for that\n    operation. When two sources being pulled describe it differently, pull\n    refuses; pull one source to choose.\n\nAn unknown --operation is a usage error, never a request to create one.\nAn identical request is no change. An occupied binding key with different\nsource, content, or operation is refused, never overwritten or numbered.\nTo add another binding for an already bound target, give --binding-key;\nto change a binding you have, use ob binding set. A repeated --new-operation\nrequest is no change only when the requested binding already exists for it.\nIf the handler supplies no operation framing, a new operation states no\ninput or output schema. If it supplies no name, choose one explicitly.\n\nUse --all-targets --dry-run to see every target's binding and whether its\noperation would be created or reused, with commands for choosing an existing\noperation instead. After an edit, the report gives binding set commands.\nA naming collision refuses the whole edit, including any binding refreshes.\n\nA source whose kind this ob cannot read is named and left alone, and pull\nexits 4, since it cannot say the document is up to date with that source.\nob status reports the same, as a check, without changing anything.\n\nChanges \u003cobi\u003e in place. Give - as \u003cobi\u003e to read a document from stdin and\nprint the result instead, or use --dry-run to see the change without\nwriting it.",
+          "examples": "  ob source pull tasks.obi.json\n  ob source pull tasks.obi.json httpApi --update-operation listTasks\n  ob source pull tasks.obi.json httpApi --target \"POST /tasks/{id}/archive\"\n  ob source pull tasks.obi.json httpApi --target \"POST /tasks/{id}/archive\" --new-operation archive --binding-key archivalHttp\n  ob source pull tasks.obi.json mcpServer --target tools/complete_task --operation completeTask\n  ob source pull tasks.obi.json httpApi --all-targets --dry-run",
+          "min": 1,
+          "max": -1,
+          "flags": [
+            {
+              "name": "all-targets",
+              "kind": "bool",
+              "help": "bind every target no binding covers yet",
+              "default": "false"
+            },
+            {
+              "name": "binding-key",
+              "kind": "string",
+              "help": "with --target: use this binding key; an identical binding is no change, a different one is refused",
+              "default": ""
+            },
+            {
+              "name": "dry-run",
+              "kind": "bool",
+              "help": "show the change without writing it",
+              "default": "false"
+            },
+            {
+              "name": "new-operation",
+              "kind": "string",
+              "help": "with --target: create the suggested operation under this new name",
+              "default": ""
+            },
+            {
+              "name": "operation",
+              "kind": "string",
+              "help": "with --target: bind it to this existing operation (key or alias)",
+              "default": ""
+            },
+            {
+              "name": "target",
+              "kind": "string",
+              "help": "bind this one target of the source, as ob source inspect lists it or by its identifier",
+              "default": ""
+            },
+            {
+              "name": "update-operation",
+              "kind": "stringArray",
+              "help": "take the source's schemas for this operation (repeatable)",
+              "default": "[]"
+            }
+          ],
+          "children": null
+        }
+      ]
+    },
+    {
+      "path": "ob binding",
+      "id": "",
+      "usage": "binding",
+      "summary": "Add, change, and remove bindings",
+      "description": "A binding is a way to carry out an operation through a source. Its content\nis read under the source's kind.",
+      "examples": "",
+      "group": "parts",
+      "min": -1,
+      "max": -1,
+      "flags": null,
+      "children": [
+        {
+          "path": "ob binding add",
+          "id": "binding.add",
+          "usage": "add \u003cobi\u003e \u003cname\u003e --operation \u003coperation\u003e --source \u003csource\u003e",
+          "summary": "Add a binding",
+          "description": "Add a binding: a way to carry out an operation through a source. --content\nis whatever the source's kind needs, such as which endpoint or tool to call.\nAn operation can have several bindings, even through the same source.\n\n--idempotent claims that repeating a call through this binding adds no\nfurther intended effects (it says nothing about retry safety on its own);\n--idempotent=false claims it can; leaving it out claims nothing.\n--preference records the author's preference among the operation's\nbindings; ob invoke shows it but does not choose by it.\n\nChanges \u003cobi\u003e in place. Give - as \u003cobi\u003e to read a document from stdin and\nprint the result instead, or use --dry-run to see the change without\nwriting it.",
+          "examples": "  ob binding add tasks.obi.json completeTask.mcp --operation completeTask --source mcpServer \\\n      --content '{\"target\":\"tools/complete_task\"}' --idempotent",
+          "min": 2,
+          "max": 2,
+          "flags": [
+            {
+              "name": "content",
+              "kind": "string",
+              "help": "whatever the source's kind reads, such as which target to call: JSON, @file, or -",
+              "default": ""
+            },
+            {
+              "name": "deprecated",
+              "kind": "bool",
+              "help": "mark deprecated; --deprecated=false marks it current",
+              "default": "false"
+            },
+            {
+              "name": "description",
+              "kind": "string",
+              "help": "a human-readable description",
+              "default": ""
+            },
+            {
+              "name": "dry-run",
+              "kind": "bool",
+              "help": "show the change without writing it",
+              "default": "false"
+            },
+            {
+              "name": "idempotent",
+              "kind": "bool",
+              "help": "claim that repeating a call adds no further intended effects; --idempotent=false claims it can",
+              "default": "false"
+            },
+            {
+              "name": "operation",
+              "kind": "string",
+              "help": "the operation it carries out (name or alias)",
+              "default": ""
+            },
+            {
+              "name": "preference",
+              "kind": "int64",
+              "help": "the author's preference among this operation's bindings (an integer; higher is stronger)",
+              "default": "0"
+            },
+            {
+              "name": "source",
+              "kind": "string",
+              "help": "the source it goes through",
+              "default": ""
+            }
+          ],
+          "children": null
+        },
+        {
+          "path": "ob binding set",
+          "id": "binding.set",
+          "usage": "set \u003cobi\u003e \u003cname\u003e",
+          "summary": "Change a binding",
+          "description": "Change a binding. Only the flags you give change anything; --unset removes\ncontent, idempotent, preference, description, or deprecated.\n\nChanges \u003cobi\u003e in place. Give - as \u003cobi\u003e to read a document from stdin and\nprint the result instead, or use --dry-run to see the change without\nwriting it.",
+          "examples": "  ob binding set tasks.obi.json createTask.mcp --preference 5\n  ob binding set tasks.obi.json listTasks.http --unset idempotent",
+          "min": 2,
+          "max": 2,
+          "flags": [
+            {
+              "name": "content",
+              "kind": "string",
+              "help": "whatever the source's kind reads, such as which target to call: JSON, @file, or -",
+              "default": ""
+            },
+            {
+              "name": "deprecated",
+              "kind": "bool",
+              "help": "mark deprecated; --deprecated=false marks it current",
+              "default": "false"
+            },
+            {
+              "name": "description",
+              "kind": "string",
+              "help": "a human-readable description",
+              "default": ""
+            },
+            {
+              "name": "dry-run",
+              "kind": "bool",
+              "help": "show the change without writing it",
+              "default": "false"
+            },
+            {
+              "name": "idempotent",
+              "kind": "bool",
+              "help": "claim that repeating a call adds no further intended effects; --idempotent=false claims it can",
+              "default": "false"
+            },
+            {
+              "name": "operation",
+              "kind": "string",
+              "help": "the operation it carries out (name or alias)",
+              "default": ""
+            },
+            {
+              "name": "preference",
+              "kind": "int64",
+              "help": "the author's preference among this operation's bindings (an integer; higher is stronger)",
+              "default": "0"
+            },
+            {
+              "name": "source",
+              "kind": "string",
+              "help": "the source it goes through",
+              "default": ""
+            },
+            {
+              "name": "unset",
+              "kind": "stringArray",
+              "help": "remove a member: content, idempotent, preference, description, deprecated",
+              "default": "[]"
+            }
+          ],
+          "children": null
+        },
+        {
+          "path": "ob binding rename",
+          "id": "binding.rename",
+          "usage": "rename \u003cobi\u003e \u003cname\u003e \u003cnew-name\u003e",
+          "summary": "Rename a binding",
+          "description": "Rename a binding. Nothing else in a document refers to a binding by name,\nso nothing else changes. Callers that name the old key, such as ob invoke\n--binding, ob mcp --binding, or a generated client's binding list, stop\nfinding it.\n\nChanges \u003cobi\u003e in place. Give - as \u003cobi\u003e to read a document from stdin and\nprint the result instead, or use --dry-run to see the change without\nwriting it.",
+          "examples": "  ob binding rename tasks.obi.json createTask.http createTask.rest",
+          "min": 3,
+          "max": 3,
+          "flags": [
+            {
+              "name": "dry-run",
+              "kind": "bool",
+              "help": "show the change without writing it",
+              "default": "false"
+            }
+          ],
+          "children": null
+        },
+        {
+          "path": "ob binding remove",
+          "id": "binding.remove",
+          "usage": "remove \u003cobi\u003e \u003cname\u003e",
+          "summary": "Remove a binding",
+          "description": "Remove a binding. The operation and source stay.\n\nChanges \u003cobi\u003e in place. Give - as \u003cobi\u003e to read a document from stdin and\nprint the result instead, or use --dry-run to see the change without\nwriting it.",
+          "examples": "  ob binding remove tasks.obi.json createTask.mcp",
+          "min": 2,
+          "max": 2,
+          "flags": [
+            {
+              "name": "dry-run",
+              "kind": "bool",
+              "help": "show the change without writing it",
+              "default": "false"
+            }
+          ],
+          "children": null
+        },
+        {
+          "path": "ob binding list",
+          "id": "binding.list",
+          "usage": "list \u003cobi\u003e",
+          "summary": "List bindings",
+          "description": "List bindings with their operation, source, and signals. --operation shows one operation's bindings.",
+          "examples": "  ob binding list tasks.obi.json\n  ob binding list tasks.obi.json --operation createTask",
+          "min": 1,
+          "max": 1,
+          "flags": [
+            {
+              "name": "format",
+              "short": "F",
+              "kind": "string",
+              "help": "output format: text, json",
+              "default": "text",
+              "annotations": {
+                "allowed": [
+                  "text,json"
+                ]
+              }
+            },
+            {
+              "name": "operation",
+              "kind": "string",
+              "help": "only this operation's bindings (name or alias)",
+              "default": ""
+            }
+          ],
+          "children": null
+        },
+        {
+          "path": "ob binding show",
+          "id": "binding.show",
+          "usage": "show \u003cobi\u003e \u003cname\u003e",
+          "summary": "Show a binding",
+          "description": "Show a binding. -F json prints the exact stored binding; content is shown as stored.",
+          "examples": "  ob binding show tasks.obi.json createTask.http",
+          "min": 2,
+          "max": 2,
+          "flags": [
+            {
+              "name": "format",
+              "short": "F",
+              "kind": "string",
+              "help": "output format: text, json",
+              "default": "text",
+              "annotations": {
+                "allowed": [
+                  "text,json"
+                ]
+              }
+            }
+          ],
+          "children": null
+        }
+      ]
+    },
+    {
+      "path": "ob dependency",
+      "id": "",
+      "usage": "dependency",
+      "summary": "Add, change, and remove dependencies",
+      "description": "A dependency is a point where the described software calls an operation\nprovided by something else. It names the operation, never a provider.",
+      "examples": "",
+      "group": "parts",
+      "min": -1,
+      "max": -1,
+      "flags": null,
+      "children": [
+        {
+          "path": "ob dependency add",
+          "id": "dependency.add",
+          "usage": "add \u003cobi\u003e \u003cname\u003e --operation \u003coperation\u003e",
+          "summary": "Add a dependency",
+          "description": "Declare a dependency: a point where the described software calls an\noperation that something else provides. --kind limits which kinds of\nbinding can serve it (any of those listed); leave it out to declare no kind\nconstraint (spec §5.5).\n\nChanges \u003cobi\u003e in place. Give - as \u003cobi\u003e to read a document from stdin and\nprint the result instead, or use --dry-run to see the change without\nwriting it.",
+          "examples": "  ob dependency add tasks.obi.json auditLog --operation events.deliver --kind example.grpc@1",
+          "min": 2,
+          "max": 2,
+          "flags": [
+            {
+              "name": "description",
+              "kind": "string",
+              "help": "a human-readable description",
+              "default": ""
+            },
+            {
+              "name": "dry-run",
+              "kind": "bool",
+              "help": "show the change without writing it",
+              "default": "false"
+            },
+            {
+              "name": "kind",
+              "kind": "stringArray",
+              "help": "a kind of binding that can serve it (repeatable)",
+              "default": "[]"
+            },
+            {
+              "name": "operation",
+              "kind": "string",
+              "help": "the operation called at this point (name or alias)",
+              "default": ""
+            }
+          ],
+          "children": null
+        },
+        {
+          "path": "ob dependency set",
+          "id": "dependency.set",
+          "usage": "set \u003cobi\u003e \u003cname\u003e",
+          "summary": "Change a dependency",
+          "description": "Change a dependency. Only the flags you give change anything; --unset\nremoves kinds (declaring no kind constraint, spec §5.5) or the description.\n\nChanges \u003cobi\u003e in place. Give - as \u003cobi\u003e to read a document from stdin and\nprint the result instead, or use --dry-run to see the change without\nwriting it.",
+          "examples": "  ob dependency set tasks.obi.json notifier --add-kind example.mcp@1",
+          "min": 2,
+          "max": 2,
+          "flags": [
+            {
+              "name": "add-kind",
+              "kind": "stringArray",
+              "help": "accept another kind (repeatable)",
+              "default": "[]"
+            },
+            {
+              "name": "description",
+              "kind": "string",
+              "help": "a human-readable description",
+              "default": ""
+            },
+            {
+              "name": "dry-run",
+              "kind": "bool",
+              "help": "show the change without writing it",
+              "default": "false"
+            },
+            {
+              "name": "operation",
+              "kind": "string",
+              "help": "the operation called at this point (name or alias)",
+              "default": ""
+            },
+            {
+              "name": "remove-kind",
+              "kind": "stringArray",
+              "help": "stop accepting a kind (repeatable)",
+              "default": "[]"
+            },
+            {
+              "name": "unset",
+              "kind": "stringArray",
+              "help": "remove a member: kinds, description",
+              "default": "[]"
+            }
+          ],
+          "children": null
+        },
+        {
+          "path": "ob dependency rename",
+          "id": "dependency.rename",
+          "usage": "rename \u003cobi\u003e \u003cname\u003e \u003cnew-name\u003e",
+          "summary": "Rename a dependency",
+          "description": "Rename a dependency. Nothing else in a document refers to a dependency by\nname, so nothing else changes.\n\nChanges \u003cobi\u003e in place. Give - as \u003cobi\u003e to read a document from stdin and\nprint the result instead, or use --dry-run to see the change without\nwriting it.",
+          "examples": "  ob dependency rename tasks.obi.json notifier eventSink",
+          "min": 3,
+          "max": 3,
+          "flags": [
+            {
+              "name": "dry-run",
+              "kind": "bool",
+              "help": "show the change without writing it",
+              "default": "false"
+            }
+          ],
+          "children": null
+        },
+        {
+          "path": "ob dependency remove",
+          "id": "dependency.remove",
+          "usage": "remove \u003cobi\u003e \u003cname\u003e",
+          "summary": "Remove a dependency",
+          "description": "Remove a dependency. The operation stays.\n\nChanges \u003cobi\u003e in place. Give - as \u003cobi\u003e to read a document from stdin and\nprint the result instead, or use --dry-run to see the change without\nwriting it.",
+          "examples": "  ob dependency remove tasks.obi.json notifier",
+          "min": 2,
+          "max": 2,
+          "flags": [
+            {
+              "name": "dry-run",
+              "kind": "bool",
+              "help": "show the change without writing it",
+              "default": "false"
+            }
+          ],
+          "children": null
+        },
+        {
+          "path": "ob dependency list",
+          "id": "dependency.list",
+          "usage": "list \u003cobi\u003e",
+          "summary": "List dependencies",
+          "description": "List dependencies with the operation each calls and the kinds it accepts.",
+          "examples": "  ob dependency list tasks.obi.json",
+          "min": 1,
+          "max": 1,
+          "flags": [
+            {
+              "name": "format",
+              "short": "F",
+              "kind": "string",
+              "help": "output format: text, json",
+              "default": "text",
+              "annotations": {
+                "allowed": [
+                  "text,json"
+                ]
+              }
+            }
+          ],
+          "children": null
+        },
+        {
+          "path": "ob dependency show",
+          "id": "dependency.show",
+          "usage": "show \u003cobi\u003e \u003cname\u003e",
+          "summary": "Show a dependency",
+          "description": "Show a dependency. -F json prints the exact stored dependency.",
+          "examples": "  ob dependency show tasks.obi.json notifier",
+          "min": 2,
+          "max": 2,
+          "flags": [
+            {
+              "name": "format",
+              "short": "F",
+              "kind": "string",
+              "help": "output format: text, json",
+              "default": "text",
+              "annotations": {
+                "allowed": [
+                  "text,json"
+                ]
+              }
+            }
+          ],
+          "children": null
+        }
+      ]
+    },
+    {
+      "path": "ob schema",
+      "id": "",
+      "usage": "schema",
+      "summary": "Add, change, and remove reusable schemas",
+      "description": "Named JSON Schemas that operations share by reference, such as\n{\"$ref\": \"#/schemas/Task\"}. bundle embeds the external schemas a document\nreferences.",
+      "examples": "",
+      "group": "parts",
+      "min": -1,
+      "max": -1,
+      "flags": null,
+      "children": [
+        {
+          "path": "ob schema add",
+          "id": "schema.add",
+          "usage": "add \u003cobi\u003e \u003cname\u003e --value \u003cschema\u003e",
+          "summary": "Add a reusable schema",
+          "description": "Add a named JSON Schema that operations can reference as\n{\"$ref\": \"#/schemas/\u003cname\u003e\"}.\n\nChanges \u003cobi\u003e in place. Give - as \u003cobi\u003e to read a document from stdin and\nprint the result instead, or use --dry-run to see the change without\nwriting it.",
+          "examples": "  ob schema add tasks.obi.json TaskList --value '{\"type\":\"array\",\"items\":{\"$ref\":\"#/schemas/Task\"}}'",
+          "min": 2,
+          "max": 2,
+          "flags": [
+            {
+              "name": "dry-run",
+              "kind": "bool",
+              "help": "show the change without writing it",
+              "default": "false"
+            },
+            {
+              "name": "value",
+              "kind": "string",
+              "help": "the schema: JSON, @file, or - (required)",
+              "default": ""
+            }
+          ],
+          "children": null
+        },
+        {
+          "path": "ob schema set",
+          "id": "schema.set",
+          "usage": "set \u003cobi\u003e \u003cname\u003e --value \u003cschema\u003e",
+          "summary": "Replace a reusable schema",
+          "description": "Replace a named schema with a new one.\n\nChanges \u003cobi\u003e in place. Give - as \u003cobi\u003e to read a document from stdin and\nprint the result instead, or use --dry-run to see the change without\nwriting it.",
+          "examples": "  ob schema set tasks.obi.json Problem --value @problem.schema.json",
+          "min": 2,
+          "max": 2,
+          "flags": [
+            {
+              "name": "dry-run",
+              "kind": "bool",
+              "help": "show the change without writing it",
+              "default": "false"
+            },
+            {
+              "name": "value",
+              "kind": "string",
+              "help": "the new schema: JSON, @file, or - (required)",
+              "default": ""
+            }
+          ],
+          "children": null
+        },
+        {
+          "path": "ob schema rename",
+          "id": "schema.rename",
+          "usage": "rename \u003cobi\u003e \u003cname\u003e \u003cnew-name\u003e",
+          "summary": "Rename a reusable schema",
+          "description": "Rename a reusable schema, and update every reference to it, such as\n{\"$ref\": \"#/schemas/\u003cname\u003e\"}.\n\nChanges \u003cobi\u003e in place. Give - as \u003cobi\u003e to read a document from stdin and\nprint the result instead, or use --dry-run to see the change without\nwriting it.",
+          "examples": "  ob schema rename tasks.obi.json Problem Error",
+          "min": 3,
+          "max": 3,
+          "flags": [
+            {
+              "name": "dry-run",
+              "kind": "bool",
+              "help": "show the change without writing it",
+              "default": "false"
+            }
+          ],
+          "children": null
+        },
+        {
+          "path": "ob schema remove",
+          "id": "schema.remove",
+          "usage": "remove \u003cobi\u003e \u003cname\u003e",
+          "summary": "Remove a reusable schema",
+          "description": "Remove a named schema. It refuses while anything references it.\n\nChanges \u003cobi\u003e in place. Give - as \u003cobi\u003e to read a document from stdin and\nprint the result instead, or use --dry-run to see the change without\nwriting it.",
+          "examples": "  ob schema remove tasks.obi.json Problem",
+          "min": 2,
+          "max": 2,
+          "flags": [
+            {
+              "name": "dry-run",
+              "kind": "bool",
+              "help": "show the change without writing it",
+              "default": "false"
+            }
+          ],
+          "children": null
+        },
+        {
+          "path": "ob schema list",
+          "id": "schema.list",
+          "usage": "list \u003cobi\u003e",
+          "summary": "List reusable schemas",
+          "description": "List named schemas and what references each, then the external schemas the\ndocument references that no schema in it declares (ob schema bundle embeds\nthem).",
+          "examples": "  ob schema list tasks.obi.json",
+          "min": 1,
+          "max": 1,
+          "flags": [
+            {
+              "name": "format",
+              "short": "F",
+              "kind": "string",
+              "help": "output format: text, json",
+              "default": "text",
+              "annotations": {
+                "allowed": [
+                  "text,json"
+                ]
+              }
+            }
+          ],
+          "children": null
+        },
+        {
+          "path": "ob schema show",
+          "id": "schema.show",
+          "usage": "show \u003cobi\u003e \u003cname\u003e",
+          "summary": "Show a reusable schema",
+          "description": "Print a named schema.",
+          "examples": "  ob schema show tasks.obi.json Task",
+          "min": 2,
+          "max": 2,
+          "flags": [
+            {
+              "name": "format",
+              "short": "F",
+              "kind": "string",
+              "help": "output format: text, json",
+              "default": "text",
+              "annotations": {
+                "allowed": [
+                  "text,json"
+                ]
+              }
+            }
+          ],
+          "children": null
+        },
+        {
+          "path": "ob schema bundle",
+          "id": "schema.bundle",
+          "usage": "bundle \u003cobi\u003e [\u003curi\u003e...]",
+          "summary": "Embed external schemas",
+          "description": "Embed the external schemas the document references, so it no longer needs\nthe network to resolve them. ob fetches each one and adds it to schemas\nwith its $id (which must match the URI it came from), along with\nthe external schemas it references in turn. References do not change: a\nreference to that URI now resolves to the copy in the document, as JSON\nSchema's bundling defines (spec §7.4). Named URIs limit it to those, and\nwhat they reference. Each copy is named from its URI; ob schema rename\nrenames one. A different declared $id or a non-2020-12 $schema is refused\nwith the URI and reason; nothing is written and that URI stays external.\nob schema list shows what is still external.\n\nChanges \u003cobi\u003e in place. Give - as \u003cobi\u003e to read a document from stdin and\nprint the result instead, or use --dry-run to see the change without\nwriting it.",
+          "examples": "  ob schema bundle tasks.obi.json\n  ob schema bundle tasks.obi.json https://schemas.example.com/time/date-time.json",
+          "min": 1,
+          "max": -1,
+          "flags": [
+            {
+              "name": "dry-run",
+              "kind": "bool",
+              "help": "show the change without writing it",
+              "default": "false"
+            }
+          ],
+          "children": null
+        }
+      ]
+    },
+    {
+      "path": "ob synthesize",
+      "id": "synthesize",
+      "usage": "synthesize \u003cartifact\u003e --kind \u003ckind\u003e",
+      "summary": "Create a document from an artifact",
+      "description": "Create a new document from an artifact, such as an OpenAPI document, using\na handler for its kind: a source for the artifact, and one operation and\nbinding for each target it offers. \u003cartifact\u003e is a path or URL. Prints the\ndocument unless -o is given; -o refuses to replace an existing file unless\n--force is given.\n\nTo add another artifact to an existing document, use ob source import and\nthen ob source pull \u003cobi\u003e \u003csource\u003e --target \u003ctarget\u003e for one target, or\n--all-targets for all of them.",
+      "examples": "  ob synthesize ./openapi.json --kind example.openapi@1 -o tasks.obi.json\n  ob synthesize https://api.example.com/mcp --kind example.mcp@1",
+      "group": "sources",
+      "min": 1,
+      "max": 1,
+      "flags": [
+        {
+          "name": "force",
+          "kind": "bool",
+          "help": "replace an existing file",
+          "default": "false"
+        },
+        {
+          "name": "kind",
+          "kind": "string",
+          "help": "the artifact's exact kind (required)",
+          "default": ""
+        },
+        {
+          "name": "name",
+          "kind": "string",
+          "help": "a human-readable name for the document",
+          "default": ""
+        },
+        {
+          "name": "out",
+          "short": "o",
+          "kind": "string",
+          "help": "write the document to a file",
+          "default": ""
+        },
+        {
+          "name": "source",
+          "kind": "string",
+          "help": "name for the source in the new document (default \"api\")",
+          "default": ""
+        }
+      ],
+      "children": null
+    },
+    {
+      "path": "ob status",
+      "id": "status",
+      "usage": "status \u003cobi\u003e",
+      "summary": "Show how a document has drifted from its sources",
+      "description": "For every source, show how the document has drifted from it: bindings whose\ncontent or target changed, and operations whose schemas the source describes\ndifferently. Targets no binding covers are listed apart: leaving one unbound\ncan be a choice, so it is not drift. Changes nothing; it reports what ob\nsource pull --dry-run would, for all sources, as a check.\n\nA source whose kind this ob cannot read is listed as not checked, and\nstatus exits 4: it cannot say whether that source has drifted.\n\nExit status: 0 checked every source; 4 some source could not be checked.\nWith --exit-code: 1 when something has drifted.",
+      "examples": "  ob status tasks.obi.json\n  ob status tasks.obi.json --exit-code",
+      "group": "sources",
+      "min": 1,
+      "max": 1,
+      "flags": [
+        {
+          "name": "exit-code",
+          "kind": "bool",
+          "help": "exit 1 when something has drifted, for CI",
+          "default": "false"
+        },
+        {
+          "name": "format",
+          "short": "F",
+          "kind": "string",
+          "help": "output format: text, json",
+          "default": "text",
+          "annotations": {
+            "allowed": [
+              "text,json"
+            ]
+          }
+        }
+      ],
+      "children": null
+    },
+    {
+      "path": "ob fetch",
+      "id": "fetch",
+      "usage": "fetch \u003curl\u003e",
+      "summary": "Download a service's OBI",
+      "description": "Download the OBI a service publishes. A bare origin, such as\nhttps://api.example.com, is looked up at /.well-known/openbindings\n(OpenBindings HTTP Discovery); any other URL is fetched as given. Prints the\ndocument unless -o is given; -o refuses to replace an existing file unless\n--force is given.\n\nA service may ask for sign-in to read its OBI. ob then uses the context\nstored for the URL's origin (ob context set \u003corigin\u003e), asks at a terminal,\nand otherwise stops. fetch keeps a document written for an OpenBindings\nversion this ob does not read, and says so.\n\nCommands that read a document, such as ob show and ob invoke, also accept a\nURL directly and answer the same way; fetch is for keeping a copy.\n\nExit status: 0 fetched; 1 no OBI is published there; 3 refused: the\nservice asks for sign-in and nothing stored or given answers it.",
+      "examples": "  ob fetch https://api.example.com -o tasks.obi.json\n  ob fetch https://api.example.com | jq '.operations | keys'",
+      "group": "use",
+      "min": 1,
+      "max": 1,
+      "flags": [
+        {
+          "name": "force",
+          "kind": "bool",
+          "help": "replace an existing file",
+          "default": "false"
+        },
+        {
+          "name": "out",
+          "short": "o",
+          "kind": "string",
+          "help": "save the document to a file",
+          "default": ""
+        }
+      ],
+      "children": null
+    },
+    {
+      "path": "ob invoke",
+      "id": "invoke",
+      "usage": "invoke \u003cobi\u003e \u003coperation\u003e",
+      "summary": "Call an operation",
+      "description": "Call an operation, by name or alias, through one of its bindings.\n\nAn invocation is an exchange, whatever the operation's shape: ob opens it,\nwrites your input values to it, prints each output value as it arrives, and\nfinishes when the binding does. One value in and one out, a stream in, a\nstream out, or both at once all work the same way.\n\nInput: each --input writes, in order; then ob closes the input.\n  --input VALUE   one value (JSON)\n  --input @FILE   each JSON value in the file\n  --input -       each JSON value read from stdin, as it arrives, until\n                  stdin ends (Ctrl-D at a terminal)\n  no --input      nothing; ob closes the input at once\n\nOutput: each output value, as one line of JSON, as it arrives. --frames\nprints the whole exchange instead, one frame per line, exactly as the\noperation-invoker interface defines them: each output, the binding closing\nits input early, and the final complete or error frame. A refusal ends with\nits error frame too.\n\nChoosing a binding: --binding names one; repeat it to give an ordered list,\nand ob uses the first one it can invoke. A name that is not one of the\noperation's bindings is refused, and so is a list with none ob can invoke;\nob never falls back to a binding you did not name. Without --binding, if\nthe operation has exactly one binding ob can invoke, ob uses it; if it has\nseveral, ob stops and lists them. Preference and deprecation are shown,\nnever used to choose.\n\nChecks: ob checks each input value against the operation's input schema\nbefore sending it, and each output value against its output schema. Values\ngiven with --input VALUE are checked before ob asks for any context. Where\nthe operation states no schema for a side, its values pass unchecked\n(OBI-T-08). When a schema cannot be fully resolved, ob cannot check against\nit and stops with ERR_SCHEMA_UNRESOLVED, before sending anything.\n\n--timeout gives the call a deadline: ob passes it to the binding where the\nbinding takes one, and cancels the exchange if it has not finished.\n\nContext: what a binding needs beyond the input, such as a credential, comes\nfrom ob's context store, looked up by the exact scope the binding asks for.\nAt a terminal ob gets anything missing: it asks for a value, or runs the\nsign-in the binding names (such as an OAuth 2.0 flow in your browser), and\noffers to store the result when the binding says it may be reused (durable).\nStored tokens are renewed as they expire.\nOtherwise ob stops before sending anything and prints what supplies it: an\nob context set command, or, for a sign-in, this same invoke with\n--preflight to run once at a terminal. --context gives context for this call\nonly, as a JSON object from @FILE or stdin. A delegate that invokes for ob resolves its own\ncontext: ob never sends it stored context, and if it asks for something, ob\nasks you or stops.\n\n--preflight calls nothing. It prints what the binding already knows it will\nask for, and at a terminal it also gets what is missing, asking you or\nrunning the sign-in, and stores it for later calls.\n\nWithout --frames, an error's code, and any data it carries, go to stderr.\n\nExit status: 0 completed; 1 the operation failed, an output did not fit,\nor the deadline passed (any of these may have taken effect); 2 a usage\nerror, including a name that is not in the document; 3 refused before\nanything was sent (a value that does not fit, missing context, an\nunresolvable schema, or a binding's ERR_REFUSED); 130 cancelled.",
+      "examples": "  ob invoke tasks.obi.json completeTask --input '{\"id\":\"t_1\"}'\n  ob invoke tasks.obi.json createTask --binding createTask.http --input '{\"title\":\"Ship it\"}'\n  printf '{\"title\":\"a\"}\\n{\"title\":\"b\"}\\n' | ob invoke tasks.obi.json importTasks --input -\n  ob invoke tasks.obi.json watchTasks --frames\n  ob invoke tasks.obi.json createTask --binding createTask.mcp --preflight",
+      "group": "use",
+      "min": 2,
+      "max": 2,
+      "flags": [
+        {
+          "name": "binding",
+          "kind": "stringArray",
+          "help": "use this binding; repeat for an ordered list",
+          "default": "[]"
+        },
+        {
+          "name": "context",
+          "kind": "string",
+          "help": "context for this call only: a JSON object from @FILE or - (stdin)",
+          "default": ""
+        },
+        {
+          "name": "frames",
+          "kind": "bool",
+          "help": "print the whole exchange as frames, not just output values",
+          "default": "false"
+        },
+        {
+          "name": "input",
+          "kind": "stringArray",
+          "help": "a value to write: JSON, @file, or - to stream from stdin (repeatable, in order)",
+          "default": "[]"
+        },
+        {
+          "name": "preflight",
+          "kind": "bool",
+          "help": "print what the binding will ask for, and at a terminal get what is missing; call nothing",
+          "default": "false"
+        },
+        {
+          "name": "timeout",
+          "kind": "duration",
+          "help": "a deadline for the call, such as 30s; ob cancels the exchange when it passes",
+          "default": "0s"
+        }
+      ],
+      "children": null
+    },
+    {
+      "path": "ob context",
+      "id": "",
+      "usage": "context",
+      "summary": "Store credentials and settings for calls",
+      "description": "A context holds what a binding needs beyond its input to call a service:\ncredentials, headers, and configuration values. ob stores it by scope and\nuses it for its own invocations: only for the exact scope a binding asks\nfor, only when the binding says the value may be reused, and only the fields\nthat one request needs. Delegates resolve their own context; ob never sends\nthem stored context.\n\nWell-known interface fields are bearerToken, apiKey, credentials (named\nstrings or Basic/OAuth objects), apiKeys (historical named API keys), basic,\naccessToken, refreshToken, expiresAt, headers, cookies, environment,\nmetadata, and configuration. Context is opaque and may also hold custom\nfields. context set --value takes any of these as a whole JSON object;\nthe individual flags cover the common fields. Pinned token-provider settings\nare ob's local resolver configuration.\n\nA scope is the exact string a binding names when it asks for context,\nusually a service's origin such as https://api.example.com. ob prints it,\nready to copy, whenever a binding asks for something that is not stored.",
+      "examples": "",
+      "group": "use",
+      "min": -1,
+      "max": -1,
+      "flags": null,
+      "children": [
+        {
+          "path": "ob context set",
+          "id": "context.set",
+          "usage": "set \u003cscope\u003e",
+          "summary": "Store context for a scope",
+          "description": "Store what bindings need beyond their input, for one scope: credentials,\nheaders, and configuration values. ob uses a stored context only for that\nexact scope, and only when the binding says the value may be reused.\n\nA secret never goes on the command line, where it would stay in your shell\nhistory: --bearer-token, --access-token, --refresh-token, --api-key, --basic, and\n--token-credential take - (read from stdin, or asked for at a terminal\nwithout echo) or @FILE. --basic reads USER:PASSWORD. --header NAME=VALUE\ntakes a literal value, or NAME=- or NAME=@FILE for a secret one; the\nheaders that carry credentials (Authorization, Proxy-Authorization, Cookie)\ntake only those. --config POINT=VALUE answers a configuration point a binding\nasks for, such as which server to use. POINT=VALUE always stores a string,\nso code=001 and enabled=false keep their exact text. POINT:=JSON stores a\ntyped value, such as enabled:=false or server:={\"url\":\"https://api.example.com\"}.\nEither operator accepts @FILE or -: = reads text and := parses JSON.\n--value replaces the whole context with a JSON object, from @FILE or -.\nOnly one value may read stdin per command; use separate files for the others.\n\n--credential NAME=- or NAME=@FILE stores a named credential in\ncredentials[NAME]. Read a JSON string for a bearer token or API key, a JSON\nobject {\"username\":...,\"password\":...} for Basic, or an OAuth object\nbeginning with accessToken. NAME is the scheme name the binding asks for,\nan exact string. --cookie NAME=VALUE stores a non-secret cookie, or use\nNAME=- or NAME=@FILE for a secret one.\n\n--token-provider pins a token service: the OBI of a service that implements\nthe token-provider interface. ob keeps a copy of it, and when a binding asks\nthis scope for a bearer token, ob mints one from that provider (and only that\nprovider) and renews it before it expires. --token-credential is the\ncredential to mint with; leave it out for a provider that uses an identity\nyou are already signed in with. --token-binding chooses among the provider's\nbindings, as ob invoke --binding does. A binding key names its operation, so\none list covers them all: give the mint binding and the refresh binding you\nwant, in any order, and each applies to its own operation.\n\n--unset removes a field, named as its flag is: bearer-token, access-token,\nrefresh-token, api-key, basic, credential.NAME, cookie.NAME, token-provider,\ntoken-credential, header.NAME, or config.POINT.\nText reports use these flag names; JSON reports keep the interface's field\nnames. A stored token provider also lets --token-credential rotate on its own.\n\nA scope is the exact string a binding names when it asks for context,\nusually a service's origin such as https://api.example.com. ob prints it,\nready to copy, whenever a binding asks for something that is not stored.",
+          "examples": "  ob context set https://api.example.com --bearer-token -\n  printf 'ada:s3cret' | ob context set https://legacy.example.com --basic -\n  ob context set https://api.example.com/openapi.json --config 'server:={\"url\":\"https://eu.example.com\"}'\n  ob context set https://api.example.com --credential primary=@primary.json --credential secondary=@secondary.json\n  ob context set https://api.example.com --cookie locale=en --refresh-token -\n  ob context set https://api.example.com --token-provider https://auth.example.com --token-credential @creds.txt\n  ob context set https://api.example.com --unset header.X-Client",
+          "min": 1,
+          "max": 1,
+          "flags": [
+            {
+              "name": "access-token",
+              "kind": "string",
+              "help": "an OAuth 2.0 access token: - (stdin, or asked for) or @FILE",
+              "default": ""
+            },
+            {
+              "name": "api-key",
+              "kind": "string",
+              "help": "an API key: - (stdin, or asked for) or @FILE",
+              "default": ""
+            },
+            {
+              "name": "basic",
+              "kind": "string",
+              "help": "HTTP Basic credentials as USER:PASSWORD: - (stdin, or asked for) or @FILE",
+              "default": ""
+            },
+            {
+              "name": "bearer-token",
+              "kind": "string",
+              "help": "a bearer token: - (stdin, or asked for) or @FILE",
+              "default": ""
+            },
+            {
+              "name": "config",
+              "kind": "stringArray",
+              "help": "POINT=VALUE stores a string; POINT:=JSON stores a typed value; either accepts @FILE or - (repeatable)",
+              "default": "[]"
+            },
+            {
+              "name": "cookie",
+              "kind": "stringArray",
+              "help": "a non-secret cookie: NAME=VALUE; for a secret use NAME=- or NAME=@FILE (repeatable)",
+              "default": "[]"
+            },
+            {
+              "name": "credential",
+              "kind": "stringArray",
+              "help": "a named JSON credential: NAME=- or NAME=@FILE (repeatable)",
+              "default": "[]"
+            },
+            {
+              "name": "header",
+              "kind": "stringArray",
+              "help": "a header to send: NAME=VALUE, or NAME=- or NAME=@FILE for a secret (repeatable)",
+              "default": "[]"
+            },
+            {
+              "name": "refresh-token",
+              "kind": "string",
+              "help": "an OAuth 2.0 refresh token: - (stdin, or asked for) or @FILE",
+              "default": ""
+            },
+            {
+              "name": "token-binding",
+              "kind": "stringArray",
+              "help": "use this binding of the token service; repeat for an ordered list",
+              "default": "[]"
+            },
+            {
+              "name": "token-credential",
+              "kind": "string",
+              "help": "the credential to mint with: - (stdin, or asked for) or @FILE",
+              "default": ""
+            },
+            {
+              "name": "token-provider",
+              "kind": "string",
+              "help": "mint bearer tokens from this token service (its OBI: a path or URL)",
+              "default": ""
+            },
+            {
+              "name": "unset",
+              "kind": "stringArray",
+              "help": "remove a field: bearer-token, access-token, refresh-token, api-key, basic, credential.NAME, cookie.NAME, token-provider, token-credential, header.NAME, config.POINT",
+              "default": "[]"
+            },
+            {
+              "name": "value",
+              "kind": "string",
+              "help": "replace the whole context with a JSON object: @FILE or -",
+              "default": ""
+            }
+          ],
+          "children": null
+        },
+        {
+          "path": "ob context list",
+          "id": "context.list",
+          "usage": "list",
+          "summary": "List stored contexts",
+          "description": "List the scopes that have stored context, and what each holds. Secrets are masked.",
+          "examples": "  ob context list",
+          "min": 0,
+          "max": 0,
+          "flags": [
+            {
+              "name": "format",
+              "short": "F",
+              "kind": "string",
+              "help": "output format: text, json",
+              "default": "text",
+              "annotations": {
+                "allowed": [
+                  "text,json"
+                ]
+              }
+            }
+          ],
+          "children": null
+        },
+        {
+          "path": "ob context show",
+          "id": "context.show",
+          "usage": "show \u003cscope\u003e",
+          "summary": "Show a stored context",
+          "description": "Show what is stored for one scope. Every value is masked, since headers\nand configuration can hold secrets too; --reveal prints them. Text names\nmatch --unset; JSON contains scope, the native nested context object, and\nob-local resolver settings separately. Hidden values are {\"masked\":true}.\nWith --reveal, extract .context to reuse it with context set --value; resolver\nsettings are never forwarded as Context. Revealed values may contain secrets.",
+          "examples": "  ob context show https://api.example.com",
+          "min": 1,
+          "max": 1,
+          "flags": [
+            {
+              "name": "format",
+              "short": "F",
+              "kind": "string",
+              "help": "output format: text, json",
+              "default": "text",
+              "annotations": {
+                "allowed": [
+                  "text,json"
+                ]
+              }
+            },
+            {
+              "name": "reveal",
+              "kind": "bool",
+              "help": "print the values instead of masking them",
+              "default": "false"
+            }
+          ],
+          "children": null
+        },
+        {
+          "path": "ob context remove",
+          "id": "context.remove",
+          "usage": "remove \u003cscope\u003e",
+          "summary": "Remove a stored context",
+          "description": "Remove everything stored for one scope.",
+          "examples": "  ob context remove https://api.example.com/openapi.json",
+          "min": 1,
+          "max": 1,
+          "flags": null,
+          "children": null
+        }
+      ]
+    },
+    {
+      "path": "ob codegen",
+      "id": "codegen",
+      "usage": "codegen \u003cobi\u003e --lang \u003clanguage\u003e",
+      "summary": "Generate a typed client",
+      "description": "Generate client code with one typed function per operation that has\nbindings. Calls go through ob's invocation libraries and choose a binding\nthe way ob invoke does: each call takes an optional ordered list of binding\nkeys, like --binding; without one, a call uses the operation's only usable\nbinding and refuses when there are several.\n\n-o names the output directory, and is required. It refuses to replace files\nalready there unless --force is given.",
+      "examples": "  ob codegen tasks.obi.json --lang go -o ./taskclient\n  ob codegen https://api.example.com --lang typescript --package @acme/tasks -o ./tasks-client",
+      "group": "advanced",
+      "min": 1,
+      "max": 1,
+      "flags": [
+        {
+          "name": "force",
+          "kind": "bool",
+          "help": "replace files already in the directory",
+          "default": "false"
+        },
+        {
+          "name": "lang",
+          "kind": "string",
+          "help": "go or typescript (required)",
+          "default": ""
+        },
+        {
+          "name": "out",
+          "short": "o",
+          "kind": "string",
+          "help": "the directory to write (required)",
+          "default": ""
+        },
+        {
+          "name": "package",
+          "kind": "string",
+          "help": "the package or module name",
+          "default": ""
+        }
+      ],
+      "children": null
+    },
+    {
+      "path": "ob start",
+      "id": "start",
+      "usage": "start",
+      "summary": "Run ob as a local service",
+      "description": "Serve ob's own operations over HTTP and WebSocket on this machine, for\neditors, browsers, and other tools. ob describes itself with an OBI at\n/.well-known/openbindings.\n\nWho may call it: every request must carry this run's access token as a\nbearer token. ob saves the addresses and token in a private run record,\nreadable only by this user (file mode 0600, directory 0700). Its own commands\nread the record automatically for an exact matching service address.\nText output names the file; -F json prints the startup record, including\nthe token, as one line. Other tools can read that record to connect.\nThe record is removed when this run stops; simultaneous runs use separate\nrecords by HTTP port.\n\nob answers only requests addressed\nto 127.0.0.1 or localhost by name, which stops a web page from reaching it\nthrough DNS rebinding, and a browser page only from an origin given with\n--allow-origin.\n\n--tls also serves HTTPS, on the next port, with a certificate from ob's local\ncertificate authority. ob never changes what this machine trusts on its own:\ninstall the authority first with ob ca install.",
+      "examples": "  ob start\n  ob start --port 8080 --allow-origin https://editor.example.com\n  ob start --tls",
+      "group": "advanced",
+      "min": 0,
+      "max": 0,
+      "flags": [
+        {
+          "name": "allow-origin",
+          "kind": "stringArray",
+          "help": "let browser pages from this origin call ob (repeatable)",
+          "default": "[]"
+        },
+        {
+          "name": "format",
+          "short": "F",
+          "kind": "string",
+          "help": "output format: text, json",
+          "default": "text",
+          "annotations": {
+            "allowed": [
+              "text,json"
+            ]
+          }
+        },
+        {
+          "name": "port",
+          "kind": "int",
+          "help": "the HTTP port; with --tls, HTTPS uses the next one",
+          "default": "20290"
+        },
+        {
+          "name": "tls",
+          "kind": "bool",
+          "help": "also serve HTTPS, with a certificate from ob's local certificate authority",
+          "default": "false"
+        }
+      ],
+      "children": null
+    },
+    {
+      "path": "ob mcp",
+      "id": "mcp",
+      "usage": "mcp \u003cobi\u003e",
+      "summary": "Serve a document's operations as MCP tools",
+      "description": "Run a Model Context Protocol server on stdin and stdout that offers each\noperation it can call as a tool, and calls it the way ob invoke does, with\nthe same context rules. \u003cobi\u003e may be a URL, including a running ob start.\n\nEach tool call uses a binding chosen the way ob invoke chooses one.\n--binding names bindings to use, in order, like ob invoke --binding; a\nbinding key belongs to one operation, so each key applies to its own\noperation. An operation with several bindings ob can invoke, and none\nnamed, is skipped and listed with the reason.\n\n--operation offers only the named operations (a key or an alias). A name\nthat is not in the document is a usage error, and one ob cannot offer is\nrefused.\n\nHow operations appear as MCP tools (their names, input and output shapes,\noperations whose bindings stream, and errors) will follow the MCP binding\nspecification, which is not yet written for OpenBindings 0.2. Until then\nthis command is a placeholder for that mapping.",
+      "examples": "  ob mcp tasks.obi.json --binding createTask.http\n  ob mcp https://api.example.com --operation createTask --operation listTasks --binding createTask.mcp",
+      "group": "advanced",
+      "min": 1,
+      "max": 1,
+      "flags": [
+        {
+          "name": "binding",
+          "kind": "stringArray",
+          "help": "use this binding for its operation; repeat for an ordered list",
+          "default": "[]"
+        },
+        {
+          "name": "operation",
+          "kind": "stringArray",
+          "help": "offer only this operation, by key or alias (repeatable)",
+          "default": "[]"
+        }
+      ],
+      "children": null
+    },
+    {
+      "path": "ob ca",
+      "id": "",
+      "usage": "ca",
+      "summary": "Manage the certificate authority ob start --tls uses",
+      "description": "ob start --tls serves HTTPS with certificates from a local certificate\nauthority. These commands install it into this machine's trust store, show\nit, and remove it.",
+      "examples": "",
+      "group": "advanced",
+      "min": -1,
+      "max": -1,
+      "flags": null,
+      "children": [
+        {
+          "path": "ob ca install",
+          "id": "ca.install",
+          "usage": "install",
+          "summary": "Install ob's local certificate authority",
+          "description": "Create ob's local certificate authority, if there is none yet, and install it\ninto this machine's trust store, so browsers and tools trust ob start --tls.\nIt asks for an administrator's password. Nothing else changes what this\nmachine trusts.",
+          "examples": "  ob ca install",
+          "min": 0,
+          "max": 0,
+          "flags": null,
+          "children": null
+        },
+        {
+          "path": "ob ca remove",
+          "id": "ca.remove",
+          "usage": "remove",
+          "summary": "Remove ob's local certificate authority",
+          "description": "Remove ob's local certificate authority from this machine's trust store and\ndelete its key. ob start --tls stops working until it is installed again.",
+          "examples": "  ob ca remove",
+          "min": 0,
+          "max": 0,
+          "flags": null,
+          "children": null
+        },
+        {
+          "path": "ob ca show",
+          "id": "ca.show",
+          "usage": "show",
+          "summary": "Show ob's local certificate authority",
+          "description": "Say whether ob's local certificate authority is installed, and if so, its fingerprint and expiry.",
+          "examples": "  ob ca show",
+          "min": 0,
+          "max": 0,
+          "flags": [
+            {
+              "name": "format",
+              "short": "F",
+              "kind": "string",
+              "help": "output format: text, json",
+              "default": "text",
+              "annotations": {
+                "allowed": [
+                  "text,json"
+                ]
+              }
+            }
+          ],
+          "children": null
+        }
+      ]
+    },
+    {
+      "path": "ob kind",
+      "id": "",
+      "usage": "kind",
+      "summary": "See which kinds this ob can handle",
+      "description": "A source's kind says how its content and bindings are read. ob handles a\nkind with a built-in handler or through a delegate. These commands report\nwhat this installation can do; they never judge a document.",
+      "examples": "",
+      "group": "advanced",
+      "min": -1,
+      "max": -1,
+      "flags": null,
+      "children": [
+        {
+          "path": "ob kind list",
+          "id": "kind.list",
+          "usage": "list",
+          "summary": "List the kinds this ob can handle",
+          "description": "List the kinds this ob can handle, for each kind of work, and whether the\nhandler is built in or a delegate. A document can use any kind; this only\nsays what this installation can do with one. For delegates the list is what\nthey advertise and may be incomplete; ob kind check gives the authoritative\nanswer for one kind.",
+          "examples": "  ob kind list\n  ob kind list --role invoke",
+          "min": 0,
+          "max": 0,
+          "flags": [
+            {
+              "name": "format",
+              "short": "F",
+              "kind": "string",
+              "help": "output format: text, json",
+              "default": "text",
+              "annotations": {
+                "allowed": [
+                  "text,json"
+                ]
+              }
+            },
+            {
+              "name": "role",
+              "kind": "string",
+              "help": "only kinds this ob can handle for: invoke, inspect, or synthesize",
+              "default": ""
+            }
+          ],
+          "children": null
+        },
+        {
+          "path": "ob kind check",
+          "id": "kind.check",
+          "usage": "check \u003ckind\u003e",
+          "summary": "Check whether this ob can handle a kind",
+          "description": "Say whether this ob can handle an exact kind, for one kind of work (--role)\nor for each. Kinds are compared exactly: example.openapi@1 and\nexample.openapi@2 are unrelated kinds. To see which handler ob would use,\nand why, use ob delegate resolve.\n\nWithout --role, this is a report: exit 0 even if no work is supported.\nWith --role, it is a yes/no check: exit 0 supported, 1 unsupported.",
+          "examples": "  ob kind check example.openapi@1\n  ob kind check acme.billing-rpc@1 --role invoke",
+          "min": 1,
+          "max": 1,
+          "flags": [
+            {
+              "name": "format",
+              "short": "F",
+              "kind": "string",
+              "help": "output format: text, json",
+              "default": "text",
+              "annotations": {
+                "allowed": [
+                  "text,json"
+                ]
+              }
+            },
+            {
+              "name": "role",
+              "kind": "string",
+              "help": "the kind of work: invoke, inspect, or synthesize",
+              "default": ""
+            }
+          ],
+          "children": null
+        }
+      ]
+    },
+    {
+      "path": "ob delegate",
+      "id": "",
+      "usage": "delegate",
+      "summary": "Let other tools handle work for ob",
+      "description": "A delegate is another tool, described by its own OBI, that ob hands work\nto: invoking bindings, inspecting sources, or synthesizing documents, for\nkinds ob does not handle itself. Each kind of work is a role.",
+      "examples": "",
+      "group": "advanced",
+      "min": -1,
+      "max": -1,
+      "flags": null,
+      "children": [
+        {
+          "path": "ob delegate roles",
+          "id": "delegate.roles",
+          "usage": "roles",
+          "summary": "List the work ob can hand to delegates",
+          "description": "List the roles ob accepts, their admission/use policy, and their complete\nexpected interfaces. -F json carries id, description, and acceptedInterfaces\nas the delegate-manager contract defines. Each accepted interface includes\nall required operations and their referenced schemas, without bindings or\ndependencies. The preview uses lab adaptations to the settled kinds model.",
+          "examples": "  ob delegate roles",
+          "min": 0,
+          "max": 0,
+          "flags": [
+            {
+              "name": "format",
+              "short": "F",
+              "kind": "string",
+              "help": "output format: text, json",
+              "default": "text",
+              "annotations": {
+                "allowed": [
+                  "text,json"
+                ]
+              }
+            }
+          ],
+          "children": null
+        },
+        {
+          "path": "ob delegate add",
+          "id": "delegate.add",
+          "usage": "add \u003cdelegate-obi\u003e --role \u003crole\u003e",
+          "summary": "Register a delegate",
+          "description": "Register another tool as a delegate for one or more roles. \u003cdelegate-obi\u003e\nis the tool's OBI (a path, - for stdin, or a URL); ob keeps a copy, checks\nthat it offers the operations each role needs, and gives the registration an\nID. --preference ROLE=NUMBER sets how strongly ob prefers it among eligible\ndelegates for that role; higher wins. Negative and fractional numbers are\nallowed. Absence has effective preference zero; an explicit zero stays\nexplicit. Each role may be requested once. -F json prints the full retained\nregistration, including interface and rolePreferences. In the preview, stdin\nis really read, but role schema compatibility and eligibility are illustrative.",
+          "examples": "  ob delegate add ./acme-rpc.obi.json --role invoke --preference invoke=10\n  ob delegate add https://tools.example.com --role inspect --role synthesize",
+          "min": 1,
+          "max": 1,
+          "flags": [
+            {
+              "name": "format",
+              "short": "F",
+              "kind": "string",
+              "help": "output format: text, json",
+              "default": "text",
+              "annotations": {
+                "allowed": [
+                  "text,json"
+                ]
+              }
+            },
+            {
+              "name": "preference",
+              "kind": "stringArray",
+              "help": "ROLE=NUMBER, including negative/fractional values; higher is preferred (repeatable)",
+              "default": "[]"
+            },
+            {
+              "name": "role",
+              "kind": "stringArray",
+              "help": "a role to register for: invoke, inspect, or synthesize (repeatable)",
+              "default": "[]"
+            }
+          ],
+          "children": null
+        },
+        {
+          "path": "ob delegate set",
+          "id": "delegate.set",
+          "usage": "set \u003cid\u003e",
+          "summary": "Change a delegate",
+          "description": "Change a registered delegate: replace its OBI with --obi, change its roles,\nor set its preference for a role. Only the flags you give change anything.\nNumbers may be negative or fractional. --unset preference.ROLE removes an\nexplicit preference. Removing a role also removes its preference; at least\none role must remain. Repeated or contradictory role changes are usage errors.\n-F json prints the resulting full registration; --obi - really reads stdin\nin the preview, without implementing admission comparison or persistence.",
+          "examples": "  ob delegate set d_91c2 --preference invoke=20\n  ob delegate set d_91c2 --add-role synthesize\n  ob delegate set d_91c2 --unset preference.invoke",
+          "min": 1,
+          "max": 1,
+          "flags": [
+            {
+              "name": "add-role",
+              "kind": "stringArray",
+              "help": "register it for another role (repeatable)",
+              "default": "[]"
+            },
+            {
+              "name": "format",
+              "short": "F",
+              "kind": "string",
+              "help": "output format: text, json",
+              "default": "text",
+              "annotations": {
+                "allowed": [
+                  "text,json"
+                ]
+              }
+            },
+            {
+              "name": "obi",
+              "kind": "string",
+              "help": "replace the delegate's OBI: a path, - for stdin, or a URL",
+              "default": ""
+            },
+            {
+              "name": "preference",
+              "kind": "stringArray",
+              "help": "ROLE=NUMBER, including negative/fractional values; higher is preferred (repeatable)",
+              "default": "[]"
+            },
+            {
+              "name": "remove-role",
+              "kind": "stringArray",
+              "help": "stop using it for a role (repeatable)",
+              "default": "[]"
+            },
+            {
+              "name": "unset",
+              "kind": "stringArray",
+              "help": "remove a preference: preference.ROLE",
+              "default": "[]"
+            }
+          ],
+          "children": null
+        },
+        {
+          "path": "ob delegate remove",
+          "id": "delegate.remove",
+          "usage": "remove \u003cid\u003e",
+          "summary": "Remove a delegate",
+          "description": "Remove a registered delegate. ob stops handing it work and deletes its copy of the delegate's OBI.",
+          "examples": "  ob delegate remove d_7f3a",
+          "min": 1,
+          "max": 1,
+          "flags": null,
+          "children": null
+        },
+        {
+          "path": "ob delegate list",
+          "id": "delegate.list",
+          "usage": "list",
+          "summary": "List delegates",
+          "description": "List registered delegates, their roles, and their preferences.",
+          "examples": "  ob delegate list\n  ob delegate list --role invoke",
+          "min": 0,
+          "max": 0,
+          "flags": [
+            {
+              "name": "format",
+              "short": "F",
+              "kind": "string",
+              "help": "output format: text, json",
+              "default": "text",
+              "annotations": {
+                "allowed": [
+                  "text,json"
+                ]
+              }
+            },
+            {
+              "name": "role",
+              "kind": "string",
+              "help": "only delegates for this role",
+              "default": ""
+            }
+          ],
+          "children": null
+        },
+        {
+          "path": "ob delegate show",
+          "id": "delegate.show",
+          "usage": "show \u003cid\u003e",
+          "summary": "Show a delegate",
+          "description": "Show a registered delegate, its roles, and its explicit role preferences.\n-F json prints the full retained interface and rolePreferences, including\nschemas, bindings, sources, and extension values. Extract .interface to reuse\nit with delegate set --obi -.",
+          "examples": "  ob delegate show d_91c2",
+          "min": 1,
+          "max": 1,
+          "flags": [
+            {
+              "name": "format",
+              "short": "F",
+              "kind": "string",
+              "help": "output format: text, json",
+              "default": "text",
+              "annotations": {
+                "allowed": [
+                  "text,json"
+                ]
+              }
+            }
+          ],
+          "children": null
+        },
+        {
+          "path": "ob delegate resolve",
+          "id": "delegate.resolve",
+          "usage": "resolve --role \u003crole\u003e --kind \u003ckind\u003e",
+          "summary": "Explain which handler ob would use",
+          "description": "Explain which handler ob would use for a kind of work on an exact kind: a\nbuilt-in handler or a delegate, and why. ob kind check answers only whether\nthis ob can handle the kind.",
+          "examples": "  ob delegate resolve --role invoke --kind acme.billing-rpc@1",
+          "min": 0,
+          "max": 0,
+          "flags": [
+            {
+              "name": "format",
+              "short": "F",
+              "kind": "string",
+              "help": "output format: text, json",
+              "default": "text",
+              "annotations": {
+                "allowed": [
+                  "text,json"
+                ]
+              }
+            },
+            {
+              "name": "kind",
+              "kind": "string",
+              "help": "the exact kind (required)",
+              "default": ""
+            },
+            {
+              "name": "role",
+              "kind": "string",
+              "help": "the kind of work: invoke, inspect, or synthesize (required)",
+              "default": ""
+            }
+          ],
+          "children": null
+        }
+      ]
+    },
+    {
+      "path": "ob describe",
+      "id": "describe",
+      "usage": "describe",
+      "summary": "Describe this ob",
+      "description": "Describe this ob: its version, the OpenBindings versions it reads, and what\nit can handle. -F obi prints ob's own OBI, for tools that drive ob through\nOpenBindings; -F usage prints its usage spec (usage.kdl).",
+      "examples": "  ob describe\n  ob describe -F obi \u003e ob.obi.json",
+      "group": "advanced",
+      "min": 0,
+      "max": 0,
+      "flags": [
+        {
+          "name": "format",
+          "short": "F",
+          "kind": "string",
+          "help": "output format: text, json, obi, usage",
+          "default": "text",
+          "annotations": {
+            "allowed": [
+              "text,json,obi,usage"
+            ]
+          }
+        }
+      ],
+      "children": null
+    },
+    {
+      "path": "ob primer",
+      "id": "",
+      "usage": "primer",
+      "summary": "OpenBindings, explained for AI agents",
+      "description": "OpenBindings for agents (abbreviated in the preview)\n\nAn OBI declares each operation once, as a protocol-independent contract,\nand binds it to the protocols that carry it out. …",
+      "examples": "",
+      "min": -1,
+      "max": -1,
+      "flags": null,
+      "children": null
+    }
+  ]
+}

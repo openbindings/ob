@@ -1,0 +1,29 @@
+{
+  "sourceRepository": "openbindings/ob",
+  "surfaceBranch": "codex/cli-surface-lab",
+  "surfaceCommit": "11883f42ca92aa0f7743e499b3db644c3b0cb04a",
+  "integrationBase": "103087368e1363bae66841487a038616ab7a8f85",
+  "snapshotSha256": "f6343af03ef6d4b8c6e0497bf8464b4af99ae1bf936e571bbe77f5186c5ce619",
+  "domainCommands": 73,
+  "intentionalDifferences": [
+    "Domain commands refuse with exit 3, no fixture/domain work or I/O.",
+    "Help primer omitted, following integration removal 6c8aeb0.",
+    "Historical alternate trees and fixture name completion omitted.",
+    "Help formatting and static shell completions are provided by clap; Go sample-runtime claims are removed.",
+    "Singleton flags reject repeated assignments instead of silent last-write.",
+    "Stdin conflicts count only input sources, not literal dashes in descriptions or output paths.",
+    "Argument grammar is checked; document, value, and policy validation await handlers."
+  ],
+  "sourceHashes": {
+    "surface_next_rules.go": "19a8eb8ffdde9b57c2fbce3b29716316cf728cbf6aa11639671159b95f9986c0",
+    "surface_next_uri.go": "78a9e4a149168f694a6f912ba26ea34df48e4b4d16d52fe44c127cb3015add18",
+    "surface_next_invoke.go": "075dce8614d9385ee4dcc2aa20065fa02b732c8a8c27437cba2b38a78d4287b3",
+    "surface_next.go": "7b48267f328b3d4bf7e6864884559243122ac445014ee356b26060aba70f1b4e",
+    "surface_next_docs.go": "ff1e2fc427e9d9d6e2a6a7ef2680b546fd2d3abe58694a528d4d805ae006efda",
+    "surface_next_inspection.go": "aa18c6fda2438897e72a7436c6184e598bd52166087e23ccd89517265dcf307e",
+    "surface_next_use.go": "63a4ffc4aeb7635422b02bf8f83f6967d5dd378784773aac52dafa7432efc417",
+    "surface_next_parts.go": "91b9a16f3c53e8ae5091e134f15418aff3ef284eb3c24ee292f5718b50a25e3c",
+    "surface_next_fixture.go": "fb3c7e848512d2a84a03087847e4445e6708d006fe3977337dccd45bf4b85517",
+    "surface_next_json.go": "ee2d7435ec2aa8e9ad454edf0ecc588fcad52a99538e80c29bdead31f1d106de"
+  }
+}

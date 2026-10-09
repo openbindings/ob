@@ -1,0 +1,1240 @@
+[
+  {
+    "source_path": "ob",
+    "args": [
+      "init",
+      "tasks.obi.json",
+      "--name",
+      "Task Manager"
+    ]
+  },
+  {
+    "source_path": "ob",
+    "args": [
+      "operation",
+      "add",
+      "tasks.obi.json",
+      "createTask",
+      "--input-schema",
+      "{\"type\":\"object\"}"
+    ]
+  },
+  {
+    "source_path": "ob",
+    "args": [
+      "source",
+      "add",
+      "tasks.obi.json",
+      "httpApi",
+      "--kind",
+      "example.openapi@1",
+      "--content",
+      "{\"location\":\"https://api.example.com/openapi.json\"}"
+    ]
+  },
+  {
+    "source_path": "ob",
+    "args": [
+      "binding",
+      "add",
+      "tasks.obi.json",
+      "createTask.http",
+      "--operation",
+      "createTask",
+      "--source",
+      "httpApi",
+      "--content",
+      "{\"target\":\"#/paths/~1tasks/post\"}"
+    ]
+  },
+  {
+    "source_path": "ob",
+    "args": [
+      "validate",
+      "tasks.obi.json"
+    ]
+  },
+  {
+    "source_path": "ob",
+    "args": [
+      "invoke",
+      "tasks.obi.json",
+      "completeTask",
+      "--input",
+      "{\"id\":\"t_1\"}"
+    ]
+  },
+  {
+    "source_path": "ob init",
+    "args": [
+      "init",
+      "tasks.obi.json",
+      "--name",
+      "Task Manager"
+    ]
+  },
+  {
+    "source_path": "ob init",
+    "args": [
+      "init",
+      "--name",
+      "Task Manager",
+      "--interface-version",
+      "1.0.0"
+    ]
+  },
+  {
+    "source_path": "ob show",
+    "args": [
+      "show",
+      "tasks.obi.json"
+    ]
+  },
+  {
+    "source_path": "ob show",
+    "args": [
+      "show",
+      "https://api.example.com",
+      "-F",
+      "json"
+    ]
+  },
+  {
+    "source_path": "ob set",
+    "args": [
+      "set",
+      "tasks.obi.json",
+      "--interface-version",
+      "1.5.0"
+    ]
+  },
+  {
+    "source_path": "ob set",
+    "args": [
+      "set",
+      "tasks.obi.json",
+      "--unset",
+      "description"
+    ]
+  },
+  {
+    "source_path": "ob validate",
+    "args": [
+      "validate",
+      "tasks.obi.json"
+    ]
+  },
+  {
+    "source_path": "ob validate",
+    "args": [
+      "validate",
+      "tasks.obi.json",
+      "--operation",
+      "createTask",
+      "--input",
+      "{\"title\":\"Write the docs\"}"
+    ]
+  },
+  {
+    "source_path": "ob validate",
+    "args": [
+      "validate",
+      "tasks.obi.json",
+      "--examples",
+      "--operation",
+      "createTask"
+    ]
+  },
+  {
+    "source_path": "ob diff",
+    "args": [
+      "diff",
+      "tasks.obi.json",
+      "tasks-next.obi.json"
+    ]
+  },
+  {
+    "source_path": "ob diff",
+    "args": [
+      "diff",
+      "tasks.obi.json",
+      "tasks-next.obi.json",
+      "--patch"
+    ]
+  },
+  {
+    "source_path": "ob compat",
+    "args": [
+      "compat",
+      "tasks.obi.json",
+      "acme-tasks.obi.json"
+    ]
+  },
+  {
+    "source_path": "ob compat",
+    "args": [
+      "compat",
+      "https://api.example.com",
+      "https://contracts.example.com/acme-tasks.json",
+      "-q"
+    ]
+  },
+  {
+    "source_path": "ob fmt",
+    "args": [
+      "fmt",
+      "tasks.obi.json"
+    ]
+  },
+  {
+    "source_path": "ob fmt",
+    "args": [
+      "fmt",
+      "--check",
+      "*.obi.json"
+    ]
+  },
+  {
+    "source_path": "ob fmt",
+    "args": [
+      "fmt",
+      "--canonical",
+      "tasks.obi.json"
+    ]
+  },
+  {
+    "source_path": "ob patch",
+    "args": [
+      "patch",
+      "tasks.obi.json",
+      "changes.json"
+    ]
+  },
+  {
+    "source_path": "ob patch",
+    "args": [
+      "diff",
+      "old.obi.json",
+      "new.obi.json",
+      "--patch"
+    ]
+  },
+  {
+    "source_path": "ob patch",
+    "args": [
+      "patch",
+      "tasks.obi.json",
+      "-"
+    ]
+  },
+  {
+    "source_path": "ob merge",
+    "args": [
+      "merge",
+      "tasks.obi.json",
+      "tasks-next.obi.json",
+      "--operation",
+      "archiveTask"
+    ]
+  },
+  {
+    "source_path": "ob merge",
+    "args": [
+      "merge",
+      "tasks.obi.json",
+      "tasks-next.obi.json",
+      "--theirs"
+    ]
+  },
+  {
+    "source_path": "ob merge",
+    "args": [
+      "merge",
+      "tasks.obi.json",
+      "acme-tasks.obi.json",
+      "--operation",
+      "acme.tasks.deleteTask"
+    ]
+  },
+  {
+    "source_path": "ob operation add",
+    "args": [
+      "operation",
+      "add",
+      "tasks.obi.json",
+      "archiveTask",
+      "--description",
+      "Archive a task.",
+      "--input-schema",
+      "{\"type\":\"object\",\"properties\":{\"id\":{\"type\":\"string\"}},\"required\":[\"id\"]}",
+      "--output-schema",
+      "{\"$ref\":\"#/schemas/Task\"}"
+    ]
+  },
+  {
+    "source_path": "ob operation set",
+    "args": [
+      "operation",
+      "set",
+      "tasks.obi.json",
+      "createTask",
+      "--add-alias",
+      "acme.tasks.addTask"
+    ]
+  },
+  {
+    "source_path": "ob operation set",
+    "args": [
+      "operation",
+      "set",
+      "tasks.obi.json",
+      "listTasks",
+      "--deprecated"
+    ]
+  },
+  {
+    "source_path": "ob operation set",
+    "args": [
+      "operation",
+      "set",
+      "tasks.obi.json",
+      "completeTask",
+      "--unset",
+      "output-schema"
+    ]
+  },
+  {
+    "source_path": "ob operation rename",
+    "args": [
+      "operation",
+      "rename",
+      "tasks.obi.json",
+      "createTask",
+      "addTask"
+    ]
+  },
+  {
+    "source_path": "ob operation remove",
+    "args": [
+      "operation",
+      "remove",
+      "tasks.obi.json",
+      "completeTask",
+      "--cascade"
+    ]
+  },
+  {
+    "source_path": "ob operation list",
+    "args": [
+      "operation",
+      "list",
+      "tasks.obi.json"
+    ]
+  },
+  {
+    "source_path": "ob operation show",
+    "args": [
+      "operation",
+      "show",
+      "tasks.obi.json",
+      "createTask"
+    ]
+  },
+  {
+    "source_path": "ob operation show",
+    "args": [
+      "operation",
+      "show",
+      "tasks.obi.json",
+      "acme.tasks.createTask",
+      "-F",
+      "json"
+    ]
+  },
+  {
+    "source_path": "ob operation example add",
+    "args": [
+      "operation",
+      "example",
+      "add",
+      "tasks.obi.json",
+      "listTasks",
+      "empty",
+      "--input",
+      "{}",
+      "--output",
+      "[]"
+    ]
+  },
+  {
+    "source_path": "ob operation example set",
+    "args": [
+      "operation",
+      "example",
+      "set",
+      "tasks.obi.json",
+      "createTask",
+      "basic",
+      "--input",
+      "{\"title\":\"Plan the release\"}"
+    ]
+  },
+  {
+    "source_path": "ob operation example rename",
+    "args": [
+      "operation",
+      "example",
+      "rename",
+      "tasks.obi.json",
+      "createTask",
+      "basic",
+      "minimal"
+    ]
+  },
+  {
+    "source_path": "ob operation example remove",
+    "args": [
+      "operation",
+      "example",
+      "remove",
+      "tasks.obi.json",
+      "createTask",
+      "basic"
+    ]
+  },
+  {
+    "source_path": "ob operation example list",
+    "args": [
+      "operation",
+      "example",
+      "list",
+      "tasks.obi.json",
+      "createTask"
+    ]
+  },
+  {
+    "source_path": "ob operation example show",
+    "args": [
+      "operation",
+      "example",
+      "show",
+      "tasks.obi.json",
+      "createTask",
+      "basic"
+    ]
+  },
+  {
+    "source_path": "ob source add",
+    "args": [
+      "source",
+      "add",
+      "tasks.obi.json",
+      "httpApi",
+      "--kind",
+      "example.openapi@1",
+      "--content",
+      "{\"location\":\"https://api.example.com/openapi.json\"}"
+    ]
+  },
+  {
+    "source_path": "ob source set",
+    "args": [
+      "source",
+      "set",
+      "tasks.obi.json",
+      "httpApi",
+      "--content",
+      "{\"location\":\"https://api.example.com/v2/openapi.json\"}"
+    ]
+  },
+  {
+    "source_path": "ob source rename",
+    "args": [
+      "source",
+      "rename",
+      "tasks.obi.json",
+      "httpApi",
+      "restApi"
+    ]
+  },
+  {
+    "source_path": "ob source remove",
+    "args": [
+      "source",
+      "remove",
+      "tasks.obi.json",
+      "mcpServer",
+      "--cascade"
+    ]
+  },
+  {
+    "source_path": "ob source list",
+    "args": [
+      "source",
+      "list",
+      "tasks.obi.json"
+    ]
+  },
+  {
+    "source_path": "ob source show",
+    "args": [
+      "source",
+      "show",
+      "tasks.obi.json",
+      "httpApi"
+    ]
+  },
+  {
+    "source_path": "ob source import",
+    "args": [
+      "source",
+      "import",
+      "tasks.obi.json",
+      "billing",
+      "https://billing.example.com/openapi.json",
+      "--kind",
+      "example.openapi@1"
+    ]
+  },
+  {
+    "source_path": "ob source inspect",
+    "args": [
+      "source",
+      "inspect",
+      "tasks.obi.json",
+      "httpApi"
+    ]
+  },
+  {
+    "source_path": "ob source pull",
+    "args": [
+      "source",
+      "pull",
+      "tasks.obi.json"
+    ]
+  },
+  {
+    "source_path": "ob source pull",
+    "args": [
+      "source",
+      "pull",
+      "tasks.obi.json",
+      "httpApi",
+      "--update-operation",
+      "listTasks"
+    ]
+  },
+  {
+    "source_path": "ob source pull",
+    "args": [
+      "source",
+      "pull",
+      "tasks.obi.json",
+      "httpApi",
+      "--target",
+      "POST /tasks/{id}/archive"
+    ]
+  },
+  {
+    "source_path": "ob source pull",
+    "args": [
+      "source",
+      "pull",
+      "tasks.obi.json",
+      "httpApi",
+      "--target",
+      "POST /tasks/{id}/archive",
+      "--new-operation",
+      "archive",
+      "--binding-key",
+      "archivalHttp"
+    ]
+  },
+  {
+    "source_path": "ob source pull",
+    "args": [
+      "source",
+      "pull",
+      "tasks.obi.json",
+      "mcpServer",
+      "--target",
+      "tools/complete_task",
+      "--operation",
+      "completeTask"
+    ]
+  },
+  {
+    "source_path": "ob source pull",
+    "args": [
+      "source",
+      "pull",
+      "tasks.obi.json",
+      "httpApi",
+      "--all-targets",
+      "--dry-run"
+    ]
+  },
+  {
+    "source_path": "ob binding add",
+    "args": [
+      "binding",
+      "add",
+      "tasks.obi.json",
+      "completeTask.mcp",
+      "--operation",
+      "completeTask",
+      "--source",
+      "mcpServer",
+      "--content",
+      "{\"target\":\"tools/complete_task\"}",
+      "--idempotent"
+    ]
+  },
+  {
+    "source_path": "ob binding set",
+    "args": [
+      "binding",
+      "set",
+      "tasks.obi.json",
+      "createTask.mcp",
+      "--preference",
+      "5"
+    ]
+  },
+  {
+    "source_path": "ob binding set",
+    "args": [
+      "binding",
+      "set",
+      "tasks.obi.json",
+      "listTasks.http",
+      "--unset",
+      "idempotent"
+    ]
+  },
+  {
+    "source_path": "ob binding rename",
+    "args": [
+      "binding",
+      "rename",
+      "tasks.obi.json",
+      "createTask.http",
+      "createTask.rest"
+    ]
+  },
+  {
+    "source_path": "ob binding remove",
+    "args": [
+      "binding",
+      "remove",
+      "tasks.obi.json",
+      "createTask.mcp"
+    ]
+  },
+  {
+    "source_path": "ob binding list",
+    "args": [
+      "binding",
+      "list",
+      "tasks.obi.json"
+    ]
+  },
+  {
+    "source_path": "ob binding list",
+    "args": [
+      "binding",
+      "list",
+      "tasks.obi.json",
+      "--operation",
+      "createTask"
+    ]
+  },
+  {
+    "source_path": "ob binding show",
+    "args": [
+      "binding",
+      "show",
+      "tasks.obi.json",
+      "createTask.http"
+    ]
+  },
+  {
+    "source_path": "ob dependency add",
+    "args": [
+      "dependency",
+      "add",
+      "tasks.obi.json",
+      "auditLog",
+      "--operation",
+      "events.deliver",
+      "--kind",
+      "example.grpc@1"
+    ]
+  },
+  {
+    "source_path": "ob dependency set",
+    "args": [
+      "dependency",
+      "set",
+      "tasks.obi.json",
+      "notifier",
+      "--add-kind",
+      "example.mcp@1"
+    ]
+  },
+  {
+    "source_path": "ob dependency rename",
+    "args": [
+      "dependency",
+      "rename",
+      "tasks.obi.json",
+      "notifier",
+      "eventSink"
+    ]
+  },
+  {
+    "source_path": "ob dependency remove",
+    "args": [
+      "dependency",
+      "remove",
+      "tasks.obi.json",
+      "notifier"
+    ]
+  },
+  {
+    "source_path": "ob dependency list",
+    "args": [
+      "dependency",
+      "list",
+      "tasks.obi.json"
+    ]
+  },
+  {
+    "source_path": "ob dependency show",
+    "args": [
+      "dependency",
+      "show",
+      "tasks.obi.json",
+      "notifier"
+    ]
+  },
+  {
+    "source_path": "ob schema add",
+    "args": [
+      "schema",
+      "add",
+      "tasks.obi.json",
+      "TaskList",
+      "--value",
+      "{\"type\":\"array\",\"items\":{\"$ref\":\"#/schemas/Task\"}}"
+    ]
+  },
+  {
+    "source_path": "ob schema set",
+    "args": [
+      "schema",
+      "set",
+      "tasks.obi.json",
+      "Problem",
+      "--value",
+      "@problem.schema.json"
+    ]
+  },
+  {
+    "source_path": "ob schema rename",
+    "args": [
+      "schema",
+      "rename",
+      "tasks.obi.json",
+      "Problem",
+      "Error"
+    ]
+  },
+  {
+    "source_path": "ob schema remove",
+    "args": [
+      "schema",
+      "remove",
+      "tasks.obi.json",
+      "Problem"
+    ]
+  },
+  {
+    "source_path": "ob schema list",
+    "args": [
+      "schema",
+      "list",
+      "tasks.obi.json"
+    ]
+  },
+  {
+    "source_path": "ob schema show",
+    "args": [
+      "schema",
+      "show",
+      "tasks.obi.json",
+      "Task"
+    ]
+  },
+  {
+    "source_path": "ob schema bundle",
+    "args": [
+      "schema",
+      "bundle",
+      "tasks.obi.json"
+    ]
+  },
+  {
+    "source_path": "ob schema bundle",
+    "args": [
+      "schema",
+      "bundle",
+      "tasks.obi.json",
+      "https://schemas.example.com/time/date-time.json"
+    ]
+  },
+  {
+    "source_path": "ob synthesize",
+    "args": [
+      "synthesize",
+      "./openapi.json",
+      "--kind",
+      "example.openapi@1",
+      "-o",
+      "tasks.obi.json"
+    ]
+  },
+  {
+    "source_path": "ob synthesize",
+    "args": [
+      "synthesize",
+      "https://api.example.com/mcp",
+      "--kind",
+      "example.mcp@1"
+    ]
+  },
+  {
+    "source_path": "ob status",
+    "args": [
+      "status",
+      "tasks.obi.json"
+    ]
+  },
+  {
+    "source_path": "ob status",
+    "args": [
+      "status",
+      "tasks.obi.json",
+      "--exit-code"
+    ]
+  },
+  {
+    "source_path": "ob fetch",
+    "args": [
+      "fetch",
+      "https://api.example.com",
+      "-o",
+      "tasks.obi.json"
+    ]
+  },
+  {
+    "source_path": "ob fetch",
+    "args": [
+      "fetch",
+      "https://api.example.com"
+    ]
+  },
+  {
+    "source_path": "ob invoke",
+    "args": [
+      "invoke",
+      "tasks.obi.json",
+      "completeTask",
+      "--input",
+      "{\"id\":\"t_1\"}"
+    ]
+  },
+  {
+    "source_path": "ob invoke",
+    "args": [
+      "invoke",
+      "tasks.obi.json",
+      "createTask",
+      "--binding",
+      "createTask.http",
+      "--input",
+      "{\"title\":\"Ship it\"}"
+    ]
+  },
+  {
+    "source_path": "ob invoke",
+    "args": [
+      "invoke",
+      "tasks.obi.json",
+      "importTasks",
+      "--input",
+      "-"
+    ]
+  },
+  {
+    "source_path": "ob invoke",
+    "args": [
+      "invoke",
+      "tasks.obi.json",
+      "watchTasks",
+      "--frames"
+    ]
+  },
+  {
+    "source_path": "ob invoke",
+    "args": [
+      "invoke",
+      "tasks.obi.json",
+      "createTask",
+      "--binding",
+      "createTask.mcp",
+      "--preflight"
+    ]
+  },
+  {
+    "source_path": "ob context set",
+    "args": [
+      "context",
+      "set",
+      "https://api.example.com",
+      "--bearer-token",
+      "-"
+    ]
+  },
+  {
+    "source_path": "ob context set",
+    "args": [
+      "context",
+      "set",
+      "https://legacy.example.com",
+      "--basic",
+      "-"
+    ]
+  },
+  {
+    "source_path": "ob context set",
+    "args": [
+      "context",
+      "set",
+      "https://api.example.com/openapi.json",
+      "--config",
+      "server:={\"url\":\"https://eu.example.com\"}"
+    ]
+  },
+  {
+    "source_path": "ob context set",
+    "args": [
+      "context",
+      "set",
+      "https://api.example.com",
+      "--credential",
+      "primary=@primary.json",
+      "--credential",
+      "secondary=@secondary.json"
+    ]
+  },
+  {
+    "source_path": "ob context set",
+    "args": [
+      "context",
+      "set",
+      "https://api.example.com",
+      "--cookie",
+      "locale=en",
+      "--refresh-token",
+      "-"
+    ]
+  },
+  {
+    "source_path": "ob context set",
+    "args": [
+      "context",
+      "set",
+      "https://api.example.com",
+      "--token-provider",
+      "https://auth.example.com",
+      "--token-credential",
+      "@creds.txt"
+    ]
+  },
+  {
+    "source_path": "ob context set",
+    "args": [
+      "context",
+      "set",
+      "https://api.example.com",
+      "--unset",
+      "header.X-Client"
+    ]
+  },
+  {
+    "source_path": "ob context list",
+    "args": [
+      "context",
+      "list"
+    ]
+  },
+  {
+    "source_path": "ob context show",
+    "args": [
+      "context",
+      "show",
+      "https://api.example.com"
+    ]
+  },
+  {
+    "source_path": "ob context remove",
+    "args": [
+      "context",
+      "remove",
+      "https://api.example.com/openapi.json"
+    ]
+  },
+  {
+    "source_path": "ob codegen",
+    "args": [
+      "codegen",
+      "tasks.obi.json",
+      "--lang",
+      "go",
+      "-o",
+      "./taskclient"
+    ]
+  },
+  {
+    "source_path": "ob codegen",
+    "args": [
+      "codegen",
+      "https://api.example.com",
+      "--lang",
+      "typescript",
+      "--package",
+      "@acme/tasks",
+      "-o",
+      "./tasks-client"
+    ]
+  },
+  {
+    "source_path": "ob start",
+    "args": [
+      "start"
+    ]
+  },
+  {
+    "source_path": "ob start",
+    "args": [
+      "start",
+      "--port",
+      "8080",
+      "--allow-origin",
+      "https://editor.example.com"
+    ]
+  },
+  {
+    "source_path": "ob start",
+    "args": [
+      "start",
+      "--tls"
+    ]
+  },
+  {
+    "source_path": "ob mcp",
+    "args": [
+      "mcp",
+      "tasks.obi.json",
+      "--binding",
+      "createTask.http"
+    ]
+  },
+  {
+    "source_path": "ob mcp",
+    "args": [
+      "mcp",
+      "https://api.example.com",
+      "--operation",
+      "createTask",
+      "--operation",
+      "listTasks",
+      "--binding",
+      "createTask.mcp"
+    ]
+  },
+  {
+    "source_path": "ob ca install",
+    "args": [
+      "ca",
+      "install"
+    ]
+  },
+  {
+    "source_path": "ob ca remove",
+    "args": [
+      "ca",
+      "remove"
+    ]
+  },
+  {
+    "source_path": "ob ca show",
+    "args": [
+      "ca",
+      "show"
+    ]
+  },
+  {
+    "source_path": "ob kind list",
+    "args": [
+      "kind",
+      "list"
+    ]
+  },
+  {
+    "source_path": "ob kind list",
+    "args": [
+      "kind",
+      "list",
+      "--role",
+      "invoke"
+    ]
+  },
+  {
+    "source_path": "ob kind check",
+    "args": [
+      "kind",
+      "check",
+      "example.openapi@1"
+    ]
+  },
+  {
+    "source_path": "ob kind check",
+    "args": [
+      "kind",
+      "check",
+      "acme.billing-rpc@1",
+      "--role",
+      "invoke"
+    ]
+  },
+  {
+    "source_path": "ob delegate roles",
+    "args": [
+      "delegate",
+      "roles"
+    ]
+  },
+  {
+    "source_path": "ob delegate add",
+    "args": [
+      "delegate",
+      "add",
+      "./acme-rpc.obi.json",
+      "--role",
+      "invoke",
+      "--preference",
+      "invoke=10"
+    ]
+  },
+  {
+    "source_path": "ob delegate add",
+    "args": [
+      "delegate",
+      "add",
+      "https://tools.example.com",
+      "--role",
+      "inspect",
+      "--role",
+      "synthesize"
+    ]
+  },
+  {
+    "source_path": "ob delegate set",
+    "args": [
+      "delegate",
+      "set",
+      "d_91c2",
+      "--preference",
+      "invoke=20"
+    ]
+  },
+  {
+    "source_path": "ob delegate set",
+    "args": [
+      "delegate",
+      "set",
+      "d_91c2",
+      "--add-role",
+      "synthesize"
+    ]
+  },
+  {
+    "source_path": "ob delegate set",
+    "args": [
+      "delegate",
+      "set",
+      "d_91c2",
+      "--unset",
+      "preference.invoke"
+    ]
+  },
+  {
+    "source_path": "ob delegate remove",
+    "args": [
+      "delegate",
+      "remove",
+      "d_7f3a"
+    ]
+  },
+  {
+    "source_path": "ob delegate list",
+    "args": [
+      "delegate",
+      "list"
+    ]
+  },
+  {
+    "source_path": "ob delegate list",
+    "args": [
+      "delegate",
+      "list",
+      "--role",
+      "invoke"
+    ]
+  },
+  {
+    "source_path": "ob delegate show",
+    "args": [
+      "delegate",
+      "show",
+      "d_91c2"
+    ]
+  },
+  {
+    "source_path": "ob delegate resolve",
+    "args": [
+      "delegate",
+      "resolve",
+      "--role",
+      "invoke",
+      "--kind",
+      "acme.billing-rpc@1"
+    ]
+  },
+  {
+    "source_path": "ob describe",
+    "args": [
+      "describe"
+    ]
+  },
+  {
+    "source_path": "ob describe",
+    "args": [
+      "describe",
+      "-F",
+      "obi"
+    ]
+  }
+]
