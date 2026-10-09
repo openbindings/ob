@@ -2,17 +2,25 @@ name: CI
 
 on:
   push:
-    branches: [main, "release/**"]
+    branches: [main, release/0.2]
   pull_request:
 
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 jobs:
-  test:
+  checks:
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     defaults:
       run:
         working-directory: ob
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           path: ob
       # ob builds against SDK module versions that are not tagged yet; a
@@ -20,25 +28,25 @@ jobs:
       # resolves them, exactly the way the local-dev go.work does. Release
       # builds (release.yml) see no go.work and resolve tagged versions.
       # Flip ref to main once the 0.2 release line promotes.
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           repository: openbindings/openbindings-go
           # Exact migration candidate; advance together with the consumer.
           ref: d76792a0d11566777f675e7e7f22235e03f311f1
           path: openbindings-go
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           repository: openbindings/openapi-client
           ref: 7b15d57e960faa6a9e010eb9cbea80fd83f0d02e
           path: openapi-client
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           repository: openbindings/asyncapi-client
           ref: 7326ce4e18c12e1dcb36c3587fbe0f7fe52ec749
           path: asyncapi-client
       # The conformance corpora (transforms, binding-specs) are normative and
       # live in the spec repo; without this checkout the gates skip silently.
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           repository: openbindings/spec
           ref: d7fba38d8c389b165fdeb980ab4b28ea4a72cfde
@@ -47,25 +55,17 @@ jobs:
       # repository. Pin the exact selected commit (never a moving branch or a
       # sibling-checkout fallback) so the gate certifies this corpus and no
       # other; the absence of the corpus is a hard failure below.
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           repository: openbindings/interfaces
           ref: fe526cc5c750a21f4dd61efaa758c35c6af91192
           path: interfaces
-      - uses: actions/setup-go@v7
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7
         with:
           go-version-file: ob/go.mod
           cache: false
-      - name: workspace (resolve untagged SDK modules from the sibling checkout)
-        run: |
-          go work init .
-          awk '$1 ~ /^github.com\/openbindings\/openbindings-go/ {print $1}' go.mod | sort -u | while read -r mod; do
-            rel="../openbindings-go${mod#github.com/openbindings/openbindings-go}"
-            go work edit -replace "$mod=$rel"
-          done
-          go work edit -replace "github.com/openbindings/openapi-client/go=../openapi-client/go"
-          go work edit -replace "github.com/openbindings/asyncapi-client/go=../asyncapi-client/go"
-          go work edit -json
+      - name: Resolve the declared CI dependencies
+        run: bash scripts/ci-workspace.sh
       - run: go build ./...
       - run: go vet ./...
       - run: go test -race -short ./...
@@ -90,16 +90,79 @@ jobs:
       # conversion/recovery and public-surface tests are selected by name
       # (outside -short, with race detection); the script refuses a missing
       # corpus, a zero-match selector, a skipped mandatory test or any failure.
-      - uses: actions/setup-node@v6
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
         with:
           node-version: '22'
       - run: node scripts/verify-delegate-manager.mjs --evidence "$RUNNER_TEMP/delegate-manager-gates.json"
         env:
           OB_SPEC_CORPUS: ${{ github.workspace }}/spec/conformance
           OB_INTERFACES_CORPUS: ${{ github.workspace }}/interfaces/conformance
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         if: always()
         with:
           name: delegate-manager-gates
           path: ${{ runner.temp }}/delegate-manager-gates.json
           if-no-files-found: warn
+
+  processes:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
+    env:
+      CGO_ENABLED: '0'
+    defaults:
+      run:
+        working-directory: ob
+        shell: bash
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          path: ob
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          repository: openbindings/openbindings-go
+          ref: d76792a0d11566777f675e7e7f22235e03f311f1
+          path: openbindings-go
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          repository: openbindings/openapi-client
+          ref: 7b15d57e960faa6a9e010eb9cbea80fd83f0d02e
+          path: openapi-client
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          repository: openbindings/asyncapi-client
+          ref: 7326ce4e18c12e1dcb36c3587fbe0f7fe52ec749
+          path: asyncapi-client
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7
+        with:
+          go-version-file: ob/go.mod
+          cache: false
+      - name: Resolve the declared CI dependencies
+        run: bash scripts/ci-workspace.sh
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: '22'
+      - name: Prove local-filesystem locking, recovery and conversion
+        run: |
+          go test -count=1 -run '^(TestEnvConfigProcesses|TestEnvConfigRecovery|TestEnvConfigLockTimeoutAndReentrancy|TestEnvConfigSyncAndRenameFailure|TestRoleRegistryProcesses|TestRoleRegistryRecovery|TestRoleRegistryConcurrentReaders|TestRoleRegistryUnrelatedConfigProcess|TestDelegateMigrationRecovery|TestDelegateMigrationRollbackRecovery)$' -v ./internal/app/ 2>&1 | tee "$RUNNER_TEMP/delegate-process-tests.log"
+          node scripts/check-process-gates.mjs "$RUNNER_TEMP/delegate-process-tests.log"
+
+  ci:
+    if: always()
+    needs: [checks, processes]
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Require every mandatory job to succeed
+        env:
+          RESULTS: ${{ toJSON(needs.*.result) }}
+        run: |
+          python3 - <<'PY'
+          import json, os
+          results = json.loads(os.environ['RESULTS'])
+          if not results or any(result != 'success' for result in results):
+              raise SystemExit('Required job results: ' + repr(results))
+          PY

@@ -765,3 +765,12 @@ For interfaces whose operations take a whole OBI as input — much of `ob`'s own
 - **`ob start`**: another process (a browser app, a worker, a server-side host) needs to make binding invocations and you want REST/WS access. Use it when the consumer can speak HTTP.
 - **`ob mcp`**: an AI agent (Claude, Cursor) needs to discover and call your service's operations. Use it when the consumer speaks MCP.
 - Both can run at once — they're independent processes.
+
+## CI ownership
+
+Ordinary CI retains the build, vet, race, corpus and executable checks plus the
+existing filesystem/process regressions on Linux, macOS and Windows. Its
+untagged dependencies are fixed in the workflow; `bash scripts/ci-workspace.sh`
+resolves those sibling checkouts locally. `oas-platform.yml` is the separate
+manual broad platform/browser/public-artifact qualification. Component changes
+no longer dispatch whole-project integration. Release controls are unchanged.
