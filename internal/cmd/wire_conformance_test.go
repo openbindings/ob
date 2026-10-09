@@ -151,6 +151,8 @@ func TestWireConformance_ExecLane(t *testing.T) {
 	// out of band (the primary via stdin, a second via a temp file) and the
 	// CLI reads it as a `-` locator or file path. See ob-pj/wire-conformance.md
 	// batch 3.
+	// Preflight acquires this source. Use the local fixture written below so
+	// the exec conformance lane never depends on a remote example URL.
 	docA := map[string]any{
 		"openbindings": "0.2.0",
 		"name":         "wire-fixture-a",
@@ -160,7 +162,7 @@ func TestWireConformance_ExecLane(t *testing.T) {
 			"pong": map[string]any{},
 		},
 		"sources": map[string]any{
-			"s": map[string]any{"bindingSpec": "openbindings.openapi-3.1@1", "location": "https://example.com/openapi.yaml"},
+			"s": map[string]any{"bindingSpec": "openbindings.openapi-3.1@1", "location": "openapi.json"},
 		},
 		"bindings": map[string]any{
 			"ping.s": map[string]any{"operation": "ping", "source": "s", "selector": "#/paths/~1ping/get"},
