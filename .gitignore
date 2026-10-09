@@ -1,38 +1,22 @@
-# Binary
-/ob
-*.exe
-*.test
-bin/
-dist/
-!internal/server/workbench/dist/
-!internal/server/workbench/dist/**
+# Rust build outputs
+/target/
 
-# OS
+# OS and editor files
 .DS_Store
-
-# IDE
 .idea/
 .vscode/
 *.swp
 *.swo
 
-# Environment
+# Machine-local configuration and helpers
 .env
 .env.*
-
-# Tools
 .claude/
-
-# Local-dev workspace against sibling openbindings-go (test-before-tag)
-go.work
-go.work.sum
-
-# Machine-local build/install helper
 /scripts/dev-install.sh
 
-# Consumer qualification build outputs
-/qualification/delegate-manager/go/provider
-/qualification/delegate-manager/ts/node_modules/
-
-# Rust command surface
-/target/
+# Leftovers in local checkouts of the archived Go implementation
+go.work
+go.work.sum
+/ob
+/bin/
+/dist/

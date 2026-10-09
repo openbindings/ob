@@ -1,6 +1,8 @@
 # OpenBindings CLI (`ob`)
 
-This branch starts the Rust migration with the designed CLI command surface.
+Rust is the maintained CLI implementation on `release/0.2`, the repository
+default and integration branch. It currently implements the designed command
+surface only.
 **Help, argument parsing, version output, and shell completion generation work.
 The 73 operational commands are placeholders.** They exit **3**, print an
 explicit message to stderr, and perform no operation.
@@ -52,7 +54,9 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for checks and branching, and the
 [Rust surface notes](docs/rust-command-surface.md) for the migration boundary,
 source pins, current checks, and the path to handlers.
 
-The Go sources remain intact in `cmd/` and `internal/`. Their previous README
-is preserved as [LEGACY_GO_README.md](LEGACY_GO_README.md). Its commands and
-capability claims describe the Go implementation, not this Rust surface.
+The complete Go implementation is preserved on
+[`legacy/go-cli`](https://github.com/openbindings/ob/tree/legacy/go-cli), outside
+the maintained source tree. Its commands and capability claims describe that
+historical implementation. See [the preservation record](docs/legacy-go.md)
+for exact revisions, original documentation, and recovery instructions.
 The historical surface-lab branch also remains unchanged.

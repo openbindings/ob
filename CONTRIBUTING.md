@@ -40,27 +40,16 @@ stub print a successful-looking result, read a credential store, load documents,
 or start a service. Implementation phases will replace placeholders one job at
 a time, with real consumer tests and matching capability documentation.
 
-The existing CI and tagged release flow still target Go. The Rust checks above
-are the candidate's local gate; Rust CI and binary distribution need a separate
-review before this becomes the repository's released CLI. Do not infer Rust
-qualification from green Go checks.
+CI runs formatting, Clippy, tests, release builds, and release-binary smoke
+checks on Linux, macOS, and Windows. The required `ci` result fails if any
+mandatory host job fails, is cancelled, or is skipped. CI needs only this
+repository and its locked Cargo dependencies; it does not check out Go SDKs or
+trigger a project-wide integration run.
 
-## Preserved Go implementation
-
-The Go source tree remains available for reference and historical operation.
-Its existing commands are:
-
-```sh
-go test ./...
-go build ./...
-go install ./cmd/ob
-```
-
-They retain the Go module/workspace prerequisites and are not prerequisites for
-the Rust preview. `internal/app/` holds Go domain logic, `internal/cmd/` its
-Cobra bindings, `internal/server/` the HTTP infrastructure, and
-`internal/mcpbridge/` its MCP bridge. These are historical implementation
-boundaries, not requirements to copy their architecture into Rust.
+The Go implementation, its tests, and its former release process are preserved
+on `legacy/go-cli`. They no longer define this branch's checks. See
+[the preservation record](docs/legacy-go.md) when consulting or recovering that
+code. Do not infer operational parity from the Rust shell's passing tests.
 
 ## Architecture and releases
 
@@ -69,6 +58,6 @@ CLI experiences. Domain behavior will use the maintained SDK, optional
 companions, and binding-kind adapters as appropriate; protocol engines and
 application policy do not belong in the SDK core.
 
-[RELEASING.md](RELEASING.md) currently describes the Go release path. The Cargo
-package is unpublished (`publish = false`). This preview does not change the
-release workflow or claim any Rust operational capability.
+[RELEASING.md](RELEASING.md) records the publication hold and the work required
+before a Rust release. The Cargo package remains unpublished (`publish = false`),
+and the Go release workflow and GoReleaser configuration are retired.

@@ -20,7 +20,9 @@ deliberate differences. Extraction constructed the Cobra tree and inspected
 metadata and argument-count validators; it did not run operational handlers.
 The Rust binary uses ordinary static Rust command definitions, not this JSON.
 
-The Go tree and original surface lab are preserved. The removed agent primer
+The Go tree is preserved on `legacy/go-cli` at the integration base above;
+the original surface lab is preserved on its own branch. The active tree
+contains Rust and its tests, without Go runtime or release machinery. The removed agent primer
 is not reintroduced: integration commit `6c8aeb0` removed it after the lab pin.
 
 ## What works
@@ -93,8 +95,8 @@ implemented commands and another real consumer justify it.
 The next useful implementation slice is a read-only document workflow, with
 real input/output and error contracts. It should be chosen after the SDK API
 work settles enough to consume it. This branch does not constrain that API or
-race the ongoing SDK work. Before release, add Rust CI, Rust binary packaging,
-and a deliberate transition from the Go release path.
+race the ongoing SDK work. Rust CI now qualifies this shell on Linux, macOS, and Windows. Rust binary
+packaging and publication remain future work; the Go release path is retired.
 
 ## Verification
 
@@ -120,3 +122,19 @@ source evidence; change them only when deliberately adopting a new surface.
 See [CONTRIBUTING.md](../CONTRIBUTING.md) for the full Rust check commands.
 These checks qualify the shell, not SDK integration, operational parity,
 cross-platform distribution, performance targets, or a Rust release.
+
+## Canonical source cutover
+
+The maintainer approved making this surface the canonical development CLI on
+2026-10-09. `release/0.2` remains the integration branch and becomes the GitHub
+default, so new readers see Rust. Go source, runtime descriptors, browser
+bundles, Go qualification scripts, and Go release machinery move out of the
+active tree together; their exact prior tree survives in
+[the legacy record](legacy-go.md). Existing release tags and the historical
+`main` branch are not rewritten.
+
+This cutover deliberately replaces the implementation before operational
+parity. The new checks qualify only the stated Rust command surface. Legacy
+Go operational tests remain preserved with their implementation; their old
+results are not evidence for Rust behavior. No SDK/OpenAPI changes or historical
+cohort promotion are part of this cutover.

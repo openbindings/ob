@@ -2,8 +2,9 @@ name: CI
 
 on:
   push:
-    branches: [main, release/0.2]
+    branches: [release/0.2]
   pull_request:
+    branches: [release/0.2]
 
 permissions:
   contents: read
@@ -13,150 +14,61 @@ concurrency:
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
-  checks:
-    runs-on: ubuntu-latest
-    timeout-minutes: 30
-    defaults:
-      run:
-        working-directory: ob
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
-        with:
-          path: ob
-      # ob builds against SDK module versions that are not tagged yet; a
-      # sibling checkout plus a CI-local go.work with version-less replaces
-      # resolves them, exactly the way the local-dev go.work does. Release
-      # builds (release.yml) see no go.work and resolve tagged versions.
-      # Flip ref to main once the 0.2 release line promotes.
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
-        with:
-          repository: openbindings/openbindings-go
-          # Exact migration candidate; advance together with the consumer.
-          ref: d76792a0d11566777f675e7e7f22235e03f311f1
-          path: openbindings-go
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
-        with:
-          repository: openbindings/openapi-client
-          ref: 7b15d57e960faa6a9e010eb9cbea80fd83f0d02e
-          path: openapi-client
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
-        with:
-          repository: openbindings/asyncapi-client
-          ref: 7326ce4e18c12e1dcb36c3587fbe0f7fe52ec749
-          path: asyncapi-client
-      # The conformance corpora (transforms, binding-specs) are normative and
-      # live in the spec repo; without this checkout the gates skip silently.
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
-        with:
-          repository: openbindings/spec
-          ref: d7fba38d8c389b165fdeb980ab4b28ea4a72cfde
-          path: spec
-      # The Delegate Manager admission corpus is owned by the interfaces
-      # repository. Pin the exact selected commit (never a moving branch or a
-      # sibling-checkout fallback) so the gate certifies this corpus and no
-      # other; the absence of the corpus is a hard failure below.
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
-        with:
-          repository: openbindings/interfaces
-          ref: fe526cc5c750a21f4dd61efaa758c35c6af91192
-          path: interfaces
-      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7
-        with:
-          go-version-file: ob/go.mod
-          cache: false
-      - name: Resolve the declared CI dependencies
-        run: bash scripts/ci-workspace.sh
-      - run: go build ./...
-      - run: go vet ./...
-      - run: go test -race -short ./...
-        env:
-          OB_SPEC_CORPUS: ${{ github.workspace }}/spec/conformance
-          OB_INTERFACES_CORPUS: ${{ github.workspace }}/interfaces/conformance
-          OB_CORPUS_REQUIRED: "1"
-      # The exec-lane suites are -short-gated because they build and exec the
-      # real binary, so the line above skips them. Wire conformance judges each
-      # CLI realization against its schema; cross-surface conformance also
-      # proves that the CLI and ob-start bindings preserve the same operation
-      # meaning. Named explicitly rather than dropping -short, because the
-      # remaining gated tests want live network and a keychain.
-      - run: go test -race -run 'TestWireConformance_ExecLane|TestCrossSurfaceConformance|TestDemoSmoke_PrintedCommands' ./internal/cmd/
-        env:
-          OB_SPEC_CORPUS: ${{ github.workspace }}/spec/conformance
-          OB_CORPUS_REQUIRED: "1"
-          # The context cohort writes through the OS credential store, which a
-          # headless runner has none of. Everything else in the lane runs.
-          OB_TEST_NO_CREDENTIAL_STORE: "1"
-      # Delegate Manager gates: the mandatory manager, process-locking,
-      # conversion/recovery and public-surface tests are selected by name
-      # (outside -short, with race detection); the script refuses a missing
-      # corpus, a zero-match selector, a skipped mandatory test or any failure.
-      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
-        with:
-          node-version: '22'
-      - run: node scripts/verify-delegate-manager.mjs --evidence "$RUNNER_TEMP/delegate-manager-gates.json"
-        env:
-          OB_SPEC_CORPUS: ${{ github.workspace }}/spec/conformance
-          OB_INTERFACES_CORPUS: ${{ github.workspace }}/interfaces/conformance
-      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
-        if: always()
-        with:
-          name: delegate-manager-gates
-          path: ${{ runner.temp }}/delegate-manager-gates.json
-          if-no-files-found: warn
-
-  processes:
+  native:
     strategy:
       fail-fast: false
       matrix:
         os: [ubuntu-latest, macos-latest, windows-latest]
     runs-on: ${{ matrix.os }}
-    timeout-minutes: 30
-    env:
-      CGO_ENABLED: '0'
-    defaults:
-      run:
-        working-directory: ob
-        shell: bash
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
         with:
-          path: ob
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
-        with:
-          repository: openbindings/openbindings-go
-          ref: d76792a0d11566777f675e7e7f22235e03f311f1
-          path: openbindings-go
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
-        with:
-          repository: openbindings/openapi-client
-          ref: 7b15d57e960faa6a9e010eb9cbea80fd83f0d02e
-          path: openapi-client
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
-        with:
-          repository: openbindings/asyncapi-client
-          ref: 7326ce4e18c12e1dcb36c3587fbe0f7fe52ec749
-          path: asyncapi-client
-      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7
-        with:
-          go-version-file: ob/go.mod
-          cache: false
-      - name: Resolve the declared CI dependencies
-        run: bash scripts/ci-workspace.sh
-      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
-        with:
-          node-version: '22'
-      - name: Prove local-filesystem locking, recovery and conversion
+          python-version: '3.13'
+      - name: Read the pinned Rust toolchain
+        id: rust-version
+        shell: bash
         run: |
-          go test -count=1 -run '^(TestEnvConfigProcesses|TestEnvConfigRecovery|TestEnvConfigLockTimeoutAndReentrancy|TestEnvConfigSyncAndRenameFailure|TestRoleRegistryProcesses|TestRoleRegistryRecovery|TestRoleRegistryConcurrentReaders|TestRoleRegistryUnrelatedConfigProcess|TestDelegateMigrationRecovery|TestDelegateMigrationRollbackRecovery)$' -v ./internal/app/ 2>&1 | tee "$RUNNER_TEMP/delegate-process-tests.log"
-          node scripts/check-process-gates.mjs "$RUNNER_TEMP/delegate-process-tests.log"
+          python - <<'PY'
+          import os, tomllib
+          with open('rust-toolchain.toml', 'rb') as source:
+              version = tomllib.load(source)['toolchain']['channel']
+          with open(os.environ['GITHUB_OUTPUT'], 'a') as output:
+              output.write('version=' + version + '\n')
+          PY
+      - uses: dtolnay/rust-toolchain@e2a55d2ffb04f378e9626c28d38b36d230d1e12f # master
+        with:
+          toolchain: ${{ steps.rust-version.outputs.version }}
+          components: rustfmt, clippy
+      - run: cargo fmt --all -- --check
+      - run: cargo clippy --locked --all-targets -- -D warnings
+      - run: cargo test --locked
+      - run: cargo build --locked --release
+      - name: Exercise the release binary and verify publication remains disabled
+        shell: bash
+        run: |
+          python - <<'PY'
+          import os, pathlib, subprocess, tomllib
+          with open('Cargo.toml', 'rb') as source:
+              manifest = tomllib.load(source)
+          assert manifest['package']['publish'] is False, 'Preview publication must remain disabled'
+          binary = pathlib.Path('target/release') / ('ob.exe' if os.name == 'nt' else 'ob')
+          for args, expected in [(['--help'], 0), (['--version'], 0), (['show'], 2), (['init', 'absent.obi'], 3)]:
+              result = subprocess.run([str(binary), *args], capture_output=True, text=True, timeout=10)
+              assert result.returncode == expected, (args, result)
+              if expected == 3:
+                  assert not result.stdout and 'no operation ran' in result.stderr, result
+          assert not pathlib.Path('absent.obi').exists(), 'Placeholder unexpectedly created a document'
+          PY
 
   ci:
     if: always()
-    needs: [checks, processes]
+    needs: [native]
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
-      - name: Require every mandatory job to succeed
+      - name: Require every supported-host result to succeed
         env:
           RESULTS: ${{ toJSON(needs.*.result) }}
         run: |
