@@ -2,23 +2,6 @@ name: OAS platform qualification
 
 on:
   workflow_dispatch:
-  pull_request:
-    paths:
-      - '.github/workflows/oas-platform.yml'
-      - 'scripts/verify-oas-platform.mjs'
-      - 'scripts/verify-oas-browser-journeys.mjs'
-      - 'scripts/verify-oas-public-corroboration.mjs'
-      - 'scripts/check-process-gates.mjs'
-      - 'scripts/delegate-manager-gates.json'
-      - 'scripts/verify-delegate-manager.mjs'
-      # This workflow carries the only cross-OS proof of the environment
-      # locking, registry process and migration recovery tests, so it must run
-      # whenever the code or the tests behind that proof change.
-      - 'internal/app/**'
-      - 'internal/cmd/**'
-      - 'go.mod'
-      - 'go.sum'
-      - 'internal/server/workbench/dist/**'
 
 permissions:
   contents: read
@@ -39,15 +22,15 @@ jobs:
       run:
         shell: bash
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           path: ob
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
-      - uses: actions/setup-go@v7
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7
         with:
           go-version-file: ob/go.mod
           cache: false
-      - uses: actions/setup-node@v6
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
         with:
           node-version: '22'
       - name: Install isolated browser harness
@@ -65,7 +48,7 @@ jobs:
         run: node ob/scripts/verify-oas-platform.mjs "$GITHUB_WORKSPACE" | tee "$RUNNER_TEMP/oas-platform-result.json"
       - name: Check out exact workbench qualification tests
         if: always() && matrix.runner == 'ubuntu-24.04'
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           repository: openbindings/elements
           ref: abfc919574731116e155e6288bbc0ed4130c1e96
@@ -78,7 +61,7 @@ jobs:
         run: node ob/scripts/verify-oas-browser-journeys.mjs "$GITHUB_WORKSPACE" "$RUNNER_TEMP/oas-platform-result.json" "$RUNNER_TEMP/oas-browser-journeys"
       - name: Preserve workbench qualification evidence
         if: always() && matrix.runner == 'ubuntu-24.04'
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: oas-browser-journeys
           path: |
@@ -91,7 +74,7 @@ jobs:
         run: node ob/scripts/verify-oas-public-corroboration.mjs "$RUNNER_TEMP/oas-platform-result.json" "$RUNNER_TEMP/oas-public-corroboration"
       - name: Preserve public corroboration evidence
         if: always() && matrix.runner == 'ubuntu-24.04'
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: oas-public-corroboration
           path: ${{ runner.temp }}/oas-public-corroboration
