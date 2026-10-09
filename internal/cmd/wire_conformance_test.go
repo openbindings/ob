@@ -130,9 +130,14 @@ func TestWireConformance_ExecLane(t *testing.T) {
 
 	// A resolvable interface fixture for resolveInterface: a minimal OBI
 	// served over HTTP from the test process.
+	openapiFixture := `{"openapi":"3.1.0","info":{"title":"wire","version":"1.0.0"},"paths":{"/ping":{"get":{"operationId":"getPing","responses":{"200":{"description":"ok"}}}}}}`
 	fixtureOBI := `{"openbindings":"0.2.0","name":"fixture","operations":{"ping":{}}}`
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
+		if r.URL.Path == "/openapi.json" {
+			_, _ = w.Write([]byte(openapiFixture))
+			return
+		}
 		_, _ = w.Write([]byte(fixtureOBI))
 	}))
 	defer ts.Close()
@@ -151,8 +156,8 @@ func TestWireConformance_ExecLane(t *testing.T) {
 	// out of band (the primary via stdin, a second via a temp file) and the
 	// CLI reads it as a `-` locator or file path. See ob-pj/wire-conformance.md
 	// batch 3.
-	// Preflight acquires this source. Use the local fixture written below so
-	// the exec conformance lane never depends on a remote example URL.
+	// Preflight acquires this source. Serve the local fixture at an absolute
+	// URI so the exec lane is self-contained and the document stays valid.
 	docA := map[string]any{
 		"openbindings": "0.2.0",
 		"name":         "wire-fixture-a",
@@ -162,7 +167,7 @@ func TestWireConformance_ExecLane(t *testing.T) {
 			"pong": map[string]any{},
 		},
 		"sources": map[string]any{
-			"s": map[string]any{"bindingSpec": "openbindings.openapi-3.1@1", "location": "openapi.json"},
+			"s": map[string]any{"bindingSpec": "openbindings.openapi-3.1@1", "location": ts.URL + "/openapi.json"},
 		},
 		"bindings": map[string]any{
 			"ping.s": map[string]any{"operation": "ping", "source": "s", "selector": "#/paths/~1ping/get"},
@@ -196,7 +201,6 @@ func TestWireConformance_ExecLane(t *testing.T) {
 	// A binding-source artifact on disk, used by the cohort-B machine-lane
 	// cases below (inspect/synthesize read it from the child's cwd) and by
 	// the editing-family chain (source add/pull/bind).
-	openapiFixture := `{"openapi":"3.1.0","info":{"title":"wire","version":"1.0.0"},"paths":{"/ping":{"get":{"operationId":"getPing","responses":{"200":{"description":"ok"}}}}}}`
 	if err := os.WriteFile(filepath.Join(workDir, "openapi.json"), []byte(openapiFixture), 0o644); err != nil {
 		t.Fatal(err)
 	}
