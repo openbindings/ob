@@ -163,6 +163,14 @@
     ]
   },
   {
+    "source_path": "ob validate",
+    "args": [
+      "validate",
+      "tasks.obi.json",
+      "--kinds"
+    ]
+  },
+  {
     "source_path": "ob diff",
     "args": [
       "diff",
@@ -917,6 +925,21 @@
     ]
   },
   {
+    "source_path": "ob source add",
+    "args": [
+      "source",
+      "add",
+      "tasks.obi.json",
+      "httpApi",
+      "--kind",
+      "example.openapi@1",
+      "--data",
+      "{\"fetch\":\"https://api.example.com/openapi.json\"}",
+      "--context",
+      "@ci-context.json"
+    ]
+  },
+  {
     "source_path": "ob source pull",
     "args": [
       "source",
@@ -940,7 +963,7 @@
       "pull",
       "tasks.obi.json",
       "httpApi",
-      "--force"
+      "--apply"
     ]
   },
   {
@@ -950,8 +973,19 @@
       "pull",
       "tasks.obi.json",
       "httpApi",
-      "--force=completeTask.http",
-      "--force=Task"
+      "--apply=bindings/completeTask.http",
+      "--apply=schemas/Task"
+    ]
+  },
+  {
+    "source_path": "ob source pull",
+    "args": [
+      "source",
+      "pull",
+      "tasks.obi.json",
+      "httpApi",
+      "--add",
+      "deleteTask.httpApi"
     ]
   },
   {
@@ -981,6 +1015,17 @@
       "tasks.obi.json",
       "httpApi",
       "--dry-run"
+    ]
+  },
+  {
+    "source_path": "ob source pull",
+    "args": [
+      "source",
+      "pull",
+      "tasks.obi.json",
+      "httpApi",
+      "--context",
+      "@ci-context.json"
     ]
   },
   {

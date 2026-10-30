@@ -53,6 +53,7 @@ Shell:
   completion    Print a shell completion script
 
 Help topics:
+  obi           What an OBI contains, and which command does what
   documents     Paths, standard input, and URLs
   exit-codes    What each exit status means
   output        Text and JSON output
@@ -63,6 +64,59 @@ Options:
 
 Run 'ob <command> -h' for a summary, and 'ob help <command>' or
 'ob <command> --help' for the full help."####;
+pub(crate) const TOPIC_OBI: &str = r####"OBI: what a document contains, and which command does what
+
+An OBI (OpenBindings interface document) is one JSON object that declares
+the OpenBindings version it follows and describes a piece of software's
+interface in five maps:
+
+  operations     What it can do: each a named capability with optional
+                 input and output schemas (JSON Schema 2020-12) for the
+                 values a caller sends and receives, plus aliases and
+                 examples
+  sources        What its operations are realized through: each an exact
+                 kind, which names how its data and its bindings' data
+                 are read, and that data (an API description, a URL, a
+                 command line, or nothing)
+  bindings       Each a declaration that an operation is realized through
+                 a source, with data read under the source's kind: the
+                 author's claim, not a verified fact
+  dependencies   Where the software described consumes an operation,
+                 optionally limited to some kinds
+  schemas        Named JSON Schemas that operations and other schemas
+                 reference
+
+The document also carries its own name, interface-version label and
+description. Conformance (ob validate) is about the document's shape and
+its cross-references, rules OBI-01 to OBI-14; whether a binding's claim
+is true, or an example's, is outside it. What a source's or a binding's
+data means is its kind's definition, which ob never interprets: it shows
+the kind's schemas and records what the kind returns.
+
+The jobs, and the command for each:
+
+  see a document         ob show; ob operation, binding, dependency,
+                         source and schema list and show
+  check it               ob validate: the rules; --operation for values;
+                         --examples; --kinds for source and binding data
+  compare                ob diff, what changed; ob compat, whether it
+                         serves a shared contract or a dependency
+  start one              ob init; ob fetch, a published one; ob merge,
+                         from a shared contract
+  add a source and
+  pull what it offers    ob source add; ob source pull (--check in CI)
+  bind by hand           ob binding add
+  edit                   your editor, then ob validate; ob patch in
+                         scripts; ob operation, schema and source rename
+                         and remove
+  tidy and sign          ob fmt; ob fmt --canonical
+  call an operation      ob invoke; ob context set for what a call needs
+                         beyond its input
+  this installation      ob kind list and describe; ob delegate; ob
+                         describe
+
+Each group's help (ob operation --help, ob source --help, and so on) says
+what that part is, in the specification's words."####;
 pub(crate) const TOPIC_DOCUMENTS: &str = r####"Documents
 
 Commands that read a document take it as <obi>:
@@ -82,7 +136,13 @@ Sign-in: ob fetches with no credentials of its own. A URL that answers
 401 or 403 is one ob cannot read (exit 2): fetch it with a tool that
 holds the credential and give ob the result as a file or on standard
 input. Context is for bindings, acquired through a kind's challenge and
-stored per document and source (ob context --help).
+stored per document and source (ob context --help); a document read from
+standard input has no path, so no stored context applies to it, and
+ob invoke, ob source add and ob source pull take --context instead.
+
+URLs: ob fetches https and http, follows redirects, admits a response up
+to the SDK's default size limit, and refuses no address by range or
+name: it runs as the user, on the user's network.
 
 Stored context lives in the OS keychain where there is one, otherwise in
 files under ob's per-user config directory, readable only by you.
@@ -142,8 +202,15 @@ interfaces' words. Absent, null, false and 0 stay distinct. Values copied
 from a document keep their exact spelling; numbers are never rounded. JSON
 carries every fact the text shows.
 
-ob show -F json and the show commands of each part print the document, or
-the part, exactly as stored, rather than a report.
+Some commands print a value rather than a report, whatever -F says:
+
+  ob show -F json, and each part's show   the document, or the part, as
+                                          stored
+  ob invoke                               output values, or frames
+  ob diff --patch                         an RFC 6902 patch
+  ob fmt --canonical                      the RFC 8785 bytes
+  ob fetch                                the document as served
+  ob init -                               the new document
 
 Locations in JSON: pointer (a JSON Pointer), line and column (from 1; the
 column counts characters), and offset (bytes, from 0).
@@ -241,9 +308,9 @@ Examples:
 
 Exit status:
   0    shown
-  1    no OBI is published at the URL given
-  2    bad arguments, a file that does not exist, input ob cannot read, or
-       a network failure
+  1    no OBI is published at the origin given
+  2    bad arguments, a file or URL that does not exist, input ob cannot
+       read, or a network failure
   3    refused: the document declares a version outside the 0.2 line
        (without -F json)
   See 'ob help exit-codes'.
@@ -255,11 +322,12 @@ Exit status:
 Usage: ob validate [options] <obi>...
 
 Check one of three things: each document against the rules of
-OpenBindings 0.2, OBI-01 to OBI-14 (the default); with --operation and
---input or --output, values against that operation's input or output
-contract; or, with --examples, each value an example gives against its
-operation's value contract for that side. The document and examples
-checks take several documents at once; --operation takes one.
+OpenBindings 0.2, OBI-01 to OBI-14 (the default), and with --kinds also
+each source's and binding's data against its kind's schemas; with
+--operation and --input or --output, values against that operation's
+input or output schema; or, with --examples, each value an example
+gives against its operation's schema for that side. The document and
+examples checks take several documents at once; --operation takes one.
 
 Options:
       --operation <name>     The operation whose values or examples to
@@ -269,6 +337,8 @@ Options:
       --output <value>       An output value to check: JSON, @FILE, or -
                              (repeatable)
       --examples             Check examples instead of the document
+      --kinds                Also check each source's and binding's data
+                             against its kind's schemas
   -q, --quiet                Print nothing; answer through the exit status
   -F, --format <format>      Output format: text or json [default: text]
   -h, --help                 Print help (see a summary with '-h')
@@ -294,21 +364,28 @@ Examples:
   # Check the examples of every operation
   ob validate tasks.obi.json --examples
 
+  # After editing a binding's data by hand: check it against its kind
+  ob validate tasks.obi.json --kinds
+
 Exit status:
-  0    every document conforms; or every value checked satisfies its
-       value contract
-  1    a document is non-conformant; or some value fails its value
-       contract; or no OBI is published at a URL given
+  0    every document conforms, and with --kinds every entry's data
+       satisfies its kind's schema; or every value checked satisfies its
+       schema
+  1    a document is non-conformant; with --kinds, some entry's data
+       fails its kind's schema; some value fails its schema; or no OBI is
+       published at an origin given
   2    bad arguments, such as --input without --operation or with
        --examples, --operation with nothing to check or with more than
-       one document, or a value that is not JSON; a name or file that
-       does not exist; a network failure
+       one document, --kinds with --operation or --examples, or a value
+       that is not JSON; a name, file or URL that does not exist; a
+       network failure
   3    refused: a document declares a version outside the 0.2 line; for
        values and examples, a document is non-conformant
-  4    no verdict: a document's conformance is undetermined; or, for
-       values and examples, nothing fails but a result is undefined or
-       no-verdict; or, for values only, nothing fails but a side has no
-       value contract to check
+  4    no verdict: a document's conformance is undetermined; with
+       --kinds, nothing fails but some entry's kind could not be asked;
+       for values and examples, nothing fails but a result is undefined
+       or no-verdict; or, for values only, nothing fails but a side has
+       no schema to check
   With several documents, the most serious status wins: 2, then 3, then
   1, then 4, then 0.
   See 'ob help exit-codes'.
@@ -350,9 +427,9 @@ Exit status:
   0    done; with --exit-code, the documents do not differ, other than
        in changes reported as reordered
   1    with --exit-code, the documents differ in a change that is not
-       reordered; or no OBI is published at a URL given
-  2    bad arguments, a file that does not exist, input ob cannot read, or
-       a network failure
+       reordered; or no OBI is published at an origin given
+  2    bad arguments, a file or URL that does not exist, input ob cannot
+       read, or a network failure
   3    refused: a document declares a version outside the 0.2 line
   See 'ob help exit-codes'.
 "####,
@@ -364,8 +441,8 @@ Usage: ob compat [options] <obi> <shared-contract>
 
 Check <obi> against a shared contract: for each operation of the shared
 contract, which of <obi>'s operations its published names identify, and
-whether their value contracts are compatible under the Schema Comparison
-Profile OB-2020-12. With --dependency, check instead whether <obi> can
+whether their input and output schemas are compatible under the Schema
+Comparison Profile OB-2020-12. With --dependency, check instead whether <obi> can
 serve a dependency that <shared-contract> declares.
 
 Options:
@@ -406,17 +483,17 @@ Exit status:
        that meets the dependency's kinds
   1    incompatible, a missing operation included; with --dependency,
        no operation serves and none gives no verdict; or no OBI is
-       published at a URL given
+       published at an origin given
   2    bad arguments, such as --dependency with --operation or
-       --check-as; a name or file that does not exist, such as a
+       --check-as; a name, file or URL that does not exist, such as a
        dependency key <shared-contract> does not have; input ob cannot
        read; a network failure
   3    refused: a document is non-conformant or declares a version
        outside the 0.2 line
-  4    indeterminate, even when an operation is also incompatible or
-       missing, which a warning names; with --dependency, no operation
-       serves and some gives no verdict; or a document's conformance is
-       undetermined
+  4    indeterminate, a comparison that errored included, even when an
+       operation is also incompatible or missing, which a warning names;
+       with --dependency, no operation serves and some gives no verdict;
+       or a document's conformance is undetermined
   See 'ob help exit-codes'.
 "####,
         ),
@@ -426,10 +503,10 @@ Exit status:
 Usage: ob merge [options] <obi> <from>
 
 Copy operations from <from> into <obi> with the schemas, bindings and
-sources they need: every named schema their value contracts reach
-through references, transitively; their bindings; and the sources those
-bindings go through. Dependencies are not copied: each is a consumption
-point of <from>'s own described component. Each operation keeps its key
+sources they need: every named schema their input and output schemas
+reach through references, transitively; their bindings; and the sources
+those bindings go through. Dependencies are not copied: each is a
+consumption point of the software <from> describes. Each operation keeps its key
 and aliases, so an operation copied from a shared contract carries its
 published names, and so claims correspondence with the operation they
 identify there. --operation limits the merge to the operations it names,
@@ -449,7 +526,7 @@ Options:
                            has
       --theirs             Where the documents conflict, take what
                            <from> has
-      --dry-run            Show the change without writing it
+      --dry-run            Write nothing; print the change
   -F, --format <format>    Output format: text, or json for a report
                            holding the patch that would apply (with
                            --dry-run) or that was applied [default: text]
@@ -480,22 +557,23 @@ Examples:
 
 Exit status:
   0    merged, or "no change"
-  1    no OBI is published at the URL given as <from>
+  1    no OBI is published at the origin given as <from>
   2    bad arguments, such as a URL as <obi>, --ours with --theirs,
        --onto without exactly one --operation, or -F json without
-       --dry-run when <obi> is -; a name or file that does not exist;
-       input ob cannot read; a network failure
-  3    refused: a conflict without --ours or --theirs; an incoming
-       operation whose identifiers identify more than one operation of
-       <obi>; a copied operation's reference that reaches into an
-       operation, or a named schema, that the result keeps from <obi>,
-       where <obi> holds no identical schema; --theirs replacing a named
-       schema that operations outside the merge use; --onto with
-       contracts established as incompatible (a hint gives the ob patch
-       command that adds the alias), or with a name that already
-       identifies another operation; a result that would violate a rule;
-       a document that is non-conformant or whose conformance is
-       undetermined; a version outside the 0.2 line
+       --dry-run when <obi> is -; a name, file or URL that does not
+       exist; input ob cannot read; a network failure
+  3    refused: a conflict without --ours or --theirs; a source key both
+       documents hold with different data; an incoming operation whose
+       identifiers identify more than one operation of <obi>; a copied
+       operation's reference that reaches into an operation, or a named
+       schema, that the result keeps from <obi>, where <obi> holds no
+       identical schema; --theirs replacing a named schema that
+       operations outside the merge use; --onto with schemas established
+       as incompatible (a hint gives the ob patch command that adds the
+       alias), or with a name that already identifies another operation;
+       a result that would violate a rule; a document that is
+       non-conformant or whose conformance is undetermined; a version
+       outside the 0.2 line
   See 'ob help exit-codes'.
 "####,
         ),
@@ -510,7 +588,7 @@ JSON Pointers into the document (RFC 6901), such as
 /bindings/createTask.http/preference; a / inside a key is written ~1.
 
 Options:
-      --dry-run            Show the change without writing it
+      --dry-run            Write nothing; print the change
   -F, --format <format>    Output format: text, or json for a report
                            holding the patch that would apply (with
                            --dry-run) or that was applied [default: text]
@@ -564,7 +642,7 @@ at most 80 columns, and otherwise has its members one to a line.
 Options:
       --check              Change nothing; exit 1 if any file would change
       --canonical          Print the RFC 8785 form of one document
-      --dry-run            Show the change without writing it
+      --dry-run            Write nothing; print the change
   -h, --help               Print help (see a summary with '-h')
 
 Examples:
@@ -602,13 +680,13 @@ Exit status:
 
 Usage: ob operation <command> [options]
 
-An operation is a named, protocol-independent capability contract under a
-key in operations: what a service can do, with an optional input contract
-and output contract that govern each value crossing its boundary (§3,
-§5.1). Its key and its aliases are its identifiers, and a name identifies
-the operation when it equals one of them (§5.1). Bindings declare
-realizations of an operation (§5.3), and dependencies name points where
-the described component consumes one (§5.5).
+An operation is a named, protocol-independent capability under a key in
+operations: what a service can do, with optional input and output
+schemas that govern the values a caller sends it and receives from it
+(§3, §5.1). Its key and its aliases are its identifiers, and a name
+identifies the operation when it equals one of them (§5.1). Bindings
+declare realizations of an operation (§5.3), and dependencies name
+points where the software described consumes one (§5.4).
 
 Commands:
   list      List operations, and how each is realized and consumed
@@ -628,7 +706,7 @@ Run 'ob operation <command> --help' for details.
 Usage: ob operation list [options] <obi>
 
 List each operation in document order: its key, its aliases, whether it
-states an input contract and an output contract, the bindings that declare
+states an input schema and an output schema, the bindings that declare
 realizations of it, the dependencies that consume it, and whether it is
 deprecated.
 
@@ -643,8 +721,9 @@ Examples:
 
 Exit status:
   0    listed
-  1    no OBI is published at the URL given
-  2    the arguments are wrong, or <obi> cannot be read or fetched
+  1    no OBI is published at the origin given
+  2    the arguments are wrong, or <obi> cannot be read or fetched (a URL
+       that is not found included)
   3    refused: the document declares a version outside the 0.2 line
   See 'ob help exit-codes'.
 "####,
@@ -655,9 +734,9 @@ Exit status:
 Usage: ob operation show [options] <obi> <name>
 
 Show the operation that <name> identifies, by its key or any of its
-aliases (§5.1): its description, identifiers, input and output
-contracts, examples, bindings and dependencies. --example shows one of
-its examples alone.
+aliases (§5.1): its description, identifiers, input and output schemas,
+examples, bindings and dependencies. --example shows one of its examples
+alone.
 
 Options:
       --example <key>      Show only this example of the operation
@@ -674,10 +753,10 @@ Examples:
 
 Exit status:
   0    shown
-  1    no OBI is published at the URL given
-  2    the arguments are wrong, <obi> cannot be read or fetched, <name>
-       identifies no operation, or the operation has no example under
-       the --example key
+  1    no OBI is published at the origin given
+  2    the arguments are wrong, <obi> cannot be read or fetched (a URL
+       that is not found included), <name> identifies no operation, or
+       the operation has no example under the --example key
   3    refused: <name> identifies two operations (OBI-05), the document
        declares a version outside the 0.2 line
   See 'ob help exit-codes'.
@@ -686,9 +765,9 @@ Exit status:
         "ob operation rename" => Some(
             r####"Change an operation's key and every reference to it
 
-Usage: ob operation rename [options] <obi> <name> <new-name>
+Usage: ob operation rename [options] <obi> <key> <new-key>
 
-Change the key of the operation <name> to <new-name>, and update every
+Change the key of the operation <key> to <new-key>, and update every
 reference to it in the document: the operation field of each binding
 and dependency that names it, and each same-document reference in the
 document resource that points into the operation, however it is
@@ -713,12 +792,12 @@ Examples:
   ob operation rename - listTasks findTasks < tasks.obi.json > next.obi.json
 
 Exit status:
-  0    renamed, or no change (<new-name> is already its key)
+  0    renamed, or no change (<new-key> is already its key)
   2    the arguments are wrong, such as -F json without --dry-run when
-       <obi> is -; <obi> is a URL or cannot be read; or <name>
+       <obi> is -; <obi> is a URL or cannot be read; or <key>
        identifies no operation
-  3    refused: <name> is an alias or identifies two operations,
-       <new-name> is taken or breaks the name grammar, the result would
+  3    refused: <key> is an alias or identifies two operations,
+       <new-key> is taken or breaks the name grammar, the result would
        break another rule, or the document declares a version outside the
        0.2 line; nothing was written
   See 'ob help exit-codes'.
@@ -727,9 +806,9 @@ Exit status:
         "ob operation remove" => Some(
             r####"Remove an operation
 
-Usage: ob operation remove [options] <obi> <name>
+Usage: ob operation remove [options] <obi> <key>
 
-Remove the operation <name>, with its aliases and examples. Its names
+Remove the operation <key>, with its aliases and examples. Its names
 stop identifying anything, and any correspondence it claimed through them
 goes with it.
 
@@ -751,9 +830,9 @@ Examples:
 Exit status:
   0    removed
   2    the arguments are wrong, such as -F json without --dry-run when
-       <obi> is -; <obi> is a URL or cannot be read; or <name>
+       <obi> is -; <obi> is a URL or cannot be read; or <key>
        identifies no operation
-  3    refused: <name> is an alias or identifies two operations, bindings
+  3    refused: <key> is an alias or identifies two operations, bindings
        or dependencies name it and --cascade was not given, a reference
        points into it or to an $id declared in it, the result would break
        another rule, or the document declares a version outside the 0.2
@@ -771,11 +850,11 @@ key in bindings (§3, §5.3). It names the operation and the source by their
 keys (OBI-06, OBI-07). Where a binding names its operation by an alias,
 ob validate gives a hint with the key, and in a document that meets
 OBI-06, an edit that makes that change is refused with the same hint. Its
-data is read under the source's kind, which decides what the data holds,
-such as which target realizes the operation and how values are adapted
-between the operation's contracts and that target (§5.3, §6). Its
-idempotent field is an author claim, and its preference and deprecated
-fields are author signals (§5.3).
+data is read under the source's kind, which defines what the data holds:
+a pointer into an API description, a method name, an adaptation of
+values, or nothing, where the source alone identifies the realization
+(§5.3, §6). Its idempotent field is an author claim, and its preference
+and deprecated fields are author signals (§5.3).
 
 Commands:
   list    List bindings, with their operation, source and kind
@@ -811,9 +890,10 @@ Examples:
 
 Exit status:
   0    listed
-  1    no OBI is published at the URL given
-  2    the arguments are wrong, <obi> cannot be read or fetched, or the
-       --operation name identifies no operation
+  1    no OBI is published at the origin given
+  2    the arguments are wrong, <obi> cannot be read or fetched (a URL
+       that is not found included), or the --operation name identifies
+       no operation
   3    refused: the --operation name identifies two operations (OBI-05),
        or the document declares a version outside the 0.2 line
   See 'ob help exit-codes'.
@@ -839,9 +919,9 @@ Examples:
 
 Exit status:
   0    shown
-  1    no OBI is published at the URL given
-  2    the arguments are wrong, <obi> cannot be read or fetched, or no
-       binding has the key <key>
+  1    no OBI is published at the origin given
+  2    the arguments are wrong, <obi> cannot be read or fetched (a URL
+       that is not found included), or no binding has the key <key>
   3    refused: the document declares a version outside the 0.2 line
   See 'ob help exit-codes'.
 "####,
@@ -855,11 +935,14 @@ Add a binding under <key> that realizes the operation --operation names
 through the source --source names, with data in the form the source's
 kind describes. ob asks the Kind Descriptor for the kind's binding-data
 schema (what ob kind describe shows) and fills it: from --data, or at a
-terminal from what you enter for the schema's members. The data is what the
-kind reads to carry out the operation: which target, and any adaptation
-between the operation's contracts and that target, as the kind defines.
-ob records it as given; the claim that the target realizes the operation
-is yours, as for any binding (§5.3).
+terminal from what you enter for the schema's members. The data is what
+the kind reads to carry out the operation: which target, and any
+adaptation between the operation's input and output schemas and that
+target, as the kind defines. ob records it as given; the claim that the
+declared realization carries out the operation is yours, as for any
+binding (§5.3). A kind whose bindings carry no data has no binding-data
+schema: the binding is written without data, and --data is a usage
+error for it; --data null is the JSON value null.
 
 Options:
       --operation <name>       The operation it realizes, by key or alias
@@ -899,9 +982,10 @@ Examples:
 Exit status:
   0    added, or an identical binding was already under <key>
   2    the arguments are wrong, such as -F json without --dry-run when
-       <obi> is -, no --data without a terminal, or data the kind's
-       schema does not accept; <obi> is a URL or cannot be read;
-       --operation identifies no operation; or --source names no source
+       <obi> is -, no --data without a terminal, --data for a kind whose
+       bindings carry none, or data the kind's schema does not accept;
+       <obi> is a URL or cannot be read; --operation identifies no
+       operation; or --source names no source
   3    refused: --operation identifies two operations (OBI-05), <key>
        already names a different binding, the result would break a rule,
        or the document declares a version outside the 0.2 line; nothing
@@ -914,12 +998,12 @@ Exit status:
 
 Usage: ob dependency <command> [options]
 
-A dependency is a named point where the described component consumes a
-realization of an operation, under a key in dependencies; the key
-identifies the consumption point (§3, §5.5). It names the operation by its
-key (OBI-08), and may limit the kinds acceptable there with kinds, an
-any-of constraint. It names no realization to serve it, not even one of
-the document's own bindings (§5.5). Where a dependency names its
+A dependency is a named point where the software the document describes
+consumes a realization of an operation, under a key in dependencies; the
+key identifies the consumption point (§3, §5.4). It names the operation
+by its key (OBI-08), and may limit the kinds acceptable there with
+kinds, an any-of constraint. It names no realization to serve it, not
+even one of the document's own bindings (§5.4). Where a dependency names its
 operation by an alias, ob validate gives a hint with the key, and in a
 document that meets OBI-08, an edit that makes that change is refused
 with the same hint.
@@ -952,8 +1036,9 @@ Examples:
 
 Exit status:
   0    listed
-  1    no OBI is published at the URL given
-  2    the arguments are wrong, or <obi> cannot be read or fetched
+  1    no OBI is published at the origin given
+  2    the arguments are wrong, or <obi> cannot be read or fetched (a URL
+       that is not found included)
   3    refused: the document declares a version outside the 0.2 line
   See 'ob help exit-codes'.
 "####,
@@ -978,9 +1063,9 @@ Examples:
 
 Exit status:
   0    shown
-  1    no OBI is published at the URL given
-  2    the arguments are wrong, <obi> cannot be read or fetched, or no
-       dependency has the key <key>
+  1    no OBI is published at the origin given
+  2    the arguments are wrong, <obi> cannot be read or fetched (a URL
+       that is not found included), or no dependency has the key <key>
   3    refused: the document declares a version outside the 0.2 line
   See 'ob help exit-codes'.
 "####,
@@ -991,7 +1076,7 @@ Exit status:
 Usage: ob schema <command> [options]
 
 The schemas map holds named JSON Schemas, which operations and other
-schemas reference, as in {"$ref": "#/schemas/Task"} (§5.2). Every schema
+schemas reference, as in {"$ref": "#/schemas/Task"} (§5.5). Every schema
 the document contains is read as JSON Schema 2020-12, and its references
 resolve as §7 defines. An external schema is one a reference in the
 document identifies, once resolved (against the enclosing $id, inside a
@@ -1030,8 +1115,9 @@ Examples:
 
 Exit status:
   0    listed
-  1    no OBI is published at the URL given
-  2    the arguments are wrong, or <obi> cannot be read or fetched
+  1    no OBI is published at the origin given
+  2    the arguments are wrong, or <obi> cannot be read or fetched (a URL
+       that is not found included)
   3    refused: the document declares a version outside the 0.2 line
   See 'ob help exit-codes'.
 "####,
@@ -1056,9 +1142,9 @@ Examples:
 
 Exit status:
   0    shown
-  1    no OBI is published at the URL given
-  2    the arguments are wrong, <obi> cannot be read or fetched, or no
-       schema has the key <key>
+  1    no OBI is published at the origin given
+  2    the arguments are wrong, <obi> cannot be read or fetched (a URL
+       that is not found included), or no schema has the key <key>
   3    refused: the document declares a version outside the 0.2 line
   See 'ob help exit-codes'.
 "####,
@@ -1115,7 +1201,7 @@ Options:
   -h, --help               Print help (see a summary with '-h')
 
 Examples:
-  # Refused in the sample: three output contracts reference Problem
+  # Refused in the sample: three output schemas reference Problem
   ob schema remove tasks.obi.json Problem
   ob schema remove draft.obi.json Unused --dry-run -F json
 
@@ -1175,9 +1261,10 @@ Exit status:
 
 Usage: ob source <command> [options]
 
-A source is what a document reads operations and bindings from, under a
-key in sources: an exact kind, which names how the source's data and its
-bindings' data are read (§5.2, §6), and that data, whatever the kind
+A source is the document's name for something its bindings realize
+operations through, read under one kind (§5.2): an entry under a key in
+sources, with an exact kind, which names how the source's data and its
+bindings' data are read (§6), and optional data, whatever the kind
 defines for it: an embedded description such as an OpenAPI document, the
 URL of one read on every use, the command line of a server, or nothing at
 all. Bindings name a source and carry data of their own, read under the
@@ -1219,8 +1306,9 @@ Examples:
 
 Exit status:
   0    listed
-  1    no OBI is published at the URL given
-  2    the arguments are wrong, or <obi> cannot be read or fetched
+  1    no OBI is published at the origin given
+  2    the arguments are wrong, or <obi> cannot be read or fetched (a URL
+       that is not found included)
   3    refused: the document declares a version outside the 0.2 line
   See 'ob help exit-codes'.
 "####,
@@ -1246,9 +1334,9 @@ Examples:
 
 Exit status:
   0    shown
-  1    no OBI is published at the URL given
-  2    the arguments are wrong, <obi> cannot be read or fetched, or no
-       source has the key <key>
+  1    no OBI is published at the origin given
+  2    the arguments are wrong, <obi> cannot be read or fetched (a URL
+       that is not found included), or no source has the key <key>
   3    refused: the document declares a version outside the 0.2 line
   See 'ob help exit-codes'.
 "####,
@@ -1272,10 +1360,13 @@ Options:
                                omitted
       --data <value>           The source's data, as the kind's schema
                                describes it: JSON, @FILE, or -
-      --description <text>     The source's description
+      --description <text>     The source's description, in place of the
+                               one the kind derives
       --replace                Replace a source already under <key>
       --yes                    Run a check that executes something without
                                asking
+      --context <@FILE|->      Context for the kind's check, a JSON
+                               object, in place of the stored context
       --dry-run                Write nothing; print the change
   -F, --format <format>        Output format: text (with --dry-run, a
                                unified diff) or json (a report holding the
@@ -1300,12 +1391,18 @@ Examples:
       --data '{"fetch":"https://api.example.com/openapi.json"}' --replace
   ob source pull tasks.obi.json httpApi
 
+  # A description behind sign-in, in CI: the context for this attempt
+  ob source add tasks.obi.json httpApi --kind example.openapi@1 \
+      --data '{"fetch":"https://api.example.com/openapi.json"}' \
+      --context @ci-context.json
+
 Exit status:
   0    the source was added or replaced, or an identical one was there
   2    the arguments are wrong, such as -F json without --dry-run when
-       <obi> is -, no --data without a terminal, or data the kind's
-       schema does not accept; <obi> is a URL or cannot be read; or the
-       kind's check failed, saying what is wrong
+       <obi> is -, no --data without a terminal, --data for a kind whose
+       sources carry none, or data the kind's schema does not accept;
+       <obi> is a URL or cannot be read; or the kind's check failed,
+       saying what is wrong
   3    refused: <key> names a different source and --replace was not
        given, this ob does not support the kind for check, the check
        needs context ob cannot ask for, a check that executes was not
@@ -1321,20 +1418,28 @@ Usage: ob source pull [options] <obi> [<key>...]
 
 Read each source named, under its kind, and bring what it offers into the
 document: for each item the source offers, an operation, the schemas it
-needs, and a binding naming the source. With no <key>, every source is
-pulled, one at a time. Pull reads the source as the document holds it: an
-embedded description from the document, a referenced one from where its
-kind says, and nothing else; what a kind consults is its definition,
-which ob kind describe shows.
+needs, and a binding naming the source. With no <key>, every source this
+ob can pull is pulled, one at a time, and any other is skipped and named.
+Pull reads the source as the document holds it: an embedded description
+from the document, a referenced one from where its kind says, and
+nothing else; what a kind consults is its definition, which ob kind
+describe shows.
 
 Options:
-      --force[=<entry>]        Apply every proposal, or the named one
+      --add <binding>          Apply only this addition, with what it
+                               needs, named by its added binding's key
                                (repeatable)
-      --prune                  Remove bindings the source no longer offers
+      --apply[=<entry>]        Apply every proposal, or the named one:
+                               bindings/<key>, schemas/<key> or
+                               sources/<key> (repeatable)
+      --prune                  Remove unmatched bindings; needs a complete
+                               pull
       --no-reuse               Never bind to an existing operation; leave
-                               such items out as conflicts
+                               such items out, as withheld
       --check                  Write nothing; exit 1 when anything is stale
                                or unmatched
+      --context <@FILE|->      Context for this run, a JSON object, in
+                               place of the stored context
       --dry-run                Write nothing; print the change
   -F, --format <format>        Output format: text (with --dry-run, a
                                unified diff) or json (a report holding the
@@ -1346,28 +1451,36 @@ Options:
 Examples:
   ob source pull tasks.obi.json
   ob source pull tasks.obi.json httpApi
-  ob source pull tasks.obi.json httpApi --force
-  ob source pull tasks.obi.json httpApi --force=completeTask.http \
-      --force=Task
+  ob source pull tasks.obi.json httpApi --apply
+  ob source pull tasks.obi.json httpApi --apply=bindings/completeTask.http \
+      --apply=schemas/Task
+  ob source pull tasks.obi.json httpApi --add deleteTask.httpApi
   ob source pull tasks.obi.json httpApi --prune
   ob source pull tasks.obi.json --check
   ob source pull tasks.obi.json httpApi --dry-run
+  ob source pull tasks.obi.json httpApi --context @ci-context.json
   ob source pull tasks.obi.json -F json | jq '.sources[].report.existing'
 
 Exit status:
   0    pulled: additions applied, and the proposals and removals asked
-       for; with --check, nothing is stale or unmatched; or no change
-  1    with --check: something is stale or unmatched
-  2    the arguments are wrong, such as -F json without --dry-run when
-       <obi> is -, --check with --force, --prune or --dry-run, --force
-       beside --force=<entry>, or a --force=<entry> that names no
-       proposal; a source key identifies nothing; <obi> is a URL or
-       cannot be read; or the kind could not read the source, saying why
+       for, or no change; with --check, nothing is stale or unmatched
+  1    with --check: something is stale, or unmatched in a complete pull
+  2    the arguments are wrong, such as -F json without --dry-run or
+       --check when <obi> is -, --check with --add, --apply, --prune or
+       --dry-run, --apply beside --apply=<entry>, an --apply=<entry> that
+       names no proposal, --add without exactly one <key> or naming no
+       addition; a source key identifies nothing; <obi> is a URL or
+       cannot be read; or a source named by <key> could not be read by
+       its kind, saying why
   3    refused: the document is non-conformant or its conformance is
-       undetermined, this ob does not support a source's kind for pull, a
-       source needs context ob cannot ask for, the result would violate a
-       rule, or the document declares a version outside the 0.2 line;
-       nothing was written
+       undetermined, this ob does not support a named source's kind for
+       pull, a named source needs context ob cannot ask for, --prune in a
+       pull that is not complete, the result would violate a rule, or
+       the document declares a version outside the 0.2 line; nothing was
+       written
+  4    with no <key>, a source was skipped and nothing failed; with
+       --check, an unmatched entry in a pull that is not complete, and
+       nothing is stale
   See 'ob help exit-codes'.
 "####,
         ),
@@ -1379,7 +1492,8 @@ Usage: ob source rename [options] <obi> <key> <new-key>
 Change the key of the source <key> to <new-key>, and update every binding
 that names it to name the new key. Bindings are the only parts of a
 document that name a source. Context stored for the source (ob context
-set) is keyed by the old key and is not moved.
+set) moves with it, so the renamed source keeps what was stored; a dry
+run moves nothing.
 
 Options:
       --dry-run            Write nothing; print the change
@@ -1412,7 +1526,8 @@ Usage: ob source remove [options] <obi> <key>
 Remove the source <key>. It refuses while bindings name the source, and
 lists them; --cascade removes those bindings too. Operations stay: one
 whose last binding is removed is no longer realized in this document.
-Context stored for the source (ob context set) is not removed.
+Context stored for the source (ob context set) is removed with it, and
+the summary says so; a dry run removes nothing.
 
 Options:
       --cascade            Also remove the bindings that name the source
@@ -1514,18 +1629,19 @@ Exit status:
        knows of is missing
   1    the call began but did not complete: the operation reported an
        error, an output value failed or got no verdict, an input value
-       did either after earlier values were sent, or the deadline passed
-       (any of these may have taken effect); or no OBI is published at
-       the URL given
+       from @FILE or - did either after the call opened, or the deadline
+       passed (any of these may have taken effect); or no OBI is
+       published at the origin given
   2    bad arguments (such as --frames with --preflight, or inline JSON
        as --context), an operation name or binding key that identifies
        nothing, a file that does not exist, or input ob cannot read
   3    refused, with no effect. ob refused before sending: the document
        does not conform (ERR_DOCUMENT_NON_CONFORMANT), its conformance is
        undetermined (ERR_DOCUMENT_UNDETERMINED), or it declares another
-       OpenBindings line (ERR_UNSUPPORTED_VERSION); a value contract
-       references a schema the document does not contain
-       (ERR_EXTERNAL_SCHEMA); an input value failed or got no verdict;
+       OpenBindings line (ERR_UNSUPPORTED_VERSION); an input or output
+       schema references a schema the document does not contain
+       (ERR_EXTERNAL_SCHEMA); an inline input value failed or got no
+       verdict;
        context the binding needs is missing and ob cannot ask for it; or
        the operation has no binding ob can invoke, or several and none was
        chosen. Or the binding answered CONTEXT_REQUIRED or ERR_REFUSED
@@ -1543,13 +1659,14 @@ Exit status:
 Usage: ob context <command> [options]
 
 Context is what a realization needs that the operation is not about: a
-credential, an approval, a configuration value (§3). A binding that lacks
-it asks with a CONTEXT_REQUIRED challenge: a message saying why, and a
-JSON Schema of the object to supply next time, as the context document
-published with the interfaces defines. The kind describes; ob acquires,
-at a terminal or from what you stored; the kind consumes. The object's
-members are whatever that schema described; ob defines none of them, and
-never writes context into a document.
+credential, an approval, a configuration value; the specification calls
+the values an operation is about caller-facing (§3), and the context
+document published with the interfaces defines the rest. A binding that
+lacks it asks with a CONTEXT_REQUIRED challenge: a message saying why,
+and a JSON Schema of the object to supply next time. The kind describes;
+ob acquires, at a terminal or from what you stored; the kind consumes.
+The object's members are whatever that schema described; ob defines
+none of them, and never writes context into a document.
 
 Commands:
   set       Store the context for a source
@@ -1580,7 +1697,7 @@ Options:
 
 Examples:
   # From a secret in the environment, at a terminal or in a script
-  printf '{"accessToken":"%s"}' "$TASKS_TOKEN" \
+  jq -n '{accessToken: env.TASKS_TOKEN}' \
       | ob context set tasks.obi.json httpApi -
 
   # From a file a CI job provides
@@ -1678,14 +1795,19 @@ bindings' data are read (§6). Kinds are compared whole: example.openapi@1
 and example.openapi@2 are unrelated kinds, and so are two strings that
 differ only in case. Support is per exact kind and per operation, built
 in or through a delegate: check, pull and invoke are ob's names for the Kind
-Descriptor's checkSource (what ob source add and ob binding add use),
-the Source Puller's pullSource (ob source pull) and the Binding Invoker's
-invokeBinding (ob invoke), so ob may support a kind for invoke and not
-for pull. These commands report what this installation can do with a
-kind; they never judge a document, which may use any kind.
+Descriptor's checkSource (ob source add), the Source Puller's pullSource
+(ob source pull) and the Binding Invoker's invokeBinding (ob invoke), so
+ob may support a kind for invoke and not for pull. Where more than one
+provider carries a kind, the descriptor ob consults for it, for the
+schemas ob source add and ob binding add prompt from and for its check,
+is the one of the provider ob would pull the kind with, or, where nothing
+pulls it, invoke it with; ob delegate resolve shows which that is. These
+commands report what this installation can do with a kind; they never
+judge a document, which may use any kind.
 
 Commands:
-  list        List the kinds this ob supports, and the jobs for each
+  list        List the kinds this ob supports, and the operations for
+              each
   describe    Describe a kind: what it reads, its check, and the schemas
               of its data
 
@@ -1696,7 +1818,7 @@ Run 'ob kind <command> --help' for details.
 "####,
         ),
         "ob kind list" => Some(
-            r####"List the kinds this ob supports, and the jobs for each
+            r####"List the kinds this ob supports, and the operations for each
 
 Usage: ob kind list [options]
 
@@ -1716,8 +1838,9 @@ Options:
 Examples:
   ob kind list
   ob kind list --supports pull
-  ob kind list -F json \
-      | jq -r '.kinds[] | select(.supports | index("invoke")).kind'
+  ob kind list -F json | jq -r '.kinds[]
+      | select(.supports | index("openbindings.binding-invoker.invokeBinding"))
+      | .kind'
 
 Exit status:
   0    listed, including when no kind is supported
@@ -1730,8 +1853,10 @@ Exit status:
 
 Usage: ob kind describe [options] <kind>
 
-Describe an exact kind as its Kind Descriptor describes it, built in or
-through the delegate ob would use for it: a description of what the kind
+Describe an exact kind as its Kind Descriptor describes it, from the
+provider ob consults for the kind: built-in support, or the delegate ob
+would pull the kind with, or, where nothing pulls it, invoke it with (ob
+delegate resolve shows which): a description of what the kind
 reads and how its bindings reach their targets, the operations the
 provider supports it for, what its check does and whether that runs
 anything (ob source add asks before a check that executes), its
@@ -1770,7 +1895,9 @@ keeps a copy of its OBI, and gives the registration an ID and a
 preference per job, as the Delegate Manager interface describes. A
 delegate for either job also implements the Kind Descriptor for its
 kinds, which answers ob kind list and ob kind describe and checks a
-source entry for ob source add.
+source entry for ob source add; where several providers carry a kind,
+ob consults the descriptor of the one it would pull the kind with, or,
+where nothing pulls it, invoke it with.
 
 Commands:
   jobs       List the jobs ob accepts delegates for
@@ -1906,7 +2033,10 @@ Exit status:
 Usage: ob delegate remove <id>
 
 Remove a registered delegate. ob stops using it for every job and
-deletes its copy of the delegate's OBI and its preferences.
+deletes its copy of the delegate's OBI and its preferences. An ID that
+no registration has is already absent: ob says so and exits 0, as the
+Delegate Manager's own operation does, so a script that removes what it
+registered can run twice.
 
 Options:
   -h, --help    Print help (see a summary with '-h')
@@ -1917,8 +2047,8 @@ Examples:
       | jq -r '.delegates[].id' | xargs -n1 ob delegate remove
 
 Exit status:
-  0    removed
-  2    bad arguments, or no registration with that ID
+  0    removed, or already absent
+  2    bad arguments
   See 'ob help exit-codes'.
 "####,
         ),
@@ -2031,6 +2161,57 @@ Examples:
 Exit status:
   0    described
   2    bad arguments
+  See 'ob help exit-codes'.
+"####,
+        ),
+        "ob help" => Some(
+            r####"Print help for a command or a topic
+
+Usage: ob help [<command>...]
+
+Print the full help of a command, named by its words (ob help source
+pull), or a help topic: obi (what an OBI contains, and which command does
+what), documents (paths, standard input and URLs), exit-codes (what each
+exit status means) and output (text and JSON output). With no argument,
+print ob's root help, as ob --help does.
+
+Options:
+  -h, --help    Print help (see a summary with '-h')
+
+Examples:
+  ob help
+  ob help obi
+  ob help source pull
+  ob help source pull -h
+  ob help exit-codes
+
+Exit status:
+  0    printed
+  2    the words name no command or topic
+  See 'ob help exit-codes'.
+"####,
+        ),
+        "ob completion" => Some(
+            r####"Print a shell completion script
+
+Usage: ob completion <shell>
+
+Print a completion script for bash, zsh, fish or powershell on standard
+output. It completes command names, option names and fixed choices, such
+as -F text|json and the names of help topics. It does not complete names
+read from a document, such as operation keys, since completing them
+would mean reading the document at each keystroke.
+
+Options:
+  -h, --help    Print help (see a summary with '-h')
+
+Examples:
+  ob completion zsh
+  ob completion bash > ~/.local/share/bash-completion/completions/ob
+
+Exit status:
+  0    printed
+  2    the shell is not one of the four
   See 'ob help exit-codes'.
 "####,
         ),

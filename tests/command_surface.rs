@@ -41,6 +41,11 @@ fn help_and_version_work_without_a_document() {
         (vec!["source", "pull", "--help"], true),
         (vec!["invoke", "-h"], true),
         (vec!["source", "add", "-h"], true),
+        (vec!["help", "help"], true),
+        (vec!["help", "completion"], true),
+        (vec!["completion", "--help"], true),
+        (vec!["help", "-h"], true),
+        (vec!["help", "obi"], false),
         (vec!["help", "documents"], false),
         (vec!["help", "exit-codes"], false),
         (vec!["help", "output"], false),
@@ -75,6 +80,109 @@ fn help_and_version_work_without_a_document() {
     let output = ob().args(["help", "primer"]).output().unwrap();
     assert_eq!(output.status.code(), Some(2));
     assert!(output.stdout.is_empty());
+}
+
+fn stdout(args: &[&str]) -> String {
+    let output = ob().args(args).output().unwrap();
+    assert!(output.status.success(), "{args:?}: {output:?}");
+    assert!(output.stderr.is_empty(), "{args:?}: {output:?}");
+    String::from_utf8(output.stdout).unwrap()
+}
+
+#[test]
+fn help_prints_the_page_a_topic_or_with_dash_h_the_summary() {
+    // `ob help <command>` is the page `ob <command> --help` prints.
+    for words in [
+        vec![],
+        vec!["operation"],
+        vec!["source", "pull"],
+        vec!["delegate", "add"],
+        vec!["completion"],
+    ] {
+        let mut long = words.clone();
+        long.push("--help");
+        let mut help = vec!["help"];
+        help.extend(&words);
+        assert_eq!(stdout(&help), stdout(&long), "{words:?}");
+        if words.is_empty() {
+            continue; // `ob help -h` is the help command's own summary.
+        }
+        // `ob help <command> -h` is the summary `ob <command> -h` prints.
+        let mut short = words.clone();
+        short.push("-h");
+        help.push("-h");
+        assert_eq!(stdout(&help), stdout(&short), "{words:?}");
+    }
+    let root = stdout(&["--help"]);
+    let compat = stdout(&["help", "compat", "-h"]);
+    assert_ne!(compat, root);
+    assert!(compat.contains("Usage: ob compat"), "{compat}");
+    let summary = stdout(&["help", "source", "pull", "-h"]);
+    assert!(summary.contains("Usage: ob source pull"), "{summary}");
+    assert!(!summary.contains("Changes are proposals"), "{summary}");
+    // The help command's own page and summary.
+    let page = stdout(&["help", "help"]);
+    assert!(page.contains("Usage: ob help [<command>...]"), "{page}");
+    assert!(
+        page.contains("'ob help <command>\n-h' prints that summary too"),
+        "{page}"
+    );
+    assert_eq!(stdout(&["help", "--help"]), page);
+    let help_summary = stdout(&["help", "-h"]);
+    assert!(help_summary.len() < page.len());
+    assert!(help_summary.contains("Usage: ob help [<command>...]"));
+    assert_eq!(stdout(&["help", "help", "-h"]), help_summary);
+    // Topics carry the notice like every other help output.
+    let obi = stdout(&["help", "obi"]);
+    assert!(obi.starts_with("COMMAND SURFACE ONLY"), "{obi}");
+    assert!(obi.contains("OBI: what a document contains"), "{obi}");
+}
+
+#[test]
+fn help_names_no_command_or_topic_with_a_close_match() {
+    for (words, hint) in [
+        (
+            vec!["primer"],
+            "hint: ob help lists the commands and topics",
+        ),
+        (vec!["ouput"], "hint: did you mean ob help output?"),
+        (
+            vec!["sorce", "pull"],
+            "hint: did you mean ob help source pull?",
+        ),
+        (
+            vec!["source", "pul"],
+            "hint: did you mean ob help source pull?",
+        ),
+        (vec!["op"], "hint: did you mean ob help operation?"),
+    ] {
+        let mut args = vec!["help"];
+        args.extend(&words);
+        let output = ob().args(&args).output().unwrap();
+        assert_eq!(output.status.code(), Some(2), "{args:?}: {output:?}");
+        assert!(output.stdout.is_empty(), "{args:?}: {output:?}");
+        let error = String::from_utf8(output.stderr).unwrap();
+        assert_eq!(
+            error,
+            format!(
+                "error: no command or topic named \"{}\"\n{hint}\n",
+                words.join(" ")
+            )
+        );
+    }
+}
+
+#[test]
+fn topics_are_not_commands_and_are_never_suggested_as_one() {
+    for topic in ["obi", "documents", "exit-codes", "output"] {
+        let output = ob().arg(topic).output().unwrap();
+        assert_eq!(output.status.code(), Some(2), "{topic}: {output:?}");
+    }
+    let output = ob().arg("op").output().unwrap();
+    assert_eq!(output.status.code(), Some(2));
+    let error = String::from_utf8(output.stderr).unwrap();
+    assert!(error.contains("did you mean ob operation"), "{error}");
+    assert!(!error.contains("output"), "{error}");
 }
 
 #[test]
@@ -155,10 +263,337 @@ fn completion_scripts_are_real_and_do_not_offer_fixture_names() {
         for token in [marker, "source", "invoke", "interface-version"] {
             assert!(script.contains(token), "{shell}: missing {token}");
         }
+        // clap_complete offers a positional's choices in bash and zsh only.
+        if matches!(shell, "bash" | "zsh") {
+            assert!(script.contains("exit-codes"), "{shell}: no help topics");
+        }
         assert!(
             !script.contains("createTask.http"),
             "sample names must not be real completions"
         );
+    }
+}
+
+#[test]
+fn completion_needs_one_of_four_shells() {
+    for args in [vec!["completion"], vec!["completion", "tcsh"]] {
+        let output = ob().args(&args).output().unwrap();
+        assert_eq!(output.status.code(), Some(2), "{args:?}: {output:?}");
+        assert!(output.stdout.is_empty());
+    }
+}
+
+#[test]
+fn every_usage_error_has_one_shape() {
+    for (args, hint) in [
+        // Clap's own parse errors.
+        (vec!["show"], "hint: ob show --help shows the syntax"),
+        (
+            vec!["show", "x", "-F", "yaml"],
+            "hint: ob show --help shows the syntax",
+        ),
+        (
+            vec!["show", "x", "-F", "jsn"],
+            "hint: did you mean json? ob show --help",
+        ),
+        (
+            vec!["show", "x", "-F", "json", "-F", "text"],
+            "hint: ob show --help shows the syntax",
+        ),
+        (
+            vec!["source", "pull", "x", "--aply"],
+            "hint: did you mean --apply? ob source pull --help shows the syntax",
+        ),
+        (
+            vec!["source", "pul"],
+            "hint: did you mean ob source pull? ob source --help lists the commands",
+        ),
+        (vec!["op"], "hint: did you mean ob operation"),
+        (
+            vec!["binding", "add", "x", "b"],
+            "hint: ob binding add --help",
+        ),
+        (
+            vec!["source", "pull", "x", "--prune=maybe"],
+            "hint: ob source pull --help",
+        ),
+        (
+            vec!["invoke", "x", "op", "--timeout", "tomorrow"],
+            "hint: ob invoke --help",
+        ),
+        (
+            vec!["completion"],
+            "hint: ob completion --help shows the syntax",
+        ),
+        (
+            vec!["help", "--bogus"],
+            "hint: ob help --help shows the syntax",
+        ),
+        // ob's own grammar.
+        (
+            vec!["validate", "x", "--input", "{}"],
+            "hint: ob validate --help shows the syntax",
+        ),
+        (
+            vec!["source", "pull", "x", "--apply="],
+            "hint: ob source pull --help shows the syntax",
+        ),
+        (
+            vec!["delegate", "add", "d", "--job", "invoke", "--job", "invoke"],
+            "hint: ob delegate add --help shows the syntax",
+        ),
+        // A removed command.
+        (vec!["version"], "hint: ob --version prints the version"),
+    ] {
+        let output = ob().args(&args).output().unwrap();
+        assert_eq!(output.status.code(), Some(2), "{args:?}: {output:?}");
+        assert!(output.stdout.is_empty(), "{args:?}: {output:?}");
+        let error = String::from_utf8(output.stderr).unwrap();
+        let lines: Vec<_> = error.lines().collect();
+        assert!(lines[0].starts_with("error: "), "{args:?}: {error}");
+        assert!(
+            lines[lines.len() - 1].starts_with(hint),
+            "{args:?}: {error}"
+        );
+        for line in &lines[1..lines.len() - 1] {
+            assert!(line.starts_with("  "), "{args:?}: {error}");
+        }
+        for clap_extra in ["Usage:", "For more information", "tip:", "ob:"] {
+            assert!(!error.contains(clap_extra), "{args:?}: {error}");
+        }
+    }
+    // ob's value parsers say what the option takes.
+    let output = ob()
+        .args([
+            "binding",
+            "add",
+            "x",
+            "b",
+            "--operation",
+            "op",
+            "--source",
+            "s",
+            "--preference",
+            "1.5",
+        ])
+        .output()
+        .unwrap();
+    assert_eq!(output.status.code(), Some(2));
+    assert_eq!(
+        String::from_utf8(output.stderr).unwrap(),
+        "error: --preference takes an integer, such as 10 or -1\nhint: ob binding add --help shows the syntax\n"
+    );
+}
+
+#[cfg(unix)]
+#[test]
+fn an_argument_that_is_not_utf8_is_a_usage_error() {
+    use std::{ffi::OsStr, os::unix::ffi::OsStrExt};
+    let output = ob()
+        .arg("show")
+        .arg(OsStr::from_bytes(b"\xff"))
+        .output()
+        .unwrap();
+    assert_eq!(output.status.code(), Some(2), "{output:?}");
+    let error = String::from_utf8(output.stderr).unwrap();
+    assert!(error.starts_with("error: "), "{error}");
+    assert!(
+        error.ends_with("hint: ob show --help shows the syntax\n"),
+        "{error}"
+    );
+}
+
+#[test]
+fn value_options_take_negative_numbers() {
+    for args in [
+        vec!["validate", "x", "--operation", "op", "--input", "-1"],
+        vec!["validate", "x", "--operation", "op", "--output", "-1"],
+        vec!["validate", "x", "--operation", "op", "--input", "-0.5"],
+        vec![
+            "binding",
+            "add",
+            "x",
+            "b",
+            "--operation",
+            "op",
+            "--source",
+            "s",
+            "--data",
+            "-1",
+        ],
+        vec![
+            "binding",
+            "add",
+            "x",
+            "b",
+            "--operation",
+            "op",
+            "--source",
+            "s",
+            "--preference",
+            "-1.0",
+        ],
+        vec!["invoke", "x", "op", "--input", "-1"],
+    ] {
+        let error = placeholder(&ob().args(&args).output().unwrap());
+        assert!(!error.contains("tip:"), "{error}");
+    }
+}
+
+#[test]
+fn argument_only_rules_refuse_with_exit_2() {
+    for args in [
+        vec!["delegate", "add", "d", "--job", "invoke", "--job", "invoke"],
+        vec![
+            "delegate",
+            "set",
+            "d",
+            "--add-job",
+            "pull",
+            "--add-job",
+            "pull",
+        ],
+        vec![
+            "delegate",
+            "set",
+            "d",
+            "--remove-job",
+            "pull",
+            "--remove-job",
+            "pull",
+        ],
+        vec!["init", "x", "--interface-version", ""],
+        vec![
+            "delegate",
+            "add",
+            "d",
+            "--job",
+            "invoke",
+            "--preference",
+            "invoke=abc",
+        ],
+        vec![
+            "delegate",
+            "add",
+            "d",
+            "--job",
+            "invoke",
+            "--preference",
+            "invoke=inf",
+        ],
+        vec![
+            "delegate",
+            "add",
+            "d",
+            "--job",
+            "invoke",
+            "--preference",
+            "invoke=NaN",
+        ],
+        vec![
+            "delegate",
+            "add",
+            "d",
+            "--job",
+            "invoke",
+            "--preference",
+            "invoke=",
+        ],
+        vec![
+            "delegate",
+            "add",
+            "d",
+            "--job",
+            "invoke",
+            "--preference",
+            "pull=1",
+        ],
+        vec!["delegate", "set", "d", "--preference", "inspect=1"],
+        vec!["delegate", "set", "d", "--unset", "preference.inspect"],
+        vec![
+            "binding",
+            "add",
+            "x",
+            "b",
+            "--operation",
+            "o",
+            "--source",
+            "s",
+            "--preference",
+            "1.5",
+        ],
+        vec![
+            "binding",
+            "add",
+            "x",
+            "b",
+            "--operation",
+            "o",
+            "--source",
+            "s",
+            "--preference",
+            "abc",
+        ],
+        vec!["source", "pull", "x", "--apply="],
+        vec!["source", "pull", "x", "--apply", "--apply=schemas/Task"],
+        vec!["source", "pull", "x", "--add", "b.k"],
+        vec!["source", "pull", "x", "k", "j", "--add", "b.k"],
+        vec!["source", "pull", "x", "k", "--check", "--add", "b.k"],
+        vec!["source", "pull", "x", "--check", "--apply"],
+        vec!["source", "pull", "-", "-F", "json"],
+        vec!["validate", "x", "--kinds", "--examples"],
+        vec![
+            "validate",
+            "x",
+            "--kinds",
+            "--operation",
+            "op",
+            "--input",
+            "1",
+        ],
+    ] {
+        let output = ob().args(&args).output().unwrap();
+        assert_eq!(output.status.code(), Some(2), "{args:?}: {output:?}");
+        assert!(output.stdout.is_empty(), "{args:?}: {output:?}");
+    }
+    for args in [
+        vec![
+            "delegate",
+            "add",
+            "d",
+            "--job",
+            "invoke",
+            "--preference",
+            "invoke=-0.5",
+        ],
+        vec![
+            "delegate",
+            "set",
+            "d",
+            "--preference",
+            "invoke=20",
+            "--unset",
+            "preference.pull",
+        ],
+        vec![
+            "binding",
+            "add",
+            "x",
+            "b",
+            "--operation",
+            "o",
+            "--source",
+            "s",
+            "--preference",
+            "1.0",
+        ],
+        vec!["source", "pull", "x", "k", "--add", "b.k"],
+        vec!["source", "pull", "x", "--apply", "--apply"],
+        vec!["source", "pull", "-", "--check", "-F", "json"],
+        vec!["source", "pull", "-", "--dry-run", "-F", "json"],
+        vec!["validate", "x", "--kinds"],
+    ] {
+        placeholder(&ob().args(&args).output().unwrap());
     }
 }
 
@@ -169,6 +604,21 @@ fn argument_errors_are_distinct_and_do_not_echo_supplied_secrets() {
         vec!["show", "x", "-F", "yaml"],
         vec!["binding", "add", "x", "b"],
         vec!["validate", "-", "--operation", "op", "--input", "-"],
+        vec![
+            "source",
+            "add",
+            "x",
+            "k",
+            "--context",
+            "{\"token\":\"do-not-echo-this\"}",
+        ],
+        vec![
+            "source",
+            "pull",
+            "x",
+            "--context",
+            "{\"token\":\"do-not-echo-this\"}",
+        ],
         vec![
             "context",
             "set",
@@ -309,7 +759,7 @@ fn placeholders_leave_files_unchanged_and_do_not_contact_a_supplied_url() {
             "--data",
             "@absent-data",
         ],
-        vec!["source", "pull", "existing", "--force"],
+        vec!["source", "pull", "existing", "--apply"],
         vec!["context", "set", "existing", "api", "@absent-context"],
         vec!["fetch", &url, "--out", "new-fetch"],
         vec!["schema", "bundle", "existing", &url],

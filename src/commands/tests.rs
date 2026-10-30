@@ -68,7 +68,7 @@ fn every_domain_path_and_flag_matches_the_frozen_surface() {
                 let takes_value = f["takesValue"].as_bool().unwrap();
                 let is_boolean = arg
                     .get_value_names()
-                    .is_some_and(|names| names[0] == "BOOL");
+                    .is_some_and(|names| names[0] == "true|false");
                 assert_eq!(takes_value, !is_boolean, "{path} --{name} takes a value");
             }
             let arguments = reference["arguments"].as_array().unwrap();
@@ -163,23 +163,23 @@ fn explicit_false_repetition_and_opaque_values_are_preserved() {
             .collect::<Vec<_>>(),
         ["b2", "b1"]
     );
-    // --force alone and --force=<entry> are distinct values of one option.
-    let (id, m, command) = parsed(&["ob", "source", "pull", "x", "--force=a.b", "--force=Task"]);
+    // --apply alone and --apply=<entry> are distinct values of one option.
+    let (id, m, command) = parsed(&["ob", "source", "pull", "x", "--apply=a.b", "--apply=Task"]);
     assert_eq!(
-        m.get_many::<String>("force")
+        m.get_many::<String>("apply")
             .unwrap()
             .map(String::as_str)
             .collect::<Vec<_>>(),
         ["a.b", "Task"]
     );
     syntax::validate(id, &m, &command).unwrap();
-    let (id, m, command) = parsed(&["ob", "source", "pull", "x", "httpApi", "--force"]);
+    let (id, m, command) = parsed(&["ob", "source", "pull", "x", "httpApi", "--apply"]);
     assert_eq!(
-        m.get_many::<String>("force")
+        m.get_many::<String>("apply")
             .unwrap()
             .map(String::as_str)
             .collect::<Vec<_>>(),
-        [""]
+        [EVERY]
     );
     assert_eq!(
         m.get_many::<String>("key")
@@ -189,6 +189,122 @@ fn explicit_false_repetition_and_opaque_values_are_preserved() {
         ["httpApi"]
     );
     syntax::validate(id, &m, &command).unwrap();
+    // An explicitly empty entry stays distinct from --apply alone.
+    let (_, m, _) = parsed(&["ob", "source", "pull", "x", "--apply="]);
+    assert_eq!(m.get_one::<String>("apply").unwrap(), "");
+}
+
+#[test]
+fn value_options_take_negative_numbers_and_integers_without_a_fraction() {
+    let (id, m, command) = parsed(&[
+        "ob",
+        "validate",
+        "x",
+        "--operation",
+        "op",
+        "--input",
+        "-1",
+        "--output",
+        "-2.5e3",
+    ]);
+    assert_eq!(m.get_one::<String>("input").unwrap(), "-1");
+    assert_eq!(m.get_one::<String>("output").unwrap(), "-2.5e3");
+    syntax::validate(id, &m, &command).unwrap();
+    for (value, expected) in [("1", 1), ("1.0", 1), ("-3.00", -3), ("+7", 7), ("-0", 0)] {
+        let (_, m, _) = parsed(&[
+            "ob",
+            "binding",
+            "add",
+            "x",
+            "b",
+            "--operation",
+            "op",
+            "--source",
+            "s",
+            "--preference",
+            value,
+        ]);
+        assert_eq!(m.get_one::<i64>("preference"), Some(&expected), "{value}");
+    }
+    for value in [
+        "1.5",
+        "abc",
+        "",
+        "1.",
+        ".0",
+        "1e2",
+        "--",
+        "99999999999999999999",
+    ] {
+        let error = syntax::integer(value).expect_err(value);
+        assert!(error.starts_with("takes an integer"), "{value}: {error}");
+    }
+}
+
+#[test]
+fn source_pull_check_and_dry_run_print_a_report_for_standard_input() {
+    for args in [
+        vec!["ob", "source", "pull", "-", "--check", "-F", "json"],
+        vec!["ob", "source", "pull", "-", "--dry-run", "-F", "json"],
+        vec![
+            "ob",
+            "binding",
+            "add",
+            "-",
+            "b",
+            "--operation",
+            "o",
+            "--source",
+            "s",
+            "--dry-run",
+            "-F",
+            "json",
+        ],
+        vec![
+            "ob",
+            "source",
+            "pull",
+            "x",
+            "k",
+            "--add",
+            "b.k",
+            "--context",
+            "@ctx.json",
+        ],
+        vec!["ob", "source", "add", "x", "k", "--context", "-"],
+        vec!["ob", "validate", "x", "y", "--kinds"],
+        vec!["ob", "init", "x", "--interface-version", "1.0.0"],
+        vec![
+            "ob",
+            "delegate",
+            "add",
+            "d",
+            "--job",
+            "invoke",
+            "--job",
+            "pull",
+            "--preference",
+            "invoke=-0.5",
+            "--preference",
+            "pull=1e3",
+        ],
+        vec![
+            "ob",
+            "delegate",
+            "set",
+            "d",
+            "--add-job",
+            "pull",
+            "--preference",
+            "pull=0",
+            "--unset",
+            "preference.invoke",
+        ],
+    ] {
+        let (id, matches, command) = parsed(&args);
+        syntax::validate(id, &matches, &command)
+            .unwrap_or_else(|error| panic!("{args:?}: {error}"));
+    }
 }
 
 #[test]
@@ -228,8 +344,23 @@ fn missing_required_flags_invalid_types_and_repeated_singletons_refuse() {
         ],
         vec!["ob", "invoke", "x", "op", "--timeout", "tomorrow"],
         vec!["ob", "context", "set", "x", "s"],
-        vec!["ob", "help", "primer"],
         vec!["ob", "operation", "wat", "--help"],
+        vec!["ob", "completion"],
+        vec!["ob", "completion", "tcsh"],
+        vec![
+            "ob",
+            "binding",
+            "add",
+            "x",
+            "b",
+            "--operation",
+            "op",
+            "--source",
+            "s",
+            "--preference",
+            "abc",
+        ],
+        vec!["ob", "source", "pull", "x", "--force"],
     ] {
         assert!(root().try_get_matches_from(&args).is_err(), "{args:?}");
     }
@@ -275,9 +406,188 @@ fn cross_argument_grammar_refuses_without_interpreting_documents() {
         vec!["ob", "merge", "-", "y", "-F", "json"],
         vec!["ob", "fmt", "x", "y", "--canonical"],
         vec!["ob", "fmt", "x", "--canonical", "--check"],
-        vec!["ob", "source", "pull", "x", "--check", "--force"],
+        vec!["ob", "source", "pull", "x", "--check", "--apply"],
         vec!["ob", "source", "pull", "x", "--check", "--dry-run"],
-        vec!["ob", "source", "pull", "x", "--force", "--force=entry"],
+        vec!["ob", "source", "pull", "x", "k", "--check", "--add", "b.k"],
+        vec!["ob", "source", "pull", "x", "--check", "--prune"],
+        vec!["ob", "source", "pull", "x", "--apply", "--apply=entry"],
+        vec!["ob", "source", "pull", "x", "--apply="],
+        vec!["ob", "source", "pull", "x", "--add", "b.k"],
+        vec!["ob", "source", "pull", "x", "k", "j", "--add", "b.k"],
+        vec!["ob", "source", "pull", "-", "-F", "json"],
+        vec![
+            "ob",
+            "source",
+            "pull",
+            "-",
+            "--check",
+            "--dry-run",
+            "-F",
+            "json",
+        ],
+        vec![
+            "ob",
+            "source",
+            "pull",
+            "x",
+            "--context",
+            "{\"token\":\"SECRET\"}",
+        ],
+        vec![
+            "ob",
+            "source",
+            "add",
+            "x",
+            "k",
+            "--context",
+            "{\"token\":\"SECRET\"}",
+        ],
+        vec!["ob", "validate", "x", "--kinds", "--examples"],
+        vec![
+            "ob",
+            "validate",
+            "x",
+            "--kinds",
+            "--operation",
+            "op",
+            "--input",
+            "1",
+        ],
+        vec!["ob", "init", "x", "--interface-version", ""],
+        vec![
+            "ob", "delegate", "add", "d", "--job", "invoke", "--job", "invoke",
+        ],
+        vec![
+            "ob",
+            "delegate",
+            "add",
+            "d",
+            "--job",
+            "invoke",
+            "--preference",
+            "pull=1",
+        ],
+        vec![
+            "ob",
+            "delegate",
+            "add",
+            "d",
+            "--job",
+            "invoke",
+            "--preference",
+            "invoke=abc",
+        ],
+        vec![
+            "ob",
+            "delegate",
+            "add",
+            "d",
+            "--job",
+            "invoke",
+            "--preference",
+            "invoke=inf",
+        ],
+        vec![
+            "ob",
+            "delegate",
+            "add",
+            "d",
+            "--job",
+            "invoke",
+            "--preference",
+            "invoke=NaN",
+        ],
+        vec![
+            "ob",
+            "delegate",
+            "add",
+            "d",
+            "--job",
+            "invoke",
+            "--preference",
+            "invoke=",
+        ],
+        vec![
+            "ob",
+            "delegate",
+            "add",
+            "d",
+            "--job",
+            "invoke",
+            "--preference",
+            "invoke",
+        ],
+        vec![
+            "ob",
+            "delegate",
+            "add",
+            "d",
+            "--job",
+            "invoke",
+            "--preference",
+            "inspect=1",
+        ],
+        vec![
+            "ob",
+            "delegate",
+            "add",
+            "d",
+            "--job",
+            "invoke",
+            "--preference",
+            "invoke=1",
+            "--preference",
+            "invoke=2",
+        ],
+        vec![
+            "ob",
+            "delegate",
+            "set",
+            "d",
+            "--add-job",
+            "pull",
+            "--add-job",
+            "pull",
+        ],
+        vec![
+            "ob",
+            "delegate",
+            "set",
+            "d",
+            "--remove-job",
+            "pull",
+            "--remove-job",
+            "pull",
+        ],
+        vec![
+            "ob",
+            "delegate",
+            "set",
+            "d",
+            "--unset",
+            "preference.inspect",
+        ],
+        vec!["ob", "delegate", "set", "d", "--unset", "invoke"],
+        vec![
+            "ob",
+            "delegate",
+            "set",
+            "d",
+            "--preference",
+            "invoke=1",
+            "--unset",
+            "preference.invoke",
+        ],
+        vec![
+            "ob",
+            "delegate",
+            "set",
+            "d",
+            "--preference",
+            "invoke=1",
+            "--remove-job",
+            "invoke",
+        ],
         vec!["ob", "source", "rename", "-", "a", "b", "-F", "json"],
         vec!["ob", "invoke", "x", "op", "--frames", "--preflight"],
         vec![

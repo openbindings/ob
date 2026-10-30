@@ -13,7 +13,7 @@ name = "ob"
 path = "src/main.rs"
 
 [dependencies]
-clap = "4.6.7"
+clap = { version = "4.6.7", features = ["string"] }
 clap_complete = "4.6.11"
 
 [dev-dependencies]

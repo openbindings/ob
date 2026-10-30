@@ -26,13 +26,13 @@ const PAGE_OPERATION: &str = r####"Read, rename, and remove operations
 
 Usage: ob operation <command> [options]
 
-An operation is a named, protocol-independent capability contract under a
-key in operations: what a service can do, with an optional input contract
-and output contract that govern each value crossing its boundary (§3,
-§5.1). Its key and its aliases are its identifiers, and a name identifies
-the operation when it equals one of them (§5.1). Bindings declare
-realizations of an operation (§5.3), and dependencies name points where
-the described component consumes one (§5.5).
+An operation is a named, protocol-independent capability under a key in
+operations: what a service can do, with optional input and output
+schemas that govern the values a caller sends it and receives from it
+(§3, §5.1). Its key and its aliases are its identifiers, and a name
+identifies the operation when it equals one of them (§5.1). Bindings
+declare realizations of an operation (§5.3), and dependencies name
+points where the software described consumes one (§5.4).
 
 Commands here read operations, and rename or remove one while accounting
 for every reference to it. You add an operation or change its fields
@@ -71,7 +71,7 @@ const PAGE_OPERATION_LIST: &str = r####"List operations, and how each is realize
 Usage: ob operation list [options] <obi>
 
 List each operation in document order: its key, its aliases, whether it
-states an input contract and an output contract, the bindings that declare
+states an input schema and an output schema, the bindings that declare
 realizations of it, the dependencies that consume it, and whether it is
 deprecated.
 
@@ -109,8 +109,9 @@ Examples:
 
 Exit status:
   0    listed
-  1    no OBI is published at the URL given
-  2    the arguments are wrong, or <obi> cannot be read or fetched
+  1    no OBI is published at the origin given
+  2    the arguments are wrong, or <obi> cannot be read or fetched (a URL
+       that is not found included)
   3    refused: the document declares a version outside the 0.2 line
   See 'ob help exit-codes'."####;
 
@@ -141,9 +142,9 @@ const PAGE_OPERATION_SHOW: &str = r####"Show one operation, named by its key or 
 Usage: ob operation show [options] <obi> <name>
 
 Show the operation that <name> identifies, by its key or any of its
-aliases (§5.1): its description, identifiers, input and output
-contracts, examples, bindings and dependencies. --example shows one of
-its examples alone.
+aliases (§5.1): its description, identifiers, input and output schemas,
+examples, bindings and dependencies. --example shows one of its examples
+alone.
 
 The text shows:
 
@@ -152,8 +153,8 @@ The text shows:
     names it carries. Carrying a shared contract's published name claims
     correspondence with that contract's operation (§5.1); ob compat
     checks such claims;
-  - its input contract and output contract: the schema that states each,
-    with references shown as written, or that none is stated;
+  - its input schema and output schema, with references shown as
+    written, or that none is stated;
   - its examples, each with the input and output values it gives, which
     ob validate --examples checks;
   - its bindings, each with its source and kind;
@@ -189,10 +190,10 @@ Examples:
 
 Exit status:
   0    shown
-  1    no OBI is published at the URL given
-  2    the arguments are wrong, <obi> cannot be read or fetched, <name>
-       identifies no operation, or the operation has no example under
-       the --example key
+  1    no OBI is published at the origin given
+  2    the arguments are wrong, <obi> cannot be read or fetched (a URL
+       that is not found included), <name> identifies no operation, or
+       the operation has no example under the --example key
   3    refused: <name> identifies two operations (OBI-05), the document
        declares a version outside the 0.2 line
   See 'ob help exit-codes'."####;
@@ -202,7 +203,7 @@ pub(super) fn cmd_operation_rename() -> Command {
         "rename",
         "Change an operation's key and every reference to it",
         PAGE_OPERATION_RENAME,
-        "ob operation rename [options] <obi> <name> <new-name>",
+        "ob operation rename [options] <obi> <key> <new-key>",
     )
     .arg(positional(
         "obi",
@@ -210,8 +211,8 @@ pub(super) fn cmd_operation_rename() -> Command {
         true,
         false,
     ))
-    .arg(positional("name", "The operation's key", true, false))
-    .arg(positional("new-name", "Its new key", true, false))
+    .arg(positional("key", "The operation's key", true, false))
+    .arg(positional("new-key", "Its new key", true, false))
     .arg(boolean(
         "keep-alias",
         "Keep the old key as an alias of the operation",
@@ -221,9 +222,9 @@ pub(super) fn cmd_operation_rename() -> Command {
 }
 const PAGE_OPERATION_RENAME: &str = r####"Change an operation's key and every reference to it
 
-Usage: ob operation rename [options] <obi> <name> <new-name>
+Usage: ob operation rename [options] <obi> <key> <new-key>
 
-Change the key of the operation <name> to <new-name>, and update every
+Change the key of the operation <key> to <new-key>, and update every
 reference to it in the document: the operation field of each binding
 and dependency that names it, and each same-document reference in the
 document resource that points into the operation, however it is
@@ -254,8 +255,8 @@ aliases array and create one, so the patch takes one of two shapes
   when it has none:
     [{"op":"add","path":"/operations/<new>/aliases","value":["<old>"]}]
 
-<name> must be the key: given an alias, rename refuses and names the
-operation whose alias it is. It refuses a <new-name> that already
+<key> must be the key: given an alias, rename refuses and names the
+operation whose alias it is. It refuses a <new-key> that already
 identifies an operation, one of this operation's aliases included
 (OBI-05), or that does not match the name grammar (OBI-04).
 
@@ -270,8 +271,8 @@ new), updated (the locations of the references it updated) and, with
 
 Arguments:
   <obi>         The document to change: a path, or - for standard input
-  <name>        The operation's key
-  <new-name>    Its new key
+  <key>         The operation's key
+  <new-key>     Its new key
 
 Options:
       --keep-alias         Keep the old key as an alias of the operation
@@ -290,12 +291,12 @@ Examples:
   ob operation rename - listTasks findTasks < tasks.obi.json > next.obi.json
 
 Exit status:
-  0    renamed, or no change (<new-name> is already its key)
+  0    renamed, or no change (<new-key> is already its key)
   2    the arguments are wrong, such as -F json without --dry-run when
-       <obi> is -; <obi> is a URL or cannot be read; or <name>
+       <obi> is -; <obi> is a URL or cannot be read; or <key>
        identifies no operation
-  3    refused: <name> is an alias or identifies two operations,
-       <new-name> is taken or breaks the name grammar, the result would
+  3    refused: <key> is an alias or identifies two operations,
+       <new-key> is taken or breaks the name grammar, the result would
        break another rule, or the document declares a version outside the
        0.2 line; nothing was written
   See 'ob help exit-codes'."####;
@@ -305,7 +306,7 @@ pub(super) fn cmd_operation_remove() -> Command {
         "remove",
         "Remove an operation",
         PAGE_OPERATION_REMOVE,
-        "ob operation remove [options] <obi> <name>",
+        "ob operation remove [options] <obi> <key>",
     )
     .arg(positional(
         "obi",
@@ -313,7 +314,7 @@ pub(super) fn cmd_operation_remove() -> Command {
         true,
         false,
     ))
-    .arg(positional("name", "The operation's key", true, false))
+    .arg(positional("key", "The operation's key", true, false))
     .arg(boolean(
         "cascade",
         "Also remove the bindings and dependencies that name the operation",
@@ -323,9 +324,9 @@ pub(super) fn cmd_operation_remove() -> Command {
 }
 const PAGE_OPERATION_REMOVE: &str = r####"Remove an operation
 
-Usage: ob operation remove [options] <obi> <name>
+Usage: ob operation remove [options] <obi> <key>
 
-Remove the operation <name>, with its aliases and examples. Its names
+Remove the operation <key>, with its aliases and examples. Its names
 stop identifying anything, and any correspondence it claimed through them
 goes with it.
 
@@ -340,7 +341,7 @@ another operation's input, or a reference to an $id declared at or inside
 its input or output. --cascade does not remove these: change them first,
 in your editor or with ob patch.
 
-<name> must be the key: given an alias, remove refuses and names the
+<key> must be the key: given an alias, remove refuses and names the
 operation whose alias it is. To drop only an alias, edit the operation's
 aliases.
 
@@ -354,7 +355,7 @@ bindings and dependencies removed with it).
 
 Arguments:
   <obi>         The document to change: a path, or - for standard input
-  <name>        The operation's key
+  <key>         The operation's key
 
 Options:
       --cascade            Also remove the bindings and dependencies that
@@ -374,9 +375,9 @@ Examples:
 Exit status:
   0    removed
   2    the arguments are wrong, such as -F json without --dry-run when
-       <obi> is -; <obi> is a URL or cannot be read; or <name>
+       <obi> is -; <obi> is a URL or cannot be read; or <key>
        identifies no operation
-  3    refused: <name> is an alias or identifies two operations, bindings
+  3    refused: <key> is an alias or identifies two operations, bindings
        or dependencies name it and --cascade was not given, a reference
        points into it or to an $id declared in it, the result would break
        another rule, or the document declares a version outside the 0.2
@@ -403,11 +404,11 @@ key in bindings (§3, §5.3). It names the operation and the source by their
 keys (OBI-06, OBI-07). Where a binding names its operation by an alias,
 ob validate gives a hint with the key, and in a document that meets
 OBI-06, an edit that makes that change is refused with the same hint. Its
-data is read under the source's kind, which decides what the data holds,
-such as which target realizes the operation and how values are adapted
-between the operation's contracts and that target (§5.3, §6). Its
-idempotent field is an author claim, and its preference and deprecated
-fields are author signals (§5.3).
+data is read under the source's kind, which defines what the data holds:
+a pointer into an API description, a method name, an adaptation of
+values, or nothing, where the source alone identifies the realization
+(§5.3, §6). Its idempotent field is an author claim, and its preference
+and deprecated fields are author signals (§5.3).
 
 ob source pull writes most bindings, with their operations. ob binding
 add writes one by hand, in the form the source's kind describes, for an
@@ -498,9 +499,10 @@ Examples:
 
 Exit status:
   0    listed
-  1    no OBI is published at the URL given
-  2    the arguments are wrong, <obi> cannot be read or fetched, or the
-       --operation name identifies no operation
+  1    no OBI is published at the origin given
+  2    the arguments are wrong, <obi> cannot be read or fetched (a URL
+       that is not found included), or the --operation name identifies
+       no operation
   3    refused: the --operation name identifies two operations (OBI-05),
        or the document declares a version outside the 0.2 line
   See 'ob help exit-codes'."####;
@@ -550,9 +552,9 @@ Examples:
 
 Exit status:
   0    shown
-  1    no OBI is published at the URL given
-  2    the arguments are wrong, <obi> cannot be read or fetched, or no
-       binding has the key <key>
+  1    no OBI is published at the origin given
+  2    the arguments are wrong, <obi> cannot be read or fetched (a URL
+       that is not found included), or no binding has the key <key>
   3    refused: the document declares a version outside the 0.2 line
   See 'ob help exit-codes'."####;
 
@@ -579,11 +581,14 @@ Add a binding under <key> that realizes the operation --operation names
 through the source --source names, with data in the form the source's
 kind describes. ob asks the Kind Descriptor for the kind's binding-data
 schema (what ob kind describe shows) and fills it: from --data, or at a
-terminal from what you enter for the schema's members. The data is what the
-kind reads to carry out the operation: which target, and any adaptation
-between the operation's contracts and that target, as the kind defines.
-ob records it as given; the claim that the target realizes the operation
-is yours, as for any binding (§5.3).
+terminal from what you enter for the schema's members. The data is what
+the kind reads to carry out the operation: which target, and any
+adaptation between the operation's input and output schemas and that
+target, as the kind defines. ob records it as given; the claim that the
+declared realization carries out the operation is yours, as for any
+binding (§5.3). A kind whose bindings carry no data has no binding-data
+schema: the binding is written without data, and --data is a usage
+error for it; --data null is the JSON value null.
 
 This is how a source realizes an operation you already have, including
 one that ob source pull left out as a conflict because the source offers
@@ -599,10 +604,10 @@ nothing. --preference records the author's preference among the
 operation's bindings, which ob invoke shows and never chooses by.
 --deprecated recommends migrating away.
 
-Add needs this ob to support the source's kind for check, built in or
-through a delegate, to show the schema and check the data. Without that
-support, --data is recorded unchecked, with a warning; or write the
-binding in your editor and run ob validate.
+Add needs the kind's descriptor, built in or through a delegate (the
+one ob kind describe shows), for the schema it prompts from and checks
+the data against. Without one, --data is recorded unchecked, with a
+warning; or write the binding in your editor and run ob validate.
 
 Like every edit, it changes <obi> in place, or filters - to standard
 output, keeps the bytes it does not change, refuses a result that breaks
@@ -652,9 +657,10 @@ Examples:
 Exit status:
   0    added, or an identical binding was already under <key>
   2    the arguments are wrong, such as -F json without --dry-run when
-       <obi> is -, no --data without a terminal, or data the kind's
-       schema does not accept; <obi> is a URL or cannot be read;
-       --operation identifies no operation; or --source names no source
+       <obi> is -, no --data without a terminal, --data for a kind whose
+       bindings carry none, or data the kind's schema does not accept;
+       <obi> is a URL or cannot be read; --operation identifies no
+       operation; or --source names no source
   3    refused: --operation identifies two operations (OBI-05), <key>
        already names a different binding, the result would break a rule,
        or the document declares a version outside the 0.2 line; nothing
@@ -675,12 +681,12 @@ const PAGE_DEPENDENCY: &str = r####"Read dependencies
 
 Usage: ob dependency <command> [options]
 
-A dependency is a named point where the described component consumes a
-realization of an operation, under a key in dependencies; the key
-identifies the consumption point (§3, §5.5). It names the operation by its
-key (OBI-08), and may limit the kinds acceptable there with kinds, an
-any-of constraint. It names no realization to serve it, not even one of
-the document's own bindings (§5.5). Where a dependency names its
+A dependency is a named point where the software the document describes
+consumes a realization of an operation, under a key in dependencies; the
+key identifies the consumption point (§3, §5.4). It names the operation
+by its key (OBI-08), and may limit the kinds acceptable there with
+kinds, an any-of constraint. It names no realization to serve it, not
+even one of the document's own bindings (§5.4). Where a dependency names its
 operation by an alias, ob validate gives a hint with the key, and in a
 document that meets OBI-08, an edit that makes that change is refused
 with the same hint.
@@ -734,7 +740,7 @@ List each dependency in document order: its key, which identifies the
 consumption point, the operation it consumes, and its kinds constraint.
 
 The kinds constraint is an any-of constraint: a binding meets it when its
-source's kind is the same as one of those listed (§5.5). A dependency
+source's kind is the same as one of those listed (§5.4). A dependency
 without kinds places no constraint on kind, and is shown as accepting
 every kind.
 
@@ -766,8 +772,9 @@ Examples:
 
 Exit status:
   0    listed
-  1    no OBI is published at the URL given
-  2    the arguments are wrong, or <obi> cannot be read or fetched
+  1    no OBI is published at the origin given
+  2    the arguments are wrong, or <obi> cannot be read or fetched (a URL
+       that is not found included)
   3    refused: the document declares a version outside the 0.2 line
   See 'ob help exit-codes'."####;
 
@@ -795,10 +802,10 @@ Show the dependency under <key>, the consumption point that key
 identifies: the operation it consumes, its kinds constraint, and its
 description.
 
-Declaring a dependency claims that the described component sends only
-input values that satisfy the operation's input contract, and takes any
-output value that satisfies its output contract (§5.5); ob operation show
-shows those contracts. The kinds constraint is an any-of constraint: a
+Declaring a dependency claims that the software the document describes
+sends only input values that satisfy the operation's input schema, and
+takes any output value that satisfies its output schema (§5.4); ob
+operation show shows those schemas. The kinds constraint is an any-of constraint: a
 binding meets it when its source's kind is one of those listed. Without
 kinds, the dependency places no constraint on kind. A dependency names no
 realization to serve it, so none is shown.
@@ -829,9 +836,9 @@ Examples:
 
 Exit status:
   0    shown
-  1    no OBI is published at the URL given
-  2    the arguments are wrong, <obi> cannot be read or fetched, or no
-       dependency has the key <key>
+  1    no OBI is published at the origin given
+  2    the arguments are wrong, <obi> cannot be read or fetched (a URL
+       that is not found included), or no dependency has the key <key>
   3    refused: the document declares a version outside the 0.2 line
   See 'ob help exit-codes'."####;
 
@@ -853,7 +860,7 @@ const PAGE_SCHEMA: &str = r####"Read, rename, remove, and bundle schemas
 Usage: ob schema <command> [options]
 
 The schemas map holds named JSON Schemas, which operations and other
-schemas reference, as in {"$ref": "#/schemas/Task"} (§5.2). Every schema
+schemas reference, as in {"$ref": "#/schemas/Task"} (§5.5). Every schema
 the document contains is read as JSON Schema 2020-12, and its references
 resolve as §7 defines. An external schema is one a reference in the
 document identifies, once resolved (against the enclosing $id, inside a
@@ -936,8 +943,9 @@ Examples:
 
 Exit status:
   0    listed
-  1    no OBI is published at the URL given
-  2    the arguments are wrong, or <obi> cannot be read or fetched
+  1    no OBI is published at the origin given
+  2    the arguments are wrong, or <obi> cannot be read or fetched (a URL
+       that is not found included)
   3    refused: the document declares a version outside the 0.2 line
   See 'ob help exit-codes'."####;
 
@@ -988,9 +996,9 @@ Examples:
 
 Exit status:
   0    shown
-  1    no OBI is published at the URL given
-  2    the arguments are wrong, <obi> cannot be read or fetched, or no
-       schema has the key <key>
+  1    no OBI is published at the origin given
+  2    the arguments are wrong, <obi> cannot be read or fetched (a URL
+       that is not found included), or no schema has the key <key>
   3    refused: the document declares a version outside the 0.2 line
   See 'ob help exit-codes'."####;
 
@@ -1033,8 +1041,9 @@ References inside a schema that declares $id are untouched: they resolve
 against that schema's own base, not against the document (§7.2, §7.4).
 References through the schema's $id, or through a plain name it declares,
 do not contain its key and keep working. Other documents reach a schema
-only through an $id, which the rename does not change (§7.5). Content,
-examples, descriptions and extension fields are left alone.
+only through an $id, which the rename does not change (§7.5). The
+schema's own members, examples, descriptions and extension fields are
+left alone.
 
 It refuses a <new-key> that another schema already has, or one that does
 not match the name grammar (OBI-04).
@@ -1128,7 +1137,7 @@ Options:
   -h, --help               Print help (see a summary with '-h')
 
 Examples:
-  # Refused in the sample: three output contracts reference Problem
+  # Refused in the sample: three output schemas reference Problem
   ob schema remove tasks.obi.json Problem
   ob schema remove draft.obi.json Unused --dry-run -F json
 
@@ -1178,8 +1187,8 @@ arguments, it bundles only those, and what they reference in turn.
 
 This is the one command that fetches external schemas, and it embeds
 what it fetches. Checks never fetch one, so bundling is what lets them
-decide, and lets ob invoke call an operation whose value contracts
-reference one.
+decide, and lets ob invoke call an operation whose input or output
+schema references one.
 
 ob fetches https and http URIs, sending no credentials of its own.
 

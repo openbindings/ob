@@ -3,9 +3,10 @@
 Rust is the maintained CLI implementation on `release/0.2`, the repository
 default and integration branch. It currently implements the designed command
 surface only.
-**Help, argument parsing, version output, and shell completion generation work.
-The 44 operational commands are placeholders.** They exit **3**, print an
-explicit message to stderr, and perform no operation.
+**Help (`ob help` and its topics), argument parsing, version output, and shell
+completion generation work. The 44 operational commands are placeholders.**
+They exit **3**, print an explicit message to stderr, and perform no
+operation.
 
 This is a source preview, not a released CLI or a working replacement for the
 Go implementation. It does not yet parse OBI documents, invoke operations,
@@ -18,6 +19,7 @@ With [Rust and Cargo](https://www.rust-lang.org/tools/install) installed:
 
 ```sh
 cargo run --locked -- --help
+cargo run --locked -- help obi
 cargo run --locked -- source add --help
 cargo run --locked -- source pull -h
 cargo run --locked -- invoke --help
@@ -44,14 +46,15 @@ command syntax and exits 3; it does **not** create `tasks.obi.json`.
 | Sources | `source` (`list`, `show`, `add`, `pull`, `rename`, `remove`) |
 | Using a service | `fetch`, `invoke`, `context` (`set`, `list`, `show`, `remove`) |
 | This installation | `kind` (`list`, `describe`), `delegate` (`jobs`, `add`, `set`, `remove`, `list`, `show`, `resolve`), `describe` |
-| Shell and help | `completion`; `ob help documents`, `ob help exit-codes`, `ob help output` |
+| Shell and help | `help`, `completion`; the topics `ob help obi`, `ob help documents`, `ob help exit-codes`, `ob help output` |
 
-Use `ob <command> -h` for a summary and `ob help <command>` or
-`ob <command> --help` for the full page: the intended workflow, options,
-examples and exit status. Descriptions of operational behavior are the design
-target; they are not implementation claims. Commands the design removed, such
-as `ob synthesize` and `ob kind check`, print the hint that names their
-replacement.
+Use `ob <command> -h` (or `ob help <command> -h`) for a summary and
+`ob help <command>` or `ob <command> --help` for the full page: the intended
+workflow, options, examples and exit status. Descriptions of operational
+behavior are the design target; they are not implementation claims. Commands
+the design removed, such as `ob synthesize` and `ob kind check`, print the
+hint that names their replacement. Every usage error is an `error:` line and
+a `hint:` line that names a command to run.
 
 ## Development
 

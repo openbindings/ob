@@ -33,10 +33,13 @@ sockets; the test must not silently skip that assertion.
 The Rust command tree lives in `src/commands/`, generated from the project's
 CLI design draft and its help pages (see [the surface notes](docs/rust-command-surface.md));
 `src/commands/mod.rs`, `src/syntax.rs` (argument-only rules) and `src/main.rs`
-(one placeholder dispatch boundary) are written by hand. The frozen surface in
+(`ob help`, `ob completion`, the usage-error style and one placeholder
+dispatch boundary) are written by hand. The frozen surface in
 `tests/fixtures/surface.json` is test evidence, not a runtime schema or an
 authority over future design: a change to the surface is a change to the
-draft, regenerated here.
+draft, regenerated here with the draft's generator, given the specification
+text with `--spec` so its section citations are checked, and then formatted
+with `cargo fmt --all`. Do not edit the generated files by hand.
 
 For this phase, keep operational commands explicit placeholders. Do not make a
 stub print a successful-looking result, read a credential store, load documents,

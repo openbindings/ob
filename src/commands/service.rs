@@ -117,14 +117,14 @@ Input: each --input writes, in order; then ob closes the input.
   no --input      nothing; ob closes the input at once
 
 Output: each output value, as one line of JSON, as it arrives. --frames
-prints every frame the invocation returns instead, one per line, as the
-Operation Invoker interface defines them: each output, the binding
-closing its input early, and the final complete or error frame. A refusal
-ends with its error frame too; on a CONTEXT_REQUIRED frame ob adds two
-members of its own beside the error, source and binding, the keys the
-challenge is about, so a script knows where to store the answer. Without
---frames, an error's message, and any data it carries, go to standard
-error. The message ends with the error's code, which its error frame
+prints every frame the invocation returns instead, one per line, exactly
+as the Operation Invoker interface defines them and with nothing added:
+each output, the binding closing its input early, and the final
+complete or error frame. A refusal ends with its error frame too; a
+CONTEXT_REQUIRED frame carries the challenge as its data, and the
+binding the call went through is on standard error, as for every call,
+so a script knows where to store the answer. Without --frames, an
+error's message, and any data it carries, go to standard error. The message ends with the error's code, which its error frame
 carries too: an interface's code where one defines the failure, such as
 CONTEXT_REQUIRED, and for ob's own refusals ob's own code for the class
 of refusal, as Exit status lists them: ERR_DOCUMENT_NON_CONFORMANT,
@@ -140,20 +140,22 @@ can invoke; ob never falls back to a binding you did not name. Without
 are several, it stops and lists them. Preference and deprecation are
 shown, never used to choose.
 
-Checks: each input value is checked against the input contract before it
-is sent, and each output value against the output contract as it
-arrives; on a side with no contract, values neither satisfy nor fail one
-and pass unchecked (§5.2). Inline values (--input VALUE) are all checked
-before ob asks for any context. A value that fails ends the call with
-ERR_OPERATION_VALIDATION_FAILED; one whose check gives no verdict (an
-undefined result, §5.2) ends it with ERR_SCHEMA_UNRESOLVED. When an
-input value stops the call before any value was sent, as an inline one
-always does, nothing was sent (exit 3); after that, or for an output
-value, the call may have taken effect (exit 1).
+Checks: each input value is checked against the input schema before it
+is sent, and each output value against the output schema as it arrives;
+on a side with no schema, values neither satisfy nor fail one and pass
+unchecked (§5.5). Inline values (--input VALUE) are all checked before
+ob asks for any context or opens the call, so one that fails, or whose
+check gives no verdict (an undefined result, §5.5), stops the call
+before anything is sent (exit 3). A value from @FILE or - is checked as
+it is read, after the call opened: one that fails ends the call with
+ERR_OPERATION_VALIDATION_FAILED, one that gets no verdict with
+ERR_SCHEMA_UNRESOLVED, and the call may have taken effect (exit 1), even
+when it was the first value. An output value that fails or gets no
+verdict ends the call the same way.
 
 ob never fetches a schema to check a value. Before sending anything, it
-refuses (ERR_EXTERNAL_SCHEMA) when either value contract references a
-schema the document does not contain, directly or through another
+refuses (ERR_EXTERNAL_SCHEMA) when the input or output schema references
+a schema the document does not contain, directly or through another
 schema, naming each reference, so that a call never takes effect and
 then fails for want of a schema. A hint gives the ob schema bundle
 command that embeds them; for a document given by URL, save a copy with
@@ -180,7 +182,9 @@ the source, with the schema shown by this invoke with --preflight, or
 --context gives this call its context, a JSON object from @FILE or
 standard input, in place of the stored context; the two never merge, so
 stored secrets never mix into a file a CI job supplies. Inline JSON is
-refused: context holds secrets, which stay off the command line.
+refused: context holds secrets, which stay off the command line. A
+document read from standard input has no stored context, since the
+store is keyed by a document's path or URL: give --context.
 
 Delegates: stored context and --context are never sent to a delegate; a
 delegate acquires its own context. If it asks, ob names the delegate and
@@ -188,25 +192,27 @@ the source it asks about and, at a terminal, sends what you enter for
 that attempt only; otherwise it refuses (exit 3). In CI, configure the
 delegate's own context.
 
---preflight calls nothing. It prints the binding's preflight result as one
-JSON value on standard output: the challenge it already knows it will
-make, message and schema, with ob's source and binding beside them, or
-null when it knows of nothing it needs. ob gives preflight the context
-the call would carry, the stored context for the source or --context, so
-once that holds what the binding needs it can answer null. invoke takes
-no -F; its standard output is always JSON values. Readable notes go to
-standard error. At a terminal preflight also acquires what is missing and
-offers to store it. It is advisory: exit 0 means no requirement the
-binding knows of is missing, not that the call will need nothing. It
-exits 3 when one is missing and ob cannot ask for it, when the binding
-answers ERR_REFUSED (the call would be refused), or when ob would refuse
-the call before sending; 4 when the binding could not answer. Preflight
-never dispatches the operation, so --frames with --preflight is a usage
-error. In a CI job, with nothing stored:
+--preflight calls nothing. It prints one JSON value on standard output:
+an object with binding and source, the keys the answer is about, and
+challenge, the binding's preflight result exactly as the Binding Invoker
+returned it: the challenge it already knows it will make, message and
+schema, or null when it knows of nothing it needs. ob gives preflight
+the context the call would carry, the stored context for the source or
+--context, so once that holds what the binding needs it answers null.
+invoke takes no -F; its standard output is always JSON values. Readable
+notes go to standard error. At a terminal preflight also acquires what
+is missing and offers to store it. It is advisory: exit 0 means no
+requirement the binding knows of is missing, not that the call will need
+nothing. It exits 3 when one is missing and ob cannot ask for it, when
+the binding answers ERR_REFUSED (the call would be refused), or when ob
+would refuse the call before sending; 4 when the binding could not
+answer. Preflight never dispatches the operation, so --frames with
+--preflight is a usage error. In a CI job, with nothing stored:
 
   $ ob invoke tasks.obi.json listTasks --preflight
-  {"message":"The Tasks API needs an access token or an API key.",
-  "schema":{"oneOf":[...]},"source":"httpApi","binding":"listTasks.http"}
+  {"binding":"listTasks.http","source":"httpApi","challenge":{"message":
+  "The Tasks API needs an access token or an API key.","schema":{"oneOf":
+  [...]}}}
   listTasks.http needs context that is not stored for httpApi
   hint: supply it with ob context set tasks.obi.json httpApi - (an object
       the schema above describes), or for one call with --context @FILE
@@ -248,18 +254,19 @@ Exit status:
        knows of is missing
   1    the call began but did not complete: the operation reported an
        error, an output value failed or got no verdict, an input value
-       did either after earlier values were sent, or the deadline passed
-       (any of these may have taken effect); or no OBI is published at
-       the URL given
+       from @FILE or - did either after the call opened, or the deadline
+       passed (any of these may have taken effect); or no OBI is
+       published at the origin given
   2    bad arguments (such as --frames with --preflight, or inline JSON
        as --context), an operation name or binding key that identifies
        nothing, a file that does not exist, or input ob cannot read
   3    refused, with no effect. ob refused before sending: the document
        does not conform (ERR_DOCUMENT_NON_CONFORMANT), its conformance is
        undetermined (ERR_DOCUMENT_UNDETERMINED), or it declares another
-       OpenBindings line (ERR_UNSUPPORTED_VERSION); a value contract
-       references a schema the document does not contain
-       (ERR_EXTERNAL_SCHEMA); an input value failed or got no verdict;
+       OpenBindings line (ERR_UNSUPPORTED_VERSION); an input or output
+       schema references a schema the document does not contain
+       (ERR_EXTERNAL_SCHEMA); an inline input value failed or got no
+       verdict;
        context the binding needs is missing and ob cannot ask for it; or
        the operation has no binding ob can invoke, or several and none was
        chosen. Or the binding answered CONTEXT_REQUIRED or ERR_REFUSED
@@ -287,21 +294,25 @@ const PAGE_CONTEXT: &str = r####"Store what calls need beyond their input
 Usage: ob context <command> [options]
 
 Context is what a realization needs that the operation is not about: a
-credential, an approval, a configuration value (§3). A binding that lacks
-it asks with a CONTEXT_REQUIRED challenge: a message saying why, and a
-JSON Schema of the object to supply next time, as the context document
-published with the interfaces defines. The kind describes; ob acquires,
-at a terminal or from what you stored; the kind consumes. The object's
-members are whatever that schema described; ob defines none of them, and
-never writes context into a document.
+credential, an approval, a configuration value; the specification calls
+the values an operation is about caller-facing (§3), and the context
+document published with the interfaces defines the rest. A binding that
+lacks it asks with a CONTEXT_REQUIRED challenge: a message saying why,
+and a JSON Schema of the object to supply next time. The kind describes;
+ob acquires, at a terminal or from what you stored; the kind consumes.
+The object's members are whatever that schema described; ob defines
+none of them, and never writes context into a document.
 
 ob stores context per document and source, since context is about
 reaching the service a source stands for: the key is the document's path,
-made absolute, or its URL, and the source's key in it. A binding gets
+made absolute, or its URL, and the source's key in it. A document read
+from standard input has no key and so no stored context. A binding gets
 only the context stored for its own source, whole; a kind reading a
-source for ob source add or ob source pull gets the same. ob invoke
---context gives one call its context in place of what is stored; the two
-never merge.
+source for ob source add or ob source pull gets the same. ob source
+rename moves the stored context with the source and ob source remove
+removes it. --context on ob invoke, ob source add and ob source pull
+gives one run its context in place of what is stored; the two never
+merge.
 
 Stored context lives in the OS keychain where there is one (macOS
 Keychain, Windows Credential Manager, the Secret Service), otherwise in
@@ -370,8 +381,11 @@ check the object against that schema here: the kind consumes it on the
 next attempt and challenges again if something is missing.
 
 The document is identified by its path, made absolute, or by its URL, as
-ob context list shows it; <source> is the source's key in it. The
-document itself is neither read nor changed.
+ob context list shows it; <source> is the source's key in it. ob reads
+the document only to warn when it cannot, or when it has no source under
+<source>, and stores the object all the same, since a kind's check may
+ask for context before the source is written; the document is never
+changed.
 
 Arguments:
   <obi>       The document: a path or a URL
@@ -383,7 +397,7 @@ Options:
 
 Examples:
   # From a secret in the environment, at a terminal or in a script
-  printf '{"accessToken":"%s"}' "$TASKS_TOKEN" \
+  jq -n '{accessToken: env.TASKS_TOKEN}' \
       | ob context set tasks.obi.json httpApi -
 
   # From a file a CI job provides
@@ -545,14 +559,19 @@ bindings' data are read (§6). Kinds are compared whole: example.openapi@1
 and example.openapi@2 are unrelated kinds, and so are two strings that
 differ only in case. Support is per exact kind and per operation, built
 in or through a delegate: check, pull and invoke are ob's names for the Kind
-Descriptor's checkSource (what ob source add and ob binding add use),
-the Source Puller's pullSource (ob source pull) and the Binding Invoker's
-invokeBinding (ob invoke), so ob may support a kind for invoke and not
-for pull. These commands report what this installation can do with a
-kind; they never judge a document, which may use any kind.
+Descriptor's checkSource (ob source add), the Source Puller's pullSource
+(ob source pull) and the Binding Invoker's invokeBinding (ob invoke), so
+ob may support a kind for invoke and not for pull. Where more than one
+provider carries a kind, the descriptor ob consults for it, for the
+schemas ob source add and ob binding add prompt from and for its check,
+is the one of the provider ob would pull the kind with, or, where nothing
+pulls it, invoke it with; ob delegate resolve shows which that is. These
+commands report what this installation can do with a kind; they never
+judge a document, which may use any kind.
 
 Commands:
-  list        List the kinds this ob supports, and the jobs for each
+  list        List the kinds this ob supports, and the operations for
+              each
   describe    Describe a kind: what it reads, its check, and the schemas
               of its data
 
@@ -564,7 +583,7 @@ Run 'ob kind <command> --help' for details."####;
 pub(super) fn cmd_kind_list() -> Command {
     leaf(
         "list",
-        "List the kinds this ob supports, and the jobs for each",
+        "List the kinds this ob supports, and the operations for each",
         PAGE_KIND_LIST,
         "ob kind list [options]",
     )
@@ -575,7 +594,7 @@ pub(super) fn cmd_kind_list() -> Command {
     ))
     .arg(format(&["text", "json"]))
 }
-const PAGE_KIND_LIST: &str = r####"List the kinds this ob supports, and the jobs for each
+const PAGE_KIND_LIST: &str = r####"List the kinds this ob supports, and the operations for each
 
 Usage: ob kind list [options]
 
@@ -605,8 +624,9 @@ Options:
 Examples:
   ob kind list
   ob kind list --supports pull
-  ob kind list -F json \
-      | jq -r '.kinds[] | select(.supports | index("invoke")).kind'
+  ob kind list -F json | jq -r '.kinds[]
+      | select(.supports | index("openbindings.binding-invoker.invokeBinding"))
+      | .kind'
 
 Exit status:
   0    listed, including when no kind is supported
@@ -632,8 +652,10 @@ const PAGE_KIND_DESCRIBE: &str = r####"Describe a kind: what it reads, its check
 
 Usage: ob kind describe [options] <kind>
 
-Describe an exact kind as its Kind Descriptor describes it, built in or
-through the delegate ob would use for it: a description of what the kind
+Describe an exact kind as its Kind Descriptor describes it, from the
+provider ob consults for the kind: built-in support, or the delegate ob
+would pull the kind with, or, where nothing pulls it, invoke it with (ob
+delegate resolve shows which): a description of what the kind
 reads and how its bindings reach their targets, the operations the
 provider supports it for, what its check does and whether that runs
 anything (ob source add asks before a check that executes), its
@@ -692,7 +714,9 @@ keeps a copy of its OBI, and gives the registration an ID and a
 preference per job, as the Delegate Manager interface describes. A
 delegate for either job also implements the Kind Descriptor for its
 kinds, which answers ob kind list and ob kind describe and checks a
-source entry for ob source add.
+source entry for ob source add; where several providers carry a kind,
+ob consults the descriptor of the one it would pull the kind with, or,
+where nothing pulls it, invoke it with.
 
 ob keeps registrations, with its copy of each delegate's OBI, under its
 per-user config directory. OB_CONFIG_DIR points ob at another directory
@@ -859,9 +883,9 @@ or under OB_CONFIG_DIR when that is set (ob delegate --help). Adding the
 same OBI again creates a second registration; to change one, use ob
 delegate set.
 
---preference JOB=NUMBER sets this delegate's preference for a requested
-job: any finite number, negative and fractional included, kept exactly
-as given (an explicit zero too). It ranks the delegate under the job's
+--preference takes JOB=NUMBER and sets this delegate's preference for a
+requested job: any finite number, negative and fractional included, kept
+exactly as given (an explicit zero too). It ranks the delegate under the job's
 rule (ob delegate jobs): at 0, the effective preference without one, it
 comes after built-in support; a positive one puts it ahead of built-in
 support, and a negative one makes it a last resort. It counts for every
@@ -968,11 +992,11 @@ updated. --add-job registers it for another job, with the same check.
 at least one job must remain (ob delegate remove removes the whole
 registration). A job removed and added again starts with no preference.
 
---preference JOB=NUMBER sets the preference for a job the registration
-has, or gains in this change, which ranks it for that job under the
-job's rule (ob delegate jobs): any finite number, negative and
-fractional included, kept exactly as given. --unset preference.JOB
-removes the explicit preference, leaving an effective preference of
+--preference takes JOB=NUMBER and sets the preference for a job the
+registration has, or gains in this change, which ranks it for that job
+under the job's rule (ob delegate jobs): any finite number, negative and
+fractional included, kept exactly as given. --unset takes preference.JOB
+and removes the explicit preference, leaving an effective preference of
 zero, which ranks it after built-in support.
 Contradictory changes, such as --add-job and --remove-job for one job,
 are a usage error.
@@ -1034,7 +1058,10 @@ const PAGE_DELEGATE_REMOVE: &str = r####"Remove a registration
 Usage: ob delegate remove <id>
 
 Remove a registered delegate. ob stops using it for every job and
-deletes its copy of the delegate's OBI and its preferences.
+deletes its copy of the delegate's OBI and its preferences. An ID that
+no registration has is already absent: ob says so and exits 0, as the
+Delegate Manager's own operation does, so a script that removes what it
+registered can run twice.
 
 Arguments:
   <id>    The registration's ID, as ob delegate list shows it
@@ -1048,8 +1075,8 @@ Examples:
       | jq -r '.delegates[].id' | xargs -n1 ob delegate remove
 
 Exit status:
-  0    removed
-  2    bad arguments, or no registration with that ID
+  0    removed, or already absent
+  2    bad arguments
   See 'ob help exit-codes'."####;
 
 pub(super) fn cmd_delegate_list() -> Command {

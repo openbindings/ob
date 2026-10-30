@@ -170,9 +170,9 @@ Examples:
 
 Exit status:
   0    shown
-  1    no OBI is published at the URL given
-  2    bad arguments, a file that does not exist, input ob cannot read, or
-       a network failure
+  1    no OBI is published at the origin given
+  2    bad arguments, a file or URL that does not exist, input ob cannot
+       read, or a network failure
   3    refused: the document declares a version outside the 0.2 line
        (without -F json)
   See 'ob help exit-codes'."####;
@@ -215,6 +215,10 @@ pub(super) fn cmd_validate() -> Command {
         "examples",
         "Check examples instead of the document",
     ))
+    .arg(boolean(
+        "kinds",
+        "Also check each source's and binding's data against its kind's schemas",
+    ))
     .arg(boolean("quiet", "Print nothing; answer through the exit status").short('q'))
     .arg(format(&["text", "json"]))
 }
@@ -223,11 +227,12 @@ const PAGE_VALIDATE: &str = r####"Check a document, values, or examples
 Usage: ob validate [options] <obi>...
 
 Check one of three things: each document against the rules of
-OpenBindings 0.2, OBI-01 to OBI-14 (the default); with --operation and
---input or --output, values against that operation's input or output
-contract; or, with --examples, each value an example gives against its
-operation's value contract for that side. The document and examples
-checks take several documents at once; --operation takes one.
+OpenBindings 0.2, OBI-01 to OBI-14 (the default), and with --kinds also
+each source's and binding's data against its kind's schemas; with
+--operation and --input or --output, values against that operation's
+input or output schema; or, with --examples, each value an example
+gives against its operation's schema for that side. The document and
+examples checks take several documents at once; --operation takes one.
 
 Checking documents. The result for each document is one of:
 
@@ -255,40 +260,49 @@ identifies: "hint: acme.tasks.listTasks is an alias of listTasks;
 bindings name operations by key".
 
 When a document conforms, ob also checks its examples, and when any
-example value fails its value contract it prints one warning pointing to
+example value fails its schema it prints one warning pointing to
 ob validate --examples, which lists each one. Examples are author claims,
 which conformance does not judge (spec §5.1), so the warning never
 changes the result or the exit status.
 
 Checking values. --operation names the operation by key or alias. Each
---input is checked against its input contract and each --output against
-its output contract, and one run may check both. A file or standard
+--input is checked against its input schema and each --output against
+its output schema, and one run may check both. A file or standard
 input may hold several values separated by whitespace, each checked in
 turn; only one argument may read standard input. Each result is labelled
 by side and position (input 1, input 2, output 1) and is one of:
 
-  satisfies      the value satisfies the value contract
-  fails          the value fails the value contract; the problem is
-                 given at a JSON Pointer into the value
-  undefined      whether it satisfies the value contract is undefined (spec
-                 §5.2), as when the answer rests on a pattern that is not
+  satisfies      the value satisfies the schema
+  fails          the value fails the schema; the problem is given at a
+                 JSON Pointer into the value
+  undefined      whether it satisfies the schema is undefined (spec
+                 §5.5), as when the answer rests on a pattern that is not
                  an ECMA-262 regular expression with Unicode semantics
   no-verdict     ob could not decide, and says why; for example, the
                  answer rests on an external schema, which ob names but
                  never fetches (ob schema bundle embeds it, so later
                  checks can decide)
-  no-value-contract
-                 the operation states no value contract for that side, so
-                 the value neither satisfies nor fails one (spec §5.2)
+  no-schema      the operation states no schema for that side, so the
+                 value neither satisfies nor fails one (spec §5.5)
 
 Checking examples. --examples checks the examples of every operation of
 each document, or with --operation, of that one. An example claims that
-each value it gives satisfies the value contract for its side (spec
-§5.1). A value given as null is a value, and is checked like any other.
-Each value is reported in the words above, labelled by operation,
-example and side. Where the operation states no value contract for a
-side, the example makes no claim there: that value is listed as
-no-value-contract and does not affect the exit status.
+each value it gives satisfies the schema for its side (spec §5.1). A
+value given as null is a value, and is checked like any other. Each
+value is reported in the words above, labelled by operation, example
+and side. Where the operation states no schema for a side, the example
+makes no claim there: that value is listed as no-schema and does not
+affect the exit status.
+
+Checking kind data. --kinds adds, to the document check, a check of each
+source's data and each binding's data against the schema its kind's
+descriptor gives for it (what ob kind describe shows), once the
+document conforms. No rule of the specification reads that data; this
+is the check ob source add and ob binding add make when they write an
+entry, for data edited since. Data that fails is a finding in the
+format above, with the kind in place of the rule and the problem at a
+JSON Pointer into the data; a kind that nothing this ob can ask
+describes gives that entry no verdict, and ob says so.
 
 Values and examples need a conformant document: a non-conformant one is
 refused (exit 3), and an undetermined one gets no verdict (exit 4). See
@@ -296,8 +310,9 @@ refused (exit 3), and an undetermined one gets no verdict (exit 4). See
 
 For values and examples, one exit status covers each document: 1 if
 anything fails; otherwise 4 if anything is undefined or no-verdict, or,
-when checking values, no-value-contract (nothing was checked); otherwise
-0.
+when checking values, no-schema (nothing was checked); otherwise 0. With
+--kinds, a conformant document's status is 1 if any data fails,
+otherwise 4 if any entry got no verdict, otherwise 0.
 
 Several documents. The document and examples checks take any number of
 documents, at most one of them -, and check each in turn. --operation
@@ -310,7 +325,9 @@ or was refused leaves the run incomplete.
 prints the report as JSON (see 'ob help output'): one report whose
 documents array holds one entry per document, in the order given, even
 for one, so a script reads the same shape however many documents a glob
-matches. With --operation, it holds the one document's entry.
+matches. With --operation, it holds the one document's entry. With
+--kinds, each document's entry adds kinds, one result per source and
+binding.
 
 Arguments:
   <obi>...    The documents: paths, - for standard input, or URLs; with
@@ -324,6 +341,8 @@ Options:
       --output <value>       An output value to check: JSON, @FILE, or -
                              (repeatable)
       --examples             Check examples instead of the document
+      --kinds                Also check each source's and binding's data
+                             against its kind's schemas
   -q, --quiet                Print nothing; answer through the exit status
   -F, --format <format>      Output format: text or json [default: text]
   -h, --help                 Print help (see a summary with '-h')
@@ -349,21 +368,28 @@ Examples:
   # Check the examples of every operation
   ob validate tasks.obi.json --examples
 
+  # After editing a binding's data by hand: check it against its kind
+  ob validate tasks.obi.json --kinds
+
 Exit status:
-  0    every document conforms; or every value checked satisfies its
-       value contract
-  1    a document is non-conformant; or some value fails its value
-       contract; or no OBI is published at a URL given
+  0    every document conforms, and with --kinds every entry's data
+       satisfies its kind's schema; or every value checked satisfies its
+       schema
+  1    a document is non-conformant; with --kinds, some entry's data
+       fails its kind's schema; some value fails its schema; or no OBI is
+       published at an origin given
   2    bad arguments, such as --input without --operation or with
        --examples, --operation with nothing to check or with more than
-       one document, or a value that is not JSON; a name or file that
-       does not exist; a network failure
+       one document, --kinds with --operation or --examples, or a value
+       that is not JSON; a name, file or URL that does not exist; a
+       network failure
   3    refused: a document declares a version outside the 0.2 line; for
        values and examples, a document is non-conformant
-  4    no verdict: a document's conformance is undetermined; or, for
-       values and examples, nothing fails but a result is undefined or
-       no-verdict; or, for values only, nothing fails but a side has no
-       value contract to check
+  4    no verdict: a document's conformance is undetermined; with
+       --kinds, nothing fails but some entry's kind could not be asked;
+       for values and examples, nothing fails but a result is undefined
+       or no-verdict; or, for values only, nothing fails but a side has
+       no schema to check
   With several documents, the most serious status wins: 2, then 3, then
   1, then 4, then 0.
   See 'ob help exit-codes'."####;
@@ -465,9 +491,9 @@ Exit status:
   0    done; with --exit-code, the documents do not differ, other than
        in changes reported as reordered
   1    with --exit-code, the documents differ in a change that is not
-       reordered; or no OBI is published at a URL given
-  2    bad arguments, a file that does not exist, input ob cannot read, or
-       a network failure
+       reordered; or no OBI is published at an origin given
+  2    bad arguments, a file or URL that does not exist, input ob cannot
+       read, or a network failure
   3    refused: a document declares a version outside the 0.2 line
   See 'ob help exit-codes'."####;
 
@@ -487,8 +513,8 @@ Usage: ob compat [options] <obi> <shared-contract>
 
 Check <obi> against a shared contract: for each operation of the shared
 contract, which of <obi>'s operations its published names identify, and
-whether their value contracts are compatible under the Schema Comparison
-Profile OB-2020-12. With --dependency, check instead whether <obi> can
+whether their input and output schemas are compatible under the Schema
+Comparison Profile OB-2020-12. With --dependency, check instead whether <obi> can
 serve a dependency that <shared-contract> declares.
 
 A shared contract is a published set of operations offered for adoption,
@@ -501,9 +527,9 @@ For each operation of the shared contract, ob compat reports:
   - which of <obi>'s operations its published names (its key and its
     aliases) identify, and whether by key or by alias; when they identify
     more than one, each is checked and listed;
-  - whether the two operations' value contracts are compatible under the
-    Schema Comparison Profile OB-2020-12, checked the way <obi> uses its
-    operation:
+  - whether the two operations' input and output schemas are compatible
+    under the Schema Comparison Profile OB-2020-12, checked the way <obi>
+    uses its operation:
 
     realized   it has bindings: it must accept every input the shared
                contract allows, and return only outputs it allows
@@ -512,8 +538,8 @@ For each operation of the shared contract, ob compat reports:
 
 An operation with both bindings and dependencies is checked both ways.
 One with neither is checked as --check-as says: realized, consumed, or
-both (the default). Where either operation states no value contract for a
-side, that side is not compared. Operations of <obi> that carry no
+both (the default). Where either operation states no schema for a side,
+that side is not compared. Operations of <obi> that carry no
 published name of the shared contract are not part of the check.
 --operation limits the check to the shared contract's operations it
 names.
@@ -534,9 +560,10 @@ first, in which each placeholder, such as <operation>, is its own
 element, so a program can fill one in without re-quoting.
 
 The result is compatible, incompatible, or indeterminate, combined as the
-profile combines its outcomes: any indeterminate comparison makes the
-result indeterminate; otherwise any incompatibility, a missing operation
-included, makes it incompatible; otherwise it is compatible. The exit
+profile combines its outcomes: any comparison that is indeterminate, or
+that errored, makes the result indeterminate; otherwise any
+incompatibility, a missing operation included, makes it incompatible;
+otherwise it is compatible. The exit
 status follows the result, so an indeterminate comparison beside a
 definite incompatibility exits 4, not 1. In that case ob prints a
 warning naming each operation found incompatible and each one missing,
@@ -547,7 +574,9 @@ where the two schemas are not identical makes a comparison indeterminate
 (identical positions are compatible, whatever keywords they use). What
 the profile treats as an error rather than a verdict (a reference cycle,
 an external schema, which ob never fetches, or an allOf no value can
-satisfy) ob also reports as indeterminate, naming the cause.
+satisfy) ob reports as an error, apart from indeterminate, naming the
+cause; the operation's verdict is error, it gives no verdict, and it
+counts as indeterminate does in the result and the exit status.
 
 For each incompatibility the profile gives a reason, prefixed by the
 keyword that decided it and, for a nested failure, the path to it, such
@@ -576,7 +605,7 @@ calls. For each operation of <obi> that a published name (key or alias)
 of the dependency's operation identifies, it lists that operation's
 bindings, each with its source's kind, and marks each binding that meets
 the dependency's kinds: its source's kind is the same string as one of
-the kinds listed (spec §5.5, §6). A dependency without kinds accepts
+the kinds listed (spec §5.4, §6). A dependency without kinds accepts
 every kind.
 
 Each such operation is judged on its own. It serves when it has a
@@ -601,7 +630,7 @@ no remedies: they would edit the candidate's document.
 
 The check reads only the two documents. Whether this ob can invoke such
 a binding is a question for ob kind list, and nothing records the
-wiring: a dependency names no realization (spec §5.5). --dependency does
+wiring: a dependency names no realization (spec §5.4). --dependency does
 not combine with --operation or --check-as.
 
 Both documents must conform: see 'ob help documents'. Each argument is a
@@ -652,17 +681,17 @@ Exit status:
        that meets the dependency's kinds
   1    incompatible, a missing operation included; with --dependency,
        no operation serves and none gives no verdict; or no OBI is
-       published at a URL given
+       published at an origin given
   2    bad arguments, such as --dependency with --operation or
-       --check-as; a name or file that does not exist, such as a
+       --check-as; a name, file or URL that does not exist, such as a
        dependency key <shared-contract> does not have; input ob cannot
        read; a network failure
   3    refused: a document is non-conformant or declares a version
        outside the 0.2 line
-  4    indeterminate, even when an operation is also incompatible or
-       missing, which a warning names; with --dependency, no operation
-       serves and some gives no verdict; or a document's conformance is
-       undetermined
+  4    indeterminate, a comparison that errored included, even when an
+       operation is also incompatible or missing, which a warning names;
+       with --dependency, no operation serves and some gives no verdict;
+       or a document's conformance is undetermined
   See 'ob help exit-codes'."####;
 
 pub(super) fn cmd_merge() -> Command {
@@ -675,7 +704,7 @@ pub(super) fn cmd_merge() -> Command {
         .arg(boolean("no-bindings", "Bring in no bindings or sources"))
         .arg(boolean("ours", "Where the documents conflict, keep what <obi> has"))
         .arg(boolean("theirs", "Where the documents conflict, take what <from> has"))
-        .arg(boolean("dry-run", "Show the change without writing it"))
+        .arg(boolean("dry-run", "Write nothing; print the change"))
         .arg(format(&["text", "json"]))
 }
 const PAGE_MERGE: &str = r####"Bring operations in from another document
@@ -683,10 +712,10 @@ const PAGE_MERGE: &str = r####"Bring operations in from another document
 Usage: ob merge [options] <obi> <from>
 
 Copy operations from <from> into <obi> with the schemas, bindings and
-sources they need: every named schema their value contracts reach
-through references, transitively; their bindings; and the sources those
-bindings go through. Dependencies are not copied: each is a consumption
-point of <from>'s own described component. Each operation keeps its key
+sources they need: every named schema their input and output schemas
+reach through references, transitively; their bindings; and the sources
+those bindings go through. Dependencies are not copied: each is a
+consumption point of the software <from> describes. Each operation keeps its key
 and aliases, so an operation copied from a shared contract carries its
 published names, and so claims correspondence with the operation they
 identify there. --operation limits the merge to the operations it names,
@@ -719,12 +748,19 @@ Where <obi> already has an entry (the same key; for an operation, one
 that the incoming operation's key or one of its aliases identifies):
 
   - an identical entry is left as it is;
-  - an operation whose value contracts are already compatible with the
-    incoming one's, checked as ob compat checks them (see --check-as
-    below), is skipped as already compatible;
+  - an operation whose input and output schemas are already compatible
+    with the incoming one's, checked as ob compat checks them (see
+    --check-as below), is skipped as already compatible;
   - anything else, an indeterminate comparison included, is a conflict.
     ob lists every conflict and writes nothing, unless you choose a side:
     --ours keeps what <obi> has, --theirs takes what <from> has.
+
+A source key both documents hold, with different data, is refused either
+way (exit 3): --ours would re-point <from>'s bindings at <obi>'s source,
+and --theirs would swap the source under <obi>'s bindings, and either
+changes what a binding's data is read against. ob names the key and
+hints ob source rename in <from> to make room, as for a named schema. An
+identical source is left as it is.
 
 When an incoming operation's identifiers identify more than one
 operation of <obi>, ob refuses (exit 3) and names them.
@@ -738,22 +774,30 @@ document still identifies it (spec §5.1). There is no option to replace
 the aliases instead: like git's -X theirs, --theirs settles only what
 conflicts, and dropping a name stays an edit of your own.
 
-An operation <obi> already has, left as identical, or skipped as already
-compatible when checked as realized, still brings the bindings <from>
-has for it, and the sources they go through, unless --no-bindings: a
-binding claims that its target realizes the operation as the document
-describes it (spec §5.3), so the bindings of an operation compatible as
-realized realize <obi>'s too. Binding and source keys that collide
-follow the conflict rules above. Every binding merge brings in for an
-operation matched by alias, copied with it under --theirs or brought in
-this way, is written to name <obi>'s key, as ob operation rename
-rewrites references.
+An operation <obi> already has, left as identical or skipped as already
+compatible, still brings the bindings <from> has for it, and the sources
+they go through, unless --no-bindings, when the two operations are
+compatible both ways: <obi>'s as a realization of <from>'s, and <from>'s
+as a realization of <obi>'s. A binding claims that its declared
+realization carries out the operation as its own document describes it
+(spec §5.3): it takes any value <from>'s input admits and returns only
+values <from>'s output admits. Attached to <obi>'s operation it would
+have to take <obi>'s inputs and stay inside <obi>'s outputs, which only
+the second comparison establishes. When that comparison is not
+compatible, merge brings no binding for the operation, says so, and
+hints --theirs, which takes <from>'s schemas, or ob binding add. Binding
+and source keys that collide follow the conflict rules above. Every
+binding merge brings in for an operation matched by alias, copied with
+it under --theirs or brought in this way, is written to name <obi>'s
+key, as ob operation rename rewrites references. What a binding's data
+refers to is read under its source's kind: merge copies the data as it
+is and follows nothing inside it.
 
 --onto claims correspondence for an operation you already have, instead
 of copying. It takes exactly one --operation, and adds the name given
 there as an alias of the <obi> operation that --onto names, copying
-nothing else. ob first compares the two operations' value contracts as ob
-compat does. It refuses when the comparison establishes that they are
+nothing else. ob first compares the two operations' input and output
+schemas as ob compat does. It refuses when the comparison establishes that they are
 incompatible, and prints a hint with the ob patch command that adds the
 alias directly, as your own claim (spec §5.1), which ob does not check;
 there is no --force, so --onto always makes a checked claim. It goes
@@ -763,7 +807,8 @@ rules it out. It also refuses a name that already identifies another
 operation of <obi>, since no name may identify two operations (OBI-05).
 
 --check-as has ob compat's meaning (see 'ob help compat'), and applies
-both to the skip check above and to --onto.
+to the skip check above, to the both-ways check for bindings, and to
+--onto.
 
 Both documents must conform, because merging relies on what they mean:
 see 'ob help documents'. Like every edit, merge never writes a result
@@ -772,14 +817,17 @@ that violates a rule, warns about an example it makes fail, and changes
 <from> may be -); --dry-run prints the change instead of writing it.
 
 A summary on standard error says what was added, what was skipped as
-already compatible, which entries were replaced, and which aliases were
-added. With -F json, the report adds them as four arrays: added (the
-locations of the entries added, the bindings and sources brought for
-operations <obi> already had included), skipped (the keys of the
-operations skipped as already compatible), replaced (the locations of
-the entries replaced) and aliasesAdded (the locations of the aliases
-added to operations <obi> already had, by --onto or --theirs). When
-there is nothing to bring in, the result is "no change".
+already compatible, which bindings were not brought, which entries were
+replaced, and which aliases were added. With -F json, the report adds
+them as five arrays: added (the locations of the entries added, the
+bindings and sources brought for operations <obi> already had included),
+skipped (the keys of the operations skipped as already compatible),
+bindingsSkipped (the locations in <from> of the bindings not brought,
+because their operation is compatible one way only), replaced (the
+locations of the entries replaced) and aliasesAdded (the locations of
+the aliases added to operations <obi> already had, by --onto or
+--theirs). When there is nothing to bring in, the result is "no
+change".
 
 Arguments:
   <obi>     The document to change: a path, or - for standard input
@@ -798,7 +846,7 @@ Options:
                            has
       --theirs             Where the documents conflict, take what
                            <from> has
-      --dry-run            Show the change without writing it
+      --dry-run            Write nothing; print the change
   -F, --format <format>    Output format: text, or json for a report
                            holding the patch that would apply (with
                            --dry-run) or that was applied [default: text]
@@ -829,22 +877,23 @@ Examples:
 
 Exit status:
   0    merged, or "no change"
-  1    no OBI is published at the URL given as <from>
+  1    no OBI is published at the origin given as <from>
   2    bad arguments, such as a URL as <obi>, --ours with --theirs,
        --onto without exactly one --operation, or -F json without
-       --dry-run when <obi> is -; a name or file that does not exist;
-       input ob cannot read; a network failure
-  3    refused: a conflict without --ours or --theirs; an incoming
-       operation whose identifiers identify more than one operation of
-       <obi>; a copied operation's reference that reaches into an
-       operation, or a named schema, that the result keeps from <obi>,
-       where <obi> holds no identical schema; --theirs replacing a named
-       schema that operations outside the merge use; --onto with
-       contracts established as incompatible (a hint gives the ob patch
-       command that adds the alias), or with a name that already
-       identifies another operation; a result that would violate a rule;
-       a document that is non-conformant or whose conformance is
-       undetermined; a version outside the 0.2 line
+       --dry-run when <obi> is -; a name, file or URL that does not
+       exist; input ob cannot read; a network failure
+  3    refused: a conflict without --ours or --theirs; a source key both
+       documents hold with different data; an incoming operation whose
+       identifiers identify more than one operation of <obi>; a copied
+       operation's reference that reaches into an operation, or a named
+       schema, that the result keeps from <obi>, where <obi> holds no
+       identical schema; --theirs replacing a named schema that
+       operations outside the merge use; --onto with schemas established
+       as incompatible (a hint gives the ob patch command that adds the
+       alias), or with a name that already identifies another operation;
+       a result that would violate a rule; a document that is
+       non-conformant or whose conformance is undetermined; a version
+       outside the 0.2 line
   See 'ob help exit-codes'."####;
 
 pub(super) fn cmd_patch() -> Command {
@@ -866,7 +915,7 @@ pub(super) fn cmd_patch() -> Command {
         true,
         false,
     ))
-    .arg(boolean("dry-run", "Show the change without writing it"))
+    .arg(boolean("dry-run", "Write nothing; print the change"))
     .arg(format(&["text", "json"]))
 }
 const PAGE_PATCH: &str = r####"Apply a JSON Patch
@@ -911,7 +960,7 @@ Arguments:
   <patch>    The RFC 6902 patch: a file, or - for standard input
 
 Options:
-      --dry-run            Show the change without writing it
+      --dry-run            Write nothing; print the change
   -F, --format <format>    Output format: text, or json for a report
                            holding the patch that would apply (with
                            --dry-run) or that was applied [default: text]
@@ -970,7 +1019,7 @@ pub(super) fn cmd_fmt() -> Command {
         "canonical",
         "Print the RFC 8785 form of one document",
     ))
-    .arg(boolean("dry-run", "Show the change without writing it"))
+    .arg(boolean("dry-run", "Write nothing; print the change"))
 }
 const PAGE_FMT: &str = r####"Format documents
 
@@ -1026,7 +1075,7 @@ Arguments:
 Options:
       --check              Change nothing; exit 1 if any file would change
       --canonical          Print the RFC 8785 form of one document
-      --dry-run            Show the change without writing it
+      --dry-run            Write nothing; print the change
   -h, --help               Print help (see a summary with '-h')
 
 Examples:
