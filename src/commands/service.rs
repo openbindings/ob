@@ -117,19 +117,18 @@ Input: each --input writes, in order; then ob closes the input.
   no --input      nothing; ob closes the input at once
 
 Output: each output value, as one line of JSON, as it arrives. --frames
-prints every frame the invocation returns instead, one per line, exactly
-as the Operation Invoker interface defines them and with nothing added:
-each output, the binding closing its input early, and the final
-complete or error frame. A refusal ends with its error frame too; a
-CONTEXT_REQUIRED frame carries the challenge as its data, and the
-binding the call went through is on standard error, as for every call,
-so a script knows where to store the answer. Without --frames, an
-error's message, and any data it carries, go to standard error. The message ends with the error's code, which its error frame
-carries too: an interface's code where one defines the failure, such as
-CONTEXT_REQUIRED, and for ob's own refusals ob's own code for the class
+prints every frame the invocation returns instead, one per line, exactly as
+the Operation Invoker interface defines them and with nothing added: each
+output, the binding closing its input early, and the final complete or error
+frame. A refusal ends with its error frame too; a CONTEXT_REQUIRED frame
+carries the challenge as its data, and the binding the call went through is
+on standard error, as for every call, so a script knows where to store the
+answer. Without --frames, an error's message, and any data it carries, go to
+standard error. The message ends with the error's code, which its error
+frame carries too: an interface's code where one defines the failure, such
+as CONTEXT_REQUIRED, and for ob's own refusals ob's own code for the class
 of refusal, as Exit status lists them: ERR_DOCUMENT_NON_CONFORMANT,
-ERR_DOCUMENT_UNDETERMINED, ERR_UNSUPPORTED_VERSION or
-ERR_EXTERNAL_SCHEMA.
+ERR_DOCUMENT_UNDETERMINED, ERR_UNSUPPORTED_VERSION or ERR_EXTERNAL_SCHEMA.
 
 Choosing a binding: --binding names one; repeat it to give an ordered
 list, and ob uses the first one it can invoke (ob supports its source's
@@ -624,9 +623,9 @@ Options:
 Examples:
   ob kind list
   ob kind list --supports pull
-  ob kind list -F json | jq -r '.kinds[]
-      | select(.supports | index("openbindings.binding-invoker.invokeBinding"))
-      | .kind'
+  ob kind list -F json | jq -r \
+      --arg op openbindings.binding-invoker.invokeBinding \
+      '.kinds[] | select(.supports | index($op)).kind'
 
 Exit status:
   0    listed, including when no kind is supported
@@ -885,13 +884,13 @@ delegate set.
 
 --preference takes JOB=NUMBER and sets this delegate's preference for a
 requested job: any finite number, negative and fractional included, kept
-exactly as given (an explicit zero too). It ranks the delegate under the job's
-rule (ob delegate jobs): at 0, the effective preference without one, it
-comes after built-in support; a positive one puts it ahead of built-in
-support, and a negative one makes it a last resort. It counts for every
-kind the delegate supports for the job and never pins the delegate,
-however large. It belongs to ob's registration and is unrelated to a
-binding's preference in a document.
+exactly as given (an explicit zero too). It ranks the delegate under the
+job's rule (ob delegate jobs): at 0, the effective preference without one,
+it comes after built-in support; a positive one puts it ahead of built-in
+support, and a negative one makes it a last resort. It counts for every kind
+the delegate supports for the job and never pins the delegate, however
+large. It belongs to ob's registration and is unrelated to a binding's
+preference in a document.
 
 -F json prints a report whose delegate member is the registration: id,
 interface (the retained OBI), jobs, and jobPreferences.

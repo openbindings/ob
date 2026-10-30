@@ -802,13 +802,13 @@ Show the dependency under <key>, the consumption point that key
 identifies: the operation it consumes, its kinds constraint, and its
 description.
 
-Declaring a dependency claims that the software the document describes
-sends only input values that satisfy the operation's input schema, and
-takes any output value that satisfies its output schema (§5.4); ob
-operation show shows those schemas. The kinds constraint is an any-of constraint: a
-binding meets it when its source's kind is one of those listed. Without
-kinds, the dependency places no constraint on kind. A dependency names no
-realization to serve it, so none is shown.
+Declaring a dependency claims that the software the document describes sends
+only input values that satisfy the operation's input schema, and takes any
+output value that satisfies its output schema (§5.4); ob operation show
+shows those schemas. The kinds constraint is an any-of constraint: a binding
+meets it when its source's kind is one of those listed. Without kinds, the
+dependency places no constraint on kind. A dependency names no realization
+to serve it, so none is shown.
 
 Then ob prints a hint with the command that checks a candidate for the
 dependency, such as the OBI of a service that might serve it, leaving

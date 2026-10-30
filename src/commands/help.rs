@@ -80,7 +80,7 @@ interface in five maps:
                  command line, or nothing)
   bindings       Each a declaration that an operation is realized through
                  a source, with data read under the source's kind: the
-                 author's claim, not a verified fact
+                 author's claim, which conformance does not judge
   dependencies   Where the software described consumes an operation,
                  optionally limited to some kinds
   schemas        Named JSON Schemas that operations and other schemas
@@ -442,8 +442,8 @@ Usage: ob compat [options] <obi> <shared-contract>
 Check <obi> against a shared contract: for each operation of the shared
 contract, which of <obi>'s operations its published names identify, and
 whether their input and output schemas are compatible under the Schema
-Comparison Profile OB-2020-12. With --dependency, check instead whether <obi> can
-serve a dependency that <shared-contract> declares.
+Comparison Profile OB-2020-12. With --dependency, check instead whether
+<obi> can serve a dependency that <shared-contract> declares.
 
 Options:
       --operation <name>   Check only this operation of the shared
@@ -503,15 +503,15 @@ Exit status:
 Usage: ob merge [options] <obi> <from>
 
 Copy operations from <from> into <obi> with the schemas, bindings and
-sources they need: every named schema their input and output schemas
-reach through references, transitively; their bindings; and the sources
-those bindings go through. Dependencies are not copied: each is a
-consumption point of the software <from> describes. Each operation keeps its key
-and aliases, so an operation copied from a shared contract carries its
-published names, and so claims correspondence with the operation they
-identify there. --operation limits the merge to the operations it names,
-by key or alias in <from>. --no-bindings copies operations and their
-schemas without bindings or sources.
+sources they need: every named schema their input and output schemas reach
+through references, transitively; their bindings; and the sources those
+bindings go through. Dependencies are not copied: each is a consumption
+point of the software <from> describes. Each operation keeps its key and
+aliases, so an operation copied from a shared contract carries its published
+names, and so claims correspondence with the operation they identify there.
+--operation limits the merge to the operations it names, by key or alias in
+<from>. --no-bindings copies operations and their schemas without bindings
+or sources.
 
 Options:
       --operation <name>   Merge only this operation of <from>, named by
@@ -1838,9 +1838,9 @@ Options:
 Examples:
   ob kind list
   ob kind list --supports pull
-  ob kind list -F json | jq -r '.kinds[]
-      | select(.supports | index("openbindings.binding-invoker.invokeBinding"))
-      | .kind'
+  ob kind list -F json | jq -r \
+      --arg op openbindings.binding-invoker.invokeBinding \
+      '.kinds[] | select(.supports | index($op)).kind'
 
 Exit status:
   0    listed, including when no kind is supported

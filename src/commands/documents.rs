@@ -514,8 +514,8 @@ Usage: ob compat [options] <obi> <shared-contract>
 Check <obi> against a shared contract: for each operation of the shared
 contract, which of <obi>'s operations its published names identify, and
 whether their input and output schemas are compatible under the Schema
-Comparison Profile OB-2020-12. With --dependency, check instead whether <obi> can
-serve a dependency that <shared-contract> declares.
+Comparison Profile OB-2020-12. With --dependency, check instead whether
+<obi> can serve a dependency that <shared-contract> declares.
 
 A shared contract is a published set of operations offered for adoption,
 such as another OBI. Its operations' keys and aliases are published
@@ -712,15 +712,15 @@ const PAGE_MERGE: &str = r####"Bring operations in from another document
 Usage: ob merge [options] <obi> <from>
 
 Copy operations from <from> into <obi> with the schemas, bindings and
-sources they need: every named schema their input and output schemas
-reach through references, transitively; their bindings; and the sources
-those bindings go through. Dependencies are not copied: each is a
-consumption point of the software <from> describes. Each operation keeps its key
-and aliases, so an operation copied from a shared contract carries its
-published names, and so claims correspondence with the operation they
-identify there. --operation limits the merge to the operations it names,
-by key or alias in <from>. --no-bindings copies operations and their
-schemas without bindings or sources.
+sources they need: every named schema their input and output schemas reach
+through references, transitively; their bindings; and the sources those
+bindings go through. Dependencies are not copied: each is a consumption
+point of the software <from> describes. Each operation keeps its key and
+aliases, so an operation copied from a shared contract carries its published
+names, and so claims correspondence with the operation they identify there.
+--operation limits the merge to the operations it names, by key or alias in
+<from>. --no-bindings copies operations and their schemas without bindings
+or sources.
 
 ob never rebinds a copied reference silently, and never rewrites one. A
 reference can reach into another operation of <from>, by JSON Pointer,
@@ -793,18 +793,18 @@ key, as ob operation rename rewrites references. What a binding's data
 refers to is read under its source's kind: merge copies the data as it
 is and follows nothing inside it.
 
---onto claims correspondence for an operation you already have, instead
-of copying. It takes exactly one --operation, and adds the name given
-there as an alias of the <obi> operation that --onto names, copying
-nothing else. ob first compares the two operations' input and output
-schemas as ob compat does. It refuses when the comparison establishes that they are
-incompatible, and prints a hint with the ob patch command that adds the
-alias directly, as your own claim (spec §5.1), which ob does not check;
-there is no --force, so --onto always makes a checked claim. It goes
-ahead with a warning when the comparison is indeterminate: carrying a
-name is the author's claim, and only an established incompatibility
-rules it out. It also refuses a name that already identifies another
-operation of <obi>, since no name may identify two operations (OBI-05).
+--onto claims correspondence for an operation you already have, instead of
+copying. It takes exactly one --operation, and adds the name given there as
+an alias of the <obi> operation that --onto names, copying nothing else. ob
+first compares the two operations' input and output schemas as ob compat
+does. It refuses when the comparison establishes that they are incompatible,
+and prints a hint with the ob patch command that adds the alias directly, as
+your own claim (spec §5.1), which ob does not check; there is no --force, so
+--onto always makes a checked claim. It goes ahead with a warning when the
+comparison is indeterminate: carrying a name is the author's claim, and only
+an established incompatibility rules it out. It also refuses a name that
+already identifies another operation of <obi>, since no name may identify
+two operations (OBI-05).
 
 --check-as has ob compat's meaning (see 'ob help compat'), and applies
 to the skip check above, to the both-ways check for bindings, and to

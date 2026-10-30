@@ -3,17 +3,17 @@
   "generator": "design/ob-cli-surface-rethink-2026-10-22/tools/gen_ob_surface.py",
   "domainCommands": 44,
   "sourceHashes": {
-    "help/documents.md": "09d0971d7b22d4baae730147b1e9cec14655f5a13bf9c6b7ac5653ce01992e64",
-    "help/parts.md": "d1b772973583fc4c08993f9551ea439cc86c7a6777cc6492b1b3c40cef8f0781",
-    "help/service.md": "00e0219425ae8ada7af54966f481d1dfbf325b8b44a9e485c60a4cdc0e452b49",
+    "help/documents.md": "c962125a8849f1904ab3af5a7ec673f29370576267938185782ea4121410627c",
+    "help/parts.md": "f2512686b2fe6446423300cb25a17733b94bafb740b8a49aa6c910564383b705",
+    "help/service.md": "d2131c9a5ee894d0c64c94169f03343a94f52d37824f3d3a4bc4658972940402",
     "help/shell.md": "878f1ec2c1b07ee63abfe14b271618263e0cdde60fa7768379c5a7b70b7453a2",
     "help/sources.md": "d63d87ed98051ec637522d3553320981d7b9d29b42760bbd85c749ed441861a4",
-    "README.md": "0599c0466e3a22c2362a7abf593ac99ce517f2b0057f429bacd43f9c2b5f4931"
+    "README.md": "e4aace1f4d2fe89d7a2bb4f909fc2b7a9555052ab9c29a54d86c40b2bdcfdd2f"
   },
   "citationsCheckedAgainst": "0c02c38453badf980dc4170e00ba9389e9acad0cbcb753827d1580d2b62c5572",
   "intentionalDifferences": [
     "Domain commands refuse with exit 3, no document, store, network or process work.",
-    "Help pages are printed as drafted; clap parses the arguments and prints its own usage errors.",
+    "Help pages are printed as drafted; clap parses the arguments, and every usage error is printed in ob's one style (error:, then hint:).",
     "Singleton options reject repeated assignments instead of silent last-write.",
     "Stdin conflicts count only input sources, not literal dashes in descriptions or output paths.",
     "Argument grammar is checked; document, value and policy validation await handlers."

@@ -6,7 +6,6 @@ mod help;
 mod parts;
 mod service;
 // The generator writes a positional's choices as a borrowed array.
-#[allow(clippy::needless_borrows_for_generic_args)]
 mod shell;
 mod sources;
 

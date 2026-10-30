@@ -62,7 +62,7 @@ pub(super) fn cmd_completion() -> Command {
     )
     .arg(
         positional("shell", "bash, zsh, fish, or powershell", true, false).value_parser(
-            clap::builder::PossibleValuesParser::new(&["bash", "zsh", "fish", "powershell"]),
+            clap::builder::PossibleValuesParser::new(["bash", "zsh", "fish", "powershell"]),
         ),
     )
 }
