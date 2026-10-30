@@ -26,12 +26,31 @@ fn input_reference(value: &str) -> bool {
     value == "-" || value.strip_prefix('@').is_some_and(|path| !path.is_empty())
 }
 
+/// Commands that change a document: `-F json` needs `--dry-run` when the
+/// document is read from standard input, since standard output then carries
+/// the document (spine, R5).
+fn edits_document(id: CommandId) -> bool {
+    use CommandId::*;
+    matches!(
+        id,
+        Merge
+            | Patch
+            | OperationRename
+            | OperationRemove
+            | BindingAdd
+            | SchemaRename
+            | SchemaRemove
+            | SchemaBundle
+            | SourceAdd
+            | SourcePull
+            | SourceRename
+            | SourceRemove
+    )
+}
+
 pub(crate) fn validate(id: CommandId, m: &ArgMatches, command: &Command) -> Result<(), String> {
     use CommandId::*;
     let usage = |message: &str| Err(message.to_owned());
-    if matches!(id, Init | Set) && present(m, "version") {
-        return usage("use --interface-version for the document's version label");
-    }
     // Count input sources, not arbitrary '-' strings (a description, operation
     // name, or output path does not consume stdin).
     let mut stdin = 0;
@@ -41,42 +60,23 @@ pub(crate) fn validate(id: CommandId, m: &ArgMatches, command: &Command) -> Resu
             continue;
         }
         for value in values(m, name) {
-            let keyed =
-                id == ContextSet && matches!(name, "credential" | "cookie" | "header" | "config");
             let source = if arg.get_index().is_some() {
                 matches!(
                     name,
                     "obi"
                         | "before"
                         | "after"
-                        | "contract"
+                        | "shared-contract"
                         | "from"
                         | "patch"
-                        | "artifact"
                         | "delegate-obi"
-                ) && id != Init
-            } else {
-                matches!(
-                    name,
-                    "obi"
-                        | "input"
-                        | "output"
-                        | "input-schema"
-                        | "output-schema"
-                        | "content"
                         | "value"
-                        | "context"
-                        | "bearer-token"
-                        | "access-token"
-                        | "refresh-token"
-                        | "api-key"
-                        | "basic"
-                        | "token-credential"
-                )
+                ) && id != Init
+                    && !matches!(id, ContextSet | ContextShow | ContextRemove if name == "obi")
+            } else {
+                matches!(name, "obi" | "input" | "output" | "data" | "context")
             };
-            if source && value == "-"
-                || keyed && value.split_once('=').is_some_and(|(_, v)| v == "-")
-            {
+            if source && value == "-" {
                 stdin += 1;
             }
         }
@@ -84,14 +84,20 @@ pub(crate) fn validate(id: CommandId, m: &ArgMatches, command: &Command) -> Resu
     if stdin > 1 {
         return usage("stdin (-) can supply only one input per command");
     }
+    if edits_document(id)
+        && values(m, "obi").first() == Some(&"-")
+        && values(m, "format").first() == Some(&"json")
+        && !on(m, "dry-run")
+    {
+        return usage(
+            "-F json needs --dry-run when <obi> is -: standard output carries the document",
+        );
+    }
     match id {
         Validate => {
             let input = present(m, "input");
             let output = present(m, "output");
             let examples = on(m, "examples");
-            if input && output {
-                return usage("check one side at a time: --input or --output");
-            }
             if examples && (input || output) {
                 return usage("--examples does not combine with --input or --output");
             }
@@ -101,36 +107,42 @@ pub(crate) fn validate(id: CommandId, m: &ArgMatches, command: &Command) -> Resu
             if present(m, "operation") && !(input || output || examples) {
                 return usage("--operation requires --input, --output, or --examples");
             }
-        }
-        SourcePull => {
-            if present(m, "target") {
-                if values(m, "source").len() != 1 {
-                    return usage("--target requires exactly one source argument");
-                }
-                if on(m, "all-targets") || present(m, "update-operation") {
-                    return usage(
-                        "--target does not combine with --all-targets or --update-operation",
-                    );
-                }
-                if present(m, "operation") && present(m, "new-operation") {
-                    return usage("choose --operation or --new-operation, not both");
-                }
-            } else if ["operation", "new-operation", "binding-key"]
-                .iter()
-                .any(|f| present(m, f))
-            {
-                return usage("--operation, --new-operation, and --binding-key require --target");
+            if present(m, "operation") && values(m, "obi").len() > 1 {
+                return usage("--operation takes one document");
             }
         }
-        Merge if on(m, "ours") && on(m, "theirs") => {
-            return usage("choose --ours or --theirs, not both");
+        Compat => {
+            if present(m, "dependency") && (present(m, "operation") || present(m, "check-as")) {
+                return usage("--dependency does not combine with --operation or --check-as");
+            }
+        }
+        Merge => {
+            if on(m, "ours") && on(m, "theirs") {
+                return usage("choose --ours or --theirs, not both");
+            }
+            if present(m, "onto") && values(m, "operation").len() != 1 {
+                return usage("--onto takes exactly one --operation");
+            }
         }
         Fmt => {
-            if on(m, "check") && (on(m, "canonical") || on(m, "dry-run")) {
-                return usage("--check does not combine with --canonical or --dry-run");
+            if on(m, "canonical") && (on(m, "check") || on(m, "dry-run")) {
+                return usage("--canonical does not combine with --check or --dry-run");
             }
             if on(m, "canonical") && values(m, "obi").len() != 1 {
                 return usage("--canonical prints exactly one document");
+            }
+        }
+        SourcePull => {
+            let force = values(m, "force");
+            if on(m, "check") && (!force.is_empty() || on(m, "prune") || on(m, "dry-run")) {
+                return usage(
+                    "--check writes nothing: it does not combine with --force, --prune, or --dry-run",
+                );
+            }
+            if force.iter().any(|v| v.is_empty()) && force.iter().any(|v| !v.is_empty()) {
+                return usage(
+                    "--force applies every proposal; give --force=<entry> for some, not both",
+                );
             }
         }
         Invoke => {
@@ -141,66 +153,24 @@ pub(crate) fn validate(id: CommandId, m: &ArgMatches, command: &Command) -> Resu
                     "--context takes @FILE or -; context values stay off the command line",
                 );
             }
+            if on(m, "frames") && on(m, "preflight") {
+                return usage("--preflight calls nothing, so it does not combine with --frames");
+            }
         }
         ContextSet => {
-            let fields = [
-                "bearer-token",
-                "access-token",
-                "refresh-token",
-                "api-key",
-                "basic",
-                "credential",
-                "cookie",
-                "header",
-                "config",
-                "unset",
-                "token-provider",
-                "token-credential",
-                "token-binding",
-            ];
-            if present(m, "value") && fields.iter().any(|f| present(m, f)) {
-                return usage(
-                    "--value replaces the whole context and cannot combine with field edits",
-                );
+            if let Some(value) = values(m, "value").first()
+                && !input_reference(value)
+            {
+                return usage("<value> takes @FILE or -; context values stay off the command line");
             }
-            for name in [
-                "value",
-                "bearer-token",
-                "access-token",
-                "refresh-token",
-                "api-key",
-                "basic",
-                "token-credential",
-            ] {
-                if let Some(value) = values(m, name).first()
-                    && !input_reference(value)
-                {
-                    return Err(format!(
-                        "--{name} takes @FILE or -; credential values stay off the command line"
-                    ));
-                }
-            }
-            for value in values(m, "credential") {
-                if !value
-                    .split_once('=')
-                    .is_some_and(|(name, source)| !name.is_empty() && input_reference(source))
-                {
-                    return usage("--credential takes NAME=@FILE or NAME=-");
-                }
-            }
-            for value in values(m, "header") {
-                let Some((name, value)) = value.split_once('=') else {
-                    return usage("--header takes NAME=VALUE");
-                };
-                if ["authorization", "proxy-authorization", "cookie"]
-                    .iter()
-                    .any(|s| name.eq_ignore_ascii_case(s))
-                    && !input_reference(value)
-                {
-                    return usage(
-                        "credential headers take NAME=@FILE or NAME=-; their values stay off the command line",
-                    );
-                }
+        }
+        DelegateSet => {
+            let added = values(m, "add-job");
+            if values(m, "remove-job")
+                .iter()
+                .any(|job| added.contains(job))
+            {
+                return usage("--add-job and --remove-job name the same job");
             }
         }
         _ => {}

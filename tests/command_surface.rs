@@ -31,22 +31,40 @@ fn placeholder(output: &Output) -> String {
 
 #[test]
 fn help_and_version_work_without_a_document() {
-    for args in [
-        vec![],
-        vec!["--help"],
-        vec!["help"],
-        vec!["operation"],
-        vec!["help", "source", "pull"],
-        vec!["source", "pull", "--help"],
-        vec!["invoke", "-h"],
+    // Command help carries a usage line; a help topic is prose and does not.
+    for (args, usage) in [
+        (vec![], true),
+        (vec!["--help"], true),
+        (vec!["help"], true),
+        (vec!["operation"], true),
+        (vec!["help", "source", "pull"], true),
+        (vec!["source", "pull", "--help"], true),
+        (vec!["invoke", "-h"], true),
+        (vec!["source", "add", "-h"], true),
+        (vec!["help", "documents"], false),
+        (vec!["help", "exit-codes"], false),
+        (vec!["help", "output"], false),
     ] {
         let output = ob().args(&args).output().unwrap();
         assert!(output.status.success(), "{args:?}: {output:?}");
         assert!(output.stderr.is_empty(), "{args:?}: {output:?}");
         let help = String::from_utf8(output.stdout).unwrap();
         assert!(help.contains("COMMAND SURFACE ONLY"), "{args:?}: {help}");
-        assert!(help.contains("Usage:"), "{args:?}: {help}");
+        assert_eq!(help.contains("Usage:"), usage, "{args:?}: {help}");
     }
+    // -h is the summary cut; --help is the whole page.
+    let short =
+        String::from_utf8(ob().args(["source", "pull", "-h"]).output().unwrap().stdout).unwrap();
+    let long = String::from_utf8(
+        ob().args(["source", "pull", "--help"])
+            .output()
+            .unwrap()
+            .stdout,
+    )
+    .unwrap();
+    assert!(short.len() < long.len());
+    assert!(short.contains("Exit status:") && long.contains("Exit status:"));
+    assert!(long.contains("Changes are proposals") && !short.contains("Changes are proposals"));
     let output = ob().arg("--version").output().unwrap();
     assert!(output.status.success());
     assert!(
@@ -60,7 +78,34 @@ fn help_and_version_work_without_a_document() {
 }
 
 #[test]
-fn every_frozen_help_example_reaches_the_placeholder_and_covers_all_domain_commands() {
+fn removed_commands_get_a_fixed_hint() {
+    for (args, hint) in [
+        (
+            vec!["synthesize", "openapi.json"],
+            "ob source add adds a source",
+        ),
+        (vec!["source", "status", "x"], "ob source pull --check"),
+        (
+            vec!["kind", "check", "example.openapi@1"],
+            "ob kind list --supports",
+        ),
+        (
+            vec!["operation", "add", "x", "op"],
+            "edit the document in your editor",
+        ),
+        (vec!["version"], "ob --version prints the version"),
+    ] {
+        let output = ob().args(&args).output().unwrap();
+        assert_eq!(output.status.code(), Some(2), "{args:?}: {output:?}");
+        assert!(output.stdout.is_empty());
+        let error = String::from_utf8(output.stderr).unwrap();
+        assert!(error.starts_with("error: ob has no "), "{error}");
+        assert!(error.contains(hint), "{error}");
+    }
+}
+
+#[test]
+fn every_help_example_reaches_the_placeholder_and_covers_all_domain_commands() {
     let examples: Value =
         serde_json::from_str(include_str!("fixtures/command-examples.json")).unwrap();
     let mut reached = BTreeSet::new();
@@ -76,8 +121,8 @@ fn every_frozen_help_example_reaches_the_placeholder_and_covers_all_domain_comma
         let error = placeholder(&output);
         reached.insert(error.split('\'').nth(1).unwrap().to_owned());
     }
-    // The separate Go-derived inventory prevents a missing Rust command from
-    // quietly disappearing from both the test inputs and the expected coverage.
+    // The frozen surface prevents a missing Rust command from quietly
+    // disappearing from both the test inputs and the expected coverage.
     fn collect_paths(command: &Value, paths: &mut BTreeSet<String>) {
         if command["id"].as_str().is_some_and(|s| !s.is_empty()) {
             paths.insert(command["path"].as_str().unwrap().to_owned());
@@ -88,11 +133,11 @@ fn every_frozen_help_example_reaches_the_placeholder_and_covers_all_domain_comma
             }
         }
     }
-    let reference: Value = serde_json::from_str(include_str!("fixtures/go-surface.json")).unwrap();
+    let reference: Value = serde_json::from_str(include_str!("fixtures/surface.json")).unwrap();
     let mut expected = BTreeSet::new();
     collect_paths(&reference, &mut expected);
     assert_eq!(reached, expected);
-    assert_eq!(reached.len(), 73);
+    assert_eq!(reached.len(), 44);
 }
 
 #[test]
@@ -118,26 +163,25 @@ fn completion_scripts_are_real_and_do_not_offer_fixture_names() {
 }
 
 #[test]
-fn argument_errors_are_distinct_and_do_not_echo_supplied_credentials() {
+fn argument_errors_are_distinct_and_do_not_echo_supplied_secrets() {
     for args in [
         vec!["show"],
         vec!["show", "x", "-F", "yaml"],
-        vec!["source", "add", "x", "api"],
-        vec!["init", "--version", "1.0"],
+        vec!["binding", "add", "x", "b"],
         vec!["validate", "-", "--operation", "op", "--input", "-"],
         vec![
             "context",
             "set",
-            "scope",
-            "--bearer-token",
-            "do-not-echo-this",
+            "x",
+            "s",
+            "{\"token\":\"do-not-echo-this\"}",
         ],
         vec![
-            "context",
-            "set",
-            "scope",
-            "--header",
-            "Authorization=do-not-echo-this",
+            "invoke",
+            "x",
+            "op",
+            "--context",
+            "{\"token\":\"do-not-echo-this\"}",
         ],
     ] {
         let output = ob().args(&args).output().unwrap();
@@ -151,9 +195,29 @@ fn argument_errors_are_distinct_and_do_not_echo_supplied_credentials() {
 #[test]
 fn a_literal_dash_outside_an_input_source_does_not_consume_stdin() {
     for args in [
-        vec!["set", "-", "--description", "-"],
-        vec!["synthesize", "-", "--kind", "example@1", "--out", "-"],
-        vec!["operation", "add", "-", "new", "--tag", "-"],
+        vec!["init", "-", "--description", "-"],
+        vec![
+            "source",
+            "add",
+            "-",
+            "k",
+            "--kind",
+            "example@1",
+            "--description",
+            "-",
+        ],
+        vec![
+            "binding",
+            "add",
+            "-",
+            "b",
+            "--operation",
+            "op",
+            "--source",
+            "s",
+            "--description",
+            "-",
+        ],
     ] {
         placeholder(&ob().args(args).output().unwrap());
     }
@@ -164,9 +228,18 @@ fn placeholders_do_not_wait_for_stdin_or_launch_a_service() {
     for args in [
         vec!["show", "-"],
         vec!["invoke", "absent.obi", "operation", "--input", "-"],
-        vec!["context", "set", "scope", "--bearer-token", "-"],
-        vec!["start", "--tls"],
-        vec!["mcp", "absent.obi"],
+        vec!["context", "set", "absent.obi", "s", "-"],
+        vec![
+            "source",
+            "add",
+            "absent.obi",
+            "k",
+            "--kind",
+            "example@1",
+            "--data",
+            "-",
+        ],
+        vec!["source", "pull", "absent.obi"],
     ] {
         let mut child = ob()
             .args(&args)
@@ -225,39 +298,28 @@ fn placeholders_leave_files_unchanged_and_do_not_contact_a_supplied_url() {
     for args in [
         vec!["init", "existing", "--force"],
         vec!["init", "new-document"],
-        vec!["set", "existing", "--name", "Changed"],
         vec!["show", "existing"],
         vec![
-            "schema",
+            "source",
             "add",
             "existing",
-            "Thing",
-            "--value",
-            "@absent-schema",
+            "api",
+            "--kind",
+            "example@1",
+            "--data",
+            "@absent-data",
         ],
-        vec![
-            "context",
-            "set",
-            "scope",
-            "--bearer-token",
-            "@absent-credentials",
-        ],
+        vec!["source", "pull", "existing", "--force"],
+        vec!["context", "set", "existing", "api", "@absent-context"],
         vec!["fetch", &url, "--out", "new-fetch"],
-        vec![
-            "codegen",
-            "existing",
-            "--lang",
-            "typescript",
-            "--out",
-            "new-client",
-            "--force",
-        ],
+        vec!["schema", "bundle", "existing", &url],
     ] {
         let output = ob()
             .args(&args)
             .current_dir(&scratch.0)
             .env("HOME", &scratch.0)
             .env("XDG_CONFIG_HOME", &scratch.0)
+            .env("OB_CONFIG_DIR", &scratch.0)
             .output()
             .unwrap();
         placeholder(&output);

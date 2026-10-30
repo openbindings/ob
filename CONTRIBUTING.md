@@ -30,10 +30,13 @@ One process test opens an ephemeral loopback listener to verify that a supplied
 URL is not contacted. Run the tests in an environment that permits loopback
 sockets; the test must not silently skip that assertion.
 
-The Rust command tree lives in `src/commands/`; argument-only rules live in
-`src/syntax.rs`. `src/main.rs` has a single placeholder dispatch boundary.
-The frozen Go surface is test evidence, not a runtime schema or an authority
-over future design. See [the migration notes](docs/rust-command-surface.md).
+The Rust command tree lives in `src/commands/`, generated from the project's
+CLI design draft and its help pages (see [the surface notes](docs/rust-command-surface.md));
+`src/commands/mod.rs`, `src/syntax.rs` (argument-only rules) and `src/main.rs`
+(one placeholder dispatch boundary) are written by hand. The frozen surface in
+`tests/fixtures/surface.json` is test evidence, not a runtime schema or an
+authority over future design: a change to the surface is a change to the
+draft, regenerated here.
 
 For this phase, keep operational commands explicit placeholders. Do not make a
 stub print a successful-looking result, read a credential store, load documents,

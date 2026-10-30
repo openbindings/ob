@@ -1,140 +1,137 @@
-# Rust command-surface migration
+# Rust command surface
 
 This phase makes the designed CLI surface executable in Rust without
-implementing its domain operations. It can be reviewed independently of the
-ongoing SDK and OpenAPI client API work.
+implementing its domain operations. Help, argument parsing, shell completion
+and the argument grammar are real; every operational command exits 3 and
+performs no operation. The surface can be reviewed, and felt from a terminal,
+independently of the SDK and binding-kind work.
 
 ## Source of the surface
 
-The current default design is `NewNextSurfaceRoot("")` on
-`codex/cli-surface-lab`, at commit
-`11883f42ca92aa0f7743e499b3db644c3b0cb04a`. The migration branch starts from
-`release/0.2` at `103087368e1363bae66841487a038616ab7a8f85`.
-The older `NewV02SurfaceRoot` and alternative lab variants are not the selected
-surface. Neither is the older Go runtime's command tree.
+The surface is the ob CLI draft in the project's design records
+(`design/ob-cli-surface-rethink-2026-10-22/surface/` in the
+openbindings-project container repository): its spine (`README.md`, with the
+root help, the help topics and the command tree) and its help pages
+(`help/documents.md`, `help/parts.md`, `help/sources.md`, `help/service.md`),
+one page per command, which are the full `--help` text as drafted. The draft
+was reviewed over seven rounds, its Sources group rewritten for the 0.2 model
+in which sources returned to the document (the fifth version of its
+`sources-0.2-decisions.md`, 2026-10-30), and its words follow the
+specification, the published interfaces (Operation Invoker, Binding Invoker,
+Source Puller, Kind Descriptor, the context document, Delegate Manager,
+Software Descriptor) and the schema-comparison profile.
 
-[The metadata snapshot](../tests/fixtures/go-surface.json) preserves the
-selected tree, help, flags, argument counts, and examples.
-[Provenance](../tests/fixtures/PROVENANCE.json) records source hashes and
-deliberate differences. Extraction constructed the Cobra tree and inspected
-metadata and argument-count validators; it did not run operational handlers.
-The Rust binary uses ordinary static Rust command definitions, not this JSON.
+The draft's generator, `tools/gen_ob_surface.py` beside it, writes:
 
-The Go tree is preserved on `legacy/go-cli` at the integration base above;
-the original surface lab is preserved on its own branch. The active tree
-contains Rust and its tests, without Go runtime or release machinery. The removed agent primer
-is not reintroduced: integration commit `6c8aeb0` removed it after the lab pin.
+- `src/commands/{documents,parts,sources,service}.rs`: one clap `Command` per
+  page, with its summary, its usage line and its page text, and its positional
+  arguments and options as the page lists them;
+- `src/commands/help.rs`: the root help, the three help topics, and the `-h`
+  summary of every page (its usage, first paragraph, commands, options,
+  examples and exit status);
+- `tests/fixtures/surface.json`: the frozen surface, every path with its
+  arguments and flags;
+- `tests/fixtures/command-examples.json`: the argv of every example on every
+  page, tokenized with the standard shell tokenizer and never executed;
+- `tests/fixtures/PROVENANCE.json`: the hashes of the pages the generation
+  read.
+
+The generated files are checked in and are the source of truth from then on;
+regenerate only when deliberately adopting a changed draft. `src/commands/mod.rs`
+holds the helpers the generated code calls and assembles the root;
+`src/syntax.rs` holds the argument grammar; `src/main.rs` has the removed-command
+hints, the `-h` cut and the one placeholder dispatch boundary. Nothing else is
+generated.
 
 ## What works
 
-- Root, group, and leaf help, including `ob help source pull` and `-h`.
-- The 73 domain command paths, their positionals, flags, short forms, required
-  options, fixed choices, and intended examples.
+- Root, group, leaf and topic help: `ob --help`, `ob source`,
+  `ob help source pull`, `ob source pull --help`, `ob help documents`. `--help`
+  and `ob help <command>` print the drafted page; `-h` prints its summary cut.
+- The 44 domain command paths, their positionals, options, short forms,
+  required options, fixed choices (`-F text|json`, `--check-as`, `--supports`,
+  `--job`), and the examples on their pages.
 - Repeated values in order; explicit booleans such as `--idempotent=false`;
-  signed integer flags; bounded Go-style duration syntax for `--timeout`.
-- Argument-only relationships such as source-pull mode selection, validation
-  input/output selection, credential source syntax, and multiple stdin readers.
+  signed integer `--preference`; bounded Go-style duration syntax for
+  `--timeout`; `--force` alone or `--force=<entry>`, repeatable.
+- Argument-only relationships: validate's mode selection, compat's
+  `--dependency`, merge's `--onto` and `--ours`/`--theirs`, fmt's `--canonical`,
+  source pull's `--check` and the two `--force` forms, invoke's `--context`
+  source and `--frames` with `--preflight`, context set's value source,
+  delegate set's job changes, `-F json` on a document read from standard
+  input, and more than one reader of standard input.
+- Removed and renamed commands (`ob synthesize`, `ob source status`,
+  `ob kind check`, `ob operation add`, `ob version`, ...) get the draft's
+  fixed hint and exit 2.
 - Version output and Bash, Zsh, Fish, and PowerShell completion scripts.
 
 Payload text remains opaque. Inline JSON is not parsed or rounded by the CLI
-shell; `@FILE` is not opened; URLs are not fetched. Accepting command syntax
-does not validate a document, schema, context value, name, or binding kind.
-Document-derived completions also await operational implementation.
+shell; `@FILE` is not opened; URLs are not fetched; standard input is not read.
+Accepting command syntax does not validate a document, schema, context object,
+name, or kind.
 
 | Exit | Current meaning |
 | --- | --- |
 | `0` | Help, version, or completion output succeeded |
 | `1` | Output I/O failed (a closed output pipe is handled quietly) |
-| `2` | Argument parsing or argument-only validation failed |
+| `2` | Argument parsing or argument-only validation failed, or a removed command was named |
 | `3` | A domain command reached the unimplemented boundary; no operation ran |
 
 All accepted domain requests leave stdout empty and explain the placeholder on
-stderr. This also applies to `--quiet`, `--dry-run`, `-F json`, `describe`,
-`start`, and credential commands. There are no sample success records. Exit
-codes described in the operational help are future behavior, not current
+stderr. This also applies to `--quiet`, `--dry-run`, `-F json`, `--check`,
+`--preflight` and `describe`. There are no sample success records. Exit codes
+described in the operational help are future behavior, not current
 capability. Help carries a conspicuous notice about that distinction.
 
 ## Deliberate limits and differences
 
-- Clap provides Rust-native parsing, help layout, suggestions, and static
-  completion generation. Help is not a byte-for-byte Cobra rendering.
+- Clap parses; the drafted page is printed as written for `--help`, so help is
+  byte-faithful to the draft, while usage errors use clap's own wording with
+  the page's usage line.
 - A repeated singleton option is an error; repeatable options append in order.
-- Stdin conflicts count actual input sources. A literal `-` in a description,
-  tag, or output path does not consume stdin.
-- The metadata's hidden `init/set --version` flag produces the intended
-  `--interface-version` guidance; the binary's version is `ob --version`.
-- The lab's simulated state, sample handlers, alternate trees, fixture-derived
-  name completion, and custom near-miss messages are not copied.
-- Value validity, document semantics, field-edit conflicts, URL policies,
-  credential storage, and runtime capability checks belong to future handlers.
-  No permissive parser result establishes their policy.
-
-The lab includes proposals about named credentials/configuration typing,
-`kind check` without a role, compatibility direction, and `start` run records.
-Their surface text is preserved as design material. This migration does not
-ratify those behavioral policies. The placeholder `codegen --lang` choices
-remain `go` and `typescript`; rewriting the CLI in Rust does not implement a
-Rust client generator.
+- Stdin conflicts count actual input sources. A literal `-` in a description
+  or output path does not consume stdin.
+- Interactive prompts (a kind's source schema, a context challenge, the
+  confirmation before a check that executes) are described, not implemented.
+- Value validity, document semantics, URL policies, the context store, and
+  runtime capability checks belong to future handlers. No permissive parser
+  result establishes their policy.
 
 ## Internal shape and next phase
 
-`src/commands/{documents,parts,service}.rs` defines the surface using Clap's
-builder API. Small helpers keep common flags consistent. `src/syntax.rs`
-contains only argument grammar. `CommandId` identifies each domain leaf, and
-`main.rs` contains one dispatch boundary. There is no SDK, async runtime,
-HTTP client, document codec, credential store, or server dependency yet.
+`CommandId` identifies each domain leaf, and `main.rs` contains one dispatch
+boundary. There is no SDK, async runtime, HTTP client, document codec, context
+store, or server dependency yet.
 
 When an operation is ready to implement, introduce its typed request and
 handler at that boundary. Keep parsing and help available without initializing
-host services. The CLI/application layer will compose the Rust SDK with optional
-discovery/evaluation support and binding-kind adapters. An OpenAPI adapter may
-use the standalone OpenAPI client; neither that client nor application policy
-belongs in SDK core. A shared Rust application library can be extracted when
-implemented commands and another real consumer justify it.
-
-The next useful implementation slice is a read-only document workflow, with
-real input/output and error contracts. It should be chosen after the SDK API
-work settles enough to consume it. This branch does not constrain that API or
-race the ongoing SDK work. Rust CI now qualifies this shell on Linux, macOS, and Windows. Rust binary
-packaging and publication remain future work; the Go release path is retired.
+host services. The CLI/application layer will compose the Rust SDK with the
+optional discovery and evaluation companions and binding-kind adapters. The
+next useful implementation slice is a read-only document workflow (`show`,
+`validate`, the `list` and `show` commands of each part), then `source add`
+and `source pull` over the Kind Descriptor and Source Puller.
 
 ## Verification
 
-`cargo test --locked` checks the Rust inventory against the independent frozen
-Go metadata, executes all 127 help-example command lines, and verifies that
-they collectively reach all 73 placeholders. Further tests check grammar,
-explicit false values, ordered repetitions, exact payload spellings, help,
-completions, credential error messages, unchanged files, no connection to a
-supplied loopback URL, and prompt exit while stdin remains open.
+`cargo test --locked` checks the Rust tree against the frozen surface, runs all
+154 help-example command lines and verifies that they collectively reach all 44
+placeholders, and checks grammar, explicit false values, ordered repetitions,
+exact payload spellings, help lengths, removed-command hints, completions,
+secret-free usage errors, unchanged files, no connection to a supplied
+loopback URL, and prompt exit while stdin remains open. Rust CI runs these on
+Linux, macOS, and Windows.
 
-The example argv fixture is derived with Python's standard-library shell
-tokenizer. To regenerate it from the preserved metadata:
-
-```sh
-python3 scripts/extract_surface_examples.py
-```
-
-That script never executes the shell examples, redirects files, expands globs,
-or feeds the example credentials anywhere. Neither the script nor Python is
-required for ordinary Rust builds or tests. The checked-in fixtures are frozen
-source evidence; change them only when deliberately adopting a new surface.
+The checked-in fixtures are frozen source evidence; change them by
+regenerating from a deliberately adopted draft revision.
 
 See [CONTRIBUTING.md](../CONTRIBUTING.md) for the full Rust check commands.
-These checks qualify the shell, not SDK integration, operational parity,
+These checks qualify the shell, not SDK integration, operational behavior,
 cross-platform distribution, performance targets, or a Rust release.
 
-## Canonical source cutover
+## History
 
-The maintainer approved making this surface the canonical development CLI on
-2026-10-09. `release/0.2` remains the integration branch and becomes the GitHub
-default, so new readers see Rust. Go source, runtime descriptors, browser
-bundles, Go qualification scripts, and Go release machinery move out of the
-active tree together; their exact prior tree survives in
-[the legacy record](legacy-go.md). Existing release tags and the historical
-`main` branch are not rewritten.
-
-This cutover deliberately replaces the implementation before operational
-parity. The new checks qualify only the stated Rust command surface. Legacy
-Go operational tests remain preserved with their implementation; their old
-results are not evidence for Rust behavior. No SDK/OpenAPI changes or historical
-cohort promotion are part of this cutover.
+The first Rust surface (2026-10-09) transcribed the frozen Go surface of the
+`codex/cli-surface-lab` branch, 73 commands, as the canonical development CLI.
+That transcription was replaced on 2026-10-30 by the generated draft surface
+described above. The Go implementation is preserved on `legacy/go-cli`; see
+[the preservation record](legacy-go.md).

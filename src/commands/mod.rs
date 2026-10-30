@@ -1,110 +1,86 @@
+// The command surface: one clap Command per page of the surface draft. The
+// family modules are generated from the draft's help pages; this module holds
+// the helpers they call and assembles the root.
 mod documents;
+mod help;
 mod parts;
 mod service;
+mod sources;
+
+pub(crate) use help::{ROOT_HELP, summary};
 
 use clap::{Arg, ArgAction, Command};
 
-const NOTICE: &str = "COMMAND SURFACE ONLY: operational commands are not implemented.\nThe descriptions below specify intended behavior. No document, file, credential\nstore, or service is read or changed. Accepted operational requests exit 3.";
+pub(crate) const NOTICE: &str = "COMMAND SURFACE ONLY: operational commands are not implemented.\nThe help below specifies intended behavior. No document, file, context\nstore, or service is read or changed. Accepted operational requests exit 3.";
+
+/// The help topics `ob help documents`, `ob help exit-codes` and `ob help output`.
+pub(crate) const TOPICS: [(&str, &str); 3] = [
+    ("documents", help::TOPIC_DOCUMENTS),
+    ("exit-codes", help::TOPIC_EXIT_CODES),
+    ("output", help::TOPIC_OUTPUT),
+];
 
 pub(crate) fn root() -> Command {
     let mut commands: Vec<_> = documents::commands()
         .into_iter()
         .chain(parts::commands())
+        .chain(sources::commands())
         .chain(service::commands())
         .collect();
     commands.push(completion());
-    let mut help = format!(
-        "Work with OpenBindings interface documents\n\n{NOTICE}\n\nUsage: ob <COMMAND>\n\nStart here:\n  ob init --help\n  ob show --help\n  ob validate --help\n  ob invoke --help\n"
-    );
-    for heading in [
-        "Documents",
-        "Parts of a document",
-        "Sources",
-        "Using a service",
-        "Advanced",
-    ] {
-        help.push_str(&format!("\n{heading}:\n"));
-        for c in commands
-            .iter()
-            .filter(|c| root_heading(c.get_name()) == heading)
-        {
-            help.push_str(&format!(
-                "  {:14} {}\n",
-                c.get_name(),
-                c.get_about().expect("command summary")
-            ));
-        }
+    for (name, text) in TOPICS {
+        commands.push(
+            Command::new(name)
+                .about("Help topic")
+                .hide(true)
+                .override_usage(format!("ob help {name}"))
+                .override_help(format!("{NOTICE}\n\n{text}")),
+        );
     }
-    help.push_str("\nOptions:\n  -h, --help       Print help\n  -V, --version    Print this build's version\n\nUse ob help <command> or ob <command> --help for command details.\nHelp, version, and completion generation work. Other commands exit 3 without\nrunning an operation; invalid arguments exit 2. No filename extension is assumed.\n");
     Command::new("ob")
         .version(concat!(
             env!("CARGO_PKG_VERSION"),
             " (command surface only)"
         ))
         .about("Work with OpenBindings interface documents")
-        .override_help(help)
+        .override_usage("ob <command> [options]")
+        .override_help(format!("{NOTICE}\n\n{ROOT_HELP}"))
         .subcommands(commands)
 }
 
-fn root_heading(name: &str) -> &str {
-    match name {
-        "init" | "show" | "set" | "validate" | "diff" | "compat" | "fmt" | "patch" | "merge" => {
-            "Documents"
-        }
-        "operation" | "source" | "binding" | "dependency" | "schema" => "Parts of a document",
-        "synthesize" | "status" => "Sources",
-        "fetch" | "invoke" | "context" => "Using a service",
-        _ => "Advanced",
-    }
+/// A command whose `--help` is its drafted page, printed as written. Clap
+/// still parses the arguments declared on it and prints its own usage errors.
+fn page(
+    name: &'static str,
+    summary: &'static str,
+    text: &'static str,
+    usage: &'static str,
+) -> Command {
+    Command::new(name)
+        .about(summary)
+        .override_usage(usage)
+        .override_help(format!("{NOTICE}\n\n{text}"))
 }
 
 fn leaf(
     name: &'static str,
     summary: &'static str,
-    description: &'static str,
-    examples: &'static str,
+    text: &'static str,
+    usage: &'static str,
 ) -> Command {
-    let command = Command::new(name)
-        .about(summary)
-        .long_about(format!("{NOTICE}\n\n{description}"))
-        .after_help(NOTICE);
-    if examples.is_empty() {
-        command.after_long_help("")
-    } else {
-        command.after_long_help(format!("Examples (intended workflows):\n{examples}"))
-    }
+    page(name, summary, text, usage)
 }
 
 fn group(
     name: &'static str,
     summary: &'static str,
-    description: &'static str,
-    examples: &'static str,
+    text: &'static str,
+    usage: &'static str,
 ) -> Command {
-    leaf(name, summary, description, examples)
+    page(name, summary, text, usage)
 }
 
-fn position(name: &'static str, required: bool, repeated: bool) -> Arg {
-    let help = match name {
-        "obi" => "OpenBindings document (see input/output rules above)",
-        "before" => "Document before the change",
-        "after" => "Document after the change",
-        "contract" => "Contract document to check against",
-        "from" => "Document to merge from",
-        "patch" => "JSON Patch file, or - for stdin",
-        "name" => "Entry name",
-        "new-name" => "New entry name",
-        "operation" => "Operation name or alias",
-        "source" => "Source name (repeatable)",
-        "artifact" => "Artifact path or URL",
-        "uri" => "Schema URI (repeatable)",
-        "url" => "Service or document URL",
-        "scope" => "Context scope",
-        "kind" => "Exact binding-kind identifier",
-        "delegate-obi" => "Delegate's OpenBindings document",
-        "id" => "Delegate registration ID",
-        _ => name,
-    };
+fn positional(name: &'static str, help: &'static str, required: bool, repeated: bool) -> Arg {
     let arg = Arg::new(name)
         .value_name(name)
         .help(help)
@@ -146,6 +122,26 @@ fn duration(name: &'static str, help: &'static str) -> Arg {
     text(name, help)
         .allow_negative_numbers(true)
         .value_parser(crate::syntax::duration)
+}
+
+fn choice(name: &'static str, help: &'static str, allowed: &'static [&'static str]) -> Arg {
+    text(name, help).value_parser(clap::builder::PossibleValuesParser::new(
+        allowed.iter().copied(),
+    ))
+}
+
+/// `--name` alone, or `--name=<value>`, repeatable: `--force` applies every
+/// proposal and `--force=<entry>` a named one. An empty value stands for
+/// "every"; the grammar refuses the two forms together.
+fn optional_value(name: &'static str, help: &'static str, value: &'static str) -> Arg {
+    Arg::new(name)
+        .long(name)
+        .help(help)
+        .value_name(value)
+        .num_args(0..=1)
+        .require_equals(true)
+        .default_missing_value("")
+        .action(ArgAction::Append)
 }
 
 fn format(allowed: &'static [&'static str]) -> Arg {

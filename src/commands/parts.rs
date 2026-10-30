@@ -1,1060 +1,1232 @@
-// Command declarations migrated from the pinned default Go surface.
+// Generated from the ob surface draft's help pages by gen_ob_surface.py; do not edit by hand.
 use super::*;
 
 pub(super) fn commands() -> Vec<Command> {
     vec![
         cmd_operation(),
-        cmd_source(),
         cmd_binding(),
         cmd_dependency(),
         cmd_schema(),
     ]
 }
 
-fn cmd_operation() -> Command {
+pub(super) fn cmd_operation() -> Command {
     group(
         "operation",
-        "Add, change, and remove operations",
-        OPERATION_HELP,
-        OPERATION_EXAMPLES,
+        "Read, rename, and remove operations",
+        PAGE_OPERATION,
+        "ob operation <command> [options]",
     )
-    .subcommand(cmd_operation_add())
-    .subcommand(cmd_operation_set())
-    .subcommand(cmd_operation_rename())
-    .subcommand(cmd_operation_remove())
     .subcommand(cmd_operation_list())
     .subcommand(cmd_operation_show())
-    .subcommand(cmd_operation_example())
+    .subcommand(cmd_operation_rename())
+    .subcommand(cmd_operation_remove())
 }
+const PAGE_OPERATION: &str = r####"Read, rename, and remove operations
 
-const OPERATION_HELP: &str = r#"An operation is a protocol-independent contract: a name, and optional
-schemas for each input and output value. Bindings say how to carry it out;
-dependencies say where it is called."#;
-const OPERATION_EXAMPLES: &str = "";
+Usage: ob operation <command> [options]
 
-fn cmd_operation_add() -> Command {
+An operation is a named, protocol-independent capability contract under a
+key in operations: what a service can do, with an optional input contract
+and output contract that govern each value crossing its boundary (§3,
+§5.1). Its key and its aliases are its identifiers, and a name identifies
+the operation when it equals one of them (§5.1). Bindings declare
+realizations of an operation (§5.3), and dependencies name points where
+the described component consumes one (§5.5).
+
+Commands here read operations, and rename or remove one while accounting
+for every reference to it. You add an operation or change its fields
+(description, aliases, tags, deprecation, input, output, examples) in your
+editor, then run ob validate to check the result; scripts use ob patch,
+which refuses a change that breaks a rule the document met.
+
+Commands:
+  list      List operations, and how each is realized and consumed
+  show      Show one operation, named by its key or an alias
+  rename    Change an operation's key and every reference to it
+  remove    Remove an operation
+
+Options:
+  -h, --help    Print help (see a summary with '-h')
+
+Run 'ob operation <command> --help' for details."####;
+
+pub(super) fn cmd_operation_list() -> Command {
     leaf(
-        "add",
-        "Add an operation",
-        OPERATION_ADD_HELP,
-        OPERATION_ADD_EXAMPLES,
+        "list",
+        "List operations, and how each is realized and consumed",
+        PAGE_OPERATION_LIST,
+        "ob operation list [options] <obi>",
     )
-    .arg(position("obi", true, false))
-    .arg(position("name", true, false))
-    .arg(repeated(
-        "alias",
-        "another name the operation answers to (repeatable)",
+    .arg(positional(
+        "obi",
+        "The document: a path, - for standard input, or a URL",
+        true,
+        false,
     ))
-    .arg(boolean("deprecated", "mark the operation deprecated"))
-    .arg(text("description", "what the operation does"))
-    .arg(boolean("dry-run", "show the change without writing it"))
-    .arg(text(
-        "input-schema",
-        "schema for each input value: JSON, @file, or -",
-    ))
-    .arg(text(
-        "output-schema",
-        "schema for each output value: JSON, @file, or -",
-    ))
-    .arg(repeated("tag", "a documentation tag (repeatable)"))
+    .arg(format(&["text", "json"]))
 }
+const PAGE_OPERATION_LIST: &str = r####"List operations, and how each is realized and consumed
 
-const OPERATION_ADD_HELP: &str = r#"Add an operation: a protocol-independent contract, with an optional schema
-for each input value and each output value. Leaving a schema out leaves that
-side unspecified. Aliases are other names the operation answers to, such as a
-shared contract's name for it.
+Usage: ob operation list [options] <obi>
 
-Changes <obi> in place. Give - as <obi> to read a document from stdin and
-print the result instead, or use --dry-run to see the change without
-writing it."#;
-const OPERATION_ADD_EXAMPLES: &str = r##"  ob operation add tasks.obi.json archiveTask --description "Archive a task." \
-      --input-schema '{"type":"object","properties":{"id":{"type":"string"}},"required":["id"]}' \
-      --output-schema '{"$ref":"#/schemas/Task"}'"##;
+List each operation in document order: its key, its aliases, whether it
+states an input contract and an output contract, the bindings that declare
+realizations of it, the dependencies that consume it, and whether it is
+deprecated.
 
-fn cmd_operation_set() -> Command {
-    leaf("set","Change an operation",OPERATION_SET_HELP,OPERATION_SET_EXAMPLES)
-.arg(position("obi", true, false))
-.arg(position("name", true, false))
-.arg(repeated("add-alias","add an alias (repeatable)"))
-.arg(repeated("add-tag","add a tag (repeatable)"))
-.arg(boolean("deprecated","mark deprecated; --deprecated=false marks it current"))
-.arg(text("description","what the operation does"))
-.arg(boolean("dry-run","show the change without writing it"))
-.arg(text("input-schema","schema for each input value: JSON, @file, or -"))
-.arg(text("output-schema","schema for each output value: JSON, @file, or -"))
-.arg(repeated("remove-alias","remove an alias (repeatable)"))
-.arg(repeated("remove-tag","remove a tag (repeatable)"))
-.arg(repeated("unset","remove a member: input-schema, output-schema, description, deprecated, aliases, tags, examples"))
+An operation with bindings is realized, and one a dependency names is
+consumed. An operation can be both, or neither.
+
+With -F json, the report's operations array lists the same facts in
+document order. A member copied from the document keeps its presence:
+an operation with no aliases has no aliases member, and deprecated
+appears only when the operation states it. bindings and dependencies
+are always present, possibly empty.
+
+In a document that does not conform, ob warns once and lists an operation
+whose shape is wrong as unreadable, with its location (see
+'ob help documents'). In JSON, such an entry is
+
+  {"key": "<key>", "unreadable": true, "location": {...}}
+
+and when the document's operations member is not an object, the
+report's operations member, instead of an array, is
+
+  {"unreadable": true, "location": {...}}
+
+Arguments:
+  <obi>         The document: a path, - for standard input, or a URL
+
+Options:
+  -F, --format <format>    Output format: text or json [default: text]
+  -h, --help               Print help (see a summary with '-h')
+
+Examples:
+  ob operation list tasks.obi.json
+  ob operation list acme-tasks.obi.json
+  ob operation list https://api.example.com -F json
+
+Exit status:
+  0    listed
+  1    no OBI is published at the URL given
+  2    the arguments are wrong, or <obi> cannot be read or fetched
+  3    refused: the document declares a version outside the 0.2 line
+  See 'ob help exit-codes'."####;
+
+pub(super) fn cmd_operation_show() -> Command {
+    leaf(
+        "show",
+        "Show one operation, named by its key or an alias",
+        PAGE_OPERATION_SHOW,
+        "ob operation show [options] <obi> <name>",
+    )
+    .arg(positional(
+        "obi",
+        "The document: a path, - for standard input, or a URL",
+        true,
+        false,
+    ))
+    .arg(positional(
+        "name",
+        "The operation's key or any of its aliases",
+        true,
+        false,
+    ))
+    .arg(text("example", "Show only this example of the operation").value_name("key"))
+    .arg(format(&["text", "json"]))
 }
+const PAGE_OPERATION_SHOW: &str = r####"Show one operation, named by its key or an alias
 
-const OPERATION_SET_HELP: &str = r#"Change an operation's description, schemas, aliases, tags, or deprecation.
-Only the flags you give change anything. --unset removes a member, named as
-its flag is (input-schema, output-schema, description, deprecated) or as the
-whole list (aliases, tags, examples); unsetting a schema leaves that side
-unspecified. Removing an alias or tag the operation does not have is a
-usage error (exit 2).
+Usage: ob operation show [options] <obi> <name>
 
-Changes <obi> in place. Give - as <obi> to read a document from stdin and
-print the result instead, or use --dry-run to see the change without
-writing it."#;
-const OPERATION_SET_EXAMPLES: &str = r#"  ob operation set tasks.obi.json createTask --add-alias acme.tasks.addTask
-  ob operation set tasks.obi.json listTasks --deprecated
-  ob operation set tasks.obi.json completeTask --unset output-schema"#;
+Show the operation that <name> identifies, by its key or any of its
+aliases (§5.1): its description, identifiers, input and output
+contracts, examples, bindings and dependencies. --example shows one of
+its examples alone.
 
-fn cmd_operation_rename() -> Command {
+The text shows:
+
+  - its key, description and tags, and whether it is deprecated;
+  - its aliases, the other names that identify it, such as the published
+    names it carries. Carrying a shared contract's published name claims
+    correspondence with that contract's operation (§5.1); ob compat
+    checks such claims;
+  - its input contract and output contract: the schema that states each,
+    with references shown as written, or that none is stated;
+  - its examples, each with the input and output values it gives, which
+    ob validate --examples checks;
+  - its bindings, each with its source and kind;
+  - the dependencies that consume it, each with its kinds constraint.
+
+--example <key> shows only the example under <key> in the operation's
+examples, with the input and output values it gives. A key the
+operation has no example under is a usage error (exit 2), with a
+suggestion when one is close.
+
+-F json prints the operation as stored, every value spelled exactly, and
+nothing else; with --example, it prints that example as stored. The
+operation's bindings and dependencies are stored elsewhere in the
+document, so they are not included; ob binding list --operation lists
+its bindings.
+
+Arguments:
+  <obi>         The document: a path, - for standard input, or a URL
+  <name>        The operation's key or any of its aliases
+
+Options:
+      --example <key>      Show only this example of the operation
+  -F, --format <format>    Output format: text, or json for the operation
+                           as stored (with --example, the example)
+                           [default: text]
+  -h, --help               Print help (see a summary with '-h')
+
+Examples:
+  ob operation show tasks.obi.json createTask
+  ob operation show tasks.obi.json acme.tasks.listTasks
+  ob operation show tasks.obi.json notifications.send -F json
+  ob operation show tasks.obi.json createTask --example basic -F json
+
+Exit status:
+  0    shown
+  1    no OBI is published at the URL given
+  2    the arguments are wrong, <obi> cannot be read or fetched, <name>
+       identifies no operation, or the operation has no example under
+       the --example key
+  3    refused: <name> identifies two operations (OBI-05), the document
+       declares a version outside the 0.2 line
+  See 'ob help exit-codes'."####;
+
+pub(super) fn cmd_operation_rename() -> Command {
     leaf(
         "rename",
-        "Rename an operation",
-        OPERATION_RENAME_HELP,
-        OPERATION_RENAME_EXAMPLES,
+        "Change an operation's key and every reference to it",
+        PAGE_OPERATION_RENAME,
+        "ob operation rename [options] <obi> <name> <new-name>",
     )
-    .arg(position("obi", true, false))
-    .arg(position("name", true, false))
-    .arg(position("new-name", true, false))
-    .arg(boolean("dry-run", "show the change without writing it"))
+    .arg(positional(
+        "obi",
+        "The document to change: a path, or - for standard input",
+        true,
+        false,
+    ))
+    .arg(positional("name", "The operation's key", true, false))
+    .arg(positional("new-name", "Its new key", true, false))
+    .arg(boolean(
+        "keep-alias",
+        "Keep the old key as an alias of the operation",
+    ))
+    .arg(boolean("dry-run", "Write nothing; print the change"))
+    .arg(format(&["text", "json"]))
 }
+const PAGE_OPERATION_RENAME: &str = r####"Change an operation's key and every reference to it
 
-const OPERATION_RENAME_HELP: &str = r#"Rename an operation's key, and update every binding and dependency that
-uses it. Nothing else changes: its aliases stay as they are, and the old
-name is gone. To keep answering to the old name, add it as an alias
-afterwards with ob operation set --add-alias.
+Usage: ob operation rename [options] <obi> <name> <new-name>
 
-Changes <obi> in place. Give - as <obi> to read a document from stdin and
-print the result instead, or use --dry-run to see the change without
-writing it."#;
-const OPERATION_RENAME_EXAMPLES: &str = "  ob operation rename tasks.obi.json createTask addTask";
+Change the key of the operation <name> to <new-name>, and update every
+reference to it in the document: the operation field of each binding
+and dependency that names it, and each same-document reference in the
+document resource that points into the operation, however it is
+spelled, such as {"$ref": "#/operations/createTask/input"} (§7.3).
+--keep-alias also keeps the old key as an alias, so it still identifies
+the operation.
 
-fn cmd_operation_remove() -> Command {
+Its other fields stay as they are, and so do its aliases unless
+--keep-alias adds one: a plain rename only renames. ob changes only the
+references the spec defines: data, descriptions and extension fields
+are left alone, as is anything outside the document that uses the old
+name, such as a script that runs ob invoke with it.
+
+The old name then stops identifying the operation. If it was a shared
+contract's published name, the operation no longer claims correspondence
+through it. --keep-alias prevents that: it adds the old key to the
+operation's aliases, creating the array when there is none, in the same
+atomic write as the rename. This never breaks a rule the document met:
+the old key was already unique and well-formed.
+
+To keep the old name afterwards, or by hand, add it as an alias in your
+editor or with ob patch. One RFC 6902 patch cannot both append to an
+aliases array and create one, so the patch takes one of two shapes
+(<old> is the old key, <new> the new one):
+
+  when the operation has aliases:
+    [{"op":"add","path":"/operations/<new>/aliases/-","value":"<old>"}]
+  when it has none:
+    [{"op":"add","path":"/operations/<new>/aliases","value":["<old>"]}]
+
+<name> must be the key: given an alias, rename refuses and names the
+operation whose alias it is. It refuses a <new-name> that already
+identifies an operation, one of this operation's aliases included
+(OBI-05), or that does not match the name grammar (OBI-04).
+
+Like every edit, it changes <obi> in place, or filters - to standard
+output, keeps the bytes it does not change, refuses a result that breaks
+a rule the document met, and warns about an example it makes fail (see
+'ob help documents'). --dry-run prints the change instead of writing
+it. The summary on standard error names the alias --keep-alias added.
+With -F json, the report adds the arrays renamed (the old key and the
+new), updated (the locations of the references it updated) and, with
+--keep-alias, aliasesAdded (the location of the alias added).
+
+Arguments:
+  <obi>         The document to change: a path, or - for standard input
+  <name>        The operation's key
+  <new-name>    Its new key
+
+Options:
+      --keep-alias         Keep the old key as an alias of the operation
+      --dry-run            Write nothing; print the change
+  -F, --format <format>    Output format: text (with --dry-run, a unified
+                           diff) or json (a report holding the RFC 6902
+                           patch that would apply, or that was applied)
+                           [default: text]
+  -h, --help               Print help (see a summary with '-h')
+
+Examples:
+  ob operation rename tasks.obi.json createTask addTask --keep-alias
+  ob operation rename tasks.obi.json createTask addTask
+  ob operation rename tasks.obi.json completeTask finishTask --dry-run
+  ob operation rename tasks.obi.json listTasks findTasks --dry-run -F json
+  ob operation rename - listTasks findTasks < tasks.obi.json > next.obi.json
+
+Exit status:
+  0    renamed, or no change (<new-name> is already its key)
+  2    the arguments are wrong, such as -F json without --dry-run when
+       <obi> is -; <obi> is a URL or cannot be read; or <name>
+       identifies no operation
+  3    refused: <name> is an alias or identifies two operations,
+       <new-name> is taken or breaks the name grammar, the result would
+       break another rule, or the document declares a version outside the
+       0.2 line; nothing was written
+  See 'ob help exit-codes'."####;
+
+pub(super) fn cmd_operation_remove() -> Command {
     leaf(
         "remove",
         "Remove an operation",
-        OPERATION_REMOVE_HELP,
-        OPERATION_REMOVE_EXAMPLES,
+        PAGE_OPERATION_REMOVE,
+        "ob operation remove [options] <obi> <name>",
     )
-    .arg(position("obi", true, false))
-    .arg(position("name", true, false))
+    .arg(positional(
+        "obi",
+        "The document to change: a path, or - for standard input",
+        true,
+        false,
+    ))
+    .arg(positional("name", "The operation's key", true, false))
     .arg(boolean(
         "cascade",
-        "also remove the bindings and dependencies that use it",
+        "Also remove the bindings and dependencies that name the operation",
     ))
-    .arg(boolean("dry-run", "show the change without writing it"))
-}
-
-const OPERATION_REMOVE_HELP: &str = r#"Remove an operation, named by its key. It refuses while bindings or
-dependencies use the operation; --cascade removes those too. Given an alias,
-it refuses and says whose alias it is: an alias goes with ob operation set
---remove-alias.
-
-Changes <obi> in place. Give - as <obi> to read a document from stdin and
-print the result instead, or use --dry-run to see the change without
-writing it."#;
-const OPERATION_REMOVE_EXAMPLES: &str =
-    "  ob operation remove tasks.obi.json completeTask --cascade";
-
-fn cmd_operation_list() -> Command {
-    leaf(
-        "list",
-        "List operations",
-        OPERATION_LIST_HELP,
-        OPERATION_LIST_EXAMPLES,
-    )
-    .arg(position("obi", true, false))
+    .arg(boolean("dry-run", "Write nothing; print the change"))
     .arg(format(&["text", "json"]))
 }
+const PAGE_OPERATION_REMOVE: &str = r####"Remove an operation
 
-const OPERATION_LIST_HELP: &str =
-    "List operations with their aliases and how each is realized or consumed.";
-const OPERATION_LIST_EXAMPLES: &str = "  ob operation list tasks.obi.json";
+Usage: ob operation remove [options] <obi> <name>
 
-fn cmd_operation_show() -> Command {
-    leaf(
-        "show",
-        "Show an operation",
-        OPERATION_SHOW_HELP,
-        OPERATION_SHOW_EXAMPLES,
-    )
-    .arg(position("obi", true, false))
-    .arg(position("name", true, false))
-    .arg(format(&["text", "json"]))
-}
+Remove the operation <name>, with its aliases and examples. Its names
+stop identifying anything, and any correspondence it claimed through them
+goes with it.
 
-const OPERATION_SHOW_HELP: &str = r#"Show an operation, looked up by name or alias, with the bindings that
-realize it. -F json prints the exact stored operation."#;
-const OPERATION_SHOW_EXAMPLES: &str = r#"  ob operation show tasks.obi.json createTask
-  ob operation show tasks.obi.json acme.tasks.createTask -F json"#;
+It refuses while bindings or dependencies name the operation, and lists
+them; --cascade removes those bindings and dependencies too. Sources and
+named schemas stay, even when nothing uses them any more.
 
-fn cmd_operation_example() -> Command {
-    group(
-        "example",
-        "Add, change, and remove operation examples",
-        OPERATION_EXAMPLE_HELP,
-        OPERATION_EXAMPLE_EXAMPLES,
-    )
-    .subcommand(cmd_operation_example_add())
-    .subcommand(cmd_operation_example_set())
-    .subcommand(cmd_operation_example_rename())
-    .subcommand(cmd_operation_example_remove())
-    .subcommand(cmd_operation_example_list())
-    .subcommand(cmd_operation_example_show())
-}
+It also refuses while a reference from outside the operation reaches
+into it, and lists each one with its location: a same-document reference
+that points into it, such as {"$ref": "#/operations/createTask/input"} in
+another operation's input, or a reference to an $id declared at or inside
+its input or output. --cascade does not remove these: change them first,
+in your editor or with ob patch.
 
-const OPERATION_EXAMPLE_HELP: &str = r#"An example is a named input value, output value, or both, that the
-author claims fit the operation's schemas."#;
-const OPERATION_EXAMPLE_EXAMPLES: &str = "";
+<name> must be the key: given an alias, remove refuses and names the
+operation whose alias it is. To drop only an alias, edit the operation's
+aliases.
 
-fn cmd_operation_example_add() -> Command {
-    leaf(
-        "add",
-        "Add an example to an operation",
-        OPERATION_EXAMPLE_ADD_HELP,
-        OPERATION_EXAMPLE_ADD_EXAMPLES,
-    )
-    .arg(position("obi", true, false))
-    .arg(position("operation", true, false))
-    .arg(position("name", true, false))
-    .arg(text("description", "what the example shows"))
-    .arg(boolean("dry-run", "show the change without writing it"))
-    .arg(text(
-        "input",
-        "the example's input value: JSON, @file, or -",
-    ))
-    .arg(text(
-        "output",
-        "the example's output value: JSON, @file, or -",
-    ))
-}
+Like every edit, it changes <obi> in place, or filters - to standard
+output, keeps the bytes it does not change, refuses a result that breaks
+a rule the document met, and warns about an example it makes fail (see
+'ob help documents'). --dry-run prints the change instead of writing
+it. With -F json, the report adds the array removed (the operation's
+key) and, with --cascade, the array cascaded (the locations of the
+bindings and dependencies removed with it).
 
-const OPERATION_EXAMPLE_ADD_HELP: &str = r#"Add a named example: an input value, an output value, or both. ob checks
-each value against the operation's schema and warns when it does not fit;
-the schema always wins.
+Arguments:
+  <obi>         The document to change: a path, or - for standard input
+  <name>        The operation's key
 
-Changes <obi> in place. Give - as <obi> to read a document from stdin and
-print the result instead, or use --dry-run to see the change without
-writing it."#;
-const OPERATION_EXAMPLE_ADD_EXAMPLES: &str =
-    "  ob operation example add tasks.obi.json listTasks empty --input '{}' --output '[]'";
+Options:
+      --cascade            Also remove the bindings and dependencies that
+                           name the operation
+      --dry-run            Write nothing; print the change
+  -F, --format <format>    Output format: text (with --dry-run, a unified
+                           diff) or json (a report holding the RFC 6902
+                           patch that would apply, or that was applied)
+                           [default: text]
+  -h, --help               Print help (see a summary with '-h')
 
-fn cmd_operation_example_set() -> Command {
-    leaf(
-        "set",
-        "Change an example",
-        OPERATION_EXAMPLE_SET_HELP,
-        OPERATION_EXAMPLE_SET_EXAMPLES,
-    )
-    .arg(position("obi", true, false))
-    .arg(position("operation", true, false))
-    .arg(position("name", true, false))
-    .arg(text("description", "what the example shows"))
-    .arg(boolean("dry-run", "show the change without writing it"))
-    .arg(text(
-        "input",
-        "the example's input value: JSON, @file, or -",
-    ))
-    .arg(text(
-        "output",
-        "the example's output value: JSON, @file, or -",
-    ))
-    .arg(repeated(
-        "unset",
-        "remove a member: input, output, description",
-    ))
-}
+Examples:
+  ob operation remove tasks.obi.json notifications.send --cascade
+  ob operation remove tasks.obi.json completeTask --cascade --dry-run
+  ob operation remove - createTask --cascade < tasks.obi.json
 
-const OPERATION_EXAMPLE_SET_HELP: &str = r#"Change an example's input value, output value, or description. Only the
-flags you give change anything; --unset removes one. ob warns when a value
-does not fit the operation's schema; the schema always wins.
+Exit status:
+  0    removed
+  2    the arguments are wrong, such as -F json without --dry-run when
+       <obi> is -; <obi> is a URL or cannot be read; or <name>
+       identifies no operation
+  3    refused: <name> is an alias or identifies two operations, bindings
+       or dependencies name it and --cascade was not given, a reference
+       points into it or to an $id declared in it, the result would break
+       another rule, or the document declares a version outside the 0.2
+       line; nothing was written
+  See 'ob help exit-codes'."####;
 
-Changes <obi> in place. Give - as <obi> to read a document from stdin and
-print the result instead, or use --dry-run to see the change without
-writing it."#;
-const OPERATION_EXAMPLE_SET_EXAMPLES: &str = "  ob operation example set tasks.obi.json createTask basic --input '{\"title\":\"Plan the release\"}'";
-
-fn cmd_operation_example_rename() -> Command {
-    leaf(
-        "rename",
-        "Rename an example",
-        OPERATION_EXAMPLE_RENAME_HELP,
-        OPERATION_EXAMPLE_RENAME_EXAMPLES,
-    )
-    .arg(position("obi", true, false))
-    .arg(position("operation", true, false))
-    .arg(position("name", true, false))
-    .arg(position("new-name", true, false))
-    .arg(boolean("dry-run", "show the change without writing it"))
-}
-
-const OPERATION_EXAMPLE_RENAME_HELP: &str = r#"Rename an example of an operation. Nothing else changes.
-
-Changes <obi> in place. Give - as <obi> to read a document from stdin and
-print the result instead, or use --dry-run to see the change without
-writing it."#;
-const OPERATION_EXAMPLE_RENAME_EXAMPLES: &str =
-    "  ob operation example rename tasks.obi.json createTask basic minimal";
-
-fn cmd_operation_example_remove() -> Command {
-    leaf(
-        "remove",
-        "Remove an example",
-        OPERATION_EXAMPLE_REMOVE_HELP,
-        OPERATION_EXAMPLE_REMOVE_EXAMPLES,
-    )
-    .arg(position("obi", true, false))
-    .arg(position("operation", true, false))
-    .arg(position("name", true, false))
-    .arg(boolean("dry-run", "show the change without writing it"))
-}
-
-const OPERATION_EXAMPLE_REMOVE_HELP: &str = r#"Remove a named example from an operation.
-
-Changes <obi> in place. Give - as <obi> to read a document from stdin and
-print the result instead, or use --dry-run to see the change without
-writing it."#;
-const OPERATION_EXAMPLE_REMOVE_EXAMPLES: &str =
-    "  ob operation example remove tasks.obi.json createTask basic";
-
-fn cmd_operation_example_list() -> Command {
-    leaf(
-        "list",
-        "List an operation's examples",
-        OPERATION_EXAMPLE_LIST_HELP,
-        OPERATION_EXAMPLE_LIST_EXAMPLES,
-    )
-    .arg(position("obi", true, false))
-    .arg(position("operation", true, false))
-    .arg(format(&["text", "json"]))
-}
-
-const OPERATION_EXAMPLE_LIST_HELP: &str = "List an operation's examples and what each includes.";
-const OPERATION_EXAMPLE_LIST_EXAMPLES: &str =
-    "  ob operation example list tasks.obi.json createTask";
-
-fn cmd_operation_example_show() -> Command {
-    leaf(
-        "show",
-        "Show an example",
-        OPERATION_EXAMPLE_SHOW_HELP,
-        OPERATION_EXAMPLE_SHOW_EXAMPLES,
-    )
-    .arg(position("obi", true, false))
-    .arg(position("operation", true, false))
-    .arg(position("name", true, false))
-    .arg(format(&["text", "json"]))
-}
-
-const OPERATION_EXAMPLE_SHOW_HELP: &str =
-    "Show an example. -F json prints the exact stored example.";
-const OPERATION_EXAMPLE_SHOW_EXAMPLES: &str =
-    "  ob operation example show tasks.obi.json createTask basic";
-
-fn cmd_source() -> Command {
-    group(
-        "source",
-        "Add, change, and remove sources, and read their artifacts",
-        SOURCE_HELP,
-        SOURCE_EXAMPLES,
-    )
-    .subcommand(cmd_source_add())
-    .subcommand(cmd_source_set())
-    .subcommand(cmd_source_rename())
-    .subcommand(cmd_source_remove())
-    .subcommand(cmd_source_list())
-    .subcommand(cmd_source_show())
-    .subcommand(cmd_source_import())
-    .subcommand(cmd_source_inspect())
-    .subcommand(cmd_source_pull())
-}
-
-const SOURCE_HELP: &str = r#"A source is a kind plus optional content the kind reads, such as an
-artifact's address. Bindings realize operations through sources. import,
-inspect, and pull use a handler for the source's kind."#;
-const SOURCE_EXAMPLES: &str = "";
-
-fn cmd_source_add() -> Command {
-    leaf("add", "Add a source", SOURCE_ADD_HELP, SOURCE_ADD_EXAMPLES)
-        .arg(position("obi", true, false))
-        .arg(position("name", true, false))
-        .arg(text("content", "content the kind reads: JSON, @file, or -"))
-        .arg(text("description", "a human-readable description"))
-        .arg(boolean("dry-run", "show the change without writing it"))
-        .arg(text("kind", "the source's exact kind (required)").required(true))
-}
-
-const SOURCE_ADD_HELP: &str = r#"Add a source: a kind, and optional content that the kind reads, such as an
-artifact's address or the artifact itself. ob stores both exactly as given,
-and does not need to support the kind to do so. --content null stores an
-explicit null, which is not the same as leaving content out.
-
-Changes <obi> in place. Give - as <obi> to read a document from stdin and
-print the result instead, or use --dry-run to see the change without
-writing it."#;
-const SOURCE_ADD_EXAMPLES: &str = r#"  ob source add tasks.obi.json httpApi --kind example.openapi@1 \
-      --content '{"location":"https://api.example.com/openapi.json"}'"#;
-
-fn cmd_source_set() -> Command {
-    leaf(
-        "set",
-        "Change a source",
-        SOURCE_SET_HELP,
-        SOURCE_SET_EXAMPLES,
-    )
-    .arg(position("obi", true, false))
-    .arg(position("name", true, false))
-    .arg(text("content", "content the kind reads: JSON, @file, or -"))
-    .arg(text("description", "a human-readable description"))
-    .arg(boolean("dry-run", "show the change without writing it"))
-    .arg(text("kind", "the source's exact kind"))
-    .arg(repeated("unset", "remove a member: content, description"))
-}
-
-const SOURCE_SET_HELP: &str = r#"Change a source's kind, content, or description. Only the flags you give
-change anything; --unset removes content or the description. Changing the
-kind changes how the source's bindings are read.
-
-Changes <obi> in place. Give - as <obi> to read a document from stdin and
-print the result instead, or use --dry-run to see the change without
-writing it."#;
-const SOURCE_SET_EXAMPLES: &str = "  ob source set tasks.obi.json httpApi --content '{\"location\":\"https://api.example.com/v2/openapi.json\"}'";
-
-fn cmd_source_rename() -> Command {
-    leaf(
-        "rename",
-        "Rename a source",
-        SOURCE_RENAME_HELP,
-        SOURCE_RENAME_EXAMPLES,
-    )
-    .arg(position("obi", true, false))
-    .arg(position("name", true, false))
-    .arg(position("new-name", true, false))
-    .arg(boolean("dry-run", "show the change without writing it"))
-}
-
-const SOURCE_RENAME_HELP: &str = r#"Rename a source, and update every binding that goes through it.
-
-Changes <obi> in place. Give - as <obi> to read a document from stdin and
-print the result instead, or use --dry-run to see the change without
-writing it."#;
-const SOURCE_RENAME_EXAMPLES: &str = "  ob source rename tasks.obi.json httpApi restApi";
-
-fn cmd_source_remove() -> Command {
-    leaf(
-        "remove",
-        "Remove a source",
-        SOURCE_REMOVE_HELP,
-        SOURCE_REMOVE_EXAMPLES,
-    )
-    .arg(position("obi", true, false))
-    .arg(position("name", true, false))
-    .arg(boolean("cascade", "also remove the bindings that use it"))
-    .arg(boolean("dry-run", "show the change without writing it"))
-}
-
-const SOURCE_REMOVE_HELP: &str = r#"Remove a source. It refuses while bindings use the source; --cascade
-removes those bindings too.
-
-Changes <obi> in place. Give - as <obi> to read a document from stdin and
-print the result instead, or use --dry-run to see the change without
-writing it."#;
-const SOURCE_REMOVE_EXAMPLES: &str = "  ob source remove tasks.obi.json mcpServer --cascade";
-
-fn cmd_source_list() -> Command {
-    leaf(
-        "list",
-        "List sources",
-        SOURCE_LIST_HELP,
-        SOURCE_LIST_EXAMPLES,
-    )
-    .arg(position("obi", true, false))
-    .arg(format(&["text", "json"]))
-}
-
-const SOURCE_LIST_HELP: &str =
-    "List sources with their kinds, and whether this ob can invoke through them.";
-const SOURCE_LIST_EXAMPLES: &str = "  ob source list tasks.obi.json";
-
-fn cmd_source_show() -> Command {
-    leaf(
-        "show",
-        "Show a source",
-        SOURCE_SHOW_HELP,
-        SOURCE_SHOW_EXAMPLES,
-    )
-    .arg(position("obi", true, false))
-    .arg(position("name", true, false))
-    .arg(format(&["text", "json"]))
-}
-
-const SOURCE_SHOW_HELP: &str = r#"Show a source's kind, content, and the bindings that use it. -F json prints
-the exact stored source; content is shown as stored, never interpreted."#;
-const SOURCE_SHOW_EXAMPLES: &str = "  ob source show tasks.obi.json httpApi";
-
-fn cmd_source_import() -> Command {
-    leaf(
-        "import",
-        "Add a source built from an artifact",
-        SOURCE_IMPORT_HELP,
-        SOURCE_IMPORT_EXAMPLES,
-    )
-    .arg(position("obi", true, false))
-    .arg(position("name", true, false))
-    .arg(position("artifact", true, false))
-    .arg(boolean("dry-run", "show the change without writing it"))
-    .arg(text("kind", "the artifact's exact kind (required)").required(true))
-}
-
-const SOURCE_IMPORT_HELP: &str = r#"Add a source for an artifact (a path or URL), using a handler for its kind.
-The handler decides what content to store, such as the artifact's address or
-the artifact itself. To add operations and bindings from it, run ob source
-pull with --target to bind one target or --all-targets to bind every target
-afterwards.
-
-Changes <obi> in place. Give - as <obi> to read a document from stdin and
-print the result instead, or use --dry-run to see the change without
-writing it."#;
-const SOURCE_IMPORT_EXAMPLES: &str = "  ob source import tasks.obi.json billing https://billing.example.com/openapi.json --kind example.openapi@1";
-
-fn cmd_source_inspect() -> Command {
-    leaf(
-        "inspect",
-        "List what a source offers",
-        SOURCE_INSPECT_HELP,
-        SOURCE_INSPECT_EXAMPLES,
-    )
-    .arg(position("obi", true, false))
-    .arg(position("name", true, false))
-    .arg(format(&["text", "json"]))
-}
-
-const SOURCE_INSPECT_HELP: &str = r#"List the targets a source offers, the things a binding could be written
-for, using a handler for its kind. Each shows the operation name the
-handler suggests and any binding that already uses it."#;
-const SOURCE_INSPECT_EXAMPLES: &str = "  ob source inspect tasks.obi.json httpApi";
-
-fn cmd_source_pull() -> Command {
-    leaf("pull","Update a document from its sources",SOURCE_PULL_HELP,SOURCE_PULL_EXAMPLES)
-.arg(position("obi", true, false))
-.arg(position("source", false, true))
-.arg(boolean("all-targets","bind every target no binding covers yet"))
-.arg(text("binding-key","with --target: use this binding key; an identical binding is no change, a different one is refused"))
-.arg(boolean("dry-run","show the change without writing it"))
-.arg(text("new-operation","with --target: create the suggested operation under this new name"))
-.arg(text("operation","with --target: bind it to this existing operation (key or alias)"))
-.arg(text("target","bind this one target of the source, as ob source inspect lists it or by its identifier"))
-.arg(repeated("update-operation","take the source's schemas for this operation (repeatable)"))
-}
-
-const SOURCE_PULL_HELP: &str = r#"Update the document from its sources, using a handler for each source's
-kind. With no sources named, pull every source.
-
-Pull refreshes the content of the bindings you have, so they keep up with
-their sources. It adds nothing you did not ask for, and never changes an
-operation you already have:
-
-  - a target no binding covers is listed, not bound; --target binds one
-    (and --all-targets binds every one), with the operation the handler
-    suggests, or one you already have when you name it with --operation;
-  - --new-operation names a new operation instead; it cannot combine with
-    --operation. --binding-key names the binding. Without that flag, the
-    handler's suggested binding key stays the same even when you choose a
-    different operation. Existing operation fields are left unchanged;
-  - where a source describes an operation's schemas differently, pull
-    reports it, and --update-operation takes the source's schemas for that
-    operation. When two sources being pulled describe it differently, pull
-    refuses; pull one source to choose.
-
-An unknown --operation is a usage error, never a request to create one.
-An identical request is no change. An occupied binding key with different
-source, content, or operation is refused, never overwritten or numbered.
-To add another binding for an already bound target, give --binding-key;
-to change a binding you have, use ob binding set. A repeated --new-operation
-request is no change only when the requested binding already exists for it.
-If the handler supplies no operation framing, a new operation states no
-input or output schema. If it supplies no name, choose one explicitly.
-
-Use --all-targets --dry-run to see every target's binding and whether its
-operation would be created or reused, with commands for choosing an existing
-operation instead. After an edit, the report gives binding set commands.
-A naming collision refuses the whole edit, including any binding refreshes.
-
-A source whose kind this ob cannot read is named and left alone, and pull
-exits 4, since it cannot say the document is up to date with that source.
-ob status reports the same, as a check, without changing anything.
-
-Changes <obi> in place. Give - as <obi> to read a document from stdin and
-print the result instead, or use --dry-run to see the change without
-writing it."#;
-const SOURCE_PULL_EXAMPLES: &str = r#"  ob source pull tasks.obi.json
-  ob source pull tasks.obi.json httpApi --update-operation listTasks
-  ob source pull tasks.obi.json httpApi --target "POST /tasks/{id}/archive"
-  ob source pull tasks.obi.json httpApi --target "POST /tasks/{id}/archive" --new-operation archive --binding-key archivalHttp
-  ob source pull tasks.obi.json mcpServer --target tools/complete_task --operation completeTask
-  ob source pull tasks.obi.json httpApi --all-targets --dry-run"#;
-
-fn cmd_binding() -> Command {
+pub(super) fn cmd_binding() -> Command {
     group(
         "binding",
-        "Add, change, and remove bindings",
-        BINDING_HELP,
-        BINDING_EXAMPLES,
+        "Read bindings, and add one by hand",
+        PAGE_BINDING,
+        "ob binding <command> [options]",
     )
-    .subcommand(cmd_binding_add())
-    .subcommand(cmd_binding_set())
-    .subcommand(cmd_binding_rename())
-    .subcommand(cmd_binding_remove())
     .subcommand(cmd_binding_list())
     .subcommand(cmd_binding_show())
+    .subcommand(cmd_binding_add())
 }
+const PAGE_BINDING: &str = r####"Read bindings, and add one by hand
 
-const BINDING_HELP: &str = r#"A binding is a way to carry out an operation through a source. Its content
-is read under the source's kind."#;
-const BINDING_EXAMPLES: &str = "";
+Usage: ob binding <command> [options]
 
-fn cmd_binding_add() -> Command {
-    leaf("add","Add a binding",BINDING_ADD_HELP,BINDING_ADD_EXAMPLES)
-.arg(position("obi", true, false))
-.arg(position("name", true, false))
-.arg(text("content","whatever the source's kind reads, such as which target to call: JSON, @file, or -"))
-.arg(boolean("deprecated","mark deprecated; --deprecated=false marks it current"))
-.arg(text("description","a human-readable description"))
-.arg(boolean("dry-run","show the change without writing it"))
-.arg(boolean("idempotent","claim that repeating a call adds no further intended effects; --idempotent=false claims it can"))
-.arg(text("operation","the operation it carries out (name or alias)").required(true))
-.arg(integer("preference","the author's preference among this operation's bindings (an integer; higher is stronger)").default_value("0"))
-.arg(text("source","the source it goes through").required(true))
-}
+A binding declares a realization of an operation through a source, under a
+key in bindings (§3, §5.3). It names the operation and the source by their
+keys (OBI-06, OBI-07). Where a binding names its operation by an alias,
+ob validate gives a hint with the key, and in a document that meets
+OBI-06, an edit that makes that change is refused with the same hint. Its
+data is read under the source's kind, which decides what the data holds,
+such as which target realizes the operation and how values are adapted
+between the operation's contracts and that target (§5.3, §6). Its
+idempotent field is an author claim, and its preference and deprecated
+fields are author signals (§5.3).
 
-const BINDING_ADD_HELP: &str = r#"Add a binding: a way to carry out an operation through a source. --content
-is whatever the source's kind needs, such as which endpoint or tool to call.
-An operation can have several bindings, even through the same source.
+ob source pull writes most bindings, with their operations. ob binding
+add writes one by hand, in the form the source's kind describes, for an
+operation you already have. You change, rename and remove bindings in
+your editor, then run ob validate to check the result; scripts use
+ob patch, which refuses a change that breaks a rule the document met.
 
---idempotent claims that repeating a call through this binding adds no
-further intended effects (it says nothing about retry safety on its own);
---idempotent=false claims it can; leaving it out claims nothing.
---preference records the author's preference among the operation's
-bindings; ob invoke shows it but does not choose by it.
+Commands:
+  list    List bindings, with their operation, source and kind
+  show    Show one binding
+  add     Add a binding, as its source's kind describes it
 
-Changes <obi> in place. Give - as <obi> to read a document from stdin and
-print the result instead, or use --dry-run to see the change without
-writing it."#;
-const BINDING_ADD_EXAMPLES: &str = r#"  ob binding add tasks.obi.json completeTask.mcp --operation completeTask --source mcpServer \
-      --content '{"target":"tools/complete_task"}' --idempotent"#;
+Options:
+  -h, --help    Print help (see a summary with '-h')
 
-fn cmd_binding_set() -> Command {
-    leaf("set","Change a binding",BINDING_SET_HELP,BINDING_SET_EXAMPLES)
-.arg(position("obi", true, false))
-.arg(position("name", true, false))
-.arg(text("content","whatever the source's kind reads, such as which target to call: JSON, @file, or -"))
-.arg(boolean("deprecated","mark deprecated; --deprecated=false marks it current"))
-.arg(text("description","a human-readable description"))
-.arg(boolean("dry-run","show the change without writing it"))
-.arg(boolean("idempotent","claim that repeating a call adds no further intended effects; --idempotent=false claims it can"))
-.arg(text("operation","the operation it carries out (name or alias)"))
-.arg(integer("preference","the author's preference among this operation's bindings (an integer; higher is stronger)").default_value("0"))
-.arg(text("source","the source it goes through"))
-.arg(repeated("unset","remove a member: content, idempotent, preference, description, deprecated"))
-}
+Run 'ob binding <command> --help' for details."####;
 
-const BINDING_SET_HELP: &str = r#"Change a binding. Only the flags you give change anything; --unset removes
-content, idempotent, preference, description, or deprecated.
-
-Changes <obi> in place. Give - as <obi> to read a document from stdin and
-print the result instead, or use --dry-run to see the change without
-writing it."#;
-const BINDING_SET_EXAMPLES: &str = r#"  ob binding set tasks.obi.json createTask.mcp --preference 5
-  ob binding set tasks.obi.json listTasks.http --unset idempotent"#;
-
-fn cmd_binding_rename() -> Command {
-    leaf(
-        "rename",
-        "Rename a binding",
-        BINDING_RENAME_HELP,
-        BINDING_RENAME_EXAMPLES,
-    )
-    .arg(position("obi", true, false))
-    .arg(position("name", true, false))
-    .arg(position("new-name", true, false))
-    .arg(boolean("dry-run", "show the change without writing it"))
-}
-
-const BINDING_RENAME_HELP: &str = r#"Rename a binding. Nothing else in a document refers to a binding by name,
-so nothing else changes. Callers that name the old key, such as ob invoke
---binding, ob mcp --binding, or a generated client's binding list, stop
-finding it.
-
-Changes <obi> in place. Give - as <obi> to read a document from stdin and
-print the result instead, or use --dry-run to see the change without
-writing it."#;
-const BINDING_RENAME_EXAMPLES: &str =
-    "  ob binding rename tasks.obi.json createTask.http createTask.rest";
-
-fn cmd_binding_remove() -> Command {
-    leaf(
-        "remove",
-        "Remove a binding",
-        BINDING_REMOVE_HELP,
-        BINDING_REMOVE_EXAMPLES,
-    )
-    .arg(position("obi", true, false))
-    .arg(position("name", true, false))
-    .arg(boolean("dry-run", "show the change without writing it"))
-}
-
-const BINDING_REMOVE_HELP: &str = r#"Remove a binding. The operation and source stay.
-
-Changes <obi> in place. Give - as <obi> to read a document from stdin and
-print the result instead, or use --dry-run to see the change without
-writing it."#;
-const BINDING_REMOVE_EXAMPLES: &str = "  ob binding remove tasks.obi.json createTask.mcp";
-
-fn cmd_binding_list() -> Command {
+pub(super) fn cmd_binding_list() -> Command {
     leaf(
         "list",
-        "List bindings",
-        BINDING_LIST_HELP,
-        BINDING_LIST_EXAMPLES,
+        "List bindings, with their operation, source and kind",
+        PAGE_BINDING_LIST,
+        "ob binding list [options] <obi>",
     )
-    .arg(position("obi", true, false))
-    .arg(format(&["text", "json"]))
-    .arg(text(
-        "operation",
-        "only this operation's bindings (name or alias)",
-    ))
-}
-
-const BINDING_LIST_HELP: &str = "List bindings with their operation, source, and signals. --operation shows one operation's bindings.";
-const BINDING_LIST_EXAMPLES: &str = r#"  ob binding list tasks.obi.json
-  ob binding list tasks.obi.json --operation createTask"#;
-
-fn cmd_binding_show() -> Command {
-    leaf(
-        "show",
-        "Show a binding",
-        BINDING_SHOW_HELP,
-        BINDING_SHOW_EXAMPLES,
-    )
-    .arg(position("obi", true, false))
-    .arg(position("name", true, false))
-    .arg(format(&["text", "json"]))
-}
-
-const BINDING_SHOW_HELP: &str =
-    "Show a binding. -F json prints the exact stored binding; content is shown as stored.";
-const BINDING_SHOW_EXAMPLES: &str = "  ob binding show tasks.obi.json createTask.http";
-
-fn cmd_dependency() -> Command {
-    group(
-        "dependency",
-        "Add, change, and remove dependencies",
-        DEPENDENCY_HELP,
-        DEPENDENCY_EXAMPLES,
-    )
-    .subcommand(cmd_dependency_add())
-    .subcommand(cmd_dependency_set())
-    .subcommand(cmd_dependency_rename())
-    .subcommand(cmd_dependency_remove())
-    .subcommand(cmd_dependency_list())
-    .subcommand(cmd_dependency_show())
-}
-
-const DEPENDENCY_HELP: &str = r#"A dependency is a point where the described software calls an operation
-provided by something else. It names the operation, never a provider."#;
-const DEPENDENCY_EXAMPLES: &str = "";
-
-fn cmd_dependency_add() -> Command {
-    leaf(
-        "add",
-        "Add a dependency",
-        DEPENDENCY_ADD_HELP,
-        DEPENDENCY_ADD_EXAMPLES,
-    )
-    .arg(position("obi", true, false))
-    .arg(position("name", true, false))
-    .arg(text("description", "a human-readable description"))
-    .arg(boolean("dry-run", "show the change without writing it"))
-    .arg(repeated(
-        "kind",
-        "a kind of binding that can serve it (repeatable)",
+    .arg(positional(
+        "obi",
+        "The document: a path, - for standard input, or a URL",
+        true,
+        false,
     ))
     .arg(
         text(
             "operation",
-            "the operation called at this point (name or alias)",
+            "Only the bindings of this operation (its key or an alias)",
         )
-        .required(true),
+        .value_name("name"),
     )
-}
-
-const DEPENDENCY_ADD_HELP: &str = r#"Declare a dependency: a point where the described software calls an
-operation that something else provides. --kind limits which kinds of
-binding can serve it (any of those listed); leave it out to declare no kind
-constraint (spec §5.5).
-
-Changes <obi> in place. Give - as <obi> to read a document from stdin and
-print the result instead, or use --dry-run to see the change without
-writing it."#;
-const DEPENDENCY_ADD_EXAMPLES: &str =
-    "  ob dependency add tasks.obi.json auditLog --operation events.deliver --kind example.grpc@1";
-
-fn cmd_dependency_set() -> Command {
-    leaf(
-        "set",
-        "Change a dependency",
-        DEPENDENCY_SET_HELP,
-        DEPENDENCY_SET_EXAMPLES,
-    )
-    .arg(position("obi", true, false))
-    .arg(position("name", true, false))
-    .arg(repeated("add-kind", "accept another kind (repeatable)"))
-    .arg(text("description", "a human-readable description"))
-    .arg(boolean("dry-run", "show the change without writing it"))
-    .arg(text(
-        "operation",
-        "the operation called at this point (name or alias)",
-    ))
-    .arg(repeated(
-        "remove-kind",
-        "stop accepting a kind (repeatable)",
-    ))
-    .arg(repeated("unset", "remove a member: kinds, description"))
-}
-
-const DEPENDENCY_SET_HELP: &str = r#"Change a dependency. Only the flags you give change anything; --unset
-removes kinds (declaring no kind constraint, spec §5.5) or the description.
-
-Changes <obi> in place. Give - as <obi> to read a document from stdin and
-print the result instead, or use --dry-run to see the change without
-writing it."#;
-const DEPENDENCY_SET_EXAMPLES: &str =
-    "  ob dependency set tasks.obi.json notifier --add-kind example.mcp@1";
-
-fn cmd_dependency_rename() -> Command {
-    leaf(
-        "rename",
-        "Rename a dependency",
-        DEPENDENCY_RENAME_HELP,
-        DEPENDENCY_RENAME_EXAMPLES,
-    )
-    .arg(position("obi", true, false))
-    .arg(position("name", true, false))
-    .arg(position("new-name", true, false))
-    .arg(boolean("dry-run", "show the change without writing it"))
-}
-
-const DEPENDENCY_RENAME_HELP: &str = r#"Rename a dependency. Nothing else in a document refers to a dependency by
-name, so nothing else changes.
-
-Changes <obi> in place. Give - as <obi> to read a document from stdin and
-print the result instead, or use --dry-run to see the change without
-writing it."#;
-const DEPENDENCY_RENAME_EXAMPLES: &str = "  ob dependency rename tasks.obi.json notifier eventSink";
-
-fn cmd_dependency_remove() -> Command {
-    leaf(
-        "remove",
-        "Remove a dependency",
-        DEPENDENCY_REMOVE_HELP,
-        DEPENDENCY_REMOVE_EXAMPLES,
-    )
-    .arg(position("obi", true, false))
-    .arg(position("name", true, false))
-    .arg(boolean("dry-run", "show the change without writing it"))
-}
-
-const DEPENDENCY_REMOVE_HELP: &str = r#"Remove a dependency. The operation stays.
-
-Changes <obi> in place. Give - as <obi> to read a document from stdin and
-print the result instead, or use --dry-run to see the change without
-writing it."#;
-const DEPENDENCY_REMOVE_EXAMPLES: &str = "  ob dependency remove tasks.obi.json notifier";
-
-fn cmd_dependency_list() -> Command {
-    leaf(
-        "list",
-        "List dependencies",
-        DEPENDENCY_LIST_HELP,
-        DEPENDENCY_LIST_EXAMPLES,
-    )
-    .arg(position("obi", true, false))
     .arg(format(&["text", "json"]))
 }
+const PAGE_BINDING_LIST: &str = r####"List bindings, with their operation, source and kind
 
-const DEPENDENCY_LIST_HELP: &str =
-    "List dependencies with the operation each calls and the kinds it accepts.";
-const DEPENDENCY_LIST_EXAMPLES: &str = "  ob dependency list tasks.obi.json";
+Usage: ob binding list [options] <obi>
 
-fn cmd_dependency_show() -> Command {
+List each binding in document order: its key, the operation it binds,
+the source it names, that source's kind, and the author's claim and
+signals about it: its idempotent claim, its preference, and whether it is
+deprecated. A binding whose source is not in the document shows no kind.
+
+The idempotent claim is shown as stated: true, false, or absent, which
+claims neither (§5.3). Preference and deprecation are author signals: a
+higher preference states a stronger author preference among one
+operation's bindings, and deprecated recommends migrating away (§5.3).
+ob invoke shows them but does not choose a binding by them.
+
+--operation lists only the bindings of the operation a name identifies,
+given as its key or any alias.
+
+With -F json, the report's bindings array lists the same facts in
+document order. A member copied from the document keeps its presence:
+idempotent, preference and deprecated appear only when the binding
+states them, so an absent idempotent still claims neither. kind is
+omitted when the binding's source is not in the document.
+
+In a document that does not conform, ob warns once and lists a binding
+whose shape is wrong as unreadable, with its location (see
+'ob help documents'). In JSON, such an entry is
+
+  {"key": "<key>", "unreadable": true, "location": {...}}
+
+and when the document's bindings member is not an object, the
+report's bindings member, instead of an array, is
+
+  {"unreadable": true, "location": {...}}
+
+Arguments:
+  <obi>         The document: a path, - for standard input, or a URL
+
+Options:
+      --operation <name>   Only the bindings of this operation (its key or
+                           an alias)
+  -F, --format <format>    Output format: text or json [default: text]
+  -h, --help               Print help (see a summary with '-h')
+
+Examples:
+  ob binding list tasks.obi.json
+  ob binding list tasks.obi.json --operation createTask
+  ob binding list tasks.obi.json --operation acme.tasks.listTasks -F json
+
+Exit status:
+  0    listed
+  1    no OBI is published at the URL given
+  2    the arguments are wrong, <obi> cannot be read or fetched, or the
+       --operation name identifies no operation
+  3    refused: the --operation name identifies two operations (OBI-05),
+       or the document declares a version outside the 0.2 line
+  See 'ob help exit-codes'."####;
+
+pub(super) fn cmd_binding_show() -> Command {
     leaf(
         "show",
-        "Show a dependency",
-        DEPENDENCY_SHOW_HELP,
-        DEPENDENCY_SHOW_EXAMPLES,
+        "Show one binding",
+        PAGE_BINDING_SHOW,
+        "ob binding show [options] <obi> <key>",
     )
-    .arg(position("obi", true, false))
-    .arg(position("name", true, false))
+    .arg(positional(
+        "obi",
+        "The document: a path, - for standard input, or a URL",
+        true,
+        false,
+    ))
+    .arg(positional("key", "The binding's key", true, false))
     .arg(format(&["text", "json"]))
 }
+const PAGE_BINDING_SHOW: &str = r####"Show one binding
 
-const DEPENDENCY_SHOW_HELP: &str = "Show a dependency. -F json prints the exact stored dependency.";
-const DEPENDENCY_SHOW_EXAMPLES: &str = "  ob dependency show tasks.obi.json notifier";
+Usage: ob binding show [options] <obi> <key>
 
-fn cmd_schema() -> Command {
+Show the binding under <key>: the operation it binds, the source it
+names and that source's kind, its data, its idempotent claim, its
+preference, whether it is deprecated, and its description.
+
+Data is shown exactly as stored. Its meaning is read under the source's
+kind, which this command does not consult (§5.3, §6).
+
+-F json prints the binding as stored, every value spelled exactly, and
+nothing else.
+
+Arguments:
+  <obi>         The document: a path, - for standard input, or a URL
+  <key>         The binding's key
+
+Options:
+  -F, --format <format>    Output format: text, or json for the binding as
+                           stored [default: text]
+  -h, --help               Print help (see a summary with '-h')
+
+Examples:
+  ob binding show tasks.obi.json createTask.http
+  ob binding show tasks.obi.json createTask.mcp -F json
+
+Exit status:
+  0    shown
+  1    no OBI is published at the URL given
+  2    the arguments are wrong, <obi> cannot be read or fetched, or no
+       binding has the key <key>
+  3    refused: the document declares a version outside the 0.2 line
+  See 'ob help exit-codes'."####;
+
+pub(super) fn cmd_binding_add() -> Command {
+    leaf("add", "Add a binding, as its source's kind describes it", PAGE_BINDING_ADD, "ob binding add [options] --operation <name> --source <key> <obi> <key>")
+        .arg(positional("obi", "The document to change: a path, or - for standard input", true, false))
+        .arg(positional("key", "The new binding's key", true, false))
+        .arg(text("operation", "The operation it realizes, by key or alias (required)").value_name("name").required(true))
+        .arg(text("source", "The source it names (required)").value_name("key").required(true))
+        .arg(text("data", "The binding's data, as the kind's schema describes it: JSON, @FILE, or -").value_name("value"))
+        .arg(boolean("idempotent", "Claim that repeating a call adds no further intended effects; --idempotent=false claims it can"))
+        .arg(integer("preference", "The author's preference among the operation's bindings (an integer; higher is stronger)"))
+        .arg(boolean("deprecated", "Recommend migrating away from this binding"))
+        .arg(text("description", "The binding's description").value_name("text"))
+        .arg(boolean("dry-run", "Write nothing; print the change"))
+        .arg(format(&["text", "json"]))
+}
+const PAGE_BINDING_ADD: &str = r####"Add a binding, as its source's kind describes it
+
+Usage: ob binding add [options] --operation <name> --source <key>
+                      <obi> <key>
+
+Add a binding under <key> that realizes the operation --operation names
+through the source --source names, with data in the form the source's
+kind describes. ob asks the Kind Descriptor for the kind's binding-data
+schema (what ob kind describe shows) and fills it: from --data, or at a
+terminal from what you enter for the schema's members. The data is what the
+kind reads to carry out the operation: which target, and any adaptation
+between the operation's contracts and that target, as the kind defines.
+ob records it as given; the claim that the target realizes the operation
+is yours, as for any binding (§5.3).
+
+This is how a source realizes an operation you already have, including
+one that ob source pull left out as a conflict because the source offers
+it in a different shape; the hint pull printed gives this command. For
+what a source offers under new keys, ob source pull adds operations and
+bindings together.
+
+--operation names the operation by its key or an alias; the binding is
+written with the key, as bindings name operations (OBI-06). --idempotent
+claims that repeating a call through this binding adds no further
+intended effects; --idempotent=false claims it can; leaving it out claims
+nothing. --preference records the author's preference among the
+operation's bindings, which ob invoke shows and never chooses by.
+--deprecated recommends migrating away.
+
+Add needs this ob to support the source's kind for check, built in or
+through a delegate, to show the schema and check the data. Without that
+support, --data is recorded unchecked, with a warning; or write the
+binding in your editor and run ob validate.
+
+Like every edit, it changes <obi> in place, or filters - to standard
+output, keeps the bytes it does not change, refuses a result that breaks
+a rule the document met, and warns about an example it makes fail (see
+'ob help documents'). --dry-run prints the change instead of writing it.
+With -F json, the report adds the array added (the binding's key).
+
+Arguments:
+  <obi>    The document to change: a path, or - for standard input
+  <key>    The new binding's key
+
+Options:
+      --operation <name>       The operation it realizes, by key or alias
+                               (required)
+      --source <key>           The source it names (required)
+      --data <value>           The binding's data, as the kind's schema
+                               describes it: JSON, @FILE, or -
+      --idempotent             Claim that repeating a call adds no further
+                               intended effects; --idempotent=false claims
+                               it can
+      --preference <number>    The author's preference among the
+                               operation's bindings (an integer; higher is
+                               stronger)
+      --deprecated             Recommend migrating away from this binding
+      --description <text>     The binding's description
+      --dry-run                Write nothing; print the change
+  -F, --format <format>        Output format: text (with --dry-run, a
+                               unified diff) or json (a report holding the
+                               RFC 6902 patch that would apply, or that
+                               was applied) [default: text]
+  -h, --help                   Print help (see a summary with '-h')
+
+Examples:
+  # At a terminal: answer the kind's binding schema
+  ob binding add tasks.obi.json createTask.mcp --operation createTask \
+      --source mcpServer
+
+  # In a script: the data, as the kind's schema describes it
+  ob binding add tasks.obi.json createTask.mcp --operation createTask \
+      --source mcpServer --data '{"tool":"create_task"}'
+
+  # By alias; the binding is written with the key, listTasks
+  ob binding add tasks.obi.json listTasks.http \
+      --operation acme.tasks.listTasks --source httpApi \
+      --data '{"target":"#/paths/~1tasks/get"}' --idempotent
+
+Exit status:
+  0    added, or an identical binding was already under <key>
+  2    the arguments are wrong, such as -F json without --dry-run when
+       <obi> is -, no --data without a terminal, or data the kind's
+       schema does not accept; <obi> is a URL or cannot be read;
+       --operation identifies no operation; or --source names no source
+  3    refused: --operation identifies two operations (OBI-05), <key>
+       already names a different binding, the result would break a rule,
+       or the document declares a version outside the 0.2 line; nothing
+       was written
+  See 'ob help exit-codes'."####;
+
+pub(super) fn cmd_dependency() -> Command {
+    group(
+        "dependency",
+        "Read dependencies",
+        PAGE_DEPENDENCY,
+        "ob dependency <command> [options]",
+    )
+    .subcommand(cmd_dependency_list())
+    .subcommand(cmd_dependency_show())
+}
+const PAGE_DEPENDENCY: &str = r####"Read dependencies
+
+Usage: ob dependency <command> [options]
+
+A dependency is a named point where the described component consumes a
+realization of an operation, under a key in dependencies; the key
+identifies the consumption point (§3, §5.5). It names the operation by its
+key (OBI-08), and may limit the kinds acceptable there with kinds, an
+any-of constraint. It names no realization to serve it, not even one of
+the document's own bindings (§5.5). Where a dependency names its
+operation by an alias, ob validate gives a hint with the key, and in a
+document that meets OBI-08, an edit that makes that change is refused
+with the same hint.
+
+To check a candidate for a dependency, such as the OBI of a service whose
+bindings might serve it, run:
+
+  ob compat <candidate> <obi> --dependency <key>
+
+It judges each operation of the candidate that a published name (key or
+alias) of the dependency's operation identifies: whether it is
+compatible as realized, and which of its bindings, the realizations it
+declares, have a source whose kind meets the dependency's kinds. Whether
+this ob can invoke one is a question for ob kind list. ob dependency
+show prints the command for its dependency.
+
+Commands here read dependencies. You add, change, rename and remove
+dependencies in your editor, then run ob validate to check the result;
+scripts use ob patch, which refuses a change that breaks a rule the
+document met.
+
+Commands:
+  list    List dependencies, with their operation and kinds constraint
+  show    Show one dependency
+
+Options:
+  -h, --help    Print help (see a summary with '-h')
+
+Run 'ob dependency <command> --help' for details."####;
+
+pub(super) fn cmd_dependency_list() -> Command {
+    leaf(
+        "list",
+        "List dependencies, with their operation and kinds constraint",
+        PAGE_DEPENDENCY_LIST,
+        "ob dependency list [options] <obi>",
+    )
+    .arg(positional(
+        "obi",
+        "The document: a path, - for standard input, or a URL",
+        true,
+        false,
+    ))
+    .arg(format(&["text", "json"]))
+}
+const PAGE_DEPENDENCY_LIST: &str = r####"List dependencies, with their operation and kinds constraint
+
+Usage: ob dependency list [options] <obi>
+
+List each dependency in document order: its key, which identifies the
+consumption point, the operation it consumes, and its kinds constraint.
+
+The kinds constraint is an any-of constraint: a binding meets it when its
+source's kind is the same as one of those listed (§5.5). A dependency
+without kinds places no constraint on kind, and is shown as accepting
+every kind.
+
+With -F json, the report's dependencies array lists the same facts in
+document order. A member copied from the document keeps its presence:
+kinds appears only when the dependency states it.
+
+In a document that does not conform, ob warns once and lists a dependency
+whose shape is wrong as unreadable, with its location (see
+'ob help documents'). In JSON, such an entry is
+
+  {"key": "<key>", "unreadable": true, "location": {...}}
+
+and when the document's dependencies member is not an object, the
+report's dependencies member, instead of an array, is
+
+  {"unreadable": true, "location": {...}}
+
+Arguments:
+  <obi>         The document: a path, - for standard input, or a URL
+
+Options:
+  -F, --format <format>    Output format: text or json [default: text]
+  -h, --help               Print help (see a summary with '-h')
+
+Examples:
+  ob dependency list tasks.obi.json
+  ob dependency list tasks.obi.json -F json
+
+Exit status:
+  0    listed
+  1    no OBI is published at the URL given
+  2    the arguments are wrong, or <obi> cannot be read or fetched
+  3    refused: the document declares a version outside the 0.2 line
+  See 'ob help exit-codes'."####;
+
+pub(super) fn cmd_dependency_show() -> Command {
+    leaf(
+        "show",
+        "Show one dependency",
+        PAGE_DEPENDENCY_SHOW,
+        "ob dependency show [options] <obi> <key>",
+    )
+    .arg(positional(
+        "obi",
+        "The document: a path, - for standard input, or a URL",
+        true,
+        false,
+    ))
+    .arg(positional("key", "The dependency's key", true, false))
+    .arg(format(&["text", "json"]))
+}
+const PAGE_DEPENDENCY_SHOW: &str = r####"Show one dependency
+
+Usage: ob dependency show [options] <obi> <key>
+
+Show the dependency under <key>, the consumption point that key
+identifies: the operation it consumes, its kinds constraint, and its
+description.
+
+Declaring a dependency claims that the described component sends only
+input values that satisfy the operation's input contract, and takes any
+output value that satisfies its output contract (§5.5); ob operation show
+shows those contracts. The kinds constraint is an any-of constraint: a
+binding meets it when its source's kind is one of those listed. Without
+kinds, the dependency places no constraint on kind. A dependency names no
+realization to serve it, so none is shown.
+
+Then ob prints a hint with the command that checks a candidate for the
+dependency, such as the OBI of a service that might serve it, leaving
+<candidate> for you to fill in. For assigneeNotifier in tasks.obi.json:
+
+  hint: ob compat <candidate> tasks.obi.json --dependency assigneeNotifier
+
+See 'ob help compat' for the check.
+
+-F json prints the dependency as stored, every value spelled exactly, and
+nothing else.
+
+Arguments:
+  <obi>         The document: a path, - for standard input, or a URL
+  <key>         The dependency's key
+
+Options:
+  -F, --format <format>    Output format: text, or json for the dependency
+                           as stored [default: text]
+  -h, --help               Print help (see a summary with '-h')
+
+Examples:
+  ob dependency show tasks.obi.json assigneeNotifier
+  ob dependency show tasks.obi.json assigneeNotifier -F json
+
+Exit status:
+  0    shown
+  1    no OBI is published at the URL given
+  2    the arguments are wrong, <obi> cannot be read or fetched, or no
+       dependency has the key <key>
+  3    refused: the document declares a version outside the 0.2 line
+  See 'ob help exit-codes'."####;
+
+pub(super) fn cmd_schema() -> Command {
     group(
         "schema",
-        "Add, change, and remove reusable schemas",
-        SCHEMA_HELP,
-        SCHEMA_EXAMPLES,
+        "Read, rename, remove, and bundle schemas",
+        PAGE_SCHEMA,
+        "ob schema <command> [options]",
     )
-    .subcommand(cmd_schema_add())
-    .subcommand(cmd_schema_set())
-    .subcommand(cmd_schema_rename())
-    .subcommand(cmd_schema_remove())
     .subcommand(cmd_schema_list())
     .subcommand(cmd_schema_show())
+    .subcommand(cmd_schema_rename())
+    .subcommand(cmd_schema_remove())
     .subcommand(cmd_schema_bundle())
 }
+const PAGE_SCHEMA: &str = r####"Read, rename, remove, and bundle schemas
 
-const SCHEMA_HELP: &str = r##"Named JSON Schemas that operations share by reference, such as
-{"$ref": "#/schemas/Task"}. bundle embeds the external schemas a document
-references."##;
-const SCHEMA_EXAMPLES: &str = "";
+Usage: ob schema <command> [options]
 
-fn cmd_schema_add() -> Command {
-    leaf(
-        "add",
-        "Add a reusable schema",
-        SCHEMA_ADD_HELP,
-        SCHEMA_ADD_EXAMPLES,
-    )
-    .arg(position("obi", true, false))
-    .arg(position("name", true, false))
-    .arg(boolean("dry-run", "show the change without writing it"))
-    .arg(text("value", "the schema: JSON, @file, or - (required)").required(true))
-}
+The schemas map holds named JSON Schemas, which operations and other
+schemas reference, as in {"$ref": "#/schemas/Task"} (§5.2). Every schema
+the document contains is read as JSON Schema 2020-12, and its references
+resolve as §7 defines. An external schema is one a reference in the
+document identifies, once resolved (against the enclosing $id, inside a
+schema that declares one), that the document does not contain.
 
-const SCHEMA_ADD_HELP: &str = r##"Add a named JSON Schema that operations can reference as
-{"$ref": "#/schemas/<name>"}.
+Commands here read schemas, rename or remove one while accounting for
+every reference to it, and bundle external schemas into the document. You
+add a schema or change one in your editor, then run ob validate to check
+the result; scripts use ob patch, which refuses a change that breaks a
+rule the document met.
 
-Changes <obi> in place. Give - as <obi> to read a document from stdin and
-print the result instead, or use --dry-run to see the change without
-writing it."##;
-const SCHEMA_ADD_EXAMPLES: &str = "  ob schema add tasks.obi.json TaskList --value '{\"type\":\"array\",\"items\":{\"$ref\":\"#/schemas/Task\"}}'";
+Commands:
+  list      List named schemas, what references each, and external schemas
+  show      Show one named schema
+  rename    Rename a named schema and every same-document reference to it
+  remove    Remove a named schema that nothing references
+  bundle    Embed the external schemas the document references
 
-fn cmd_schema_set() -> Command {
-    leaf(
-        "set",
-        "Replace a reusable schema",
-        SCHEMA_SET_HELP,
-        SCHEMA_SET_EXAMPLES,
-    )
-    .arg(position("obi", true, false))
-    .arg(position("name", true, false))
-    .arg(boolean("dry-run", "show the change without writing it"))
-    .arg(text("value", "the new schema: JSON, @file, or - (required)").required(true))
-}
+Options:
+  -h, --help    Print help (see a summary with '-h')
 
-const SCHEMA_SET_HELP: &str = r#"Replace a named schema with a new one.
+Run 'ob schema <command> --help' for details."####;
 
-Changes <obi> in place. Give - as <obi> to read a document from stdin and
-print the result instead, or use --dry-run to see the change without
-writing it."#;
-const SCHEMA_SET_EXAMPLES: &str =
-    "  ob schema set tasks.obi.json Problem --value @problem.schema.json";
-
-fn cmd_schema_rename() -> Command {
-    leaf(
-        "rename",
-        "Rename a reusable schema",
-        SCHEMA_RENAME_HELP,
-        SCHEMA_RENAME_EXAMPLES,
-    )
-    .arg(position("obi", true, false))
-    .arg(position("name", true, false))
-    .arg(position("new-name", true, false))
-    .arg(boolean("dry-run", "show the change without writing it"))
-}
-
-const SCHEMA_RENAME_HELP: &str = r##"Rename a reusable schema, and update every reference to it, such as
-{"$ref": "#/schemas/<name>"}.
-
-Changes <obi> in place. Give - as <obi> to read a document from stdin and
-print the result instead, or use --dry-run to see the change without
-writing it."##;
-const SCHEMA_RENAME_EXAMPLES: &str = "  ob schema rename tasks.obi.json Problem Error";
-
-fn cmd_schema_remove() -> Command {
-    leaf(
-        "remove",
-        "Remove a reusable schema",
-        SCHEMA_REMOVE_HELP,
-        SCHEMA_REMOVE_EXAMPLES,
-    )
-    .arg(position("obi", true, false))
-    .arg(position("name", true, false))
-    .arg(boolean("dry-run", "show the change without writing it"))
-}
-
-const SCHEMA_REMOVE_HELP: &str = r#"Remove a named schema. It refuses while anything references it.
-
-Changes <obi> in place. Give - as <obi> to read a document from stdin and
-print the result instead, or use --dry-run to see the change without
-writing it."#;
-const SCHEMA_REMOVE_EXAMPLES: &str = "  ob schema remove tasks.obi.json Problem";
-
-fn cmd_schema_list() -> Command {
+pub(super) fn cmd_schema_list() -> Command {
     leaf(
         "list",
-        "List reusable schemas",
-        SCHEMA_LIST_HELP,
-        SCHEMA_LIST_EXAMPLES,
+        "List named schemas, what references each, and external schemas",
+        PAGE_SCHEMA_LIST,
+        "ob schema list [options] <obi>",
     )
-    .arg(position("obi", true, false))
+    .arg(positional(
+        "obi",
+        "The document: a path, - for standard input, or a URL",
+        true,
+        false,
+    ))
     .arg(format(&["text", "json"]))
 }
+const PAGE_SCHEMA_LIST: &str = r####"List named schemas, what references each, and external schemas
 
-const SCHEMA_LIST_HELP: &str = r#"List named schemas and what references each, then the external schemas the
-document references that no schema in it declares (ob schema bundle embeds
-them)."#;
-const SCHEMA_LIST_EXAMPLES: &str = "  ob schema list tasks.obi.json";
+Usage: ob schema list [options] <obi>
 
-fn cmd_schema_show() -> Command {
+List each named schema in document order, with its $id when it declares
+one, and every reference to it: each $ref or $dynamicRef that identifies
+the schema or a schema inside it, by JSON Pointer, plain name or $id,
+shown with the reference's location.
+
+Then it lists the external schemas: the resources that references identify,
+once resolved against any enclosing $id and taken without their fragment,
+that no schema the document contains declares as its $id. Each is shown with
+the references to it. Resolving one needs that schema from outside the
+document (§7.4). No check fetches it; ob schema bundle embeds it.
+
+With -F json, the report holds a schemas array in document order and an
+external array. A member copied from the document keeps its presence:
+id appears only when the schema declares $id. references and external
+are always present, possibly empty.
+
+In a document that does not conform, ob warns once and lists a schema
+whose shape is wrong as unreadable, with its location (see
+'ob help documents'). In JSON, such an entry is
+
+  {"key": "<key>", "unreadable": true, "location": {...}}
+
+and when the document's schemas member is not an object, the
+report's schemas member, instead of an array, is
+
+  {"unreadable": true, "location": {...}}
+
+Arguments:
+  <obi>         The document: a path, - for standard input, or a URL
+
+Options:
+  -F, --format <format>    Output format: text or json [default: text]
+  -h, --help               Print help (see a summary with '-h')
+
+Examples:
+  ob schema list tasks.obi.json
+  ob schema list tasks.obi.json -F json
+
+Exit status:
+  0    listed
+  1    no OBI is published at the URL given
+  2    the arguments are wrong, or <obi> cannot be read or fetched
+  3    refused: the document declares a version outside the 0.2 line
+  See 'ob help exit-codes'."####;
+
+pub(super) fn cmd_schema_show() -> Command {
     leaf(
         "show",
-        "Show a reusable schema",
-        SCHEMA_SHOW_HELP,
-        SCHEMA_SHOW_EXAMPLES,
+        "Show one named schema",
+        PAGE_SCHEMA_SHOW,
+        "ob schema show [options] <obi> <key>",
     )
-    .arg(position("obi", true, false))
-    .arg(position("name", true, false))
+    .arg(positional(
+        "obi",
+        "The document: a path, - for standard input, or a URL",
+        true,
+        false,
+    ))
+    .arg(positional(
+        "key",
+        "The schema's key in schemas",
+        true,
+        false,
+    ))
     .arg(format(&["text", "json"]))
 }
+const PAGE_SCHEMA_SHOW: &str = r####"Show one named schema
 
-const SCHEMA_SHOW_HELP: &str = "Print a named schema.";
-const SCHEMA_SHOW_EXAMPLES: &str = "  ob schema show tasks.obi.json Task";
+Usage: ob schema show [options] <obi> <key>
 
-fn cmd_schema_bundle() -> Command {
+Show the schema under <key> in schemas, as stored, with its $id when it
+declares one and the references to it, as ob schema list shows them.
+References inside the schema are shown as written, not expanded.
+
+-F json prints the schema as stored, every value spelled exactly, and
+nothing else.
+
+Arguments:
+  <obi>         The document: a path, - for standard input, or a URL
+  <key>         The schema's key in schemas
+
+Options:
+  -F, --format <format>    Output format: text, or json for the schema as
+                           stored [default: text]
+  -h, --help               Print help (see a summary with '-h')
+
+Examples:
+  ob schema show tasks.obi.json Task
+  ob schema show tasks.obi.json Problem -F json
+
+Exit status:
+  0    shown
+  1    no OBI is published at the URL given
+  2    the arguments are wrong, <obi> cannot be read or fetched, or no
+       schema has the key <key>
+  3    refused: the document declares a version outside the 0.2 line
+  See 'ob help exit-codes'."####;
+
+pub(super) fn cmd_schema_rename() -> Command {
+    leaf(
+        "rename",
+        "Rename a named schema and every same-document reference to it",
+        PAGE_SCHEMA_RENAME,
+        "ob schema rename [options] <obi> <key> <new-key>",
+    )
+    .arg(positional(
+        "obi",
+        "The document to change: a path, or - for standard input",
+        true,
+        false,
+    ))
+    .arg(positional(
+        "key",
+        "The schema's key in schemas",
+        true,
+        false,
+    ))
+    .arg(positional("new-key", "Its new key", true, false))
+    .arg(boolean("dry-run", "Write nothing; print the change"))
+    .arg(format(&["text", "json"]))
+}
+const PAGE_SCHEMA_RENAME: &str = r####"Rename a named schema and every same-document reference to it
+
+Usage: ob schema rename [options] <obi> <key> <new-key>
+
+Change the key of the schema <key> in schemas to <new-key>, and update
+every same-document reference to it in the document resource: each $ref
+and $dynamicRef whose JSON Pointer reaches the schema or a schema inside
+it, such as #/schemas/Task or #/schemas/Task/properties/id. That includes
+spellings that identify it once percent-decoded, such as
+#%2Fschemas%2FTask (§7.3). An updated reference keeps its spelling except
+for the name.
+
+References inside a schema that declares $id are untouched: they resolve
+against that schema's own base, not against the document (§7.2, §7.4).
+References through the schema's $id, or through a plain name it declares,
+do not contain its key and keep working. Other documents reach a schema
+only through an $id, which the rename does not change (§7.5). Content,
+examples, descriptions and extension fields are left alone.
+
+It refuses a <new-key> that another schema already has, or one that does
+not match the name grammar (OBI-04).
+
+Like every edit, it changes <obi> in place, or filters - to standard
+output, keeps the bytes it does not change, refuses a result that breaks
+a rule the document met, and warns about an example it makes fail (see
+'ob help documents'). --dry-run prints the change instead of writing
+it. With -F json, the report adds two arrays: renamed (the old key and
+the new) and updated (the locations of the references it updated).
+
+Arguments:
+  <obi>         The document to change: a path, or - for standard input
+  <key>         The schema's key in schemas
+  <new-key>     Its new key
+
+Options:
+      --dry-run            Write nothing; print the change
+  -F, --format <format>    Output format: text (with --dry-run, a unified
+                           diff) or json (a report holding the RFC 6902
+                           patch that would apply, or that was applied)
+                           [default: text]
+  -h, --help               Print help (see a summary with '-h')
+
+Examples:
+  ob schema rename tasks.obi.json Problem Error
+  ob schema rename tasks.obi.json Task TaskItem --dry-run
+
+Exit status:
+  0    renamed, or no change (<new-key> is already its key)
+  2    the arguments are wrong, such as -F json without --dry-run when
+       <obi> is -; <obi> is a URL or cannot be read; or no schema has
+       the key <key>
+  3    refused: <new-key> is taken or breaks the name grammar, the result
+       would break another rule, or the document declares a version
+       outside the 0.2 line; nothing was written
+  See 'ob help exit-codes'."####;
+
+pub(super) fn cmd_schema_remove() -> Command {
+    leaf(
+        "remove",
+        "Remove a named schema that nothing references",
+        PAGE_SCHEMA_REMOVE,
+        "ob schema remove [options] <obi> <key>",
+    )
+    .arg(positional(
+        "obi",
+        "The document to change: a path, or - for standard input",
+        true,
+        false,
+    ))
+    .arg(positional(
+        "key",
+        "The schema's key in schemas",
+        true,
+        false,
+    ))
+    .arg(boolean("dry-run", "Write nothing; print the change"))
+    .arg(format(&["text", "json"]))
+}
+const PAGE_SCHEMA_REMOVE: &str = r####"Remove a named schema that nothing references
+
+Usage: ob schema remove [options] <obi> <key>
+
+Remove the schema <key> from schemas.
+
+It refuses while anything outside the schema references it, and lists
+each reference with its location: a same-document reference that reaches
+the schema or a schema inside it, by JSON Pointer or by a plain name it
+declares, or a reference to its $id or to an $id declared inside it.
+There is no cascade: change those references first, in your editor or
+with ob patch.
+
+Like every edit, it changes <obi> in place, or filters - to standard
+output, keeps the bytes it does not change, refuses a result that breaks
+a rule the document met, and warns about an example it makes fail (see
+'ob help documents'). --dry-run prints the change instead of writing
+it. With -F json, the report adds the array removed (the schema's
+key).
+
+Arguments:
+  <obi>         The document to change: a path, or - for standard input
+  <key>         The schema's key in schemas
+
+Options:
+      --dry-run            Write nothing; print the change
+  -F, --format <format>    Output format: text (with --dry-run, a unified
+                           diff) or json (a report holding the RFC 6902
+                           patch that would apply, or that was applied)
+                           [default: text]
+  -h, --help               Print help (see a summary with '-h')
+
+Examples:
+  # Refused in the sample: three output contracts reference Problem
+  ob schema remove tasks.obi.json Problem
+  ob schema remove draft.obi.json Unused --dry-run -F json
+
+Exit status:
+  0    removed
+  2    the arguments are wrong, such as -F json without --dry-run when
+       <obi> is -; <obi> is a URL or cannot be read; or no schema has
+       the key <key>
+  3    refused: something references the schema, the result would break
+       another rule, or the document declares a version outside the 0.2
+       line; nothing was written
+  See 'ob help exit-codes'."####;
+
+pub(super) fn cmd_schema_bundle() -> Command {
     leaf(
         "bundle",
-        "Embed external schemas",
-        SCHEMA_BUNDLE_HELP,
-        SCHEMA_BUNDLE_EXAMPLES,
+        "Embed the external schemas the document references",
+        PAGE_SCHEMA_BUNDLE,
+        "ob schema bundle [options] <obi> [<uri>...]",
     )
-    .arg(position("obi", true, false))
-    .arg(position("uri", false, true))
-    .arg(boolean("dry-run", "show the change without writing it"))
+    .arg(positional(
+        "obi",
+        "The document to change: a path, or - for standard input",
+        true,
+        false,
+    ))
+    .arg(positional(
+        "uri",
+        "Only these external schemas, by URI [default: every one]",
+        false,
+        true,
+    ))
+    .arg(boolean("dry-run", "Write nothing; print the change"))
+    .arg(format(&["text", "json"]))
 }
+const PAGE_SCHEMA_BUNDLE: &str = r####"Embed the external schemas the document references
 
-const SCHEMA_BUNDLE_HELP: &str = r#"Embed the external schemas the document references, so it no longer needs
-the network to resolve them. ob fetches each one and adds it to schemas
-with its $id (which must match the URI it came from), along with
-the external schemas it references in turn. References do not change: a
-reference to that URI now resolves to the copy in the document, as JSON
-Schema's bundling defines (spec §7.4). Named URIs limit it to those, and
-what they reference. Each copy is named from its URI; ob schema rename
-renames one. A different declared $id or a non-2020-12 $schema is refused
-with the URI and reason; nothing is written and that URI stays external.
-ob schema list shows what is still external.
+Usage: ob schema bundle [options] <obi> [<uri>...]
 
-Changes <obi> in place. Give - as <obi> to read a document from stdin and
-print the result instead, or use --dry-run to see the change without
-writing it."#;
-const SCHEMA_BUNDLE_EXAMPLES: &str = r#"  ob schema bundle tasks.obi.json
-  ob schema bundle tasks.obi.json https://schemas.example.com/time/date-time.json"#;
+Fetch each external schema the document references (resolved against any
+enclosing $id), by its URI without the fragment, and embed it under schemas
+with that URI as its $id. References do not change: references to the URI
+now resolve to the embedded copy, as JSON Schema's bundling defines (§7.2,
+§7.4), so the document no longer needs that schema from outside. External
+schemas that a copy references in turn are bundled too. Given <uri>
+arguments, it bundles only those, and what they reference in turn.
+
+This is the one command that fetches external schemas, and it embeds
+what it fetches. Checks never fetch one, so bundling is what lets them
+decide, and lets ob invoke call an operation whose value contracts
+reference one.
+
+ob fetches https and http URIs, sending no credentials of its own.
+
+It refuses a fetched schema that declares an $id other than its URI, or a
+$schema other than 2020-12 (OBI-09), and names the URI and the reason.
+Nothing is written, so every schema stays external; name the other URIs
+to bundle them without it. A URI that cannot be fetched stops the bundle
+in the same way.
+
+Each copy's key comes from its URI, such as date-time for
+https://schemas.example.com/date-time.json, made unique among the
+document's schemas. ob schema rename changes the key, and references keep
+resolving through the $id.
+
+Like every edit, it changes <obi> in place, or filters - to standard
+output, keeps the bytes it does not change, refuses a result that breaks
+a rule the document met, and warns about an example it makes fail (see
+'ob help documents'). --dry-run still fetches, and prints the change
+instead of writing it. With -F json, the report adds the array added
+(the keys of the schemas embedded).
+
+Arguments:
+  <obi>         The document to change: a path, or - for standard input
+  <uri>...      Only these external schemas, by URI [default: every one]
+
+Options:
+      --dry-run            Write nothing; print the change
+  -F, --format <format>    Output format: text (with --dry-run, a unified
+                           diff) or json (a report holding the RFC 6902
+                           patch that would apply, or that was applied)
+                           [default: text]
+  -h, --help               Print help (see a summary with '-h')
+
+Examples:
+  ob schema bundle tasks.obi.json
+  ob schema bundle tasks.obi.json --dry-run
+  ob schema bundle tasks.obi.json https://schemas.example.com/date-time.json
+
+Exit status:
+  0    bundled, or no change (no external schema is left to embed)
+  2    the arguments are wrong, such as -F json without --dry-run when
+       <obi> is -; <obi> is a URL or cannot be read; a <uri> is not a
+       schema the document references; or a schema cannot be fetched or
+       read
+  3    refused: a fetched schema declares another $id or $schema, the
+       result would break another rule, or the document declares a
+       version outside the 0.2 line;
+       nothing was written
+  130  cancelled; nothing was written
+  See 'ob help exit-codes'."####;
