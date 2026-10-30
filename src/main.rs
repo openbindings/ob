@@ -9,6 +9,103 @@ use std::{
     process::ExitCode,
 };
 
+/// Commands the surface removed or renamed, each with the hint the draft
+/// gives (spine, section 3, "Help and completion").
+const REMOVED: &[(&str, &str)] = &[
+    (
+        "set",
+        "edit the document in your editor, then run ob validate; scripts use ob patch",
+    ),
+    (
+        "edit",
+        "edit the document in your editor, then run ob validate; scripts use ob patch",
+    ),
+    (
+        "operation add",
+        "edit the document in your editor, then run ob validate; scripts use ob patch",
+    ),
+    (
+        "operation set",
+        "edit the document in your editor, then run ob validate; scripts use ob patch",
+    ),
+    (
+        "operation example",
+        "edit the document in your editor, then run ob validate; scripts use ob patch",
+    ),
+    (
+        "source set",
+        "edit the document in your editor, then run ob validate; scripts use ob patch",
+    ),
+    (
+        "schema add",
+        "edit the document in your editor, then run ob validate; scripts use ob patch",
+    ),
+    (
+        "schema set",
+        "edit the document in your editor, then run ob validate; scripts use ob patch",
+    ),
+    (
+        "dependency add",
+        "edit the document in your editor, then run ob validate; scripts use ob patch",
+    ),
+    (
+        "dependency set",
+        "edit the document in your editor, then run ob validate; scripts use ob patch",
+    ),
+    (
+        "dependency rename",
+        "edit the document in your editor, then run ob validate; scripts use ob patch",
+    ),
+    (
+        "dependency remove",
+        "edit the document in your editor, then run ob validate; scripts use ob patch",
+    ),
+    (
+        "binding set",
+        "edit the document in your editor, then run ob validate; scripts use ob patch",
+    ),
+    (
+        "binding rename",
+        "edit the document in your editor, then run ob validate; scripts use ob patch",
+    ),
+    (
+        "binding remove",
+        "edit the document in your editor, then run ob validate; scripts use ob patch",
+    ),
+    (
+        "synthesize",
+        "ob source add adds a source; ob source pull pulls its operations in",
+    ),
+    (
+        "source import",
+        "ob source add adds a source; ob source pull pulls its operations in",
+    ),
+    (
+        "source inspect",
+        "ob source pull --dry-run shows what a pull would add; ob kind describe shows what a kind reads",
+    ),
+    (
+        "status",
+        "ob source pull --check checks a document against its sources",
+    ),
+    (
+        "source status",
+        "ob source pull --check checks a document against its sources",
+    ),
+    (
+        "kind check",
+        "ob kind list --supports <op> lists what this ob supports; ob kind describe describes a kind",
+    ),
+    (
+        "delegate roles",
+        "ob delegate jobs lists the jobs and their rule",
+    ),
+    (
+        "version",
+        "ob --version prints the version; ob describe describes this ob",
+    ),
+];
+
 fn main() -> ExitCode {
     match run() {
         Ok(code) => ExitCode::from(code),
@@ -21,7 +118,19 @@ fn main() -> ExitCode {
 }
 
 fn run() -> io::Result<u8> {
+    let args: Vec<String> = std::env::args().skip(1).collect();
+    if let Some((path, hint)) = removed_command(&args) {
+        writeln!(
+            io::stderr(),
+            "error: ob has no {path} command\nhint: {hint}"
+        )?;
+        return Ok(2);
+    }
     let mut command = commands::root();
+    if let Some(text) = short_help(&command, &args) {
+        write!(io::stdout(), "{text}")?;
+        return Ok(0);
+    }
     let matches = match command.try_get_matches_from_mut(std::env::args_os()) {
         Ok(matches) => matches,
         Err(error) => {
@@ -70,6 +179,7 @@ fn run() -> io::Result<u8> {
             .expect("parsed command exists");
     }
     let Some(id) = CommandId::from_path(&path) else {
+        // A group named without a subcommand, or a help topic: print its page.
         definition.print_long_help()?;
         writeln!(io::stdout())?;
         return Ok(0);
@@ -88,4 +198,48 @@ fn run() -> io::Result<u8> {
         "ob: '{path}' is not implemented in this Rust command-surface build; no operation ran."
     )?;
     Ok(3)
+}
+
+/// A removed command typed as the leading words of the command line.
+fn removed_command(args: &[String]) -> Option<(&'static str, &'static str)> {
+    REMOVED.iter().copied().find(|(path, _)| {
+        let words: Vec<_> = path.split(' ').collect();
+        args.len() >= words.len() && args.iter().zip(&words).all(|(a, w)| a == w)
+    })
+}
+
+/// `-h` prints the summary cut from the command's page (usage, first
+/// paragraph, commands, options, examples, exit status); `--help` and
+/// `ob help <command>` print the whole page.
+fn short_help(root: &clap::Command, args: &[String]) -> Option<String> {
+    let mut words = args.iter();
+    let mut path = String::from("ob");
+    let mut current = root;
+    let mut seen = false;
+    for word in words.by_ref() {
+        if word == "-h" {
+            seen = true;
+            break;
+        }
+        if word == "--" {
+            return None;
+        }
+        match current.find_subcommand(word) {
+            Some(sub) if !word.starts_with('-') => {
+                path.push(' ');
+                path.push_str(word);
+                current = sub;
+            }
+            _ => break,
+        }
+    }
+    if !seen && !words.any(|word| word == "-h") {
+        return None;
+    }
+    let text = if path == "ob" {
+        commands::ROOT_HELP
+    } else {
+        commands::summary(&path)?
+    };
+    Some(format!("{}\n\n{text}", commands::NOTICE))
 }

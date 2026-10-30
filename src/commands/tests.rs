@@ -23,7 +23,7 @@ fn command_tree_is_well_formed() {
 }
 
 #[test]
-fn every_domain_path_and_flag_matches_the_frozen_go_surface() {
+fn every_domain_path_and_flag_matches_the_frozen_surface() {
     fn walk(reference: &Value, root: &Command, count: &mut usize) {
         if reference["id"].as_str().is_some_and(|id| !id.is_empty()) {
             let path = reference["path"].as_str().unwrap();
@@ -37,10 +37,8 @@ fn every_domain_path_and_flag_matches_the_frozen_go_surface() {
                 CommandId::from_path(path).is_some(),
                 "dispatch missing for {path}"
             );
-            let flags = reference["flags"]
-                .as_array()
-                .map(Vec::as_slice)
-                .unwrap_or(&[]);
+            assert!(summary(path).is_some(), "no -h summary for {path}");
+            let flags = reference["flags"].as_array().unwrap();
             let actual: Vec<_> = cmd
                 .get_arguments()
                 .filter(|a| a.get_long().is_some())
@@ -54,24 +52,43 @@ fn every_domain_path_and_flag_matches_the_frozen_go_surface() {
                     .unwrap_or_else(|| panic!("missing {path} --{name}"));
                 assert_eq!(
                     arg.get_short().map(|c| c.to_string()),
-                    f["short"].as_str().map(str::to_owned)
+                    f["short"].as_str().map(str::to_owned),
+                    "{path} --{name} short form"
                 );
-                assert_eq!(arg.is_hide_set(), f["hidden"].as_bool().unwrap_or(false));
-                if f["kind"] == "stringArray" {
-                    assert!(matches!(arg.get_action(), ArgAction::Append));
-                }
+                assert_eq!(
+                    matches!(arg.get_action(), ArgAction::Append),
+                    f["repeatable"].as_bool().unwrap(),
+                    "{path} --{name} repeatable"
+                );
+                assert_eq!(
+                    arg.is_required_set(),
+                    f["required"].as_bool().unwrap(),
+                    "{path} --{name} required"
+                );
+                let takes_value = f["takesValue"].as_bool().unwrap();
+                let is_boolean = arg
+                    .get_value_names()
+                    .is_some_and(|names| names[0] == "BOOL");
+                assert_eq!(takes_value, !is_boolean, "{path} --{name} takes a value");
             }
+            let arguments = reference["arguments"].as_array().unwrap();
             let positions: Vec<_> = cmd
                 .get_arguments()
                 .filter(|a| a.get_long().is_none())
                 .collect();
-            assert_eq!(
-                positions.iter().filter(|a| a.is_required_set()).count(),
-                reference["min"].as_u64().unwrap() as usize,
-                "required positions for {path}"
-            );
-            if reference["max"].as_i64().unwrap() >= 0 {
-                assert_eq!(positions.len(), reference["max"].as_u64().unwrap() as usize);
+            assert_eq!(positions.len(), arguments.len(), "positions for {path}");
+            for (arg, expected) in positions.iter().zip(arguments) {
+                assert_eq!(
+                    arg.get_id().as_str(),
+                    expected["name"].as_str().unwrap(),
+                    "{path}"
+                );
+                assert_eq!(
+                    arg.is_required_set(),
+                    expected["required"].as_bool().unwrap(),
+                    "{path} <{}>",
+                    arg.get_id()
+                );
             }
             *count += 1;
         }
@@ -82,10 +99,10 @@ fn every_domain_path_and_flag_matches_the_frozen_go_surface() {
         }
     }
     let reference: Value =
-        serde_json::from_str(include_str!("../../tests/fixtures/go-surface.json")).unwrap();
+        serde_json::from_str(include_str!("../../tests/fixtures/surface.json")).unwrap();
     let mut count = 0;
     walk(&reference, &root(), &mut count);
-    assert_eq!(count, 73);
+    assert_eq!(count, 44);
 }
 
 #[test]
@@ -103,7 +120,7 @@ fn explicit_false_repetition_and_opaque_values_are_preserved() {
         "--idempotent=false",
         "--preference",
         "-7",
-        "--content",
+        "--data",
         "{\"n\":9007199254740993}",
     ]);
     assert_eq!(id, CommandId::BindingAdd);
@@ -114,7 +131,7 @@ fn explicit_false_repetition_and_opaque_values_are_preserved() {
     );
     assert_eq!(matches.get_one::<i64>("preference"), Some(&-7));
     assert_eq!(
-        matches.get_one::<String>("content").unwrap(),
+        matches.get_one::<String>("data").unwrap(),
         "{\"n\":9007199254740993}"
     );
     syntax::validate(id, &matches, &command).unwrap();
@@ -146,19 +163,71 @@ fn explicit_false_repetition_and_opaque_values_are_preserved() {
             .collect::<Vec<_>>(),
         ["b2", "b1"]
     );
+    // --force alone and --force=<entry> are distinct values of one option.
+    let (id, m, command) = parsed(&["ob", "source", "pull", "x", "--force=a.b", "--force=Task"]);
+    assert_eq!(
+        m.get_many::<String>("force")
+            .unwrap()
+            .map(String::as_str)
+            .collect::<Vec<_>>(),
+        ["a.b", "Task"]
+    );
+    syntax::validate(id, &m, &command).unwrap();
+    let (id, m, command) = parsed(&["ob", "source", "pull", "x", "httpApi", "--force"]);
+    assert_eq!(
+        m.get_many::<String>("force")
+            .unwrap()
+            .map(String::as_str)
+            .collect::<Vec<_>>(),
+        [""]
+    );
+    assert_eq!(
+        m.get_many::<String>("key")
+            .unwrap()
+            .map(String::as_str)
+            .collect::<Vec<_>>(),
+        ["httpApi"]
+    );
+    syntax::validate(id, &m, &command).unwrap();
 }
 
 #[test]
 fn missing_required_flags_invalid_types_and_repeated_singletons_refuse() {
     for args in [
-        vec!["ob", "source", "add", "x", "source"],
         vec!["ob", "binding", "add", "x", "b", "--operation", "op"],
-        vec!["ob", "codegen", "x", "--lang", "go"],
+        vec!["ob", "delegate", "add", "x"],
+        vec!["ob", "delegate", "resolve", "--job", "invoke"],
         vec!["ob", "show", "x", "-F", "yaml"],
         vec!["ob", "show", "x", "-F", "json", "-F", "text"],
-        vec!["ob", "binding", "set", "x", "b", "--preference", "1.5"],
-        vec!["ob", "binding", "set", "x", "b", "--idempotent=maybe"],
+        vec!["ob", "kind", "list", "--supports", "synthesize"],
+        vec!["ob", "delegate", "add", "x", "--job", "inspect"],
+        vec![
+            "ob",
+            "binding",
+            "add",
+            "x",
+            "b",
+            "--operation",
+            "op",
+            "--source",
+            "s",
+            "--preference",
+            "1.5",
+        ],
+        vec![
+            "ob",
+            "binding",
+            "add",
+            "x",
+            "b",
+            "--operation",
+            "op",
+            "--source",
+            "s",
+            "--idempotent=maybe",
+        ],
         vec!["ob", "invoke", "x", "op", "--timeout", "tomorrow"],
+        vec!["ob", "context", "set", "x", "s"],
         vec!["ob", "help", "primer"],
         vec!["ob", "operation", "wat", "--help"],
     ] {
@@ -177,54 +246,64 @@ fn cross_argument_grammar_refuses_without_interpreting_documents() {
             "x",
             "--operation",
             "op",
+            "--examples",
             "--input",
             "0",
-            "--output",
-            "0",
         ],
-        vec!["ob", "validate", "-", "--operation", "op", "--input", "-"],
-        vec!["ob", "source", "pull", "x", "--target", "target"],
-        vec!["ob", "source", "pull", "x", "s", "--operation", "op"],
         vec![
             "ob",
-            "source",
-            "pull",
+            "validate",
             "x",
-            "s",
-            "--target",
-            "t",
+            "y",
             "--operation",
             "op",
-            "--new-operation",
-            "new",
+            "--examples",
+        ],
+        vec!["ob", "validate", "-", "--operation", "op", "--input", "-"],
+        vec![
+            "ob",
+            "compat",
+            "x",
+            "c",
+            "--dependency",
+            "d",
+            "--operation",
+            "o",
         ],
         vec!["ob", "merge", "x", "y", "--ours", "--theirs"],
+        vec!["ob", "merge", "x", "y", "--onto", "o"],
+        vec!["ob", "merge", "-", "y", "-F", "json"],
         vec!["ob", "fmt", "x", "y", "--canonical"],
-        vec![
-            "ob", "context", "set", "scope", "--value", "@context", "--unset", "header.X",
-        ],
-        vec!["ob", "context", "set", "scope", "--bearer-token", "SECRET"],
-        vec![
-            "ob",
-            "context",
-            "set",
-            "scope",
-            "--header",
-            "Authorization=SECRET",
-        ],
+        vec!["ob", "fmt", "x", "--canonical", "--check"],
+        vec!["ob", "source", "pull", "x", "--check", "--force"],
+        vec!["ob", "source", "pull", "x", "--check", "--dry-run"],
+        vec!["ob", "source", "pull", "x", "--force", "--force=entry"],
+        vec!["ob", "source", "rename", "-", "a", "b", "-F", "json"],
+        vec!["ob", "invoke", "x", "op", "--frames", "--preflight"],
         vec![
             "ob",
-            "context",
+            "invoke",
+            "x",
+            "op",
+            "--context",
+            "{\"token\":\"SECRET\"}",
+        ],
+        vec!["ob", "context", "set", "x", "s", "{\"token\":\"SECRET\"}"],
+        vec![
+            "ob",
+            "delegate",
             "set",
-            "scope",
-            "--credential",
-            "primary=SECRET",
+            "d",
+            "--add-job",
+            "pull",
+            "--remove-job",
+            "pull",
         ],
     ] {
         let (id, matches, command) = parsed(&args);
         let error =
             syntax::validate(id, &matches, &command).expect_err("invalid argument relationship");
-        assert!(!error.contains("SECRET"));
+        assert!(!error.contains("SECRET"), "{args:?}: {error}");
     }
 }
 
